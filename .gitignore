@@ -1,0 +1,53 @@
+# ============================================================================
+# ZIN-NUR v2 — git'ga tushmaydigan fayllar
+# ============================================================================
+
+# ---- SIRLAR (eng muhim) ----
+# .env ichida DB paroli, JWT maxfiy kaliti, LiveKit siri bor.
+# .env.example esa NAMUNA — u git'da bo'lishi KERAK.
+.env
+.env.*
+!.env.example
+
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+[Dd]ebug/
+[Rr]elease/
+TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+.vs/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-error.log*
+.eslintcache
+
+# ---- Vaqtinchalik / OS ----
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*.tmp
+migration.sql
+
+# ---- IDE ----
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# ---- Ma'lumot / zaxira ----
+backups/
+*.dump
+*.sql.gz

@@ -1,0 +1,411 @@
+# =============================================================================
+#  ZIN-NUR v2 — DEVELOPMENT (mahalliy ishlab chiqish)
+# =============================================================================
+#
+#  ISHGA TUSHIRISH:
+#      cp .env.example .env      # bir marta
+#      docker compose build
+#      docker compose up -d
+#      docker compose logs -f api
+#
+#  PROD uchun bu fayl ISHLATILMAYDI — docker-compose.prod.yml MUSTAQIL fayl.
+#  (Nega mustaqil — o'sha faylning boshidagi izohga qarang.)
+#
+#  Xizmat nomlari, portlar va tarmoq nomi SPEC 8-bo'limidan olingan.
+#  ULAR SHARTNOMA — o'zgartirilmaydi.
+# =============================================================================
+
+# Loyiha nomi: konteyner/volume/tarmoq prefiksi shu bo'ladi (zinnur_*).
+# Papka nomi o'zgarsa ham volume'lar YO'QOLMAYDI — mana shuning uchun qo'lda yozamiz.
+# LOYIHA NOMI — eski loyiha (zinnur-legacy) bilan ARALASHMASLIGI uchun majburiy.
+# Ikkalasi ham `zinnur` deb nomlanganda Docker ularni BITTA loyiha deb
+# birlashtirgan va bir-birining konteynerlarini o'chirib yuborardi.
+name: zinnur-v2
+services:
+
+  # ===========================================================================
+  #  POSTGRESQL 17 — asosiy baza
+  # ===========================================================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: zinnur-v2-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # initdb argumentlari FAQAT birinchi ishga tushishda (volume bo'sh bo'lsa)
+      # qo'llanadi. Keyin o'zgartirish uchun volume'ni o'chirish kerak.
+      # --locale=C + UTF8: eng tez va eng bashorat qilinadigan tartiblash.
+      # Uzbek/kirill matnini saqlashga to'siq emas (UTF8 kodlash saqlaydi),
+      # faqat ORDER BY tartibi bayt bo'yicha bo'ladi.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: ${TZ}
+
+    # ---- 200 foydalanuvchi uchun sozlash --------------------------------------
+    # max_connections=200: api'ning bitta nusxasi ~50 ulanish oladi
+    # (POSTGRES_MAX_POOL_SIZE), qolgani migratsiya, psql, kelajakdagi 2-3 nusxa
+    # uchun zaxira. Bundan KO'P qo'yish zararli: postgres har ulanishga alohida
+    # OS process ochadi (~10 MB), 1000 ulanish = server o'ladi.
+    #
+    # shared_buffers=256MB: postgres o'z keshi. Odatiy qoida — RAM ning 25%.
+    # Dev mashinada 256MB yetarli va noutbukni "yemaydi".
+    #
+    # max_wal_size: tez-tez CHECKPOINT bo'lishining oldini oladi. Dars boshlanishida
+    # 200 ta Attendance yozuvi bir vaqtda kelganda checkpoint "to'lqini" bo'lmasin.
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=256MB
+      # Sekin so'rovlarni logga chiqarish (>500 ms). Dev'da N+1 muammosini
+      # darrov ko'rsatadi — 200 foydalanuvchida N+1 = o'lim.
+      - -c
+      - log_min_duration_statement=500
+
+    ports:
+      # SPEC 8: host 5440 -> ichki 5432.
+      # 5432 EMAS — mashinada boshqa postgres bo'lsa to'qnashmasin.
+      - "5440:5432"
+
+    volumes:
+      # ATAYLAB nomlangan (named) volume: `docker compose down` da ham,
+      # konteyner qayta yaratilganda ham ma'lumot QOLADI.
+      # Butunlay tozalash: docker compose down -v (EHTIYOT BO'LING).
+      - postgres-data:/var/lib/postgresql/data
+      # SPEC 1-bo'limdagi infra/postgres papkasi. Ichidagi *.sql / *.sh fayllar
+      # FAQAT birinchi initsializatsiyada, alifbo tartibida bajariladi.
+      # Hozir bo'sh — sxemani EF Core migratsiyalari boshqaradi.
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      # -h 127.0.0.1 MAJBURIY: usiz pg_isready unix-socket orqali tekshiradi va
+      # postgres TCP tinglashga ulgurmasdan turib "sog'lom" deb javob beradi —
+      # keyin api "Connection refused" bilan qulaydi (klassik poyga holati).
+      # $$ = compose interpolatsiyasidan qochish, o'zgaruvchini KONTEYNER ochsin.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
+  #  REDIS 7 — SignalR backplane + presence + rate-limit
+  # ===========================================================================
+  #  Redis bu loyihada KESH EMAS, balki HOLAT ombori:
+  #    1) SignalR backplane (SPEC 6) — api'ning nusxalari o'rtasida xabar
+  #    2) IPresenceService (SPEC 4)  — darsda kim borligi
+  #    3) chat rate-limit (SPEC 6.2) — 1 xabar / 2 sekund
+  #  Shu sababli ma'lumotni yo'qotib bo'lmaydi => appendonly + named volume.
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: zinnur-v2-redis
+    restart: unless-stopped
+
+    command:
+      - redis-server
+      # --- Bardoshlilik ---
+      # appendonly yes: har yozuv AOF jurnaliga tushadi. Redis qayta ishga
+      # tushsa presence va backplane holati tiklanadi.
+      - --appendonly
+      - "yes"
+      # everysec: sekundiga bir marta diskka fsync. `always` juda sekin,
+      # `no` esa 30 sekundgacha ma'lumot yo'qotadi. Oraliq — to'g'ri tanlov.
+      - --appendfsync
+      - everysec
+      # --- RDB snapshot O'CHIRILGAN (bo'sh --save) ---
+      # NEGA (200 foydalanuvchi uchun MUHIM): RDB snapshot `fork()` qiladi.
+      # fork paytida Redis bir necha yuz millisekundga QOTADI. SignalR
+      # backplane qotsa — 200 ta odamning chati va presence'i "muzlaydi".
+      # AOF bizga yetarli bardoshlilikni fork'siz beradi.
+      - --save
+      - ""
+      # --- Xotira ---
+      # 512mb: 200 ta ishtirokchi presence + chat rate-limit kalitlari uchun
+      # aslida ~20 MB yetadi; zaxira bilan olingan.
+      - --maxmemory
+      - 512mb
+      # noeviction: XOTIRA TO'LSA ESKI KALITNI O'CHIRMAYDI, balki YOZUVNI RAD ETADI.
+      # Bu ataylab: `allkeys-lru` bo'lsa Redis jimgina presence yozuvini o'chirib
+      # yuboradi va davomat noto'g'ri hisoblanadi. Xato ochiq bo'lgani yaxshi.
+      - --maxmemory-policy
+      - noeviction
+
+    ports:
+      # SPEC 8: host 6390 -> ichki 6379. Prod'da BU QATOR YO'Q.
+      - "6390:6379"
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      # `redis-cli ping` server javob bermasa ham 0 qaytarishi mumkin (ba'zi
+      # xato holatlarida), shuning uchun javobni PONG ga solishtiramiz.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
+  #  LIVEKIT — SFU (video/audio)
+  # ===========================================================================
+  #  Eng og'ir xizmat. 200 ishtirokchi uchun sozlash sirlari
+  #  infra/livekit/livekit.yaml faylida batafsil izohlangan.
+  # ===========================================================================
+  livekit:
+    image: livekit/livekit-server:v1.8
+    container_name: zinnur-v2-livekit
+    restart: unless-stopped
+
+    # Image'ning ENTRYPOINT'i `livekit-server`, shuning uchun bu yerda faqat
+    # argumentlar. `--config` — mount qilingan yaml.
+    command: ["--config", "/etc/livekit/livekit.yaml"]
+
+    environment:
+      # ---- KALITLAR ----
+      # LiveKit konfiguratsiya faylida ${...} ni KENGAYTIRMAYDI (env
+      # substitution YO'Q — yaml qanday yozilgan bo'lsa shunday o'qiydi).
+      # Shuning uchun sir faylga EMAS, mana shu env orqali beriladi.
+      # LIVEKIT_KEYS fayldagi `keys:` blokini BUTUNLAY almashtiradi.
+      # Format qat'iy YAML: "<kalit>: <sir>" — ikki nuqtadan keyin PROBEL SHART.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      TZ: ${TZ}
+
+    ports:
+      # --- SPEC 8 dagi uchta port ---
+      # 7880/tcp — signalling: WebSocket + REST API. Brauzer shu yerga ulanadi.
+      - "7880:7880"
+      # 7881/tcp — RTC/TCP zaxira. Qattiq korporativ firewall UDP'ni to'sganda
+      # media shu port orqali o'tadi. Sekinroq, lekin "umuman ishlamaydi"dan yaxshi.
+      - "7881:7881"
+      # 7882/udp — RTC UDP MUX: BARCHA ishtirokchilarning butun media oqimi
+      # SHU BITTA portdan o'tadi.
+      # NEGA MUX (diapazon emas): 200 foydalanuvchi x N ta trek = minglab port
+      # kerak bo'lardi. Docker esa har bir e'lon qilingan portga alohida
+      # proxy process ochadi — 1000 port = server yotadi. Mux = 1 port = 1 socket.
+      - "7882:7882/udp"
+      # 3478/udp — TURN rele (infra/livekit/livekit.yaml, 5-bo'lim).
+      # UDP 7882 ga umuman chiqa olmaydigan (qattiq firewall ortidagi)
+      # foydalanuvchilar uchun zaxira yo'l.
+      # Dev'da TURN/TLS o'chiq (tls_port: 0), shuning uchun 5349 porti YO'Q.
+      - "3478:3478/udp"
+
+    volumes:
+      - ./infra/livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+      # Nomlangan volume: hozircha LiveKit holatni Redis'da saqlaydi, lekin
+      # keyinchalik yozib olish (egress/recording) yoqilganda fayllar shu yerga
+      # tushadi. Oldindan tayyorlab qo'yamiz — keyin ma'lumot yo'qolmasin.
+      - livekit-data:/data
+
+    depends_on:
+      # LiveKit ishga tushishi bilan Redis'ga ulanadi; Redis tayyor bo'lmasa
+      # qayta-qayta urinib, loglarni axlat bilan to'ldiradi.
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      # LiveKit ildiz yo'lida (`/`) oddiy sog'liq javobini beradi.
+      # Image alpine asosida — busybox wget mavjud, curl YO'Q.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7880/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
+  #  API — .NET 9 Web API + SignalR
+  # ===========================================================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: zinnur/api:dev
+    container_name: zinnur-v2-api
+    restart: unless-stopped
+
+    # env_file: .env dagi HAMMA o'zgaruvchi konteynerga tushadi.
+    # Bu "qo'shimcha" narsalar (VITE_*, DOMAIN...) uchun zararsiz, lekin
+    # yangi sozlama qo'shganda compose'ni tahrirlash shart emas — qulay.
+    env_file:
+      - .env
+
+    # environment: env_file USTIDAN yozadi (ustunlik yuqori).
+    # Bu yerda SPEC 8-bo'limidagi ANIQ `__` kalitlari yig'iladi.
+    # `__` — .NET konfiguratsiyasida ichma-ich kalit ajratgichi
+    # (ConnectionStrings__Postgres  ==  "ConnectionStrings:Postgres").
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # Konteyner ichida doim 8080. Host'ga 5080 orqali chiqadi.
+      ASPNETCORE_URLS: http://+:8080
+
+      # ---- Baza ----
+      # Host=postgres — Docker ichki DNS: xizmat nomi = host nomi.
+      # Maximum Pool Size — .env dagi izohga qarang (200 user != 200 ulanish).
+      # Timeout=15 — baza ko'tarilmayotgan bo'lsa 15 sekundda ochiq xato bersin,
+      # so'rov cheksiz osilib qolmasin.
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Maximum Pool Size=${POSTGRES_MAX_POOL_SIZE:-50};Timeout=15;Command Timeout=30"
+
+      # ---- Redis ----
+      # SPEC 8 dagi format: "host:port" (StackExchange.Redis sintaksisi).
+      # abortConnect=false MUHIM: Redis bir lahza yo'q bo'lsa api ISHGA
+      # TUSHMAY qolmasin, balki fonda qayta ulanaverisin.
+      ConnectionStrings__Redis: "redis:6379,abortConnect=false,connectTimeout=5000"
+
+      # ---- JWT (o'z tokenlarimiz) ----
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__Secret: ${JWT_SECRET}
+      Jwt__AccessMinutes: ${JWT_ACCESS_MINUTES}
+      Jwt__RefreshDays: ${JWT_REFRESH_DAYS}
+
+      # ---- LiveKit: IKKI ALOHIDA MANZIL ----
+      # Url       -> ICHKI, server-server chaqiruvlar (xona boshqaruvi).
+      #              Brauzerga hech qachon berilmaydi.
+      # PublicUrl -> BRAUZERGA qaytariladi (LiveKitJoinDto.ServerUrl).
+      #              Brauzer hal qila oladigan manzil bo'lishi SHART:
+      #              dev'da ws://localhost:7880, prod'da wss://livekit.<domen>
+      #              (`ws://livekit:7880` — Docker ichki DNS nomi, brauzer bilmaydi;
+      #               prod'da HTTPS sahifadan ws:// mixed-content sifatida bloklanadi).
+      LiveKit__Url: ${LIVEKIT_INTERNAL_URL}
+      LiveKit__PublicUrl: ${LIVEKIT_PUBLIC_URL}
+      LiveKit__ApiKey: ${LIVEKIT_API_KEY}
+      LiveKit__ApiSecret: ${LIVEKIT_API_SECRET}
+
+      # ---- CORS ----
+      # .NET massivi: __0, __1, ... (SPEC 8).
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN_0}
+      Cors__AllowedOrigins__1: ${CORS_ORIGIN_1}
+
+      # ---- .NET ish faoliyati ---------------------------------------------
+      # Server GC: ko'p yadroli, yuqori o'tkazuvchanlikli rejim. ASP.NET uchun
+      # odatda sukut bo'yicha yoqiq, lekin konteynerda ba'zan Workstation GC
+      # tanlanadi — aniq yozib qo'yamiz. 200 ta parallel SignalR ulanishida
+      # GC pauzalari sezilarli qisqaradi.
+      DOTNET_gcServer: "1"
+      # Konteyner CPU/RAM chegarasini hurmat qilsin.
+      DOTNET_GCHeapHardLimitPercent: "75"
+
+    ports:
+      # SPEC 8: host 5080 -> ichki 8080.
+      - "5080:8080"
+
+    volumes:
+      # ASP.NET Data Protection kalit halqasi. Konteyner qayta yaratilganda
+      # kalitlar yo'qolsa — shifrlangan cookie/antiforgery tokenlar buziladi.
+      # (Backend `PersistKeysToFileSystem("/app/keys")` deb sozlashi kerak.)
+      - dataprotection-keys:/app/keys
+
+    depends_on:
+      # HARD REQUIREMENT: api baza va redis TAYYOR bo'lgunicha kutadi.
+      # `service_started` YETARLI EMAS — konteyner ko'tarilgani baza so'rov
+      # qabul qilishga tayyor degani emas. Migratsiya "Connection refused"
+      # bilan yiqilardi.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      livekit:
+        # LiveKit sog'lomligini KUTMAYMIZ: api'ning ishga tushishi unga
+        # bog'liq emas (token imzolash offline amal). Video kechroq
+        # tayyor bo'lsa ham login/jadval ishlayveradi.
+        condition: service_started
+
+    healthcheck:
+      # SPEC 5: /health/ready — baza va redis ulanishini ham tekshiradi.
+      # aspnet:9.0-alpine da busybox wget bor, curl YO'Q.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # start_period 40s: EF Core migratsiyasi + JIT "isishi" uchun vaqt.
+      # Bu davrda muvaffaqiyatsiz urinishlar "unhealthy" deb hisoblanmaydi.
+      start_period: 40s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
+  #  WEB — Vue 3 + Vite, nginx orqali statik tarqatiladi
+  # ===========================================================================
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # DIQQAT: bular BUILD-TIME. Vite ularni JS bundle ichiga "quyadi".
+        # Qiymat o'zgarsa `docker compose build web` QAYTA bajarilishi shart —
+        # konteynerni restart qilish YETARLI EMAS.
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_HUB_URL: ${VITE_HUB_URL}
+    image: zinnur/web:dev
+    container_name: zinnur-v2-web
+    restart: unless-stopped
+
+    # nginx ishga tushgach bu o'zgaruvchilarni O'QIMAYDI (yuqoridagi izoh).
+    # Shartnoma talabi bo'yicha ulanadi va kelajakda entrypoint-shablon
+    # (envsubst) qo'shilsa darrov ishlatiladi.
+    env_file:
+      - .env
+
+    ports:
+      # SPEC 8: host 5173 -> ichki 80.
+      - "5173:80"
+
+    depends_on:
+      api:
+        # Frontend ochilganda api allaqachon javob bersin — birinchi
+        # ekranda "Network Error" ko'rinmasin.
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    networks: [zinnur-v2-net]
+
+
+# =============================================================================
+#  TARMOQ
+# =============================================================================
+networks:
+  # SPEC 8: `zinnur-v2-net`, bridge drayveri.
+  # Barcha xizmatlar bir tarmoqda => bir-birini XIZMAT NOMI bilan topadi
+  # (postgres, redis, livekit, api). IP manzil hech qayerda qo'lda yozilmaydi.
+  zinnur-v2-net:
+    name: zinnur-v2-net
+    driver: bridge
+
+# =============================================================================
+#  VOLUME'LAR (nomlangan — restart/recreate'da ma'lumot YO'QOLMAYDI)
+# =============================================================================
+volumes:
+  postgres-data:
+    name: zinnur-v2-postgres-data
+  redis-data:
+    name: zinnur-v2-redis-data
+  livekit-data:
+    name: zinnur-v2-livekit-data
+  dataprotection-keys:
+    name: zinnur-v2-dataprotection-keys

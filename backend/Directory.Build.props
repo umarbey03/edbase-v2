@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    Barcha loyihalar uchun UMUMIY sozlamalar (DRY).
+    Har .csproj da takrorlamaslik uchun shu yerda bir marta yoziladi.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Sifat: ogohlantirish = xato. Chala kod prod'ga chiqmaydi. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Deterministik build (Docker qatlam keshi uchun) -->
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

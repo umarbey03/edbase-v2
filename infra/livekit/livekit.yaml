@@ -1,0 +1,405 @@
+# =============================================================================
+#  ZIN-NUR v2 — LIVEKIT SFU KONFIGURATSIYASI
+#  Image: livekit/livekit-server:v1.8   (tekshirilgan versiya: 1.8.4)
+# =============================================================================
+#
+#  MAQSAD: BITTA serverda PARALLEL xonalar va JAMI 200+ bir vaqtdagi ishtirokchi.
+#
+#  SFU nima qiladi: har bir ishtirokchi o'z oqimini SERVERGA bir marta yuboradi,
+#  server esa uni qolganlarga tarqatadi. P2P bo'lganda 200 odam = har birida 199
+#  ta ulanish = mumkin emas. SFU'da har kimda 1 ta yuklash + N ta yuklab olish.
+#
+#  ENG MUHIM QOIDA (pastdagi barcha sozlamalar shunga xizmat qiladi):
+#  200 kishilik darsda hamma bir vaqtda kamera yoqmaydi. Odatiy holat —
+#  1 o'qituvchi + 1-2 assistent video beradi, 200 talaba faqat KO'RADI.
+#  Server yuki "kim yuboradi" emas, "kim nechta oqimga OBUNA bo'ladi" bilan
+#  belgilanadi. Shuning uchun `limit.subscription_limit_video` — eng qimmatli
+#  sozlama (pastga qarang).
+#
+#  DIQQAT — KONFIGURATSIYA QATTIQ (STRICT) O'QILADI:
+#  LiveKit noma'lum kalitni ko'rsa ISHGA TUSHMAYDI. Bu yerdagi har bir kalit
+#  `livekit-server help-verbose` chiqishi bo'yicha 1.8.4 da tekshirilgan.
+#  Yangi kalit qo'shishdan oldin o'sha buyruq bilan tasdiqlang.
+#
+#  MUHIM — ${...} KENGAYTIRILMAYDI:
+#  LiveKit bu faylda muhit o'zgaruvchilarini ALMASHTIRMAYDI. `${FOO}` deb
+#  yozsangiz, qiymat aynan `${FOO}` degan MATN bo'lib qoladi. Sirlar shuning
+#  uchun env orqali beriladi (`keys` bo'limiga qarang).
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+#  1. SIGNALLING PORTI (WebSocket + REST)
+# -----------------------------------------------------------------------------
+#  Brauzer AVVAL shu portga WebSocket ochadi: token tekshiriladi, xona holati
+#  va SDP almashinuvi shu yerdan o'tadi. Media BU PORTDAN O'TMAYDI.
+#  SPEC 8-bo'lim: TCP 7880.
+#  Prod'da bu port to'g'ridan-to'g'ri internetga chiqarilmaydi — host nginx
+#  wss://livekit.<domen> ni TLS bilan yopib, shu yerga uzatadi.
+port: 7880
+
+
+# -----------------------------------------------------------------------------
+#  2. RTC — HAQIQIY MEDIA TRAFIGI
+# -----------------------------------------------------------------------------
+rtc:
+  # --- UDP MUX: BITTA PORT, BARCHA ISHTIROKCHILAR --------------------------
+  # SPEC 8-bo'lim: UDP 7882.
+  #
+  # NEGA MUX, DIAPAZON EMAS (200 foydalanuvchi uchun HAL QILUVCHI):
+  #   * Klassik usulda har ICE ulanishi alohida UDP port oladi (masalan
+  #     50000-60000 diapazoni). 200 ishtirokchi => yuzlab ochiq port.
+  #   * Docker har E'LON QILINGAN port uchun alohida userland-proxy jarayoni
+  #     ochadi. 10 000 portli diapazonni `ports:` ga yozib bo'lmaydi —
+  #     Docker literal ravishda o'lib qoladi (har port ~10 MB RAM).
+  #   * Firewall'da bitta qatorni ochish (7882/udp) — bir necha ming qatorga
+  #     qaraganda ancha xavfsiz va xatosiz.
+  #   * Mux'da LiveKit bitta socketni o'qib, paketlarni ICE `ufrag` bo'yicha
+  #     kerakli sessiyaga yo'naltiradi. Bu qo'shimcha xarajat deyarli nolga teng.
+  # Yagona shart: shu port firewall va NAT'da OCHIQ bo'lishi kerak.
+  udp_port: 7882
+
+  # --- TCP ZAXIRA ---
+  # SPEC 8-bo'lim: TCP 7881.
+  # Ba'zi korporativ/maktab tarmoqlari UDP'ni butunlay to'sadi. Shunda media
+  # TCP orqali o'tadi. TCP'da yo'qolgan paket qayta yuboriladi => kechikish
+  # va "sakrash" ko'payadi, lekin dars UMUMAN ochilmasligidan ko'ra yaxshi.
+  tcp_port: 7881
+
+  # UDP muvaffaqiyatsiz bo'lsa TCP'ga avtomatik o'tishga ruxsat.
+  # Buni `false` qilish — UDP'si to'silgan foydalanuvchini butunlay yo'qotish.
+  allow_tcp_fallback: true
+
+  # --- TASHQI IP ---
+  # Server ICE nomzodlarida (candidates) o'zining OQ IP manzilini e'lon qilishi
+  # shart. Konteyner ichida esa u faqat 172.x.x.x (Docker bridge) ni ko'radi.
+  # `true` bo'lsa LiveKit tashqi IP'ni avtomatik aniqlaydi (STUN orqali).
+  #
+  # AGAR VIDEO ULANMASA — birinchi navbatda SHU YERGA QARANG. Ba'zi hosting
+  # muhitlarida (bir nechta interfeys, GRE/tunnel, murakkab NAT) avtomatik
+  # aniqlash xato ishlaydi. Shunda quyidagi qatorni yoqing va oq IP'ni
+  # qo'lda yozing:
+  # external_ip: "203.0.113.10"
+  use_external_ip: true
+
+  # 127.0.0.1 nomzodlarini e'lon qilmaslik. Ular boshqa mashinada hech qachon
+  # ishlamaydi, faqat ICE tekshiruvini uzaytiradi (ulanish sekinlashadi).
+  enable_loopback_candidate: false
+
+  # ICE-lite O'CHIRIQ (ataylab).
+  # ICE-lite serverni "passiv" qiladi: u o'zi ulanishni tekshirmaydi.
+  # Bitta oq IP'li serverda tezroq ishlaydi, LEKIN NAT ortidagi ba'zi
+  # klientlar bilan ulanish uzilib qoladi. Zinnur klientlari uy/mobil
+  # internetdan (turli xil NAT) kiradi — barqarorlik tezlikdan muhimroq.
+  use_ice_lite: false
+
+  # Congestion control (BWE) — YOQIQ QOLSIN.
+  # Bu tarmoq torayganda sifatni avtomatik pasaytiradi. 200 talabaning
+  # yarmi mobil internetda bo'lganda, busiz ular uzluksiz "muzlab" qoladi.
+  congestion_control:
+    enabled: true
+    # allow_pause: kanal juda tor bo'lsa videoni VAQTINCHA to'xtatib, ovozni
+    # saqlab qoladi. Darsda ovoz — videodan muhimroq.
+    allow_pause: true
+
+
+# -----------------------------------------------------------------------------
+#  3. REDIS — ko'p-nusxali ish va holat ombori
+# -----------------------------------------------------------------------------
+#  NEGA LIVEKIT'GA REDIS KERAK:
+#    1) Xona holati (qaysi xona qaysi node'da) shu yerda saqlanadi. Redis'siz
+#       LiveKit "bitta jarayon" rejimida ishlaydi va MIQYOSLANMAYDI.
+#    2) Kelajakda ikkinchi LiveKit node qo'shilsa — kod o'zgarmaydi, faqat
+#       yangi konteyner ko'tariladi va u shu Redis orqali birinchisini topadi.
+#       200 foydalanuvchi bitta serverga sig'adi; 500+ bo'lganda shu yo'l ochiq.
+#    3) Restart bo'lganda xona metadatasi tiklanadi.
+#
+#  Bu API'ning SignalR backplane'i bilan BIR XIL Redis. Kalitlar prefiksi
+#  farq qiladi, to'qnashuv yo'q. Alohida Redis ko'tarish shart emas —
+#  200 foydalanuvchi uchun yuk juda kichik.
+redis:
+  # `redis` — docker-compose'dagi xizmat nomi, Docker ichki DNS hal qiladi.
+  address: redis:6379
+  db: 0
+  # Dev'da parol yo'q (izohni docker-compose.prod.yml da o'qing).
+  # Prod'da Redis parolini yoqsangiz — SHU QATORNI HAM to'ldiring, aks holda
+  # LiveKit jimgina bitta-node rejimiga tushib qoladi:
+  # password: "..."
+
+  # Ulanish hovuzi. Standart qiymat ko'p hollarda yetarli; 200 ishtirokchida
+  # LiveKit Redis'ga kam murojaat qiladi (media Redis'dan O'TMAYDI —
+  # faqat metadata). Shuning uchun bu yerda tuning shart emas.
+
+
+# -----------------------------------------------------------------------------
+#  4. API KALITLARI  (keys)
+# -----------------------------------------------------------------------------
+#  SPEC 7-bo'limi: API token HS256 bilan `LIVEKIT_API_SECRET` orqali imzolanadi.
+#  Backend token YARATADI, LiveKit uni SHU kalitlar bilan TEKSHIRADI.
+#  Kalit yoki sir mos kelmasa — brauzer "invalid token" oladi.
+#
+#  Shakli quyidagicha (SPEC 8: dev uchun kalit nomi `devkey`):
+#
+#      keys:
+#        devkey: ${LIVEKIT_API_SECRET}
+#
+#  LEKIN BU YERDA ATAYLAB IZOHGA OLINGAN. IKKI SABAB:
+#
+#   1) LiveKit bu faylda `${...}` ni KENGAYTIRMAYDI (yuqoridagi bosh izohga
+#      qarang). Yozib qo'ysak, sir aynan "${LIVEKIT_API_SECRET}" degan MATN
+#      bo'lardi va tokenlar jimgina rad etilardi — topish qiyin xato.
+#
+#   2) SPEC 9.8: "Hech qanday sir kodda emas". Bu fayl git'ga tushadi,
+#      shuning uchun unda haqiqiy sir bo'lishi mumkin emas.
+#
+#  HAQIQIY KALIT `LIVEKIT_KEYS` MUHIT O'ZGARUVCHISI ORQALI BERILADI
+#  (docker-compose.yml -> livekit -> environment). LiveKit uni rasman
+#  qo'llab-quvvatlaydi (`--keys` bayrog'i, [$LIVEKIT_KEYS]) va u fayldagi
+#  `keys:` blokini BUTUNLAY almashtiradi.
+#
+#      LIVEKIT_KEYS: "devkey: <32+ belgili sir>"
+#      (ikki nuqtadan keyingi PROBEL majburiy — bu YAML sintaksisi)
+#
+#  Yangi juftlik yaratish:
+#      docker run --rm livekit/livekit-server:v1.8 generate-keys
+#
+#  FOYDASI: kalit umuman berilmasa LiveKit DARROV, ochiq xato bilan
+#  to'xtaydi — noto'g'ri sir bilan "yarim ishlagan"dan ko'ra yaxshi.
+
+
+# -----------------------------------------------------------------------------
+#  5. TURN — qattiq firewall ortidagi foydalanuvchilar uchun
+# -----------------------------------------------------------------------------
+#  TURN = rele. Foydalanuvchi tarmog'i 7882/udp ga UMUMAN chiqa olmasa,
+#  media TURN orqali "aylanib" o'tadi.
+#
+#  200 foydalanuvchi uchun NEGA MUHIM: agar 5% ishtirokchi ofis/maktab
+#  tarmog'ida bo'lsa — bu 10 kishi. TURN'siz ular darsni ko'ra OLMAYDI.
+#  TURN trafigi serverdan o'tadi, ya'ni qimmat; shuning uchun u ZAXIRA
+#  yo'l — asosiy yo'l baribir to'g'ridan-to'g'ri UDP 7882.
+turn:
+  enabled: true
+
+  # --- DEV: TLS O'CHIRIQ ---
+  # tls_port: 0 => TURN/TLS umuman ishga tushmaydi. Sertifikat kerak emas.
+  # Mahalliy ishlab chiqishda hamma narsa localhost'da, rele shartsiz ishlaydi.
+  tls_port: 0
+
+  # TURN/UDP porti. Standart STUN/TURN porti — 3478.
+  # Bu port ham firewall'da ochilishi kerak (pastdagi jadvalga qarang).
+  udp_port: 3478
+
+  # Dev uchun domen. Prod'da haqiqiy domen yoziladi (pastga qarang).
+  domain: localhost
+
+  # external_tls: false — TLS'ni LiveKit'ning O'ZI ushlaydi (dev'da esa
+  # umuman ushlamaydi, chunki tls_port: 0).
+  external_tls: false
+
+  # ===========================================================================
+  #  PROD BLOKI — serverga chiqishda YUQORIDAGI 5 QATORNI shu bilan almashtiring
+  # ===========================================================================
+  #  turn:
+  #    enabled: true
+  #    domain: livekit.zinnur.uz          # DNS A-yozuvi serverning oq IP'siga
+  #    udp_port: 3478                     # ochiq bo'lishi SHART
+  #    tls_port: 5349                     # TURN over TLS — standart port
+  #
+  #    # VARIANT A (tavsiya etiladi): TLS'ni LiveKit o'zi ushlaydi.
+  #    # Let's Encrypt sertifikatini livekit konteyneriga read-only mount qiling.
+  #    external_tls: false
+  #    cert_file: /etc/livekit/certs/fullchain.pem
+  #    key_file:  /etc/livekit/certs/privkey.pem
+  #
+  #    # VARIANT B: TLS'ni oldinda turgan TCP balanslagich uzadi
+  #    # (masalan nginx `stream` bloki). Unda LiveKit ochiq TCP kutadi:
+  #    # external_tls: true
+  #
+  #  NEGA AYNAN 5349/TCP: eng qattiq firewall'lar ham 443/5349 TCP'ni
+  #  odatda ochiq qoldiradi. TURN/TLS oddiy HTTPS'ga o'xshab ko'rinadi va
+  #  DPI filtrlardan o'tadi. Bu — "hech narsa ishlamayapti" holatidagi
+  #  oxirgi zaxira yo'l.
+  #
+  #  MUHIM: sertifikat yangilanganda (certbot renew, 90 kunda bir marta)
+  #  LiveKit konteynerini QAYTA ISHGA TUSHIRISH kerak — u sertifikatni
+  #  faqat startda o'qiydi:
+  #      docker compose -f docker-compose.prod.yml restart livekit
+  # ===========================================================================
+
+
+# -----------------------------------------------------------------------------
+#  6. XONA (room) STANDART SOZLAMALARI
+# -----------------------------------------------------------------------------
+room:
+  # Backend token bergan zahoti xona avtomatik yaratilsin.
+  # Busiz backend har dars uchun alohida "CreateRoom" API chaqirishi kerak
+  # bo'lardi — ortiqcha kod va ortiqcha xato manbai. SPEC 5-bo'limidagi
+  # `/live-sessions/{id}/token` oqimi aynan shunga tayanadi.
+  auto_create: true
+
+  # Xona yaratilgandan keyin HECH KIM kirmasa, 300 sekunddan so'ng yopiladi.
+  # NEGA 5 daqiqa: o'qituvchi darsni "start" qilib, texnikasi bilan ovora
+  # bo'lib turishi mumkin. Juda qisqa qo'ysak — xona ostidan yopilib qoladi.
+  empty_timeout: 300
+
+  # OXIRGI ishtirokchi chiqib ketgach xona shuncha sekund ochiq turadi.
+  # NEGA 60 (standart 20 emas): internet uzilganda o'qituvchi qayta ulanishga
+  # ~1 daqiqa vaqt oladi. Xona yopilib ketsa — yangi xona, yangi RoomName,
+  # davomat hisobi buziladi. 60 sekund "qayta ulanish oynasi".
+  departure_timeout: 60
+
+  # Bitta xonadagi MAKSIMAL ishtirokchi — himoya klapani.
+  # 250 = maqsadli 200 + zaxira (assistentlar, kuzatuvchilar, qayta ulangan
+  # "arvoh" sessiyalar). 0 = cheksiz degani va bu XAVFLI: bitta noto'g'ri
+  # havola tarqalsa server yotadi. Cheklov aniq xato beradi.
+  max_participants: 250
+
+  # Metadata hajmi cheklovi (bayt). Xona metadatasi HAR BIR ishtirokchiga
+  # yuboriladi. 200 kishida 8 KB metadata = har yangilanishda 1.6 MB signalling
+  # trafigi. Kichik ushlab turamiz.
+  max_metadata_size: 4096
+
+  # Ishtirokchi identity/nom uzunligi. Zinnur'da identity = userId (qisqa son),
+  # nom esa FullName. Cheklov — ataylab yuborilgan uzun matndan himoya.
+  max_participant_identity_length: 64
+  max_room_name_length: 128
+
+  # Boshqa ishtirokchining mikrofonini MASOFADAN yoqishni taqiqlaymiz.
+  # O'chirish (mute) — ruxsat, YOQISH — yo'q. Bu maxfiylik talabi:
+  # o'qituvchi talabaning mikrofonini uning xabarisiz yoqa olmasligi kerak.
+  enable_remote_unmute: false
+
+  # sync_streams: audio va videoni qat'iy sinxronlash (lab-sync).
+  # NEGA O'CHIRIQ: sinxronlash uchun server oqimlarni bufer qiladi =>
+  # kechikish oshadi. Darsda "jonlilik" mukammal lab-sync'dan muhimroq.
+  sync_streams: false
+
+
+# -----------------------------------------------------------------------------
+#  7. CHEKLOVLAR (limit) — 200 FOYDALANUVCHI UCHUN ENG MUHIM BO'LIM
+# -----------------------------------------------------------------------------
+limit:
+  # ========================================================================
+  #  subscription_limit_video — BU YERDAGI ENG QIMMATLI SOZLAMA
+  # ========================================================================
+  #  Bitta klient bir vaqtda NECHTA video oqimiga obuna bo'la olishi.
+  #
+  #  HISOB (nega buni cheklamasa bo'lmaydi):
+  #    Faraz qilaylik 30 kishi kamera yoqdi va cheklov YO'Q.
+  #    Har klient 30 ta videoni yuklab oladi ~ 30 x 300 kbps = 9 Mbit/s.
+  #    200 klient x 9 Mbit/s = 1.8 Gbit/s CHIQUVCHI trafik.
+  #    Bunday kanal odatiy serverda YO'Q — hamma uchun dars buziladi.
+  #
+  #    Cheklov 12 bo'lganda:
+  #    200 x 12 x 300 kbps = 720 Mbit/s (eng yomon holat), amalda esa
+  #    talabalar odatda faqat o'qituvchini ko'radi => ~100 Mbit/s.
+  #
+  #  Klient tomonda bu qanday ko'rinadi: LiveKit eng faol so'zlovchilarni
+  #  ustuvor qiladi, ko'rinmayotgan (ekrandan tashqaridagi) videolar
+  #  avtomatik "pauza" bo'ladi. Ya'ni foydalanuvchi buni SEZMAYDI —
+  #  u baribir ekranga sig'gan 9-12 ta kvadratni ko'radi.
+  #
+  #  12 raqami qayerdan: odatiy "galereya" ko'rinishi 3x4 = 12 katak.
+  #  Frontend undan ko'proq ko'rsatsa — bu sonni birga oshiring.
+  #  0 = cheksiz (TAVSIYA ETILMAYDI).
+  subscription_limit_video: 12
+
+  # Ovoz uchun cheklov YO'Q (0 = cheksiz).
+  # NEGA: ovoz juda arzon (~30 kbps) va LiveKit allaqachon faqat FAOL
+  # so'zlovchilarni yuboradi (pastdagi `audio` bo'limi). Ovozni cheklash
+  # esa "kimdir gapiryapti, lekin eshitilmayapti" degan eng yomon
+  # nosozlikni keltirib chiqaradi.
+  subscription_limit_audio: 0
+
+  # Bitta ishtirokchi e'lon qila oladigan treklar soni. -1 = cheksiz.
+  # Amalda kamera + mikrofon + ekran = 3. Cheklov qo'ymaymiz, chunki
+  # ruxsatlar SPEC 7-bo'limidagi token `canPublish` orqali boshqariladi —
+  # ya'ni talaba umuman e'lon qila olmaydi.
+  num_tracks: -1
+
+  # Server umumiy tarmoq cheklovi (bayt/sek). 0 = cheksiz.
+  # Ataylab cheksiz: sun'iy cheklov qo'yilsa, chegaraga yetganda HAMMA
+  # uchun sifat birdaniga tushadi. Kanalni server/hosting darajasida
+  # nazorat qilish to'g'riroq.
+  bytes_per_sec: 0
+
+
+# -----------------------------------------------------------------------------
+#  8. OVOZ — faol so'zlovchini aniqlash
+# -----------------------------------------------------------------------------
+#  Bu bo'lim 200 foydalanuvchida SIGNALLING yukiga bevosita ta'sir qiladi:
+#  har "faol so'zlovchi o'zgardi" hodisasi XONADAGI HAMMAGA yuboriladi.
+audio:
+  # Har 500 ms da bir marta hisoblab, xabar beradi.
+  # Standart 400 ms. 200 kishida sekundiga 2.5 marta x 200 = 500 xabar/sek
+  # o'rniga 2 marta x 200 = 400 xabar/sek. Farqi kichik, lekin bepul.
+  # Bundan katta qilish (masalan 1000) esa "kim gapiryapti" ramkasini
+  # sezilarli kechiktiradi — foydalanuvchi buni darrov sezadi.
+  update_interval: 500
+
+  # Ovoz "faol" deb hisoblanadigan daraja (dBov, kichikroq = balandroq ovoz).
+  # 35 — standart va amalda yaxshi ishlaydi: klaviatura tovushi o'tmaydi,
+  # jimgina gapirish esa o'tadi.
+  active_level: 35
+
+  # Shovqinni tekislash: 4 ta o'lchov oynasi bo'yicha o'rtacha.
+  # Bu "faol so'zlovchi" ramkasining tez-tez sakrab turishini yo'qotadi.
+  smooth_intervals: 4
+
+
+# -----------------------------------------------------------------------------
+#  9. LOG
+# -----------------------------------------------------------------------------
+logging:
+  # info — prod uchun to'g'ri daraja: ishga tushish, xona ochilishi/yopilishi,
+  # ishtirokchi kirishi/chiqishi ko'rinadi.
+  # `debug` ni PROD'DA YOQMANG: 200 ishtirokchida u har paket haqida yozadi va
+  # diskni soatlar ichida to'ldiradi + kechikish beradi.
+  level: info
+
+  # Pion — ichki WebRTC kutubxonasi. Uning loglari juda "shovqinli",
+  # shuning uchun faqat xatolar. ICE muammosini qidirganda vaqtincha
+  # `debug` qiling, keyin QAYTA `error` ga qaytaring.
+  pion_level: error
+
+  # json: false — odam o'qishi uchun qulay matn (docker compose logs).
+  # Loki/ELK'ga yig'ish yo'lga qo'yilganda `true` qiling — o'shanda
+  # loglar strukturali bo'lib, qidirish osonlashadi.
+  json: false
+
+  # sample: bir xil log yozuvlarini siqib, cheklab yozish.
+  # false — hech narsa yo'qotmaymiz. Yuk juda oshsa `true` qilish mumkin.
+  sample: false
+
+
+# -----------------------------------------------------------------------------
+#  10. IXTIYORIY — kelajak uchun tayyor bloklar (hozircha o'chiq)
+# -----------------------------------------------------------------------------
+#
+#  --- PROMETHEUS METRIKALARI ---
+#  200 foydalanuvchini "ko'r-ko'rona" boshqarmaslik uchun juda foydali:
+#  bir vaqtdagi ishtirokchilar, paket yo'qolishi, kanal kengligi ko'rinadi.
+#  Yoqsangiz — docker-compose'da portni FAQAT loopback'ga chiqaring
+#  ("127.0.0.1:6789:6789"), aks holda metrikalar ochiq internetga chiqadi.
+#
+#  prometheus:
+#    port: 6789
+#
+#
+#  --- WEBHOOK'LAR (DAVOMAT UCHUN JUDA MOS) ---
+#  LiveKit ishtirokchi kirgan/chiqqanda backend'ga HTTP POST yuboradi.
+#  Bu SPEC 3-bo'limidagi Attendance (FirstJoinAt / LastJoinAt / LeftAt)
+#  ni to'ldirishning ENG ISHONCHLI yo'li: brauzer yopilib ketsa ham
+#  (klient hech narsa yubora olmaganda) server baribir xabar beradi.
+#  Hozir o'chiq, chunki SPEC 5-bo'limida bunday endpoint kelishilmagan.
+#
+#  webhook:
+#    api_key: devkey                    # yuqoridagi `keys` dan biri
+#    urls:
+#      - http://api:8080/api/v1/livekit/webhook
+#
+#
+#  --- STUN SERVERLARI ---
+#  Standart holatda LiveKit Google STUN'idan foydalanadi (tashqi IP'ni
+#  aniqlash uchun). Server internetga chiqmaydigan yopiq tarmoqda bo'lsa,
+#  yuqoridagi `rtc.external_ip` ni qo'lda yozing — STUN kerak bo'lmaydi.

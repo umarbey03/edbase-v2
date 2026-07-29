@@ -1,0 +1,202 @@
+# ZIN-NUR v2 — uzluksiz integratsiya (CI)
+#
+# NIMA UCHUN KERAK: eski tizimda birorta ham avtomatik tekshiruv yo'q edi va
+# shuning uchun `NameError` (mavjud bo'lmagan o'zgaruvchi) va yo'q lug'at
+# kaliti kabi buglar ishlab chiqarishga chiqib ketgan — ular eng oddiy
+# smoke test bilan ham tutilardi.
+#
+# Bu liniya har PR va har push'da ishlaydi. Yashil bo'lmasa — merge yo'q.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: {}
+
+# Bir vaqtda bitta ishga tushirish: yangi push eskisini bekor qiladi
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "9.0.x"
+  NODE_VERSION: "22"
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  # ==========================================================================
+  # BACKEND — build + unit testlar
+  # ==========================================================================
+  backend:
+    name: Backend (.NET 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # NuGet keshi — har ishga tushishda paketlarni qaytadan yuklamaslik uchun
+      - name: NuGet keshi
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore Zinnur.sln
+
+      # MUHIM: `Directory.Build.props` da `TreatWarningsAsErrors=true`.
+      # Ya'ni har qanday ogohlantirish build'ni yiqitadi — bu ataylab.
+      - name: Build (ogohlantirish = xato)
+        working-directory: backend
+        run: dotnet build Zinnur.sln --no-restore -c Release
+
+      - name: Unit testlar
+        working-directory: backend
+        run: |
+          dotnet test Zinnur.sln \
+            --no-build -c Release \
+            --logger "trx;LogFileName=test-results.trx" \
+            --collect:"XPlat Code Coverage" \
+            --filter "FullyQualifiedName!~IntegrationTests"
+
+      - name: Test natijalarini saqlash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/**/TestResults/**
+          retention-days: 7
+
+  # ==========================================================================
+  # INTEGRATSIYA TESTLARI — haqiqiy Postgres + Redis bilan
+  # ==========================================================================
+  integration:
+    name: Integratsiya (Postgres + Redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: backend
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: zinnur
+          POSTGRES_PASSWORD: zinnur
+          POSTGRES_DB: zinnur_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zinnur"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: NuGet keshi
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Integratsiya testlari
+        working-directory: backend
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=zinnur_test;Username=zinnur;Password=zinnur"
+          ConnectionStrings__Redis: "localhost:6379"
+          Jwt__Secret: "ci_only_test_secret_min_32_chars_0123456789"
+          Jwt__Issuer: "zinnur"
+          Jwt__Audience: "zinnur-web"
+          LiveKit__Url: "http://localhost:7880"
+          LiveKit__PublicUrl: "ws://localhost:7880"
+          LiveKit__ApiKey: "devkey"
+          LiveKit__ApiSecret: "ci_only_livekit_secret_min_32_chars_0123"
+        run: |
+          if ls tests/Zinnur.IntegrationTests/*.csproj >/dev/null 2>&1; then
+            dotnet test tests/Zinnur.IntegrationTests/Zinnur.IntegrationTests.csproj -c Release
+          else
+            echo "::warning::Integratsiya testlari hali yozilmagan (Faza 1.2)"
+          fi
+
+  # ==========================================================================
+  # FRONTEND — tip tekshiruvi + build
+  # ==========================================================================
+  frontend:
+    name: Frontend (Vue 3 + TS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: O'rnatish
+        working-directory: frontend
+        run: npm ci
+
+      # Tip xatolari build'dan OLDIN tutilsin
+      - name: Tip tekshiruvi
+        working-directory: frontend
+        run: npx vue-tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint --if-present
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  # ==========================================================================
+  # DOCKER — compose fayllari to'g'riligi
+  # ==========================================================================
+  docker:
+    name: Docker konfiguratsiyasi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .env tayyorlash
+        run: cp .env.example .env
+
+      - name: dev compose tekshiruvi
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: prod compose tekshiruvi
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+      # Skriptlar sintaksisi (server-setup.sh, backup-db.sh)
+      - name: Shell skriptlar sintaksisi
+        run: |
+          for f in infra/scripts/*.sh; do
+            [ -f "$f" ] && bash -n "$f" && echo "ok $f"
+          done

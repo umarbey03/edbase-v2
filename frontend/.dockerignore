@@ -1,0 +1,64 @@
+# =============================================================================
+#  FRONTEND build konteksti filtri
+# =============================================================================
+#  ENG MUHIMI — node_modules/.
+#  Unda o'n minglab kichik fayl bo'ladi (ko'pincha 200-500 MB). Uni Docker
+#  demon'iga yuborish build'ni bir necha daqiqaga cho'zadi.
+#
+#  Bundan tashqari bu TO'G'RILIK masalasi: host'dagi node_modules
+#  host platformasi (macOS/arm64) uchun kompilyatsiya qilingan native
+#  modullarni saqlaydi. Ular alpine/linux konteynerida ISHLAMAYDI.
+#  Konteyner ichida `npm ci` toza va to'g'ri modullarni o'rnatadi.
+# =============================================================================
+
+node_modules/
+**/node_modules/
+
+# --- Qurilish natijalari ---
+# dist/ konteyner ichida qaytadan yig'iladi. Host'dagi eski dist/ tushib
+# qolsa — eski kod bilan image chiqib ketishi mumkin.
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- Git va IDE ---
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+*.swp
+*.DS_Store
+
+# --- Sirlar va mahalliy sozlamalar ---
+# DIQQAT: Vite `VITE_` prefiksli o'zgaruvchilarni bundle ichiga QUYADI.
+# Agar .env fayli kontekstga tushsa, undagi sir mijoz brauzeriga
+# yetib borishi mumkin. Shuning uchun qat'iy to'samiz —
+# kerakli qiymatlar Dockerfile'ga `--build-arg` orqali beriladi.
+.env
+.env.*
+!.env.example
+
+# --- Loglar va kesh ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.eslintcache
+
+# --- Testlar (prod bundle'ga kirmaydi) ---
+coverage/
+**/*.spec.ts
+**/*.test.ts
+**/__tests__/
+e2e/
+playwright-report/
+
+# --- Docker fayllarining o'zi ---
+Dockerfile
+.dockerignore
+
+# --- Hujjatlar ---
+**/*.md

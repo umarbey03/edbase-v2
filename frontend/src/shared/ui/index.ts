@@ -1,0 +1,5 @@
+export { default as AppIcon } from './AppIcon.vue'
+export { default as BaseAvatar } from './BaseAvatar.vue'
+export { default as BaseBadge } from './BaseBadge.vue'
+export { default as BaseButton } from './BaseButton.vue'
+export { default as BaseSpinner } from './BaseSpinner.vue'

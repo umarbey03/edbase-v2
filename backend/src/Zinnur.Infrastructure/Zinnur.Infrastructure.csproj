@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    INFRASTRUCTURE — Application'dagi port'larning AMALGA OSHIRILISHI.
+    EF Core, Redis, LiveKit, JWT — barcha "tashqi dunyo" shu yerda.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zinnur.Application\Zinnur.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <!-- Options: DataAnnotations bilan tekshirish + ValidateOnStart() (ilova
+         xato konfiguratsiyada UMUMAN ko'tarilmasin). ValidateOnStart aynan
+         Microsoft.Extensions.Hosting paketida joylashgan. -->
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <!-- [LoggerMessage] manba generatori (CA1848). Generatorlar ProjectReference
+         orqali TRANZITIV o'tmaydi, shuning uchun to'g'ridan-to'g'ri kerak. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+  </ItemGroup>
+</Project>

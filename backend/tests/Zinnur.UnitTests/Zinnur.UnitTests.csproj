@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    DOMAIN QATLAMI UCHUN UNIT TESTLAR (ROADMAP — FAZA 1.2).
+    Domain'da tashqi bog'liqlik yo'q, shuning uchun mock kutubxonasi (Moq/NSubstitute)
+    umuman kerak emas: barcha qoidalar sof C# obyektlarida tekshiriladi.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!--
+      FAQAT SHU TEST LOYIHASIDA o'chiriladi (src/ ga tegmaydi):
+        CA1707 — test nomlari ataylab `Method_Scenario_ExpectedResult` shaklida
+                 yoziladi, ya'ni pastki chiziq bilan. Bu sanoat standarti va
+                 xatolik hisobotini o'qishni osonlashtiradi.
+        CA1861 — `[InlineData]` va Assert'lardagi doimiy massivlarni `static
+                 readonly` maydonga chiqarish testni o'qishga qiyinlashtiradi;
+                 bu yerda unumdorlik muhim emas.
+        CA2007 — testda `ConfigureAwait(false)` kerak emas, xUnit'ning o'z
+                 sinxronizatsiya konteksti bor.
+      Global o'chirish (`<NoWarn>` Directory.Build.props'da) QILINMAYDI —
+      ishlab chiqarish kodida bu qoidalar kuchida qoladi.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1861;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Zinnur.Domain\Zinnur.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- 7.x — Apache-2.0 litsenziyasi. 8.x tijorat litsenziyasini talab qiladi. -->
+    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+  </ItemGroup>
+
+</Project>

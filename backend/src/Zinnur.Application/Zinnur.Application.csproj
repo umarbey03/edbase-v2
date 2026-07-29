@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    APPLICATION QATLAMI — use-case'lar va PORT'lar (interfeyslar).
+    Faqat Domain'ga bog'liq. Infrastructure'ni BILMAYDI (Dependency Inversion).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zinnur.Domain\Zinnur.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- DI abstraksiyasi va validatsiya — framework'siz, yengil -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <!-- IApplicationDbContext uchun DbSet<T>. Microsoft'ning rasmiy Clean
+         Architecture shabloni ham shunday qiladi: DbSet kolleksiya
+         abstraksiyasi sifatida qaraladi, EF Core amalga oshirishi esa
+         Infrastructure qatlamida qoladi. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+  </ItemGroup>
+</Project>

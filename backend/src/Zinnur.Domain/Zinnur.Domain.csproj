@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    DOMAIN QATLAMI — eng ichki halqa.
+    QOIDA: bu loyihada TASHQI BOG'LIQLIK BO'LMAYDI (EF Core, ASP.NET, hech nima).
+    Faqat sof C# biznes qoidalari. Shu tufayli u bazasiz va serversiz test qilinadi.
+  -->
+  <ItemGroup>
+    <!-- Ataylab bo'sh: hech qanday PackageReference qo'shmang! -->
+  </ItemGroup>
+</Project>

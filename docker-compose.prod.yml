@@ -1,0 +1,179 @@
+# ============================================================================
+# ZIN-NUR — PRODUCTION overlay (Ubuntu server)
+#
+# Ishlatish:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Bu fayl `docker-compose.yml` ni TO'LDIRADI (almashtirmaydi). Faqat dev bilan
+# prod ORASIDAGI FARQLARNI yozadi — takrorlanish yo'q (DRY).
+#
+# Uchta asosiy farq:
+#   1) LiveKit host tarmog'ida ishlaydi  -> media umuman ishlashi uchun SHART
+#   2) Postgres/Redis tashqariga chiqmaydi -> faqat 127.0.0.1
+#   3) Resurs chegaralari + log rotatsiyasi
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# LOG ROTATSIYASI — barcha xizmatlar uchun (YAML anchor, DRY).
+# Buni O'TKAZIB YUBORMANG: cheklanmagan konteyner loglari diskni bir necha
+# hafta ichida to'ldiradi va serverni to'xtatadi — "sababsiz o'chgan server"
+# ning eng ko'p uchraydigan sababi.
+# ---------------------------------------------------------------------------
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+
+  # ==========================================================================
+  # LIVEKIT — eng muhim farq shu yerda
+  # ==========================================================================
+  livekit:
+    logging: *default-logging
+    # ------------------------------------------------------------------
+    # NEGA `network_mode: host` — BU ENG MUHIM SATR
+    # ------------------------------------------------------------------
+    # Bridge tarmog'ida LiveKit konteyner o'zining ICHKI IP'sini (172.x.x.x)
+    # ICE nomzodlari sifatida e'lon qiladi. Natija o'zini YASHIRADI:
+    #   - xona ochiladi           ✅
+    #   - ishtirokchilar ro'yxati to'ladi ✅
+    #   - ovoz va video UMUMAN KELMAYDI  ❌
+    # Bu self-hosted LiveKit'dagi eng ko'p uchraydigan nosozlik va uni
+    # topish qiyin, chunki loglarda xato ko'rinmaydi.
+    #
+    # Host tarmog'i buni butunlay yo'q qiladi: konteyner serverning haqiqiy
+    # IP'sini ko'radi va to'g'ri nomzod e'lon qiladi.
+    #
+    # IKKINCHI FOYDA (200 foydalanuvchi uchun muhim): docker-proxy hop'i
+    # yo'qoladi. Bridge'da HAR BIR UDP media paketi userland proxy orqali
+    # o'tadi — bu 200 kishilik darsda sezilarli CPU va kechikish.
+    #
+    # ESLATMA: `network_mode: host` bilan `ports:` BIRGA ISHLATILMAYDI.
+    # Shuning uchun quyida ports bekor qilinadi. Portlar endi to'g'ridan-to'g'ri
+    # host'da ochiladi (UFW bilan boshqariladi — docs/DEPLOY_UBUNTU.md).
+    #
+    # macOS/Windows'da host tarmog'i to'liq ishlamaydi — shuning uchun bu
+    # sozlama faqat PROD (Linux) faylida turadi, dev'da bridge qoladi.
+    network_mode: host
+    # `!reset` — bazaviy fayldagi qiymatni BEKOR qiladi (compose v2.24+).
+    # network_mode va networks birga tura olmaydi, shuning uchun ikkalasini
+    # ham tozalaymiz. Oddiy `[]` yetarli emas: overlay merge qiladi, almashtirmaydi.
+    networks: !reset null
+    ports: !reset null
+
+    environment:
+      # Host tarmog'ida LiveKit serverning tashqi IP'sini o'zi aniqlaydi.
+      # Agar server NAT orqasida bo'lsa (masalan bulutli provayder), oq IP'ni
+      # aniq ko'rsating — aks holda yana ichki IP e'lon qilinadi.
+      LIVEKIT_NODE_IP: ${SERVER_PUBLIC_IP:-}
+
+    deploy:
+      resources:
+        limits:
+          # SFU media'ni qayta kodlamaydi, faqat uzatadi — CPU asosan tarmoqqa
+          # ketadi. 8 vCPU serverda 200 foydalanuvchi uchun 4 yadro yetarli,
+          # qolgani api/postgres uchun qoladi.
+          cpus: "4.0"
+          memory: 2G
+
+  # ==========================================================================
+  # POSTGRES — tashqariga CHIQARILMAYDI
+  # ==========================================================================
+  postgres:
+    logging: *default-logging
+    # DIQQAT: Docker'ning published portlari UFW qoidalarini CHETLAB O'TADI
+    # (DOCKER-USER zanjiri orqali). Ya'ni `ufw deny 5432` bazani HIMOYA QILMAYDI.
+    # Yagona ishonchli yechim — faqat localhost'ga bog'lash.
+    ports:
+      - "127.0.0.1:5440:5432"
+
+    command:
+      - postgres
+      # 16 GB RAM li serverda ~25% shared_buffers (standart tavsiya)
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=512MB
+      # max_connections: api pool (30) x replika soni + zaxira.
+      # Kattaroq qilish foydasiz — har ulanish ~10 MB RAM oladi.
+      - -c
+      - max_connections=100
+      # Sekin so'rovlarni logga yozamiz (1 sekunddan uzun)
+      - -c
+      - log_min_duration_statement=1000
+
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+  # ==========================================================================
+  # REDIS — tashqariga CHIQARILMAYDI
+  # ==========================================================================
+  redis:
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:6390:6379"
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 1gb
+      # KRITIK: `allkeys-lru` QILMANG. Bu Redis uch vazifani bajaradi —
+      # kesh, SignalR backplane va PRESENCE (davomat manbai). allkeys-lru da
+      # xotira to'lganda presence kalitlari JIMGINA o'chiriladi va davomat
+      # buziladi — hech qayerda xato ko'rinmaydi.
+      - --maxmemory-policy
+      - noeviction
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1500M
+
+  # ==========================================================================
+  # API
+  # ==========================================================================
+  api:
+    logging: *default-logging
+    ports:
+      # Tashqariga host nginx chiqaradi (TLS bilan), api to'g'ridan ochilmaydi
+      - "127.0.0.1:5080:8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Server GC: ko'p yadroli serverda o'tkazuvchanlikni sezilarli oshiradi.
+      # Konteynerda default Workstation GC bo'lib qolishi mumkin.
+      DOTNET_gcServer: "1"
+      # Konteyner xotira chegarasini GC hisobga olsin
+      DOTNET_GCHeapHardLimitPercent: "75"
+
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  # ==========================================================================
+  # WEB (nginx + statik fayllar)
+  # ==========================================================================
+  web:
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:5173:80"
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M

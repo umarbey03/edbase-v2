@@ -1,0 +1,62 @@
+# ZIN-NUR backend — kod uslubi va analiz qoidalari
+#
+# `Directory.Build.props` da `TreatWarningsAsErrors=true` — ya'ni har qanday
+# ogohlantirish build'ni yiqitadi. Bu ATAYLAB: chala kod ishlab chiqarishga
+# chiqmasin. Quyida faqat ASOSLI istisnolar.
+
+root = true
+
+# ---------------------------------------------------------------------------
+# Umumiy
+# ---------------------------------------------------------------------------
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+max_line_length = 120
+
+[*.{json,yml,yaml,csproj,props,targets}]
+indent_size = 2
+
+# ---------------------------------------------------------------------------
+# EF Core GENERATSIYA QILGAN migratsiyalar
+#
+# Bu fayllarni `dotnet ef migrations add` yozadi va ular QO'LDA
+# TAHRIRLANMAYDI — keyingi migratsiyada qaytadan generatsiya qilinadi.
+# Shuning uchun ularga uslub qoidalarini qo'llash ma'nosiz: tuzatsangiz ham
+# navbatdagi migratsiyada yo'qoladi.
+#
+# Aynan qaysi qoidalar o'chirilgani va NEGA:
+#   CA1861 — EF ustun ro'yxatlarini `new[] { "A", "B" }` sifatida yozadi.
+#            Analizator ularni `static readonly` maydonga chiqarishni so'raydi,
+#            lekin migratsiya metodi UMRI DAVOMIDA BIR MARTA chaqiriladi —
+#            optimizatsiya foydasi nol.
+#   CA1062 — generatsiya qilingan kodda null tekshiruvi yo'q (EF o'zi kafolatlaydi).
+#   IDE*   — uslub qoidalari (generatsiya qilingan kodga taalluqli emas).
+# ---------------------------------------------------------------------------
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.CA1825.severity = none
+dotnet_analyzer_diagnostic.category-Style.severity = none
+
+# ---------------------------------------------------------------------------
+# Testlar
+#
+# CA1707 — test nomlarida pastki chiziq (`Method_Scenario_Expected`) —
+#          bu xalqaro qabul qilingan konvensiya.
+# CA2007  — `ConfigureAwait(false)` testlarda kerak emas (SynchronizationContext yo'q).
+# CA1861  — test ma'lumot massivlari har testda bir marta ishlatiladi.
+# ---------------------------------------------------------------------------
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1515.severity = none

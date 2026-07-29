@@ -1,0 +1,60 @@
+# =============================================================================
+#  BACKEND build konteksti filtri
+# =============================================================================
+#  Docker `docker build` boshlanishida BUTUN kontekstni (backend/ papkasini)
+#  demon'ga arxivlab yuboradi. Bu ro'yxatdagi narsalar yuborilmaydi.
+#
+#  IKKI SABAB:
+#   1) TEZLIK — bin/ va obj/ yuzlab megabayt bo'lishi mumkin.
+#   2) TO'G'RILIK — host'dagi obj/ ichida MUTLAQ YO'LLAR va host platformasi
+#      uchun yig'ilgan asset'lar bor. Ular konteynerga tushsa,
+#      "Assets file /Users/... not found" degan chalg'ituvchi xato chiqadi.
+#      Bu — Docker'dagi .NET build'ining ENG KO'P uchraydigan muammosi.
+# =============================================================================
+
+# --- .NET qurilish natijalari (eng muhim qismi) ---
+**/bin/
+**/obj/
+**/out/
+**/publish/
+*.user
+*.suo
+
+# --- Testlar ---
+# Prod image'ga test loyihalari kerak emas. Dockerfile ularni baribir
+# ko'chirmaydi (faqat src/ dagi 4 ta .csproj), lekin kontekstni
+# yengillashtirish uchun bu yerda ham to'samiz.
+tests/
+**/TestResults/
+**/coverage*.xml
+**/*.trx
+
+# --- Git va IDE ---
+.git/
+.gitignore
+.gitattributes
+.vs/
+.vscode/
+.idea/
+*.swp
+*.DS_Store
+
+# --- Sirlar: HECH QACHON image ichiga tushmasin (SPEC 9.8) ---
+# Image qatlamlari o'chirilmaydi: keyingi qatlamda `rm` qilsangiz ham
+# fayl oldingi qatlamda QOLADI va uni chiqarib olish mumkin.
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# --- Docker fayllarining o'zi ---
+# Dockerfile o'zgarishi kesh yaroqsizligiga sabab bo'lmasin.
+Dockerfile
+.dockerignore
+
+# --- Hujjatlar ---
+**/*.md

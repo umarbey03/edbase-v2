@@ -1,0 +1,68 @@
+# =============================================================================
+#  ILDIZ (root) build konteksti filtri
+# =============================================================================
+#  IZOH — bu fayl QACHON ishlaydi:
+#  Hozirgi docker-compose.yml da build kontekstlari `./backend` va `./frontend`,
+#  ya'ni Docker o'sha papkalardagi .dockerignore fayllarini o'qiydi, buni EMAS.
+#
+#  Bu fayl quyidagi hollar uchun kerak:
+#    * kimdir ildizdan `docker build .` qilib yuborsa (masalan yangi CI qadami),
+#    * kelajakda umumiy kontekst talab qiladigan xizmat qo'shilsa,
+#    * ildizdagi sirlar tasodifan kontekstga tushib qolishining oldini olish.
+#
+#  Ya'ni bu — HIMOYA QATLAMI. Uni to'ldirib qo'yish arzon, unutish esa qimmat.
+# =============================================================================
+
+# --- SIRLAR: eng muhim qatorlar (SPEC 9.8) ---
+# .env da baza paroli, JWT_SECRET va LIVEKIT_API_SECRET turadi.
+# Image qatlamiga bir marta tushsa — uni o'chirib bo'lmaydi
+# (keyingi qatlamda `rm` qilinsa ham fayl oldingi qatlamda qoladi).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+secrets/
+
+# --- TLS sertifikatlari ---
+# Prod'da Let's Encrypt sertifikatlari host'da turadi va konteynerga
+# `volume` orqali ulanadi — build kontekstiga UMUMAN kirmasligi kerak.
+infra/nginx/certs/
+infra/livekit/certs/
+
+# --- Git ---
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# --- Backend qurilish natijalari ---
+**/bin/
+**/obj/
+**/out/
+**/publish/
+**/TestResults/
+
+# --- Frontend qurilish natijalari ---
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/.vite/
+
+# --- IDE va OS ---
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+.DS_Store
+**/.DS_Store
+
+# --- Hujjatlar va infratuzilma (image ichiga kerak emas) ---
+docs/
+*.md
+docker-compose*.yml
