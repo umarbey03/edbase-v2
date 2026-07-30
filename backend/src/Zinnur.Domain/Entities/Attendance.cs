@@ -52,6 +52,17 @@ public class Attendance : BaseEntity
         FirstJoinAt ??= now;      // tarix — o'zgarmaydi
         LastJoinAt = now;         // joriy seans boshlanishi
         LeftAt = null;
+        UpdatedAt = now;
+
+        // QO'LDA QO'YILGAN BAHOGA TEGILMAYDI.
+        //
+        // Sabab: ilgari bu shart yo'q edi va assimetriya tuzoq hosil qilardi —
+        // ustoz o'quvchini qo'lda "Absent" deb belgilaydi (IsManual=true), keyin
+        // o'quvchi qayta ulanadi va status jimgina "Present" ga o'zgaradi.
+        // `Finalize()` esa AYNAN IsManual tufayli qayta hisoblamaydi, natijada
+        // noto'g'ri "Present" abadiy qolib ketardi — `IsManual` bayrog'i aynan
+        // shundan himoya qilish uchun mavjud.
+        if (IsManual) return;
 
         if (Status == AttendanceStatus.Absent)
             Status = AttendanceStatus.Present;
@@ -65,6 +76,7 @@ public class Attendance : BaseEntity
 
         LastJoinAt = null;        // seans yopildi — ikki marta qo'shilmaydi
         LeftAt = now;
+        UpdatedAt = now;
     }
 
     /// <summary>Dars yakunlanganda: ochiq seansni yopadi va yakuniy holatni qo'yadi.</summary>
@@ -81,5 +93,7 @@ public class Attendance : BaseEntity
             < MinFullAttendanceSeconds => AttendanceStatus.Partial,
             _ => AttendanceStatus.Present,
         };
+
+        UpdatedAt = now;
     }
 }

@@ -420,4 +420,220 @@ public class AttendanceTests
 
         attendance.DurationSeconds.Should().Be(1800);
     }
+
+    // ------------------------------------------------------------------ ★ RegisterJoin va IsManual (regressiya)
+
+    /// <summary>
+    /// ★ REGRESSIYA. Ilgari `RegisterJoin()` `IsManual` ni umuman tekshirmasdi,
+    /// `Finalize()` esa tekshirardi — va aynan shu assimetriya tuzoq edi:
+    ///
+    ///   1. Ustoz o'quvchini qo'lda "Absent" deb belgilaydi (IsManual = true).
+    ///   2. O'quvchi qayta ulanadi (yoki SignalR `JoinSession` takroran keladi).
+    ///   3. `RegisterJoin()` statusni jimgina "Present" ga o'zgartiradi.
+    ///   4. `Finalize()` esa AYNAN IsManual tufayli qayta hisoblamaydi.
+    ///
+    /// Natijada ustozning qarori bekor bo'lib, noto'g'ri "Present" abadiy
+    /// qolib ketardi — `IsManual` bayrog'i esa aynan shundan himoya qilish
+    /// uchun mavjud edi.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_DoesNotOverwriteStatus()
+    {
+        var attendance = NewAttendance();
+        attendance.Status = AttendanceStatus.Absent;
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.Status.Should().Be(AttendanceStatus.Absent);
+    }
+
+    /// <summary>
+    /// ★ Tuzatishning IKKINCHI yarmi: HOLAT tegilmaydi, lekin VAQT belgilari
+    /// baribir yangilanadi — davomiylik va "qachon ulandi" tarixi faktik
+    /// ma'lumot, ustozning bahosi emas.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_StillUpdatesLastJoinAt()
+    {
+        var attendance = NewAttendance();
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.LastJoinAt.Should().Be(AtMinute(20));
+    }
+
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_StillSetsFirstJoinAt()
+    {
+        var attendance = NewAttendance();
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.FirstJoinAt.Should().Be(AtMinute(20));
+    }
+
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_StillClearsLeftAt()
+    {
+        var attendance = NewAttendance();
+        attendance.IsManual = true;
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(10));
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.LeftAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_StillAccumulatesDurationOnLeave()
+    {
+        var attendance = NewAttendance();
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(10));
+
+        attendance.DurationSeconds.Should().Be(600);
+    }
+
+    /// <summary>
+    /// ★ To'liq stsenariy — bug aynan shu ketma-ketlikda yuzaga kelardi:
+    /// ustoz "Absent" qo'ydi → o'quvchi qayta ulanib 20 daqiqa (chegaradan ko'p)
+    /// o'tirdi → dars yakunlandi. Avto-hisob "Present" degan bo'lardi, lekin
+    /// qo'lda qo'yilgan baho ustun turishi kerak.
+    /// </summary>
+    [Fact]
+    public void Finalize_AfterManualAbsentThenReconnect_KeepsStatusAbsent()
+    {
+        var attendance = NewAttendance();
+        attendance.Status = AttendanceStatus.Absent;
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(10));
+        attendance.RegisterLeave(AtMinute(30));
+        attendance.Finalize(AtMinute(80));
+
+        attendance.Status.Should().Be(AttendanceStatus.Absent);
+    }
+
+    /// <summary>
+    /// Qarama-qarshi tomon: `IsManual = false` bo'lganda avvalgi xatti-harakat
+    /// AYNAN o'zgarishsiz qolishi kerak — tuzatish oddiy yo'lni buzmadi.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_WhenIsManualIsFalse_StillPromotesAbsentToPresent()
+    {
+        var attendance = NewAttendance();
+        attendance.Status = AttendanceStatus.Absent;
+        attendance.IsManual = false;
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.Status.Should().Be(AttendanceStatus.Present);
+    }
+
+    /// <summary>
+    /// Qo'lda "Absent" qo'yilgan o'quvchi qayta ulansa ham avto-hisob uni
+    /// "Partial" ga ham surib qo'ymasligi kerak (chegaradan kam o'tirgan holat).
+    /// </summary>
+    [Fact]
+    public void Finalize_AfterManualAbsentWithShortReconnect_KeepsStatusAbsent()
+    {
+        var attendance = NewAttendance();
+        attendance.Status = AttendanceStatus.Absent;
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(10));
+        attendance.RegisterLeave(AtMinute(12));
+        attendance.Finalize(AtMinute(80));
+
+        attendance.Status.Should().Be(AttendanceStatus.Absent);
+    }
+
+    // ------------------------------------------------------------------ UpdatedAt (regressiya)
+
+    /// <summary>
+    /// `Attendance` ilgari `UpdatedAt` ni HECH QACHON qo'ymasdi (`LiveSession`
+    /// dan farqli o'laroq). Bu audit izini yo'qotardi: "bu yozuv qachon
+    /// o'zgardi?" degan savolga javob yo'q edi — davomat nizolarida esa
+    /// aynan shu savol so'raladi.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_SetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+
+        attendance.RegisterJoin(AtMinute(0));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(0));
+    }
+
+    [Fact]
+    public void RegisterLeave_SetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+
+        attendance.RegisterLeave(AtMinute(10));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(10));
+    }
+
+    [Fact]
+    public void Finalize_SetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(10));
+
+        attendance.Finalize(AtMinute(80));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(80));
+    }
+
+    [Fact]
+    public void Finalize_WithStillOpenSession_SetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+
+        attendance.Finalize(AtMinute(30));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(30));
+    }
+
+    [Fact]
+    public void RegisterJoin_OnReconnect_MovesUpdatedAtForward()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(10));
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(20));
+    }
+
+    [Fact]
+    public void RegisterJoin_WhenStatusIsManual_StillSetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+        attendance.IsManual = true;
+
+        attendance.RegisterJoin(AtMinute(20));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(20));
+    }
+
+    [Fact]
+    public void UpdatedAt_OnUntouchedRecord_IsNull()
+    {
+        var attendance = NewAttendance();
+
+        attendance.UpdatedAt.Should().BeNull();
+    }
 }

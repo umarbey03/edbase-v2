@@ -65,9 +65,17 @@ public class LiveSession : BaseEntity
 
     // ---------------------------------------------------------------- xatti-harakat
 
-    /// <summary>Takrorlanmas LiveKit xona nomini yaratadi.</summary>
+    /// <summary>
+    /// Takrorlanmas LiveKit xona nomini yaratadi.
+    ///
+    /// 8 BAYT tasodifiy qism (4 emas): jadval generatsiyasi bir guruhga 8 oylik
+    /// darslarni BITTA paketda yaratadi, ya'ni bir sekundda minglab nom. 4 bayt
+    /// bilan 10 000 nomda to'qnashuv ehtimoli ~1.2% edi — `UX_LiveSessions_RoomName`
+    /// unikal indeksi tufayli bu vaqti-vaqti bilan yiqiladigan INSERT degani.
+    /// 8 bayt bilan ehtimol amalda nolga tushadi.
+    /// </summary>
     public static string GenerateRoomName() =>
-        $"s-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant()}";
+        $"s-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant()}";
 
     /// <summary>Darsni boshlaydi (idempotent).</summary>
     public void Start(DateTimeOffset now)
@@ -96,6 +104,16 @@ public class LiveSession : BaseEntity
     public void End(DateTimeOffset now)
     {
         if (Status == SessionStatus.Ended) return;   // idempotent
+
+        // BEKOR QILINGAN dars YAKUNLANMAYDI.
+        //
+        // Sabab: `Start()` bekor qilingan darsni rad etadi, lekin `End()` da bu
+        // tekshiruv yo'q edi. Natijada `POST /live-sessions/{id}/end` bekor
+        // qilingan darsni jimgina "Ended" ga o'tkazib, bekor qilish yozuvini
+        // yo'q qilardi — va `Finalize()` umuman bo'lmagan dars uchun davomat
+        // yozardi. Xuddi shu xavf avto-yakunlash fon vazifasida ham bor.
+        if (Status == SessionStatus.Cancelled)
+            throw new DomainException("Bekor qilingan darsni yakunlab bo'lmaydi.");
 
         Status = SessionStatus.Ended;
         ActualEnd = now;

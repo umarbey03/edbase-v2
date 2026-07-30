@@ -34,6 +34,11 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined
           if (id.includes('livekit-client')) return 'livekit'
           if (id.includes('@microsoft/signalr')) return 'signalr'
+          // Sentry ALOHIDA bo'lakda: `main.ts` da DINAMIK import qilinadi va
+          // faqat `VITE_SENTRY_DSN` berilganda yuklanadi. Bu qatorsiz u
+          // `vendor` ga tushib, HAR foydalanuvchiga ~49 KB (gzip) qo'shimcha
+          // yuklardi — mobil internetda (Telegram Mini App) sezilarli.
+          if (id.includes('@sentry')) return 'sentry'
           if (id.includes('@tanstack')) return 'query'
           if (id.includes('/vue/') || id.includes('vue-router') || id.includes('pinia')) return 'vue'
           return 'vendor'

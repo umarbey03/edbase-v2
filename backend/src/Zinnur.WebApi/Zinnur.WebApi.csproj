@@ -3,6 +3,15 @@
     WEBAPI — eng tashqi halqa. HTTP, SignalR, DI ulanishi.
     Router'lar YUPQA: validatsiya -> servis chaqiruvi -> javob.
   -->
+  <PropertyGroup>
+    <!--
+      Versiya Sentry RELIZ nomiga tushadi (zinnur@2.0.0) va har log yozuvidagi
+      `Version` maydoniga yoziladi. frontend/package.json dagi "version" bilan
+      AYNAN bir xil bo'lishi shart — aks holda backend va brauzer xatolari
+      Sentry'da ikki alohida relizga bo'linib ketadi.
+    -->
+    <Version>2.0.0</Version>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Zinnur.Infrastructure\Zinnur.Infrastructure.csproj" />
   </ItemGroup>
@@ -16,7 +25,19 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <!-- Prod'da JSON (CLEF) log formati: `docker logs | jq` bilan maydon bo'yicha qidiruv. -->
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
+    <!--
+      Sentry — xato kuzatuvi. IXTIYORIY: `Sentry:Dsn` bo'sh bo'lsa SDK umuman
+      ishga tushirilmaydi (SentrySetup.cs ga qarang).
+        * Sentry.AspNetCore — so'rov konteksti, tracing, reliz/muhit.
+        * Sentry.Serilog   — hodisalar YAGONA oqim orqali (Serilog) ketsin;
+                             shu tufayli 4xx (Information) yuborilmaydi,
+                             5xx (Error) yuboriladi va takroriy xabar bo'lmaydi.
+    -->
+    <PackageReference Include="Sentry.AspNetCore" Version="6.8.0" />
+    <PackageReference Include="Sentry.Serilog" Version="6.8.0" />
   </ItemGroup>
 </Project>

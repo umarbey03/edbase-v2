@@ -16,5 +16,10 @@
          abstraksiyasi sifatida qaraladi, EF Core amalga oshirishi esa
          Infrastructure qatlamida qoladi. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <!-- `EF.Functions.Like` AYNAN shu paketda. Kerak, chunki `string.Contains`
+         ni EF `strpos()` ga aylantiradi va u pg_trgm GIN indeksidan FOYDALANA
+         OLMAYDI; `LIKE` esa foydalanadi. Relational — barcha SQL provayderlar
+         uchun umumiy qatlam, ya'ni Postgres'ga bog'lanish paydo bo'lmaydi. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
   </ItemGroup>
 </Project>

@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Domain.Exceptions;
+using Zinnur.WebApi.Observability;
 
 namespace Zinnur.WebApi.Middleware;
 
@@ -41,15 +41,29 @@ public sealed class ExceptionHandlingMiddleware(
 
     private async Task HandleAsync(HttpContext context, Exception ex)
     {
-        var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+        var traceId = RequestTrace.GetTraceId(context);
 
         var (status, title, detail) = Map(ex);
 
         // 5xx — kutilmagan xato, to'liq log. 4xx — kutilgan, qisqa log.
+        //
+        // SENTRY BILAN BOG'LIQLIK (takroriy xabar bermaslik):
+        // Sentry sink'i FAQAT Error darajasini hodisa qilib yuboradi.
+        // Ya'ni quyidagi shart Sentry uchun ham "filtr" vazifasini bajaradi:
+        // NotFound/Forbidden/Validation (4xx) — Information => YUBORILMAYDI,
+        // haqiqiy 5xx — Error => YUBORILADI. Ikkinchi joyda alohida
+        // `CaptureException` chaqirilmaydi, aks holda har xato IKKI marta tushardi.
         if (status >= StatusCodes.Status500InternalServerError)
+        {
+            // Avval qamrovga traceId yoziladi, KEYIN log — tartib muhim,
+            // aks holda hodisa tegsiz ketadi va uni traceId bo'yicha topib bo'lmaydi.
+            SentrySetup.ApplyRequestScope(context, traceId);
             ApiLog.UnhandledError(logger, ex, traceId);
+        }
         else
+        {
             ApiLog.RequestRejected(logger, status, ex.Message, traceId);
+        }
 
         if (context.Response.HasStarted)
         {

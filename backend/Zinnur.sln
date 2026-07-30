@@ -17,6 +17,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zinnur.UnitTests", "tests\Zinnur.UnitTests\Zinnur.UnitTests.csproj", "{8262EF91-7C6E-4029-BBD1-0EA2D6F2A55C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zinnur.IntegrationTests", "tests\Zinnur.IntegrationTests\Zinnur.IntegrationTests.csproj", "{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,18 @@ Global
 		{8262EF91-7C6E-4029-BBD1-0EA2D6F2A55C}.Release|x64.Build.0 = Release|Any CPU
 		{8262EF91-7C6E-4029-BBD1-0EA2D6F2A55C}.Release|x86.ActiveCfg = Release|Any CPU
 		{8262EF91-7C6E-4029-BBD1-0EA2D6F2A55C}.Release|x86.Build.0 = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|x64.Build.0 = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Debug|x86.Build.0 = Debug|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|x64.ActiveCfg = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|x64.Build.0 = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|x86.ActiveCfg = Release|Any CPU
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -97,5 +111,6 @@ Global
 		{283195B8-CA8F-413E-9AF4-ABCCE568F4F7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{05FA79D0-9647-4243-8351-53FCECF34506} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{8262EF91-7C6E-4029-BBD1-0EA2D6F2A55C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{4FBFB25B-E164-47C7-A636-B37BFAE0CF7F} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

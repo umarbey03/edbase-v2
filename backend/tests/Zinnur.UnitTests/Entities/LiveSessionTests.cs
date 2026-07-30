@@ -245,6 +245,108 @@ public class LiveSessionTests
         act.Should().NotThrow();
     }
 
+    // ------------------------------------------------------------------ End: ★ bekor qilingan dars (regressiya)
+
+    /// <summary>
+    /// ★ REGRESSIYA. `Start()` bekor qilingan darsni rad etardi, `End()` esa yo'q.
+    /// Natijada `POST /live-sessions/{id}/end` bekor qilingan darsni jimgina
+    /// "Ended" ga o'tkazib, bekor qilish yozuvini yo'q qilardi va `Finalize()`
+    /// umuman bo'lmagan dars uchun davomat yozardi. Xuddi shu xavf avto-yakunlash
+    /// fon vazifasida ham bor edi.
+    /// </summary>
+    [Fact]
+    public void End_OnCancelledSession_ThrowsDomainException()
+    {
+        var session = NewSession(SessionStatus.Cancelled);
+
+        var act = () => session.End(Scheduled.AddMinutes(PlannedMinutes));
+
+        act.Should().Throw<DomainException>();
+    }
+
+    /// <summary>★ Bekor qilingan holat SAQLANIB qolishi kerak — asosiy maqsad shu.</summary>
+    [Fact]
+    public void End_OnCancelledSession_KeepsStatusCancelled()
+    {
+        var session = NewSession(SessionStatus.Cancelled);
+
+        var act = () => session.End(Scheduled.AddMinutes(PlannedMinutes));
+        act.Should().Throw<DomainException>();
+
+        session.Status.Should().Be(SessionStatus.Cancelled);
+    }
+
+    /// <summary>★ Bo'lmagan dars uchun yakunlanish vaqti yozilmasligi kerak.</summary>
+    [Fact]
+    public void End_OnCancelledSession_DoesNotSetActualEnd()
+    {
+        var session = NewSession(SessionStatus.Cancelled);
+
+        var act = () => session.End(Scheduled.AddMinutes(PlannedMinutes));
+        act.Should().Throw<DomainException>();
+
+        session.ActualEnd.Should().BeNull();
+    }
+
+    [Fact]
+    public void End_OnCancelledSession_DoesNotSetUpdatedAt()
+    {
+        var session = NewSession(SessionStatus.Cancelled);
+
+        var act = () => session.End(Scheduled.AddMinutes(PlannedMinutes));
+        act.Should().Throw<DomainException>();
+
+        session.UpdatedAt.Should().BeNull();
+    }
+
+    // ------------------------------------------------------------------ End: boshqa holatlar hamon ishlaydi
+
+    /// <summary>
+    /// Boshlanmagan (Scheduled) darsni yakunlash MUMKIN bo'lib qolishi kerak:
+    /// ustoz kelmagan darsni o'quv bo'limi yopadi, avto-yakunlash ham shunga tayanadi.
+    /// </summary>
+    [Fact]
+    public void End_OnScheduledSession_SetsStatusToEnded()
+    {
+        var session = NewSession();
+
+        session.End(Scheduled.AddMinutes(PlannedMinutes));
+
+        session.Status.Should().Be(SessionStatus.Ended);
+    }
+
+    [Fact]
+    public void End_OnScheduledSession_DoesNotThrow()
+    {
+        var session = NewSession();
+
+        var act = () => session.End(Scheduled.AddMinutes(PlannedMinutes));
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void End_OnScheduledSession_SetsActualEnd()
+    {
+        var session = NewSession();
+        var endedAt = Scheduled.AddMinutes(PlannedMinutes);
+
+        session.End(endedAt);
+
+        session.ActualEnd.Should().Be(endedAt);
+    }
+
+    [Fact]
+    public void End_OnLiveSession_SetsUpdatedAt()
+    {
+        var session = LiveSessionStartedAtScheduledTime();
+        var endedAt = Scheduled.AddMinutes(PlannedMinutes);
+
+        session.End(endedAt);
+
+        session.UpdatedAt.Should().Be(endedAt);
+    }
+
     // ------------------------------------------------------------------ Extend
 
     [Theory]
@@ -494,8 +596,32 @@ public class LiveSessionTests
     {
         var name = LiveSession.GenerateRoomName();
 
-        // s-<yyyyMMddHHmmss>-<8 ta kichik hex belgi>
-        name.Should().MatchRegex("^s-[0-9]{14}-[0-9a-f]{8}$");
+        // s-<yyyyMMddHHmmss>-<16 ta kichik hex belgi> = 8 tasodifiy bayt
+        //
+        // 4 BAYT EMAS, 8 (2026-07-30 da o'zgartirildi): jadval generatsiyasi bir
+        // guruhga 8 oylik darslarni BITTA paketda yaratadi — bir sekundda minglab
+        // nom. 4 bayt bilan 10 000 nomda to'qnashuv ehtimoli ~1.2% edi va
+        // `UX_LiveSessions_RoomName` unikal indeksi bunday INSERT'ni yiqitardi.
+        name.Should().MatchRegex("^s-[0-9]{14}-[0-9a-f]{16}$");
+    }
+
+    /// <summary>
+    /// ★ REGRESSIYA — entropiya "byudjeti" alohida qo'riqlanadi.
+    ///
+    /// Yuqoridagi shakl testi butun formatni tekshiradi; bu test esa AYNAN
+    /// tasodifiy qism uzunligini qulflaydi, chunki xatarning o'zi shunda:
+    /// vaqt qismi faqat SEKUND aniqligida, shuning uchun bir sekund ichidagi
+    /// barcha nomlar faqat shu tasodifiy qismga tayanadi. Qisqartirilsa,
+    /// paketli jadval generatsiyasi yana to'qnashuvga uchraydi.
+    /// </summary>
+    [Fact]
+    public void GenerateRoomName_RandomSuffix_HasSixteenHexCharacters()
+    {
+        var name = LiveSession.GenerateRoomName();
+
+        var randomSuffix = name.Split('-')[2];
+
+        randomSuffix.Should().HaveLength(16);
     }
 
     // ------------------------------------------------------------------ konstantalar

@@ -12,6 +12,18 @@ export interface AppEnv {
   /** Masalan: `http://localhost:5080/hubs/live` */
   readonly hubUrl: string
   readonly isDev: boolean
+
+  /**
+   * Sentry DSN. BO'SH BO'LSA xato kuzatuvi butunlay o'chiq.
+   *
+   * Ataylab IXTIYORIY: ishlab chiquvchi kompyuterida DSN bo'lmaydi va
+   * uning yo'qligi ilovani yiqitmasligi kerak.
+   */
+  readonly sentryDsn: string
+  /** `production` | `staging` | `development` */
+  readonly sentryEnvironment: string
+  /** Backend bilan MOS bo'lishi kerak — xatolar bir-biriga bog'lanishi uchun. */
+  readonly release: string
 }
 
 export class EnvError extends Error {
@@ -55,7 +67,21 @@ function createEnv(): AppEnv {
     console.warn('[env] VITE_HUB_URL odatda "/hubs/live" bilan tugaydi. Hozirgi qiymat:', hubUrl)
   }
 
-  return { apiUrl, hubUrl, isDev: import.meta.env.DEV }
+  // Sentry — IXTIYORIY. Tekshirilmaydi va yo'qligi xato hisoblanmaydi.
+  const sentryDsn = (import.meta.env.VITE_SENTRY_DSN ?? '').trim()
+  const sentryEnvironment =
+    (import.meta.env.VITE_SENTRY_ENVIRONMENT ?? '').trim()
+    || (import.meta.env.DEV ? 'development' : 'production')
+  const release = (import.meta.env.VITE_RELEASE ?? '').trim() || 'dev'
+
+  return {
+    apiUrl,
+    hubUrl,
+    isDev: import.meta.env.DEV,
+    sentryDsn,
+    sentryEnvironment,
+    release,
+  }
 }
 
 export const env: AppEnv = createEnv()

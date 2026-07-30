@@ -6,6 +6,13 @@
 // xatolar tekshirilmay o'tib ketadi.
 
 interface ImportMetaEnv {
+  /** Sentry DSN. Bo'sh bo'lsa xato kuzatuvi o'chiq (ixtiyoriy). */
+  readonly VITE_SENTRY_DSN?: string
+  /** production | staging | development */
+  readonly VITE_SENTRY_ENVIRONMENT?: string
+  /** Backend bilan MOS reliz identifikatori. */
+  readonly VITE_RELEASE?: string
+
   readonly VITE_API_URL: string
   readonly VITE_HUB_URL: string
 }

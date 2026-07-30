@@ -94,7 +94,7 @@ jobs:
         env:
           POSTGRES_USER: zinnur
           POSTGRES_PASSWORD: zinnur
-          POSTGRES_DB: zinnur_test
+          POSTGRES_DB: postgres
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U zinnur"
@@ -124,15 +124,14 @@ jobs:
       - name: Integratsiya testlari
         working-directory: backend
         env:
-          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=zinnur_test;Username=zinnur;Password=zinnur"
-          ConnectionStrings__Redis: "localhost:6379"
-          Jwt__Secret: "ci_only_test_secret_min_32_chars_0123456789"
-          Jwt__Issuer: "zinnur"
-          Jwt__Audience: "zinnur-web"
-          LiveKit__Url: "http://localhost:7880"
-          LiveKit__PublicUrl: "ws://localhost:7880"
-          LiveKit__ApiKey: "devkey"
-          LiveKit__ApiSecret: "ci_only_livekit_secret_min_32_chars_0123"
+          # ZinnurApiFactory SHU IKKI o'zgaruvchini o'qiydi. Qolgan sozlamalarni
+          # (Jwt, LiveKit) factory o'zi `UseSetting` orqali beradi — shuning uchun
+          # ular bu yerda takrorlanmaydi (DRY).
+          #
+          # `Database=postgres` — factory har test sinfi uchun O'Z bazasini
+          # yaratadi va tugagach o'chiradi; bu esa ulanish uchun bosh baza.
+          TEST_POSTGRES: "Host=localhost;Port=5432;Database=postgres;Username=zinnur;Password=zinnur"
+          TEST_REDIS: "localhost:6379"
         run: |
           if ls tests/Zinnur.IntegrationTests/*.csproj >/dev/null 2>&1; then
             dotnet test tests/Zinnur.IntegrationTests/Zinnur.IntegrationTests.csproj -c Release

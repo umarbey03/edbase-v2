@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.Auth.Services;
 using Zinnur.Application.LiveSessions.Services;
+using Zinnur.Application.Users.Services;
 
 namespace Zinnur.Application;
 
@@ -14,6 +15,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ILiveSessionService, LiveSessionService>();
+        services.AddScoped<IUserService, UserService>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

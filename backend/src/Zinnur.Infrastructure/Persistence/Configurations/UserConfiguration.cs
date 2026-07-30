@@ -19,8 +19,12 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // BCrypt hash'i doim 60 belgi; 120 zaxira bilan (algoritm almashsa).
         builder.Property(u => u.PasswordHash).IsRequired().HasMaxLength(120);
 
-        // +998901234567 ko'rinishida normalizatsiya qilinadi.
-        builder.Property(u => u.Phone).HasMaxLength(20);
+        // Foydalanuvchi kiritgan ko'rinish (bo'shliq/qavs/defis bo'lishi mumkin).
+        builder.Property(u => u.Phone).HasMaxLength(32);
+
+        // Taqqoslash va qidiruv uchun YAGONA ko'rinish: +998901234567.
+        // `private set` — EF backing field orqali o'qib-yozadi.
+        builder.Property(u => u.PhoneNormalized).HasMaxLength(20);
 
         // Enum -> int (SPEC 2-bo'lim). Matn sifatida saqlansa nom o'zgarganda
         // bazadagi eski qiymatlar o'qilmay qoladi.
@@ -36,15 +40,20 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsUnique()
             .HasDatabaseName("IX_Users_Email");
 
-        // FILTRLI UNIKAL INDEKS: Phone/TelegramId — nullable.
+        // FILTRLI UNIKAL INDEKS: PhoneNormalized/TelegramId — nullable.
         // Postgres'da unikal indeks bir nechta NULL'ga ruxsat beradi, lekin
         // filtr indeksni ancha kichraytiradi (o'quvchilarning aksarida telegram
         // bog'lanmagan) va niyat kodda ochiq ko'rinadi.
         // Ustun nomlari PascalCase bo'lgani uchun filtrda TIRNOQ shart.
-        builder.HasIndex(u => u.Phone)
+        //
+        // DIQQAT: unikallik XOM `Phone` da EMAS, normalizatsiya qilinganida.
+        // Aks holda "+998 90 123 45 67" va "998901234567" ikki xil qator bo'lib
+        // o'tib ketardi — eski tizimda aynan shu sabab dublikat profillar
+        // paydo bo'lgan va ularni topish uchun butun jadval skan qilinardi.
+        builder.HasIndex(u => u.PhoneNormalized)
             .IsUnique()
-            .HasFilter("\"Phone\" IS NOT NULL")
-            .HasDatabaseName("IX_Users_Phone");
+            .HasFilter("\"PhoneNormalized\" IS NOT NULL")
+            .HasDatabaseName("IX_Users_PhoneNormalized");
 
         builder.HasIndex(u => u.TelegramId)
             .IsUnique()

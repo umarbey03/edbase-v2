@@ -34,6 +34,26 @@ public class ChatMessage : BaseEntity
         if (text.Length == 0)
             throw new DomainException("Xabar bo'sh bo'lishi mumkin emas.");
 
-        return text.Length > MaxBodyLength ? text[..MaxBodyLength] : text;
+        if (text.Length <= MaxBodyLength)
+            return text;
+
+        // XAVFSIZ KESISH — emoji ikkiga bo'linib qolmasin.
+        //
+        // C# satri UTF-16 kod birliklaridan iborat. Emoji (va BMP'dan tashqari
+        // boshqa belgilar) IKKI kod birligi — surrogat juftlik — bilan
+        // ifodalanadi. Oddiy `text[..500]` juftlikning o'rtasidan kesib,
+        // YOLG'IZ surrogat qoldirishi mumkin.
+        //
+        // Oqibati: bunday satrni Postgres'ga yozishda u `U+FFFD` (almashtirish
+        // belgisi) ga aylanadi, qat'iy kodlashda esa `EncoderFallbackException`
+        // bilan yiqiladi. Ya'ni 500-belgisi emojiga to'g'ri kelgan xabar chatni
+        // buzardi.
+        //
+        // Yechim: chegara yolg'iz yuqori surrogatga tushsa — bitta belgi orqaga.
+        var cut = MaxBodyLength;
+        if (char.IsHighSurrogate(text[cut - 1]))
+            cut--;
+
+        return text[..cut];
     }
 }

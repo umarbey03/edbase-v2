@@ -23,6 +23,16 @@ internal static partial class ApiLog
         Message = "ZIN-NUR API ishga tushdi. Muhit: {Environment}")]
     public static partial void ApiStarted(ILogger logger, string environment);
 
+    [LoggerMessage(
+        EventId = 1001,
+        Level = LogLevel.Information,
+        Message = "Kuzatuv: Sentry={SentryState}, log={LogFormat}, reliz={Release}")]
+    public static partial void ObservabilityConfigured(
+        ILogger logger,
+        string sentryState,
+        string logFormat,
+        string release);
+
     // ---------------------------------------------------------------- hub
 
     [LoggerMessage(
