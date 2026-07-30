@@ -1,0 +1,995 @@
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common.Exceptions;
+using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Models;
+using Zinnur.Application.Groups.Dtos;
+using Zinnur.Application.Scheduling.Dtos;
+using Zinnur.Application.Scheduling.Services;
+using Zinnur.Domain.Entities;
+using Zinnur.Domain.Enums;
+
+namespace Zinnur.Application.Groups.Services;
+
+/// <summary>
+/// Guruhlarni boshqarish use-case'lari.
+/// HTTP haqida HECH NARSA bilmaydi — faqat Application/Domain xatolarini ko'taradi.
+///
+/// Jadval mantiqi bu yerda TAKRORLANMAYDI: qoida
+/// <see cref="Zinnur.Domain.Entities.Group"/> da, generatsiya
+/// <see cref="Zinnur.Domain.Scheduling.ScheduleGenerator"/> da, yozish esa
+/// <see cref="IScheduleService"/> da. Bu servis faqat QAROR qabul qiladi:
+/// "jadvalga tegilsinmi va qanday".
+/// </summary>
+public sealed class GroupService(
+    IApplicationDbContext db,
+    IScheduleService schedule,
+    TimeProvider clock) : IGroupService
+{
+    // ================================================================= o'qish
+
+    public async Task<PagedResult<GroupDto>> ListAsync(
+        GroupListQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanBrowse(actor);
+
+        var page = Math.Max(query.Page, 1);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
+
+        var rows = db.Groups.AsNoTracking();
+
+        // USTOZ/KURATOR uchun ro'yxat AVTOMATIK o'z guruhlariga cheklanadi.
+        //
+        // NIMA UCHUN ALOHIDA `/groups/mine` ENDPOINTI YO'Q: ikkita endpoint
+        // ikkita filtr mantiqi degani va ular vaqt o'tib bir-biridan ajralib
+        // ketardi (masalan yangi filtr faqat bittasiga qo'shilardi). Bitta
+        // endpoint + roldan kelib chiqadigan filtr — bitta haqiqat manbai.
+        if (!CanReadAll(actor))
+            rows = rows.Where(VisibleTo(actor.Id));
+
+        if (query.Type is { } type)
+            rows = rows.Where(g => g.Type == type);
+
+        if (query.IsActive is { } isActive)
+            rows = rows.Where(g => g.IsActive == isActive);
+
+        rows = ApplySearch(rows, query.Search);
+
+        // Ikkita so'rov (COUNT + sahifa) — `Total` bo'lmasa frontend paginator
+        // sahifalar sonini bila olmaydi.
+        var total = await rows.CountAsync(ct);
+
+        var items = await Project(rows
+                .OrderBy(g => g.Name)
+                .ThenBy(g => g.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize))
+            .ToListAsync(ct);
+
+        return new PagedResult<GroupDto>(items.ConvertAll(Map), page, pageSize, total);
+    }
+
+    public async Task<GroupDto> GetAsync(long id, long actorId, CancellationToken ct = default)
+    {
+        await LoadForReadAsync(id, actorId, ct);
+        return await GetDtoAsync(id, ct);
+    }
+
+    // ================================================================= yaratish
+
+    public async Task<CreateGroupResponse> CreateAsync(
+        CreateGroupRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var name = RequireName(request.Name);
+        var weekdays = RequireWeekdays(request.Weekdays);
+        RequireKnownType(request.Type);
+
+        await EnsureCourseExistsAsync(request.CourseId, ct);
+        await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
+
+        var group = new Group
+        {
+            Name = name,
+            Type = request.Type,
+            CourseId = request.CourseId,
+            TeacherId = request.TeacherId,
+            AssistantId = request.AssistantId,
+            CuratorGroupId = request.CuratorGroupId,
+            StartDate = request.StartDate,
+            CourseMonths = request.CourseMonths,
+            Weekdays = [.. weekdays],
+            StartTime = request.StartTime,
+            DurationMinutes = request.DurationMinutes,
+            RecordEnabled = request.RecordEnabled,
+            IsActive = request.IsActive,
+        };
+
+        await EnsureCuratorLinkAsync(group, request.CuratorGroupId, ct);
+
+        // Domain qoidasi (kun soni, davomiylik, kurator mas'uli va h.k.).
+        // Buzilsa DomainException -> HTTP 409.
+        group.ValidateScheduleRule();
+
+        db.Groups.Add(group);
+
+        // JADVAL DARHOL TUZILADI va guruh bilan BITTA SaveChanges'da yoziladi.
+        // Aks holda "jadvali yo'q guruh" holati paydo bo'lardi va uni qo'lda
+        // tuzatish kerak bo'lardi.
+        var created = await schedule.GenerateForNewGroupAsync(group, ct);
+
+        await SaveWithUniqueGuardAsync(ct);
+
+        return new CreateGroupResponse(await GetDtoAsync(group.Id, ct), created);
+    }
+
+    // ================================================================= tahrirlash
+
+    /// <summary>
+    /// ========================================================================
+    /// ★ JADVAL QAYTA TUZISH QARORI — MODULNING ENG NOZIK JOYI
+    /// ========================================================================
+    ///
+    /// ESKI TIZIM BUGI: guruh tahrirlanganda jadval SHARTSIZ qayta tuzilardi.
+    /// Ya'ni faqat kursni yoki kuratorni almashtirsangiz ham butun kelajak
+    /// jadval o'chib qayta yaratilardi — dars Id'lari, LiveKit xona nomlari va
+    /// tarqatilgan havolalar o'zgarardi.
+    ///
+    /// ENDIGI QAROR JADVALI:
+    ///
+    /// | O'zgargan maydon                                   | Jadvalga ta'sir              |
+    /// |----------------------------------------------------|------------------------------|
+    /// | StartDate, Weekdays, StartTime, DurationMinutes,   | QAYTA TUZILADI               |
+    /// | CourseMonths, Type  (`ScheduleRuleDiffersFrom`)    | (faqat kelajak `Scheduled`)  |
+    /// | TeacherId / AssistantId                            | `HostId` O'RNIDA yangilanadi |
+    /// | Name                                               | sarlavha O'RNIDA yangilanadi |
+    /// | CourseId, CuratorGroupId, RecordEnabled, IsActive  | TEGILMAYDI                   |
+    ///
+    /// "O'rnida" degani: dars Id, xona nomi, davomat va chat SAQLANADI.
+    ///
+    /// Taqqoslash <c>Group.ScheduleRuleDiffersFrom</c> ga topshirilgan —
+    /// qaysi maydon "jadvalga ta'sir qiluvchi" ekani Domain'da BIR joyda
+    /// yozilgan, shu tufayli yangi maydon qo'shilganda bu yerda unutib
+    /// bo'lmaydi.
+    /// </summary>
+    public async Task<UpdateGroupResponse> UpdateAsync(
+        long id, UpdateGroupRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var group = await LoadForManageAsync(id, ct);
+
+        var name = RequireName(request.Name);
+        var weekdays = RequireWeekdays(request.Weekdays);
+        RequireKnownType(request.Type);
+
+        await EnsureCourseExistsAsync(request.CourseId, ct);
+        await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
+        await EnsureCuratorLinkAsync(group, request.CuratorGroupId, ct);
+
+        // ---- QAROR: taqqoslash O'ZGARTIRISHDAN OLDIN bajariladi ----
+        var scheduleChanged = group.ScheduleRuleDiffersFrom(
+            request.StartDate,
+            weekdays,
+            request.StartTime,
+            request.DurationMinutes,
+            request.CourseMonths,
+            request.Type);
+
+        var hostChanged = group.TeacherId != request.TeacherId
+                       || group.AssistantId != request.AssistantId;
+
+        var nameChanged = !string.Equals(group.Name, name, StringComparison.Ordinal);
+
+        // ---- Endi qiymatlarni qo'yamiz ----
+        group.Name = name;
+        group.Type = request.Type;
+        group.CourseId = request.CourseId;
+        group.TeacherId = request.TeacherId;
+        group.AssistantId = request.AssistantId;
+        group.CuratorGroupId = request.CuratorGroupId;
+        group.StartDate = request.StartDate;
+        group.CourseMonths = request.CourseMonths;
+        group.Weekdays = [.. weekdays];
+        group.StartTime = request.StartTime;
+        group.DurationMinutes = request.DurationMinutes;
+        group.RecordEnabled = request.RecordEnabled;
+        group.IsActive = request.IsActive;
+
+        group.ValidateScheduleRule();
+
+        var summary = await ApplyScheduleDecisionAsync(
+            group, scheduleChanged, hostChanged, nameChanged, ct);
+
+        // BITTA SaveChanges: guruh maydonlari va jadval o'zgarishi bitta
+        // tranzaksiyada. Yarim holat (guruh yangilangan, jadval eski) bo'lmaydi.
+        await SaveWithUniqueGuardAsync(ct);
+
+        return new UpdateGroupResponse(await GetDtoAsync(group.Id, ct), summary);
+    }
+
+    /// <summary>Qaror jadvalini bajaradi (yuqoridagi izohdagi to'rt yo'l).</summary>
+    private async Task<ScheduleChangeSummary> ApplyScheduleDecisionAsync(
+        Group group, bool scheduleChanged, bool hostChanged, bool nameChanged, CancellationToken ct)
+    {
+        // 1) Jadval qoidasi o'zgardi -> qayta tuzish. Yangi darslar allaqachon
+        //    yangi nom va yangi host bilan yaratiladi, shuning uchun "o'rnida
+        //    tahrirlash" qadamlari KERAK EMAS (ular faqat qoida o'zgarmaganda).
+        if (scheduleChanged)
+            return await schedule.RegenerateAsync(group, ct);
+
+        // 2) Faqat ustoz/kurator va/yoki nom o'zgardi -> darslar O'RNIDA
+        //    tahrirlanadi: Id, xona nomi, davomat va chat saqlanadi.
+        var hosts = hostChanged ? await schedule.RetargetHostAsync(group, ct) : 0;
+        var titles = nameChanged ? await schedule.RenameFutureSessionsAsync(group, ct) : 0;
+
+        if (hosts > 0 || titles > 0)
+            return ScheduleChangeSummary.InPlace(hosts, titles, InPlaceReason);
+
+        // 3) Jadvalga ta'sir qiluvchi hech narsa o'zgarmadi (kurs, kurator
+        //    bog'lanishi, yozuv bayrog'i, faollik) -> TEGILMAYDI.
+        return ScheduleChangeSummary.Untouched(
+            hostChanged || nameChanged ? NothingToUpdateReason : UntouchedReason);
+    }
+
+    public async Task<GroupDto> SetActiveAsync(
+        long id, bool isActive, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var group = await LoadForManageAsync(id, ct);
+
+        if (group.IsActive != isActive)
+        {
+            // Arxivlash jadvalga TEGMAYDI: guruh keyin tiklanishi mumkin va
+            // o'sha paytda jadval o'z joyida turishi kerak.
+            group.IsActive = isActive;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return await GetDtoAsync(id, ct);
+    }
+
+    // ================================================================= a'zolik
+
+    public async Task<IReadOnlyList<GroupMemberDto>> ListMembersAsync(
+        long id, long actorId, CancellationToken ct = default)
+    {
+        var (_, group) = await LoadForReadAsync(id, actorId, ct);
+
+        return await ProjectMembers(MembersOf(group)
+                .OrderBy(m => m.Student!.FullName)
+                .ThenBy(m => m.Id))
+            .ToListAsync(ct);
+    }
+
+    public async Task<GroupMemberDto> AddMemberAsync(
+        long id, AddMemberRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var group = await LoadGroupAsync(id, ct);
+        EnsureAcceptsDirectMembers(group);
+
+        if (!group.IsActive)
+            throw new ConflictException("Arxivlangan guruhga o'quvchi qo'shilmaydi.");
+
+        var student = await db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == request.StudentId, ct)
+            ?? throw new NotFoundException(nameof(User), request.StudentId);
+
+        // Faqat O'QUVCHI. Aks holda ustoz yoki admin a'zo bo'lib qolib,
+        // davomat va to'lov hisobotlariga tushib ketardi.
+        if (student.Role != UserRole.Student)
+            throw Invalid(nameof(request.StudentId), "Guruhga faqat 'Student' rolidagi foydalanuvchi qo'shiladi.");
+
+        if (!student.IsActive)
+            throw new ConflictException("Foydalanuvchi profili faol emas.");
+
+        var member = await db.GroupMembers.AsTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == group.Id && m.StudentId == student.Id, ct);
+
+        if (member is null)
+        {
+            member = new GroupMember
+            {
+                GroupId = group.Id,
+                StudentId = student.Id,
+                Status = MemberStatus.Active,
+                JoinedAt = clock.GetUtcNow(),
+            };
+
+            db.GroupMembers.Add(member);
+        }
+        else if (member.Status == MemberStatus.Active)
+        {
+            throw new ConflictException("O'quvchi allaqachon shu guruhda.");
+        }
+        else
+        {
+            // TIKLASH, yangi qator EMAS: `UX_GroupMembers_GroupId_StudentId`
+            // unikal indeksi ikkinchi qatorga yo'l bermaydi. Eski tizim shu
+            // yerda dublikat yozuv yaratardi va davomat ikki marta sanalardi.
+            member.Status = MemberStatus.Active;
+            member.JoinedAt = clock.GetUtcNow();
+        }
+
+        SetPausedUntil(member, null);
+
+        await SaveWithUniqueGuardAsync(ct);
+        return await GetMemberDtoAsync(member.Id, ct);
+    }
+
+    public async Task<GroupMemberDto> PauseMemberAsync(
+        long id, long studentId, PauseMemberRequest request, long actorId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+
+        if (member.Status == MemberStatus.Stopped)
+            throw new ConflictException("Guruhdan chiqarilgan o'quvchini pauzaga qo'yish mumkin emas.");
+
+        if (member.Status == MemberStatus.Moved)
+            throw new ConflictException("Boshqa guruhga ko'chirilgan o'quvchini pauzaga qo'yish mumkin emas.");
+
+        if (request.PausedUntil is { } until && until < DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
+            throw Invalid(nameof(request.PausedUntil), "Pauza muddati o'tgan sana bo'lishi mumkin emas.");
+
+        member.Status = MemberStatus.Paused;
+        SetPausedUntil(member, request.PausedUntil);
+
+        await db.SaveChangesAsync(ct);
+        return await GetMemberDtoAsync(member.Id, ct);
+    }
+
+    public async Task<GroupMemberDto> ResumeMemberAsync(
+        long id, long studentId, long actorId, CancellationToken ct = default)
+    {
+        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+
+        // Chiqarilgan yoki ko'chirilgan a'zolik "tiklanmaydi" — bu boshqa
+        // amal (qayta qo'shish), aks holda ko'chirish tarixini jimgina
+        // buzib qo'yardi.
+        if (member.Status is MemberStatus.Stopped or MemberStatus.Moved)
+            throw new ConflictException(
+                "Bu a'zolik pauzada emas. O'quvchini qaytadan qo'shish uchun "
+                + "\"a'zo qo'shish\" amalidan foydalaning.");
+
+        if (member.Status != MemberStatus.Active)
+        {
+            member.Status = MemberStatus.Active;
+            SetPausedUntil(member, null);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return await GetMemberDtoAsync(member.Id, ct);
+    }
+
+    public async Task<GroupMemberDto> RemoveMemberAsync(
+        long id, long studentId, long actorId, CancellationToken ct = default)
+    {
+        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+
+        // YUMSHOQ o'chirish: yozuv qoladi. Davomat, to'lov va hisobotlar
+        // a'zolikka ishora qiladi — qator o'chirilsa ular yetim qolardi.
+        if (member.Status != MemberStatus.Stopped)
+        {
+            member.Status = MemberStatus.Stopped;
+            SetPausedUntil(member, null);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return await GetMemberDtoAsync(member.Id, ct);
+    }
+
+    public async Task<MoveMemberResponse> MoveMemberAsync(
+        long id, long studentId, MoveMemberRequest request, long actorId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.TargetGroupId == id)
+            throw new ConflictException("Manba va nishon guruh bir xil.");
+
+        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+
+        var target = await LoadGroupAsync(request.TargetGroupId, ct);
+        EnsureAcceptsDirectMembers(target);
+
+        if (!target.IsActive)
+            throw new ConflictException("Arxivlangan guruhga ko'chirib bo'lmaydi.");
+
+        var arrived = await db.GroupMembers.AsTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == target.Id && m.StudentId == studentId, ct);
+
+        if (arrived is { Status: MemberStatus.Active })
+            throw new ConflictException("O'quvchi allaqachon nishon guruhda faol.");
+
+        var now = clock.GetUtcNow();
+
+        member.Status = MemberStatus.Moved;
+        SetPausedUntil(member, null);
+
+        if (arrived is null)
+        {
+            arrived = new GroupMember
+            {
+                GroupId = target.Id,
+                StudentId = studentId,
+                Status = MemberStatus.Active,
+                JoinedAt = now,
+            };
+
+            db.GroupMembers.Add(arrived);
+        }
+        else
+        {
+            arrived.Status = MemberStatus.Active;
+            arrived.JoinedAt = now;
+        }
+
+        SetPausedUntil(arrived, null);
+
+        // ATOMIK: bitta SaveChanges = bitta tranzaksiya. "Eski guruhdan
+        // chiqib, yangisiga kirmagan" yarim holat MUMKIN EMAS — eski tizimda
+        // bu ikki alohida so'rov edi va ikkinchisi yiqilsa o'quvchi
+        // hech qaysi guruhda qolmasdi.
+        await SaveWithUniqueGuardAsync(ct);
+
+        return new MoveMemberResponse(
+            await GetMemberDtoAsync(member.Id, ct),
+            await GetMemberDtoAsync(arrived.Id, ct));
+    }
+
+    // ================================================================= jadval
+
+    public async Task<IReadOnlyList<ScheduledSessionDto>> GetScheduleAsync(
+        long id, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, long actorId,
+        CancellationToken ct = default)
+    {
+        await LoadForReadAsync(id, actorId, ct);
+
+        if (fromUtc is { } start && toUtc is { } end && end < start)
+            throw Invalid("to", "Oraliq oxiri boshidan oldin bo'lishi mumkin emas.");
+
+        return await schedule.ListAsync(id, fromUtc, toUtc, ct);
+    }
+
+    public async Task<ScheduleChangeSummary> RegenerateScheduleAsync(
+        long id, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var group = await LoadForManageAsync(id, ct);
+
+        var summary = await schedule.RegenerateAsync(group, ct);
+        await db.SaveChangesAsync(ct);
+
+        return summary;
+    }
+
+    // ================================================================= kurator
+
+    public async Task<IReadOnlyList<CuratorCandidateDto>> ListCuratorCandidatesAsync(
+        long id, long actorId, CancellationToken ct = default)
+    {
+        var (_, group) = await LoadForReadAsync(id, actorId, ct);
+
+        // Kurator guruhi boshqa kurator guruhiga bog'lanmaydi (Domain qoidasi),
+        // shuning uchun uning uchun nomzod bo'lishi mumkin emas. Bu XATO emas —
+        // shunchaki bo'sh ro'yxat (GET so'rov 409 bermasligi kerak).
+        if (group.IsCuratorGroup) return [];
+
+        var rows = await db.Groups.AsNoTracking()
+            .Where(c => c.Type == GroupType.Curator
+                     && c.IsActive
+                     && c.Id != group.Id
+                     // Zanjir bo'lmasin: o'zi boshqa kuratorga bog'langan
+                     // guruh nomzod bo'lmaydi.
+                     && c.CuratorGroupId == null)
+            .OrderBy(c => c.Name)
+            .ThenBy(c => c.Id)
+            .Select(c => new CandidateProjection(
+                c.Id,
+                c.Name,
+                c.AssistantId,
+                db.Users.Where(u => u.Id == c.AssistantId).Select(u => u.FullName).FirstOrDefault(),
+                c.CourseId,
+                c.Course == null ? null : c.Course.Name,
+                c.Weekdays,
+                c.StartTime,
+                db.Groups.Count(t => t.CuratorGroupId == c.Id)))
+            .ToListAsync(ct);
+
+        return rows.ConvertAll(c => new CuratorCandidateDto(
+            c.Id, c.Name, c.AssistantId, c.AssistantName,
+            c.CourseId, c.CourseName, c.Weekdays, c.StartTime, c.LinkedGroupCount));
+    }
+
+    // ================================================================= RUXSAT QOIDASI
+
+    /// <summary>
+    /// ================================================================
+    /// GURUHLARNI BOSHQARISHNING YAGONA RUXSAT QOIDASI
+    /// ================================================================
+    /// O'zgartiruvchi HAR BIR metod shu tekshiruvdan o'tadi (yaratish,
+    /// tahrirlash, arxivlash, a'zolik, jadvalni qayta tuzish).
+    ///
+    /// Controller'dagi <c>[Authorize(Roles=...)]</c> faqat DARVOZA — u
+    /// "umuman kira oladimi" degan savolga javob beradi. Haqiqiy qoida shu
+    /// yerda, chunki servis SignalR hub'idan yoki fon vazifasidan ham
+    /// chaqirilishi mumkin (o'sha yerda atribut ishlamaydi).
+    /// </summary>
+    private static void EnsureCanManage(User actor)
+    {
+        if (actor.Role is not (UserRole.Admin or UserRole.Academic))
+        {
+            throw new ForbiddenException(
+                "Guruhlarni faqat o'quv bo'limi xodimi yoki administrator o'zgartira oladi.");
+        }
+    }
+
+    /// <summary>Ro'yxatni umuman ko'ra oladimi (o'quvchi ko'ra olmaydi).</summary>
+    private static void EnsureCanBrowse(User actor)
+    {
+        if (actor.Role is UserRole.Student)
+            throw new ForbiddenException("Guruhlar ro'yxatiga ruxsatingiz yo'q.");
+    }
+
+    private static bool CanReadAll(User actor) =>
+        actor.Role is UserRole.Admin or UserRole.Academic;
+
+    /// <summary>
+    /// Ustoz/kurator KO'RA oladigan guruhlar filtri (ro'yxat va kartochka
+    /// uchun bitta ifoda — ikki joyda ajralib ketmasin).
+    ///
+    /// Kurator o'z guruhiga BOG'LANGAN ustoz guruhlarini ham ko'radi: uning
+    /// darsida aynan o'sha guruhlarning o'quvchilari qatnashadi.
+    /// </summary>
+    private static System.Linq.Expressions.Expression<Func<Group, bool>> VisibleTo(long userId) =>
+        g => g.TeacherId == userId
+          || g.AssistantId == userId
+          || (g.CuratorGroup != null
+              && (g.CuratorGroup.TeacherId == userId || g.CuratorGroup.AssistantId == userId));
+
+    private static void EnsureCanRead(User actor, Group group)
+    {
+        if (CanReadAll(actor)) return;
+
+        if (group.IsStaff(actor.Id)) return;
+
+        if (group.CuratorGroup is { } curator && curator.IsStaff(actor.Id)) return;
+
+        throw new ForbiddenException("Bu guruhga ruxsatingiz yo'q.");
+    }
+
+    /// <summary>Kurator guruhida o'quvchilar BEVOSITA a'zo bo'lmaydi.</summary>
+    private static void EnsureAcceptsDirectMembers(Group group)
+    {
+        if (group.IsCuratorGroup)
+        {
+            throw new ConflictException(
+                "Kurator guruhiga o'quvchi to'g'ridan-to'g'ri qo'shilmaydi. "
+                + "Uning o'quvchilari bog'langan ustoz guruhlaridan keladi — "
+                + "ustoz guruhini shu kuratorga bog'lang.");
+        }
+    }
+
+    // ================================================================= ichki yordamchi
+
+    private async Task<User> LoadActorAsync(long actorId, CancellationToken ct)
+    {
+        // Rol TOKEN'dan emas, BAZADAN olinadi: kirish tokeni 15 daqiqa
+        // yashaydi, shuning uchun endi o'chirilgan yoki roli pasaytirilgan
+        // xodim eski token bilan amal bajara olmasligi kerak.
+        var actor = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorId, ct)
+            ?? throw new NotFoundException(nameof(User), actorId);
+
+        if (!actor.IsActive)
+            throw new ForbiddenException("Profilingiz faol emas.");
+
+        return actor;
+    }
+
+    /// <summary>Ko'rish uchun: kurator havolasi bilan (ruxsat tekshiruvi shunga tayanadi).</summary>
+    private async Task<(User Actor, Group Group)> LoadForReadAsync(
+        long id, long actorId, CancellationToken ct)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        var group = await db.Groups
+            .AsNoTracking()
+            .Include(g => g.CuratorGroup)
+            .FirstOrDefaultAsync(g => g.Id == id, ct)
+            ?? throw new NotFoundException(nameof(Group), id);
+
+        EnsureCanRead(actor, group);
+        return (actor, group);
+    }
+
+    /// <summary>
+    /// Tahrirlash uchun: KUZATILADIGAN (tracked) guruh, `CuratorGroup`
+    /// navigatsiyasi ATAYLAB yuklanmaydi.
+    ///
+    /// NIMA UCHUN: navigatsiya yuklangan holda `CuratorGroupId` ni
+    /// o'zgartirsak, EF navigatsiya bilan FK orasidagi ziddiyatni o'zi
+    /// "hal qilishga" urinadi va bog'lanishni kutilmaganda tiklab yoki
+    /// bo'shatib qo'yishi mumkin. FK ni yolg'iz o'zgartirish — bir ma'noli.
+    /// </summary>
+    private async Task<Group> LoadForManageAsync(long id, CancellationToken ct) =>
+        await db.Groups.AsTracking().FirstOrDefaultAsync(g => g.Id == id, ct)
+        ?? throw new NotFoundException(nameof(Group), id);
+
+    private async Task<Group> LoadGroupAsync(long id, CancellationToken ct) =>
+        await db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == id, ct)
+        ?? throw new NotFoundException(nameof(Group), id);
+
+    /// <summary>A'zolikni boshqarish uchun yuklaydi (ruxsat + kurator tekshiruvi bilan).</summary>
+    private async Task<GroupMember> LoadMemberForManageAsync(
+        long groupId, long studentId, long actorId, CancellationToken ct)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanManage(actor);
+
+        var group = await LoadGroupAsync(groupId, ct);
+        EnsureAcceptsDirectMembers(group);
+
+        return await db.GroupMembers.AsTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.StudentId == studentId, ct)
+            ?? throw new NotFoundException(nameof(GroupMember), studentId);
+    }
+
+    /// <summary>
+    /// Guruh a'zolari so'rovi.
+    ///
+    /// KURATOR guruhi uchun a'zolar BOG'LANGAN ustoz guruhlaridan yig'iladi
+    /// (kurator guruhida o'zining a'zosi bo'lmaydi) — eski tizimda bu havola
+    /// hisobga olinmagani uchun kurator darsida ro'yxat bo'sh chiqardi.
+    /// </summary>
+    private IQueryable<GroupMember> MembersOf(Group group) =>
+        group.IsCuratorGroup
+            ? db.GroupMembers.AsNoTracking().Where(m => m.Group!.CuratorGroupId == group.Id)
+            : db.GroupMembers.AsNoTracking().Where(m => m.GroupId == group.Id);
+
+    private void SetPausedUntil(GroupMember member, DateOnly? value) =>
+        db.GroupMembers
+            .Entry(member)
+            .Property<DateOnly?>(GroupMemberFields.PausedUntil)
+            .CurrentValue = value;
+
+    private async Task<GroupMemberDto> GetMemberDtoAsync(long memberId, CancellationToken ct) =>
+        await ProjectMembers(db.GroupMembers.AsNoTracking().Where(m => m.Id == memberId))
+            .FirstOrDefaultAsync(ct)
+        ?? throw new NotFoundException(nameof(GroupMember), memberId);
+
+    private static IQueryable<GroupMemberDto> ProjectMembers(IQueryable<GroupMember> rows) =>
+        rows.Select(m => new GroupMemberDto(
+            m.Id,
+            m.StudentId,
+            m.Student!.FullName,
+            m.Student.Email,
+            m.Student.Phone,
+            m.Status,
+            m.JoinedAt,
+            EF.Property<DateOnly?>(m, GroupMemberFields.PausedUntil),
+            m.GroupId,
+            m.Group!.Name));
+
+    /// <summary>
+    /// Guruh nomi bo'yicha qidiruv.
+    ///
+    /// `Groups` KICHIK jadval (yuzlarcha qator, 100 mingta emas), shuning
+    /// uchun `pg_trgm` GIN indeksi qo'yilmagan — bu yerda ketma-ket skan
+    /// arzon. `Users` da esa aksincha: o'sha jadval yuz minglab qatorga
+    /// o'sadi va indeks MAJBURIY (`UserService.ApplySearch`).
+    /// </summary>
+    private static IQueryable<Group> ApplySearch(IQueryable<Group> rows, string? search)
+    {
+        var trimmed = search?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed)) return rows;
+
+        if (trimmed.Length < MinSearchLength)
+        {
+            throw Invalid("search", "Qidiruv uchun kamida "
+                + MinSearchLength.ToString(CultureInfo.InvariantCulture) + " belgi kiriting.");
+        }
+
+        var term = "%" + Escape(trimmed.ToLowerInvariant()) + "%";
+
+        // `g.Name.ToLower()` .NET satrida ISHLAMAYDI — u ifoda daraxti ichida
+        // va EF uni Postgres'ning `lower()` ga aylantiradi.
+        // `ToLowerInvariant()` ni EF tarjima QILA OLMAYDI, shuning uchun
+        // globalizatsiya analizatori shu blokda ataylab o'chirilgan.
+#pragma warning disable CA1304, CA1311
+        return rows.Where(g => EF.Functions.Like(g.Name.ToLower(), term));
+#pragma warning restore CA1304, CA1311
+    }
+
+    /// <summary>LIKE metabelgilarini zararsizlantiradi (aks holda '%' butun jadvalni tortadi).</summary>
+    private static string Escape(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+             .Replace("%", "\\%", StringComparison.Ordinal)
+             .Replace("_", "\\_", StringComparison.Ordinal);
+
+    private static string RequireName(string? name)
+    {
+        var value = name?.Trim();
+
+        if (string.IsNullOrEmpty(value))
+            throw Invalid(nameof(Group.Name), "Guruh nomi kiritilishi shart.");
+
+        if (value.Length > MaxNameLength)
+            throw Invalid(nameof(Group.Name), "Guruh nomi juda uzun.");
+
+        return value;
+    }
+
+    /// <summary>
+    /// Dars kunlari. SONI tekshirilmaydi — u guruh TURIGA bog'liq va qoida
+    /// Domain'da (<c>Group.ValidateScheduleRule</c>). Bu yerda faqat JSON'dan
+    /// kelgan qiymatning o'zi haqiqiy <c>DayOfWeek</c> ekani tekshiriladi.
+    /// </summary>
+    private static IReadOnlyList<DayOfWeek> RequireWeekdays(IReadOnlyList<DayOfWeek>? weekdays)
+    {
+        if (weekdays is null || weekdays.Count == 0)
+            throw Invalid(nameof(Group.Weekdays), "Kamida bitta dars kuni tanlanishi kerak.");
+
+        // `JsonStringEnumConverter` RAQAMni ham qabul qiladi va uni
+        // TEKSHIRMAYDI: `[9]` yuborilsa DayOfWeek(9) hosil bo'lardi va
+        // generator hech qanday kunga to'g'ri kelmasdan BO'SH jadval qurardi.
+        foreach (var day in weekdays)
+        {
+            if (!Enum.IsDefined(day))
+                throw Invalid(nameof(Group.Weekdays), "Dars kuni noto'g'ri (Monday..Sunday kutiladi).");
+        }
+
+        return weekdays;
+    }
+
+    private static void RequireKnownType(GroupType type)
+    {
+        if (!Enum.IsDefined(type))
+            throw Invalid(nameof(Group.Type), "Guruh turi noto'g'ri (Group, Individual, Curator).");
+    }
+
+    private async Task EnsureCourseExistsAsync(long? courseId, CancellationToken ct)
+    {
+        if (courseId is null) return;
+
+        if (!await db.Courses.AsNoTracking().AnyAsync(c => c.Id == courseId, ct))
+            throw new NotFoundException(nameof(Course), courseId);
+    }
+
+    /// <summary>
+    /// Ustoz va kurator MAVJUD va O'QUVCHI EMAS ekanini tekshiradi
+    /// (bitta so'rovda — ikki alohida so'rov shart emas).
+    /// </summary>
+    private async Task EnsureStaffAsync(long? teacherId, long? assistantId, CancellationToken ct)
+    {
+        var ids = new List<long>(2);
+
+        if (teacherId is { } teacher) ids.Add(teacher);
+        if (assistantId is { } assistant && assistant != teacherId) ids.Add(assistant);
+
+        if (ids.Count == 0) return;
+
+        var found = await db.Users.AsNoTracking()
+            .Where(u => ids.Contains(u.Id))
+            .Select(u => new { u.Id, u.Role })
+            .ToListAsync(ct);
+
+        foreach (var id in ids)
+        {
+            var user = found.Find(u => u.Id == id)
+                ?? throw new NotFoundException(nameof(User), id);
+
+            // O'quvchini ustoz/kurator qilib qo'yish — ruxsat matritsasini
+            // buzadi: u o'z guruhining barcha darslarini boshlay olardi.
+            if (user.Role == UserRole.Student)
+            {
+                throw Invalid(nameof(Group.TeacherId),
+                    "Ustoz yoki kurator sifatida 'Student' rolidagi foydalanuvchi biriktirilmaydi.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Kurator guruhiga bog'lanishni tekshiradi.
+    ///
+    /// Domain o'zini-o'ziga bog'lash va "kurator guruhi kuratorga bog'lanmaydi"
+    /// qoidalarini biladi, lekin NISHON guruh haqidagi faktlarni (mavjudmi,
+    /// turi qanday, o'zi bog'langanmi) faqat baza biladi — shuning uchun bu
+    /// tekshiruv shu yerda.
+    /// </summary>
+    private async Task EnsureCuratorLinkAsync(Group group, long? curatorGroupId, CancellationToken ct)
+    {
+        if (curatorGroupId is null) return;
+
+        if (curatorGroupId == group.Id && group.Id != 0)
+            throw new ConflictException("Guruh o'zini o'ziga bog'lay olmaydi.");
+
+        var target = await db.Groups.AsNoTracking()
+            .Where(g => g.Id == curatorGroupId)
+            .Select(g => new { g.Id, g.Type, g.CuratorGroupId })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(Group), curatorGroupId);
+
+        if (target.Type != GroupType.Curator)
+            throw new ConflictException("Faqat KURATOR turidagi guruhga bog'lash mumkin.");
+
+        // ZANJIR TAQIQI: A -> B -> C bo'lsa "kimning o'quvchisi kim" degan
+        // savol bir ma'noli bo'lmay qoladi va davomat rekursiv hisoblash
+        // talab qilardi. Bir pog'onalik bog'lanish — qat'iy qoida.
+        if (target.CuratorGroupId is not null)
+        {
+            throw new ConflictException(
+                "Zanjir bog'lanish taqiqlanadi: tanlangan kurator guruhi o'zi "
+                + "boshqa kurator guruhiga bog'langan.");
+        }
+    }
+
+    /// <summary>
+    /// Unikal indeks buzilishini tushunarli 409 ga aylantiradi.
+    /// Tekshiruv bilan yozuv orasida boshqa so'rov ulgurib qolishi mumkin —
+    /// indeks oxirgi (va ishonchli) himoya.
+    /// </summary>
+    private async Task SaveWithUniqueGuardAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            throw new ConflictException(
+                "Yozuv boshqa so'rov bilan to'qnashdi (takroriy a'zolik yoki xona nomi). "
+                + "Qaytadan urinib ko'ring.");
+        }
+    }
+
+    private async Task<GroupDto> GetDtoAsync(long id, CancellationToken ct)
+    {
+        var row = await Project(db.Groups.AsNoTracking().Where(g => g.Id == id))
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(Group), id);
+
+        return Map(row);
+    }
+
+    /// <summary>
+    /// Guruh -> ustunlar to'plami. Nomlar (kurs, ustoz, kurator) va sanoqlar
+    /// BAZADA hisoblanadi — aks holda ro'yxatning har qatori uchun alohida
+    /// so'rov ketardi (N+1).
+    /// </summary>
+    private IQueryable<Projection> Project(IQueryable<Group> rows) =>
+        rows.Select(g => new Projection(
+            g.Id,
+            g.Name,
+            g.Type,
+            g.CourseId,
+            g.Course == null ? null : g.Course.Name,
+            g.TeacherId,
+            db.Users.Where(u => u.Id == g.TeacherId).Select(u => u.FullName).FirstOrDefault(),
+            g.AssistantId,
+            db.Users.Where(u => u.Id == g.AssistantId).Select(u => u.FullName).FirstOrDefault(),
+            g.CuratorGroupId,
+            g.CuratorGroup == null ? null : g.CuratorGroup.Name,
+            g.StartDate,
+            g.CourseMonths,
+            g.Weekdays,
+            g.StartTime,
+            g.DurationMinutes,
+            g.IsActive,
+            g.RecordEnabled,
+
+            // KURATOR guruhida a'zolar bevosita yo'q — ular bog'langan ustoz
+            // guruhlaridan sanaladi. Ikki shart bitta ifodada: oddiy guruhda
+            // ikkinchi shart hech qachon rost bo'lmaydi va aksincha.
+            db.GroupMembers.Count(m => m.Status == MemberStatus.Active
+                && (m.GroupId == g.Id
+                    || (g.Type == GroupType.Curator && m.Group!.CuratorGroupId == g.Id))),
+
+            db.LiveSessions.Count(s => s.GroupId == g.Id && s.Status != SessionStatus.Cancelled),
+            g.CreatedAt,
+            g.UpdatedAt));
+
+    private static GroupDto Map(Projection p) => new(
+        p.Id,
+        p.Name,
+        p.Type,
+        p.CourseId,
+        p.CourseName,
+        p.TeacherId,
+        p.TeacherName,
+        p.AssistantId,
+        p.AssistantName,
+        p.CuratorGroupId,
+        p.CuratorGroupName,
+        p.StartDate,
+        // `Group.EndDate` bilan AYNAN bir xil hisob. Bazada hisoblanmaydi:
+        // `DateOnly.AddMonths` ni SQL'ga o'girishga tayanmaymiz.
+        p.StartDate.AddMonths(p.CourseMonths),
+        p.CourseMonths,
+        p.Weekdays,
+        p.StartTime,
+        p.DurationMinutes,
+        p.IsActive,
+        p.RecordEnabled,
+        p.MemberCount,
+        p.SessionCount,
+        p.CreatedAt,
+        p.UpdatedAt);
+
+    private static ValidationException Invalid(string field, string message) =>
+        new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
+
+    // ---------------------------------------------------------------- doimiylar va ichki turlar
+
+    private const int MaxPageSize = 100;
+    private const int MinSearchLength = 2;
+    private const int MaxNameLength = 150;
+
+    private const string InPlaceReason =
+        "Jadval qoidasi o'zgarmadi — mavjud darslar O'RNIDA tahrirlandi. "
+        + "Dars Id'lari, LiveKit xona nomlari, davomat va chat saqlandi.";
+
+    private const string UntouchedReason =
+        "Jadvalga ta'sir qiluvchi maydon o'zgarmadi — jadvalga tegilmadi.";
+
+    private const string NothingToUpdateReason =
+        "Jadval qoidasi o'zgarmadi; yangilanishi kerak bo'lgan kelajak dars topilmadi.";
+
+    /// <summary>Ro'yxat so'rovi uchun ustunlar to'plami (`EndDate` xotirada hisoblanadi).</summary>
+    private sealed record Projection(
+        long Id,
+        string Name,
+        GroupType Type,
+        long? CourseId,
+        string? CourseName,
+        long? TeacherId,
+        string? TeacherName,
+        long? AssistantId,
+        string? AssistantName,
+        long? CuratorGroupId,
+        string? CuratorGroupName,
+        DateOnly StartDate,
+        int CourseMonths,
+        List<DayOfWeek> Weekdays,
+        TimeOnly StartTime,
+        int DurationMinutes,
+        bool IsActive,
+        bool RecordEnabled,
+        int MemberCount,
+        int SessionCount,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? UpdatedAt);
+
+    private sealed record CandidateProjection(
+        long Id,
+        string Name,
+        long? AssistantId,
+        string? AssistantName,
+        long? CourseId,
+        string? CourseName,
+        List<DayOfWeek> Weekdays,
+        TimeOnly StartTime,
+        int LinkedGroupCount);
+}

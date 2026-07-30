@@ -1,0 +1,178 @@
+using Zinnur.Domain.Enums;
+
+namespace Zinnur.Application.Groups.Dtos;
+
+// ============================================================================
+// GURUH DTO'LARI
+//
+// ENUM'LAR haqida: bu yerda enum turlari SAQLANADI (`GroupType`, `DayOfWeek`,
+// `MemberStatus`), satrga qo'lda o'girilmaydi. `Program.cs` da
+// `JsonStringEnumConverter` ro'yxatdan o'tgani uchun JSON'da ular baribir
+// SATR ko'rinishida chiqadi va satr ko'rinishida qabul qilinadi:
+//     "type": "Curator",  "weekdays": ["Monday", "Wednesday"]
+// Ya'ni sim ustidagi format `Users` moduliga AYNAN mos, lekin DTO tur
+// xavfsizligini yo'qotmaydi (noto'g'ri qiymat 400 bo'lib qaytadi).
+// ============================================================================
+
+/// <summary>
+/// Guruh — ro'yxat va kartochka uchun YAGONA shakl.
+///
+/// NIMA UCHUN BITTA DTO: ro'yxat va kartochka bir xil maydonlarni ko'rsatadi
+/// (nomlar, a'zolar soni). Ikki DTO bo'lsa yangi maydon bittasiga qo'shilib,
+/// ikkinchisida unutilardi.
+/// </summary>
+/// <param name="EndDate">Kurs tugash sanasi — <c>StartDate + CourseMonths</c>.</param>
+/// <param name="MemberCount">
+/// Faol a'zolar soni. KURATOR guruhida a'zolar bevosita yo'q — ular
+/// <c>CuratorGroupId</c> orqali bog'langan ustoz guruhlaridan sanaladi.
+/// </param>
+/// <param name="SessionCount">Bekor qilinmagan darslar soni (jadval hajmi).</param>
+public sealed record GroupDto(
+    long Id,
+    string Name,
+    GroupType Type,
+    long? CourseId,
+    string? CourseName,
+    long? TeacherId,
+    string? TeacherName,
+    long? AssistantId,
+    string? AssistantName,
+    long? CuratorGroupId,
+    string? CuratorGroupName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    int CourseMonths,
+    IReadOnlyList<DayOfWeek> Weekdays,
+    TimeOnly StartTime,
+    int DurationMinutes,
+    bool IsActive,
+    bool RecordEnabled,
+    int MemberCount,
+    int SessionCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? UpdatedAt);
+
+/// <summary>Ro'yxat filtri. Barcha maydonlar ixtiyoriy.</summary>
+/// <param name="Search">Guruh nomi bo'yicha qism-satr (kamida 2 belgi).</param>
+/// <param name="Type">Guruh turi bo'yicha filtr.</param>
+/// <param name="IsActive">Arxivlanganlarni ajratish uchun.</param>
+/// <param name="Page">Sahifa (1 dan).</param>
+/// <param name="PageSize">Sahifa hajmi (1..100, default 25).</param>
+public sealed record GroupListQuery(
+    string? Search = null,
+    GroupType? Type = null,
+    bool? IsActive = null,
+    int Page = 1,
+    int PageSize = 25);
+
+/// <summary>
+/// Yangi guruh. Jadval qoidasi (sana, kunlar, soat, davomiylik, oy) MAJBURIY —
+/// guruh yaratilishi bilan butun kurs jadvali generatsiya qilinadi.
+/// </summary>
+public sealed record CreateGroupRequest(
+    string Name,
+    DateOnly StartDate,
+    IReadOnlyList<DayOfWeek> Weekdays,
+    TimeOnly StartTime,
+    GroupType Type = GroupType.Group,
+    int DurationMinutes = 80,
+    int CourseMonths = 8,
+    long? CourseId = null,
+    long? TeacherId = null,
+    long? AssistantId = null,
+    long? CuratorGroupId = null,
+    bool RecordEnabled = false,
+    bool IsActive = true);
+
+/// <summary>
+/// Guruhni tahrirlash. TO'LIQ shakl (PUT semantikasi): yuborilmagan maydon
+/// standart qiymatga tushadi, shuning uchun klient joriy qiymatlarni
+/// qaytarib yuboradi.
+///
+/// ⚠️ Jadvalga ta'siri: <see cref="Zinnur.Domain.Entities.Group.ScheduleRuleDiffersFrom"/>
+/// qaysi maydon o'zgarganini aniqlaydi va faqat SHU asosda jadval qayta
+/// tuziladi (batafsil: <c>GroupService.UpdateAsync</c> izohi).
+/// </summary>
+public sealed record UpdateGroupRequest(
+    string Name,
+    DateOnly StartDate,
+    IReadOnlyList<DayOfWeek> Weekdays,
+    TimeOnly StartTime,
+    GroupType Type = GroupType.Group,
+    int DurationMinutes = 80,
+    int CourseMonths = 8,
+    long? CourseId = null,
+    long? TeacherId = null,
+    long? AssistantId = null,
+    long? CuratorGroupId = null,
+    bool RecordEnabled = false,
+    bool IsActive = true);
+
+/// <summary>Yaratilgan guruh + generatsiya qilingan darslar soni.</summary>
+public sealed record CreateGroupResponse(
+    GroupDto Group,
+    int SessionsCreated);
+
+/// <summary>
+/// Tahrirlash natijasi. <paramref name="Schedule"/> — jadvalga AYNAN nima
+/// qilingani; klient buni foydalanuvchiga ko'rsatishi kerak, chunki jadval
+/// qayta tuzilishi dars havolalarini o'zgartiradi.
+/// </summary>
+public sealed record UpdateGroupResponse(
+    GroupDto Group,
+    Scheduling.Dtos.ScheduleChangeSummary Schedule);
+
+/// <summary>
+/// Guruh a'zosi (o'quvchi).
+/// </summary>
+/// <param name="Id">A'zolik yozuvining Id'si (o'quvchining Id'si emas).</param>
+/// <param name="PausedUntil">Pauza qachongacha (ixtiyoriy).</param>
+/// <param name="SourceGroupId">
+/// A'zolik AYNAN qaysi guruhda yozilgan. Kurator guruhi ro'yxatida bu
+/// bog'langan USTOZ guruhi bo'ladi — kurator o'quvchi qaysi guruhdan
+/// kelganini ko'rishi kerak.
+/// </param>
+public sealed record GroupMemberDto(
+    long Id,
+    long StudentId,
+    string FullName,
+    string Email,
+    string? Phone,
+    MemberStatus Status,
+    DateTimeOffset JoinedAt,
+    DateOnly? PausedUntil,
+    long SourceGroupId,
+    string SourceGroupName);
+
+/// <param name="StudentId">Faqat <c>Student</c> rolidagi foydalanuvchi.</param>
+public sealed record AddMemberRequest(long StudentId);
+
+/// <param name="PausedUntil">
+/// Pauza tugash sanasi. <c>null</c> — muddatsiz pauza (qo'lda tiklanadi).
+/// </param>
+public sealed record PauseMemberRequest(DateOnly? PausedUntil = null);
+
+/// <param name="TargetGroupId">Qaysi guruhga ko'chiriladi.</param>
+public sealed record MoveMemberRequest(long TargetGroupId);
+
+/// <summary>Ko'chirish natijasi — ikki tomon ham qaytadi (UI ikkalasini yangilaydi).</summary>
+/// <param name="Left">Eski guruhdagi yozuv (holati <c>Moved</c>).</param>
+/// <param name="Arrived">Yangi guruhdagi yozuv (holati <c>Active</c>).</param>
+public sealed record MoveMemberResponse(
+    GroupMemberDto Left,
+    GroupMemberDto Arrived);
+
+/// <summary>
+/// Ustoz guruhi bog'lanishi MUMKIN bo'lgan kurator guruhi.
+/// </summary>
+/// <param name="LinkedGroupCount">Shu kuratorga allaqachon bog'langan guruhlar soni.</param>
+public sealed record CuratorCandidateDto(
+    long Id,
+    string Name,
+    long? AssistantId,
+    string? AssistantName,
+    long? CourseId,
+    string? CourseName,
+    IReadOnlyList<DayOfWeek> Weekdays,
+    TimeOnly StartTime,
+    int LinkedGroupCount);

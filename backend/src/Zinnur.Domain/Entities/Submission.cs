@@ -69,24 +69,47 @@ public class Submission : BaseEntity
     // ---------------------------------------------------------------- xatti-harakat
 
     /// <summary>
-    /// Yangi javob yoki qayta topshirish. Ruxsat tekshiruvi SHU YERDA —
-    /// servis qatlamida takrorlanmaydi.
+    /// BIRINCHI topshirish. Yangi obyekt yaratadi.
+    ///
+    /// NIMA UCHUN ALOHIDA METOD: ilgari bitta `Submit()` bor edi va u
+    /// "allaqachon topshirilgan"ni `Id != 0` bilan aniqlardi — ya'ni
+    /// SAQLASH holatini (bazada bormi) BIZNES holati (topshirilganmi) bilan
+    /// chalkashtirardi. Endi ikki niyat ikki metod bilan ifodalanadi va
+    /// chaqiruvchi nima qilayotganini aniq bildiradi.
     /// </summary>
-    public void Submit(string? text, bool isLate, DateTimeOffset now)
+    public static Submission Create(
+        long assignmentId, long studentId, string? text, bool isLate, DateTimeOffset now)
     {
-        // Mavjud javob bor va ruxsat berilmagan -> rad etamiz
-        if (Id != 0 && !AllowResubmit)
+        EnsureTextLength(text);
+
+        return new Submission
+        {
+            AssignmentId = assignmentId,
+            StudentId = studentId,
+            Text = Normalize(text),
+            Status = SubmissionStatus.Submitted,
+            SubmittedAt = now,
+            IsLate = isLate,
+            AttemptNumber = 1,
+            CreatedAt = now,
+        };
+    }
+
+    /// <summary>
+    /// QAYTA topshirish. Faqat kurator ruxsat bergan bo'lsa
+    /// (<see cref="AllowResubmit"/>) mumkin.
+    /// </summary>
+    public void Resubmit(string? text, bool isLate, DateTimeOffset now)
+    {
+        if (!AllowResubmit)
             throw new DomainException(
                 "Bu vazifaga javob allaqachon yuborilgan. Qayta yuborish uchun "
                 + "kuratoringiz ruxsat berishi kerak.");
 
-        if (text?.Length > MaxTextLength)
-            throw new DomainException($"Javob matni {MaxTextLength} belgidan oshmasin.");
+        EnsureTextLength(text);
 
-        if (Id != 0)
-            AttemptNumber++;
-
-        Text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        AttemptNumber++;
+        Text = Normalize(text);
         Status = SubmissionStatus.Submitted;
         SubmittedAt = now;
         IsLate = isLate;
@@ -96,12 +119,21 @@ public class Submission : BaseEntity
         AllowResubmit = false;
         ResubmitNote = null;
 
-        // Yangi javob — eski baho endi haqiqiy emas
+        // Yangi javob keldi — eski baho endi haqiqiy emas
         Score = null;
         Feedback = null;
         GradedById = null;
         GradedAt = null;
     }
+
+    private static void EnsureTextLength(string? text)
+    {
+        if (text?.Length > MaxTextLength)
+            throw new DomainException($"Javob matni {MaxTextLength} belgidan oshmasin.");
+    }
+
+    private static string? Normalize(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
     /// <summary>Ustoz/kurator baho qo'yadi.</summary>
     public void Grade(decimal score, decimal maxScore, string? feedback, long graderId, DateTimeOffset now)

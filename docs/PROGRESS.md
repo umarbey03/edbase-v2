@@ -436,3 +436,30 @@ boshqarayotgani uchun kutamiz (bir vaqtda ikki migratsiya zanjirni buzadi).
 | Qayta topshirish ruxsati yopilmasdi | `Submit()` da `AllowResubmit = false` avtomatik |
 | Javob formati cheklovi faqat frontend'da | `Assignment.EnsureFormatAllowed()` — server majburlaydi |
 | Progress denormalizatsiya qilingan, manbalar mos kelmasdi | `LessonProgress` faqat video holatini saqlaydi; vazifa/test holati manbadan hisoblanadi |
+
+---
+
+## ✅ Faza 3 Domain testlari — 206 unit test (159 → +47)
+
+| Fayl | Nima qo'riqlaydi |
+|---|---|
+| `TestQuestionScoringTests.cs` | Ko'p to'g'ri javob, begona variant ID, qisman ball berilmasligi |
+| `TestAttemptTests.cs` | Server tomonda baholash, vaqt chegarasi, `(attempt,question,option)` ko'p qator |
+| `SubmissionTests.cs` | Bir marta topshirish, ruxsat avtomatik yopilishi, baho tozalanishi |
+
+### ⚠️ Testlar Domain dizaynidagi nuqsonni tutdi
+
+`Submission.Submit()` "allaqachon topshirilgan"ni **`Id != 0`** bilan
+aniqlardi — ya'ni **saqlash holatini** (bazada bormi) **biznes holati**
+(topshirilganmi) bilan chalkashtirardi. Test yozayotganda bu darhol
+ko'rindi: `ExistingSubmission()` helper'ining o'zi istisno ko'tardi.
+
+**Yechim:** ikki niyat ikki metodga ajratildi —
+
+```csharp
+Submission.Create(...)   // BIRINCHI topshirish (static factory)
+submission.Resubmit(...) // QAYTA topshirish (AllowResubmit talab qiladi)
+```
+
+Endi chaqiruvchi nima qilayotganini aniq bildiradi va `Id` ga tayanish yo'q.
+Bu — testlarning kodni yaxshilashga majburlashining tipik misoli.

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using StackExchange.Redis;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Scheduling.Services;
 using Zinnur.Infrastructure.Options;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.Infrastructure.Services;
@@ -43,6 +44,10 @@ public static class DependencyInjection
         services.AddSingleton<ILiveKitTokenService, LiveKitTokenService>();
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
+        // Jadval zonasi ham holatsiz: zona fayli bir marta o'qiladi va
+        // ilova umri davomida keshda qoladi.
+        services.AddSingleton<IScheduleTimeZoneProvider, ConfiguredScheduleTimeZone>();
+
         return services;
     }
 
@@ -57,6 +62,18 @@ public static class DependencyInjection
             .Validate(
                 o => Encoding.UTF8.GetByteCount(o.Secret) >= JwtOptions.MinSecretLength,
                 $"Jwt:Secret kamida {JwtOptions.MinSecretLength} bayt bo'lishi shart (HS256 kaliti).")
+            .ValidateOnStart();
+
+        // Jadval zonasi: xato yozilgan id bilan ilova KO'TARILMASIN.
+        // Aks holda xato faqat birinchi guruh yaratilganda 500 bo'lib chiqardi
+        // va butun jadval moduli ishlamay turardi.
+        services.AddOptions<AppOptions>()
+            .Bind(configuration.GetSection(AppOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                o => AppOptions.TryResolve(o.TimeZone, out _),
+                "App:TimeZone IANA vaqt zonasi bo'lishi kerak "
+                + $"(masalan '{AppOptions.DefaultTimeZone}'), va konteynerda `tzdata` bo'lishi shart.")
             .ValidateOnStart();
 
         services.AddOptions<LiveKitOptions>()

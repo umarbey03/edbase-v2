@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Zinnur.Application.Groups;
 using Zinnur.Domain.Entities;
 
 namespace Zinnur.Infrastructure.Persistence.Configurations;
@@ -17,6 +18,17 @@ public sealed class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMem
 
         // `IsActive` — hisoblanuvchi property (Status'dan), ustun EMAS.
         builder.Ignore(m => m.IsActive);
+
+        // PAUZA MUDDATI — SOYA (shadow) ustun.
+        //
+        // `POST /groups/{id}/members/{studentId}/pause` ixtiyoriy `pausedUntil`
+        // sanasini qabul qiladi, lekin `GroupMember` entity'sida bunday maydon
+        // yo'q va Domain qatlami bu ish doirasida o'zgartirilmaydi. Soya ustun
+        // bilan qiymat BAZAGA yoziladi va o'qiladi (`EF.Property<DateOnly?>`),
+        // ya'ni klient yuborgan sana JIMGINA YO'QOLMAYDI.
+        //
+        // Batafsil va keyingi qadam: `Zinnur.Application.Groups.GroupMemberFields`.
+        builder.Property<DateOnly?>(GroupMemberFields.PausedUntil).HasColumnType("date");
 
         builder.HasOne(m => m.Group)
             .WithMany(g => g.Members)
