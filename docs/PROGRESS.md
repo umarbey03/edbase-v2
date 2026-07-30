@@ -387,3 +387,52 @@ bo'lardi va enum tartibi o'zgarsa **jimgina noto'g'ri rol** yuborardi.
 7. `EnsureCreated` migratsiya tarixini yozmasdi
 8. `AddInMemoryCollection` test konfiguratsiyasi kuchga kirmasdi
 9. API enum'lari assimetrik (raqam ↔ satr)
+
+---
+
+## ✅ FAZA 2.2/2.3 — Domain: guruh jadvali — **TUGADI**
+
+`Group` entity'si jadval qoidasini o'z ichiga oldi + `ScheduleGenerator`
+(sof funksiya, bazasiz test qilinadi).
+
+### ⚠️ Ma'lumot ko'chirishda BIR KUNLIK SILJISH xavfi
+
+Eski Python tizimi `date.weekday()` ni ishlatadi — **dushanba = 0**.
+.NET `DayOfWeek` esa — **yakshanba = 0**.
+
+```
+dotnet = (python + 1) % 7
+```
+
+Bu `Group.Weekdays` izohida yozib qo'yilgan. Ko'chirish skriptida
+konvertatsiya **majburiy**, aks holda barcha darslar bir kun siljib ketadi.
+
+### Eski tizimdan tuzatilgan qoidalar
+- Hafta kunlari soni guruh **turiga** bog'liq (eski tizimda kurator guruhini
+  saqlashning umuman imkoni yo'q edi — u ham "aniq 2 kun" shartiga tushardi)
+- `ScheduleRuleDiffersFrom()` — jadval **faqat kerak bo'lganda** qayta tuziladi
+  (eski tizimda kursni almashtirish ham butun kelajak jadvalni o'chirardi)
+- DST (yozgi vaqt) o'tishida mavjud bo'lmagan soat to'g'ri ishlanadi
+- `MaxSessionsPerGroup = 1000` — noto'g'ri sana bazani to'ldirib qo'ymasin
+
+---
+
+## ✅ FAZA 3 — Domain: o'quv jarayoni entity'lari — **TUGADI**
+
+`Assignment` · `Submission` · `SubmissionFile` · `Test` · `TestQuestion`
+`TestOption` · `TestAttempt` · `TestAnswer` · `LessonProgress`
+
+Migratsiya **hali yaratilmagan** — Groups agenti migratsiya zanjirini
+boshqarayotgani uchun kutamiz (bir vaqtda ikki migratsiya zanjirni buzadi).
+
+### Eski tizim buglari arxitektura darajasida yopildi
+
+| Eski bug | v2 yechimi |
+|---|---|
+| `due_at` ustuni bor edi, lekin **hech qayerda tekshirilmasdi** | `Test.EnsureOpenForSubmission()` + `Assignment.IsOverdue()` — Domain majburlaydi |
+| Ko'p to'g'ri javobda faqat **oxirgisi** hisoblanardi | `TestQuestion.Score()` — to'plamlar solishtiriladi ("hammasi yoki hech nima") |
+| `(attempt, question)` unikal edi → ko'p tanlov **umuman ishlamasdi** | Unikal kalit `(attempt, question, option)` |
+| Klient yuborgan begona variant ID'lari tekshirilmasdi | `SubmitAnswers()` savolga tegishli bo'lmagan ID'ni filtrlaydi |
+| Qayta topshirish ruxsati yopilmasdi | `Submit()` da `AllowResubmit = false` avtomatik |
+| Javob formati cheklovi faqat frontend'da | `Assignment.EnsureFormatAllowed()` — server majburlaydi |
+| Progress denormalizatsiya qilingan, manbalar mos kelmasdi | `LessonProgress` faqat video holatini saqlaydi; vazifa/test holati manbadan hisoblanadi |
