@@ -1,18 +1,23 @@
 # Yangi sessiyada davom ettirish — TOPSHIRIQ
 
-> Bu fayl **kontekst tugagani uchun** yozildi. Yangi sessiya shu faylni
-> o'qib, oldingi suhbatsiz ishni davom ettira oladi.
+> Bu fayl **kontekst tugaganda** ish uzilib qolmasligi uchun yuritiladi.
+> Yangi sessiya shu faylni o'qib, oldingi suhbatsiz davom eta oladi.
 >
-> **Sana:** 2026-07-30 · **Oxirgi commit:** `git log -1` ga qarang
+> **Oxirgi yangilanish:** 2026-07-30, kechki sessiya oxiri
+> **Oxirgi commit:** `8b17815` — ★ **undan keyingi HAMMA ish COMMIT QILINMAGAN
+> (189 fayl)**. Birinchi qadamlardan biri — commitga ajratish (7-bo'lim).
+>
+> Batafsil jurnal: `docs/PROGRESS.md` · Reja: `docs/ROADMAP.md` ·
+> Dizayn ko'chirish: `docs/DIZAYN_KOCHIRISH_REJASI.md` · Shartnoma: `docs/SPEC.md`
 
 ---
 
-## 1. BIRINCHI QADAM — holatni tiklash
+## 1. HOLATNI TIKLASH
 
 ```bash
 cd ~/Documents/Projects/zinnur-v2
 docker compose up -d
-docker compose ps          # 5 xizmat healthy bo'lishi kerak
+docker compose ps                      # 5 xizmat healthy
 curl -s localhost:5080/health/ready
 ```
 
@@ -20,234 +25,204 @@ curl -s localhost:5080/health/ready
 |---|---|
 | Frontend | http://localhost:5173 |
 | API + Swagger | http://localhost:5080/swagger |
-| Kirish | `admin@zinnur.uz` / `Admin!2345` |
-| Eski loyiha (tegilmaydi) | http://localhost:8000 |
+| Admin | `admin@zinnur.uz` / `Admin!2345` |
+| Ustoz | `teacher@zinnur.uz` / `Demo!2345` |
+| O'quvchi | `student@zinnur.uz` / `Demo!2345` |
+| Postgres / Redis (host) | 5440 / 6390 |
+| Eski loyiha (TEGILMAYDI) | http://localhost:8000 (`zinnur-legacy`) |
 
-**Keyin shu tartibda o'qing:**
-1. `docs/PROGRESS.md` — nima bajarilgan (eng muhim)
-2. `docs/ROADMAP.md` — qolgan fazalar
-3. `docs/SPEC.md` — nom/imzo/port shartnomasi
-
----
-
-## 2. TUGAGAN FAZALAR
-
-| Faza | Holat |
-|---|---|
-| 1.1 EF migratsiyalari | ✅ 3 migratsiya, jonli bazada tasdiqlangan |
-| 1.2 Testlar + CI | ✅ **298 test** (267 unit + 31 integratsiya) |
-| 1.3 Kuzatuv | ✅ Sentry + strukturali log + health checks |
-| 2.1 Foydalanuvchilar (CRM) | ✅ 403 himoyasi **amalda isbotlangan** |
-| 2.2/2.3 Guruhlar + jadval | ✅ 69 dars generatsiyasi **tasdiqlangan** |
-| 3 (Domain) | ✅ 9 entity + testlar |
-| 3 (EF + migratsiya) | ✅ `AddLearningProcessTables`, 9 jadval bazada |
-
----
-
-## 3. ⚠️ TUGALLANMAGAN ISH — birinchi navbatda shu
-
-### 3.1. Faza 3 Application/API — QISMAN bajarilgan
-
-| Qism | Holat |
-|---|---|
-| Domain (9 entity) | ✅ tayyor va testlangan |
-| EF konfiguratsiyalari | ✅ tayyor |
-| Migratsiya `AddLearningProcessTables` | ✅ bazaga qo'llangan, 9 jadval |
-| `Application/Gating` | 🔶 3 fayl (tugallanmagan) |
-| `Application/Assignments` | ❌ **0 fayl** |
-| `Application/Tests` | ❌ **0 fayl** |
-| `AssignmentsController`, `TestsController` | ❌ yo'q |
-
-Ya'ni **baza qatlami tayyor**, servis va API qatlami qolgan.
-
-**Domain TAYYOR va TESTLANGAN** — faqat Application + WebApi + migratsiya kerak:
-
-| Domain fayl | Nima beradi |
-|---|---|
-| `Entities/Assignment.cs` | `Validate()`, `EnsureFormatAllowed()`, `IsOverdue()` |
-| `Entities/Submission.cs` | `Create()` (birinchi), `Resubmit()`, `Grade()`, `ReopenForResubmit()` |
-| `Entities/Test.cs` | `Validate()`, `Publish()`, `EnsureOpenForSubmission()`, `TestQuestion.Score()` |
-| `Entities/TestAttempt.cs` | `SubmitAnswers()`, `CloseByTimeout()`, `Deadline()` |
-| `Entities/LessonProgress.cs` | `MarkVideoWatched()`, `SetOverride()` |
-
-Testlar `tests/Zinnur.UnitTests/Entities/{Submission,TestAttempt,TestQuestionScoring}Tests.cs`
-da — **niyatni ular ko'rsatadi**.
-
-**Bazada allaqachon mavjud unikal kalitlar** (tasdiqlangan):
-```
-UX_Submissions_AssignmentId_StudentId
-UX_TestAttempts_TestId_StudentId
-UX_LessonProgress_StudentId_ModuleLessonId
-UX_TestAnswers_AttemptId_QuestionId_OptionId   ← uchtalik, TO'G'RI
-```
-
-**Kerakli ishlar:**
-1. `AssignmentService`, `SubmissionService`, `TestService`, `GatingService` (tugatish)
-2. `AssignmentsController`, `TestsController`
-3. Fayl yuklash: **chegara STREAMING paytida** tekshirilsin (eski tizimda
-   butun fayl RAM'ga o'qilib, keyin tekshirilardi — chegara hech nimani
-   himoya qilmasdi)
-4. Gating Redis'da keshlansin (~60s), eski tizimda har so'rovda butun kurs
-   daraxti qayta hisoblanardi
-
-To'liq talablar: `docs/ROADMAP.md` → FAZA 3.
-
-### 3.2. Groups moduli — TUGADI (ikki ish yopildi)
-1. ✅ `tests/Zinnur.UnitTests/Scheduling/` yozildi (+61 test)
-2. ✅ Xulosa MAVJUD edi — `"schedule"` ichida ichma-ich, ildizda emas:
-   `UpdateGroupResponse(GroupDto Group, ScheduleChangeSummary Schedule)`.
-   Mening tekshiruvim ildizga qaragani uchun bo'sh chiqqan edi.
-
-### 3.3. ⚠️ `GroupMember.PausedUntil` — EF shadow ustunida
-Groups agenti `pausedUntil` ni Domain'ga qo'shmasdan (Domain uning
-qamrovida emas edi) EF shadow ustuni sifatida saqladi. Ustun bazada
-HAQIQIY (`GroupMembers.PausedUntil date`), lekin `GroupMember` entity'sida
-xossa yo'q — `EF.Property<DateOnly?>` orqali o'qiladi.
-
-**Keyingi qadam:** Domain'ga tegilganda `GroupMember.PausedUntil` xossasini
-qo'shish. Nom va tur bir xil — **migratsiya kerak bo'lmaydi**.
-Sabab `GroupMemberFields.cs` da yozilgan.
-
----
-
-## 4. BILISH SHART — texnik eslatmalar
-
-### Build (kompyuterda .NET yo'q — hammasi Docker'da)
+### ⚠️ Образ eskirmaganmi — HAR SAFAR tekshiring
 
 ```bash
-cd ~/Documents/Projects/zinnur-v2/backend
-docker run --rm -v "$PWD":/src -w /src \
-  -v zinnur-nuget-cache:/root/.nuget/packages \
-  mcr.microsoft.com/dotnet/sdk:9.0 dotnet build Zinnur.sln -v q --nologo
+docker inspect zinnur/api:dev --format '{{.Created}}'
+docker inspect zinnur/web:dev --format '{{.Created}}'
+docker compose build api web && docker compose up -d api web   # kerak bo'lsa
 ```
 
-**NuGet kesh volume'ini ULASH SHART** — keshsiz har build 4 daqiqa, kesh bilan 3 sekund.
+Bugun ikki marta shu holat bo'ldi: kod yozilgan, lekin konteyner eski образdan
+ishlab, endpoint **404** qaytardi (javob tanasi ham bo'sh — UI'da tushunarli
+xato ko'rinmaydi).
 
-### Testlar (integratsiya testlari ishlab turgan bazani talab qiladi)
+---
 
-```bash
-cd ~/Documents/Projects/zinnur-v2/backend
-PGU=$(grep '^POSTGRES_USER=' ../.env | cut -d= -f2)
-PGP=$(grep '^POSTGRES_PASSWORD=' ../.env | cut -d= -f2)
-docker run --rm -v "$PWD":/src -w /src -v zinnur-nuget-cache:/root/.nuget/packages \
-  --add-host=host.docker.internal:host-gateway \
-  -e TEST_POSTGRES="Host=host.docker.internal;Port=5440;Database=postgres;Username=$PGU;Password=$PGP" \
-  -e TEST_REDIS="host.docker.internal:6390" \
-  mcr.microsoft.com/dotnet/sdk:9.0 dotnet test Zinnur.sln -v q --nologo
-```
+## 2. BUGUN NIMA QILINDI (2026-07-30)
 
-> Postgres paroli `zinnur` EMAS — `.env` dan o'qiladi (25 belgili).
+### Tuzatilgan HAQIQIY xatolar (hammasi jonli isbotlangan)
 
-### Analizator tuzoqlari (`TreatWarningsAsErrors=true`)
-
-| Kod | Nima qilish |
+| Xato | Oqibati |
 |---|---|
-| `CA1848` | `logger.LogX("...")` TAQIQ — `[LoggerMessage]` (namuna: `ApiLog.cs`) |
-| `CA1305` | Har `ToString()`/`Parse` ga `CultureInfo.InvariantCulture` |
-| `CA2249` | `IndexOf(...) >= 0` → `Contains(...)` |
-| `CA1711` | Tur nomi `Queue`/`Flags` bilan tugamasin |
-| `CA1716` | Zaxiralangan so'zlar (`Module` → `CourseModule`) |
-| `CA1822` | Instance ma'lumotiga tegmasa `static` qilinsin |
+| `GroupFormDialog` `courseId`/`curatorGroupId` yubormasdi | Har tahrirlashda guruh kursi uzilardi → o'quvchilarda gating `NotInCourse`, butun kurs qulflanardi |
+| `useLiveHub` `Array.isArray(result)` | Ishtirokchilar ro'yxati HECH QACHON to'ldirilmasdi (server obyekt qaytaradi) |
+| `SessionEnded` backendda yuborilmasdi | Ustoz darsni yakunlaganda o'quvchi ekranida hech nima o'zgarmasdi |
+| Qidiruvda 1 belgi → 400 → jadval yo'qolardi | `USER/GROUP/COURSE_SEARCH_MIN` bilan yopildi |
+| **Kirish tokeni bekor qilinmasdi** (`ver` tekshirilmasdi) | O'chirilgan o'quvchi 15 daqiqa video xonaga kira olardi |
+| `RedisCacheService` kalitlari makonsiz | Testlarda bazalararo to'qnashuv (9 test yiqilgandi) |
+| `Payment.Validate` da `Amount = BaseAmount − DiscountAmount` yo'q | Moliya hisoboti uydirmaga aylanardi |
+| `outstanding` holatga qaramaydi | Kechirilgan oy jadvalda "qarz" bo'lib turardi — kassir yana pul so'rardi |
+| `BaseModal` qatlamlari | Hisob oynasidan ochilgan to'lov oynasi ORTIDA chizilardi |
+| Tema karkas `<div>` ida edi | Teleport qilingan modal/toast temadan chiqib ketardi |
 
-`backend/.editorconfig` `**/Migrations/*.cs` va `tests/**` uchun yumshatilgan —
-undan ortiq yumshatmang.
+### Qo'shilgan funksiyalar
 
-### API konvensiyalari
-- Enum'lar JSON'da **SATR**: `"role": "Academic"`, `"weekdays": ["Monday"]`
-- Xatolar RFC 7807 ProblemDetails + `traceId`
-- `Domain` da `TashqiBog'liqlik = 0` — buzilmasin
+- **FAZA 4 (moliya) to'liq:** Domain + sxema (11 `CHECK`) + `PaymentService` +
+  ~20 endpoint + **To'lovlar va Moliya UI**
+- **FAZA 3.4 (testlar):** tuzish, yechish (taymer bilan), natijalar, CSV
+- **Uy vazifalari:** yaratish/tahrirlash, o'quvchi topshirishi (multipart)
+- **Guruh a'zoligi:** qo'shish, pauza, ko'chirish, chiqarish + arxiv/jadval
+- **Reyting va kurator chati (DM)** — backend + ekranlar
+- **Davomatni qo'lda tuzatish** + audit izi
+- **Kalendar** (`/live-sessions/calendar`), dars `completed` bayrog'i
 
----
+### Dizayn ko'chirish (1–4 to'lqin)
 
-## 5. ⚠️ MINALAR — ko'chirishda ehtiyot bo'ling
+Eski ilova dizayni v2 ga ko'chirildi. Ildiz sabab: v2 rangni
+`app/static/app.css` dan (bazaviy fayl, yashil `#2f9e41`) olgan edi, holbuki
+eski loyihada har panel uni inline ustidan yozadi.
 
-### 5.1. `DayOfWeek` konvensiyasi
-Eski Python: **dushanba = 0**. .NET: **yakshanba = 0**.
-
-```
-dotnet = (python + 1) % 7
-```
-
-Ma'lumot ko'chirish skriptida konvertatsiya **MAJBURIY**, aks holda barcha
-darslar bir kun siljiydi. `Group.Weekdays` izohida yozilgan.
-
-### 5.2. LiveKit ICE — dev va prod FARQ QILADI
-
-Bu **eng ko'p uchraydigan self-hosted LiveKit nosozligi** va u o'zini
-yashiradi: xona ochiladi, ishtirokchilar ro'yxati to'ladi, **ovoz va video
-kelmaydi**.
-
-| Muhit | Yechim |
-|---|---|
-| **Dev** (`docker-compose.yml`) | `NODE_IP=127.0.0.1`, `LIVEKIT_RTC_USE_EXTERNAL_IP=false`, `LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE=true` — brauzer ham LiveKit ham bir mashinada |
-| **Prod** (`docker-compose.prod.yml`) | `network_mode: host` + yuqoridagi uchtasi `!reset null` bilan **BEKOR QILINADI** |
-
-⚠️ Prod'da `NODE_IP=127.0.0.1` qolib ketsa media **hech qachon** ishlamaydi.
-Overlay buni `!reset` qiladi — tekshirish:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml config | grep -E "NODE_IP|USE_EXTERNAL"
-# faqat LIVEKIT_NODE_IP ko'rinishi kerak
-```
-
-Konfiguratsiya **bitta faylda** (`infra/livekit/livekit.yaml`) — dev uni env
-orqali ustidan yozadi. Ikkinchi yaml yaratmang: fayllar vaqt o'tib
-bir-biridan uzoqlashadi va "mening mashinamda ishlaydi" holati tug'iladi.
-
-### 5.3. Test konfiguratsiyasi — `UseSetting`, `ConfigureAppConfiguration` EMAS
-Minimal hosting'da `Program.cs` konfiguratsiyani host **qurilayotganda**
-o'qiydi; factory callback'lari keyinroq ishlaydi. `AddInMemoryCollection`
-kuchga kirmaydi. `ZinnurApiFactory` allaqachon `UseSetting` ishlatadi.
-
----
-
-## 6. HALI ISBOTLANMAGAN DA'VOLAR
-
-Bularni "ishlaydi" deb hisoblamang:
-
-1. **200 foydalanuvchi.** `tests/load/signalr-load.mjs` yozilgan, lekin
-   **yugurtirilmagan**. Butun arxitekturaning asosiy da'vosi — hozircha nazariya.
-   ```bash
-   cd ~/Documents/Projects/zinnur-v2 && node tests/load/signalr-load.mjs
-   ```
-2. **Haqiqiy video/audio oqimi.** Signalling tasdiqlangan (LiveKit tokenni
-   qabul qiladi, `/rtc/validate` → `success`), lekin ikki brauzer ochib
-   media kelishini **hech kim sinamagan**.
-3. **Prod deploy.** `docker-compose.prod.yml` va `network_mode: host`
-   haqiqiy Ubuntu serverda **ishga tushirilmagan**.
-4. **Zaxiradan tiklash.** Skript bor, sinalmagan.
-5. **Qidiruv query plan.** `pg_trgm` GIN indeksi yaratilgan, lekin katta
-   hajmda `EXPLAIN` bilan tekshirilmagan (3 ta foydalanuvchida planner
-   har doim seq scan tanlaydi).
-
----
-
-## 7. UMUMAN BOSHLANMAGAN — 2 460 satr biznes mantiq
-
-| Modul (eski tizim) | Satr | Izoh |
+| Rol | Tema | Karkas |
 |---|---|---|
-| `payments_svc` + `finance_svc` | **775** | ⚠️ Eng nozik — pul. Har use-case uchun test MAJBURIY |
-| `telegram_bot` | 486 | O'quvchilar uchun yagona kirish yo'li. ⚠️ Mini App faqat `student` roli (eski zaiflik X-1) |
-| `notifications` | 396 | Outbox + worker. ⚠️ commit-then-send (eski tizimda teskari edi) |
-| `points_svc` | 233 | Reyting. ⚠️ `overall` snapshot NULL `group_id` tufayli dublikat berardi |
-| `storage` | 167 | R2 fayl yuklash |
-| `analysis_svc` | 165 | AI tahlil. ⚠️ butun videoni RAM'ga yuklamang (eski OOM sababi) |
-| `backup_svc` | 154 | Zaxira |
-| `dm_svc` | 84 | Kurator ↔ o'quvchi chat |
+| O'quvchi | `#051e2d` / `#f5b731` | 390px, pastda 5 tab |
+| Ustoz/kurator | `#092235` / `#ffcc33` | yon menyu |
+| O'quv bo'limi | `#0f2d48` / `#f2c84b` | yon menyu |
+| Jonli dars | `teacher` temasi (eskisida ham aynan shu) | to'liq ekran |
 
-**Frontend:** eski tizimda 4 panel, 14 228 satr. v2 da 4 sahifa
-(`LoginPage`, `StudentHomePage`, `LiveRoomPage`, `NotFoundPage`).
-Admin CRM paneli (eski `academic.html` = 6 275 satr) **yo'q**.
+**Holat:** 614 test yashil (408 unit + 206 integratsiya), build 0 ogohlantirish,
+`vue-tsc` + `eslint` toza, api va web образlari yangi.
 
 ---
 
-## 8. TAVSIYA ETILGAN KEYINGI QADAM
+## 3. QOLGAN ISH — DIZAYN PARITETI
 
-1. **Faza 3 Application/API** ni tugatish (Domain tayyor — eng arzon ish)
-2. **Yuklama testini yugurtirish** — 200 foydalanuvchi da'vosini isbotlash
-3. Keyin tanlash: **pul moduli** (eng nozik) yoki **admin CRM paneli** (eng katta)
+Mustaqil tekshiruvchi bahosi: o'quvchi ~90% · kurator ~80% · ustoz ~75% ·
+o'quv bo'limi ~60% · jonli dars ~40% (tema tuzatilgandan keyin yuqoriroq).
 
-Agentlar bilan ishlashda: **buyruq bermang, muammoni tushuntiring.** Shu
-tunda agent mening `RoleClaimType` taklifimni rad etib, to'g'ri yechimni
-topdi — chunki unga "nima uchun" aytilgan edi. Batafsil: `docs/PROGRESS.md`
-→ "Koordinator xatosi".
+### 3.1. Funksional yo'qotishlar — QAROR KERAK
+
+| # | Eski ilovada bor | v2 da | Nima kerak |
+|---|---|---|---|
+| 1 | Ustozda **"Chatlar" hubi** — barcha guruh chatlari bitta joyda | Yo'q | Backendda **guruh chati umuman yo'q** (faqat dars ichidagi SignalR va kurator DM). Yangi modul kerak |
+| 2 | **Guruh chati** o'quvchida ham | Yo'q | Yuqoridagi bilan bir xil |
+| 3 | **Moliya dashboard'i**: KPI, "Qarz yoshi", "Oxirgi 12 oy", guruh/usul kesimlari | Faqat sozlama sahifasi | `GET /payments/summary` yig'ma endpointi |
+| 4 | **"Dars yozuvlari"** bo'limi | Yo'q | FAZA 5.3 (LiveKit Egress → R2) |
+| 5 | **"Qarorlar / Xabarlar"** bo'limi | Yo'q | FAZA 5.2 (notifikatsiya) |
+| 6 | **"Tekshirish" navbati** — to'liq ekran, klaviatura yorliqlari (`1–5/Enter/→`) | Oddiy sahifa + modal | Navbat endpointi + UI |
+| 7 | Guruhlar sahifasida **4 ta KPI kartochka** | Yo'q | Yig'ma so'rov |
+| 8 | O'quvchi profil modali (statistika, baholar, izohlar) | Yo'q | `notes` endpointi yo'q |
+| 9 | To'lovlarda **global tranzaksiyalar tarixi**, **"Xabar matnlari"** | Yo'q | Audit o'qish endpointi + shablonlar |
+| 10 | Excel eksporti (moliya) | Yo'q | `http.download` tayyor, endpoint kerak |
+
+### 3.2. Kichik chekinishlar (tuzatilishi mumkin)
+
+- Sahifa **tavsif matnlari** almashtirilgan (masalan To'lovlar: eskisida
+  "Har 8 dars uchun 540 000 so'm...", hozir "Har oy uchun yozuv ochiladi...")
+- Guruh ichidagi "Vazifalar" tabi va menyudagi "Tekshirish" — nomlar yaqin,
+  chalkashishi mumkin
+- `💬` emoji sarlavhalardan olib tashlangan
+
+### 3.3. Tekshirilmagan
+
+- **To'ldirilgan** davomat/baholar jadvali (30 o'quvchi × 70 dars) — lokal
+  bazada bunday ma'lumot yo'q. Reja 6-bo'limida **6 ta ekran surati**
+  so'ralgan (eski ilovadan) — hali berilmagan
+- Haqiqiy LiveKit video oqimi (WS 404 qaytardi)
+- Eski ilovaning brauzerdagi ko'rinishi — parol yo'q, solishtirish faqat
+  shablon kodi bo'yicha qilingan
+
+---
+
+## 4. QAROR KUTAYOTGAN SAVOLLAR
+
+1. **Kurator baho qo'ya oladimi?** Eski tizim taqiqlagan (K2), v2 serveri
+   ruxsat beradi (`GradeRoles` da `Assistant` bor). Menyudan olib tashlandi,
+   lekin marshrut ochiq. Serverda ham taqiqlansinmi?
+2. **Refresh token qayta ishlatish aniqlanmaydi** — `jti` saqlanmaydi.
+   Muddat 7 kunga qisqartirildi (yarim yechim). To'liq yechim kerakmi?
+3. **Kvitansiya raqami** — Postgres `SEQUENCE` kerakmi? Hozir ikki kassir bir
+   vaqtda ishlasa 409 chiqadi (pul yo'qolmaydi, qayta urinish kerak).
+4. **Qarzdorga kurs daraxti butunlay yopiladi** (`Video` qamrovi) — o'quvchi
+   dars nomlarini ham ko'rmaydi. Yumshoqroq variant kerakmi?
+5. **Test taymeri 60 s tolerantlikni ko'rsatadi** (10 daqiqalik testda 11:00
+   dan sanaydi). Alohida "ko'rsatiladigan muddat" yuborilsinmi?
+6. **Davomatda "avtomatikka qaytarish"** tugmasi yo'q — `isManual` abadiy
+   qoladi. Qo'shilsinmi?
+7. **Guruh × kurs davomat matritsasi** endpointi yo'q (birlik — dars).
+8. **`completed` hozir "hamma yashil"**: video kontenti modellashtirilmagani
+   uchun vazifasi/testi yo'q darslar darhol tugatilgan hisoblanadi.
+
+---
+
+## 5. KEYINGI FAZALAR (ROADMAP bo'yicha)
+
+| Faza | Ish | Holat |
+|---|---|---|
+| 5.1 | **Telegram bot va Mini App** — o'quvchilar uchun YAGONA kirish yo'li | ❌ boshlanmagan · **eski tizimni o'chirish uchun SHART** |
+| 5.2 | Notifikatsiya (outbox + worker, commit-then-send) | ❌ |
+| 5.3 | Dars yozuvi (LiveKit Egress → R2, webhook imzosi) | ❌ |
+| 5.4 | Fayl ombori (R2) — hozir fayl yuklashda **503** | ❌ |
+| 5.5 | Fon vazifalari (avto-yakunlash, oylik yozuvlar, DB leader lock) | ❌ |
+| 6 | Frontend qolgan qismi (3-bo'limdagi ro'yxat) | qisman |
+| 7 | **Ma'lumot ko'chirish** + staging + prod deploy | ❌ |
+
+> **Eski tizimni o'chirish uchun minimal to'plam:** 5.1 (Telegram) + 5.4 (fayl)
+> + 7 (ma'lumot ko'chirish va deploy).
+
+---
+
+## 6. TUZOQLAR — vaqt yo'qotmaslik uchun
+
+1. **`PUT` = TO'LIQ ALMASHTIRISH.** Yuborilmagan maydon `null` bo'lib bazaga
+   tushadi. Har tahrirlash formasi mavjud qiymatlarni yuklab, HAMMASINI
+   qaytarsin.
+2. **Migratsiyasiz model o'zgarishi** → `PendingModelChangesWarning` → ilova
+   UMUMAN ko'tarilmaydi (build yashil bo'lsa ham).
+3. **Npgsql 9 da `UseXminAsConcurrencyToken()` YO'Q** →
+   `Property<uint>("xmin").IsRowVersion()`.
+4. **400 va 409 boshqa joyda:** 400 da sabab `problem.errors` da, 409 da
+   `detail` to'liq. `toUserMessage(error)` ikkalasini to'g'ri o'qiydi.
+5. **Qidiruv minimal uzunligi:** foydalanuvchi 3, guruh 2, kurs 2 belgi.
+6. **`reorder` TO'LIQ ro'yxat kutadi** (yetishmasa 400).
+7. **Redis kalitlari makon bilan** (`Redis:KeyPrefix`) — bitta Redis'ni ikki
+   muhit baham ko'rsa aralashmaydi.
+8. **Tema `<html>` ga qo'yiladi**, karkas `<div>` iga emas (teleport).
+9. **`DayOfWeek`:** eski Python dushanba=0, .NET yakshanba=0 →
+   `dotnet = (python + 1) % 7`.
+10. **LiveKit ICE:** prod'da `NODE_IP=127.0.0.1` qolib ketsa media hech qachon
+    ishlamaydi.
+11. **`CA1848`** (`[LoggerMessage]`), **`CA1305`** (`CultureInfo.InvariantCulture`).
+12. **Kalendarda `localDate`** ishlatilsin — `scheduledStart` dan brauzerda
+    sana chiqarilsa, boshqa vaqt mintaqasida dars kechagi kunga tushadi.
+13. **zsh:** `GID` — tizim o'zgaruvchisi, skriptda ishlatib bo'lmaydi.
+
+---
+
+## 7. ★ BIRINCHI QADAM: COMMIT
+
+`8b17815` dan keyin **189 fayl commit qilinmagan**. Tavsiya etilgan bo'linish:
+
+1. **Xavfsizlik va tuzatishlar** — token bekor qilish (`AuthStateCache`,
+   `Program.cs`), Redis makon, `SessionEnded` broadcast, `useLiveHub`,
+   qidiruv minimumi, `courseId` yo'qolishi
+2. **FAZA 4 moliya** — Domain, EF, migratsiyalar, servis, API, UI
+3. **FAZA 3.4 testlar + uy vazifalari** oqimi
+4. **Guruh a'zoligi + kurs kontenti** UI
+5. **Reyting, DM, davomat tuzatish, kalendar** (backend + UI)
+6. **Dizayn ko'chirish** — temalar, o'quvchi Mini App karkasi, ustoz paneli
+7. **Hujjatlar** (`PROGRESS.md`, `DIZAYN_KOCHIRISH_REJASI.md`, shu fayl)
+
+---
+
+## 8. ISH USLUBI
+
+Bugun agentlar bilan ishlash yaxshi natija berdi, lekin **ikki qoida** bilan:
+
+1. **Buyruq bermang, muammoni tushuntiring.** Agentlar shu tufayli mustaqil
+   xato topdi: `outstanding` holatga qaramasligi, modal qatlamlari, tema
+   teleportdan chiqib ketishi — hech biri topshiriqda yo'q edi.
+2. **Hisobotni DALIL bilan tekshiring.** Bugun bir necha marta agent xulosasi
+   noto'g'ri chiqdi (bir agent men bergan namunaviy URL'ni sinab "xato bor"
+   dedi; boshqasi seed ma'lumotini o'zgartirdi). Har hisobotdan keyin build,
+   test va jonli tekshiruv MENING zimmamda bo'ldi.
+
+**Parallel ishlashda:** umumiy fayllarni (`router`, `navigation`,
+`shared/types`) oldindan o'zim ulab, agentlarga "tegma" deb aytdim — aks holda
+ikki agent bir faylni bosib ketardi.
