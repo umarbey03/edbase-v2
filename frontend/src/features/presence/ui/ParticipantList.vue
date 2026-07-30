@@ -30,25 +30,46 @@ const hiddenCount = computed(() => Math.max(0, props.totalCount - visible.value.
         :key="participant.userId"
         class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/5"
       >
-        <BaseAvatar :name="participant.displayName" size="sm" :ring="participant.handRaised" />
+        <BaseAvatar
+          :name="participant.displayName"
+          size="sm"
+          :ring="participant.handRaised"
+        />
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm text-slate-200">
             {{ participant.displayName }}
-            <span v-if="participant.userId === props.currentUserId" class="text-slate-500">(siz)</span>
+            <span
+              v-if="participant.userId === props.currentUserId"
+              class="text-slate-500"
+            >(siz)</span>
           </p>
         </div>
-        <AppIcon v-if="participant.handRaised" name="hand" :size="15" class="text-amber-400" />
-        <BaseBadge :tone="roleTone(participant.role)" size="xs">
+        <AppIcon
+          v-if="participant.handRaised"
+          name="hand"
+          :size="15"
+          class="text-amber-400"
+        />
+        <BaseBadge
+          :tone="roleTone(participant.role)"
+          size="xs"
+        >
           {{ roleLabel(participant.role) }}
         </BaseBadge>
       </li>
     </ul>
 
-    <p v-if="hiddenCount > 0" class="px-4 py-3 text-center text-xs text-slate-500">
+    <p
+      v-if="hiddenCount > 0"
+      class="px-4 py-3 text-center text-xs text-slate-500"
+    >
       yana {{ hiddenCount }} ta ishtirokchi
     </p>
 
-    <p v-if="props.participants.length === 0" class="px-4 py-8 text-center text-sm text-slate-500">
+    <p
+      v-if="props.participants.length === 0"
+      class="px-4 py-8 text-center text-sm text-slate-500"
+    >
       Ishtirokchilar ro‘yxati yuklanmoqda…
     </p>
   </div>

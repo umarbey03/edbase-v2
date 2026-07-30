@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-type BadgeTone = 'neutral' | 'teacher' | 'assistant' | 'student' | 'live' | 'warning' | 'danger'
+/*
+  Eski dizayndagi `.badge` (radius 20px, 11px, 600) va ko'rinishlari:
+  `.b-present` yashil, `.b-absent` qizil, `.b-partial` sariq, `.b-live` qizil,
+  `.b-scheduled` accent-soft, `.b-ended` kulrang.
+*/
+type BadgeTone =
+  | 'neutral'
+  | 'accent'
+  | 'success'
+  | 'teacher'
+  | 'assistant'
+  | 'student'
+  | 'live'
+  | 'warning'
+  | 'danger'
 type BadgeSize = 'xs' | 'sm'
 
 const props = withDefaults(
@@ -14,18 +28,22 @@ const props = withDefaults(
 )
 
 const TONES: Record<BadgeTone, string> = {
-  neutral: 'bg-ink-750 text-slate-300 ring-line-strong',
-  teacher: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',
-  assistant: 'bg-sky-500/15 text-sky-300 ring-sky-500/30',
-  student: 'bg-slate-500/15 text-slate-300 ring-slate-500/25',
-  live: 'bg-rose-500/15 text-rose-300 ring-rose-500/30',
-  warning: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',
-  danger: 'bg-rose-500/15 text-rose-300 ring-rose-500/30',
+  neutral: 'bg-ink-800 text-slate-400',
+  accent: 'bg-brand-500/16 text-brand-400',
+  success: 'bg-green-500/15 text-green-400',
+  teacher: 'bg-brand-500/16 text-brand-300',
+  assistant: 'bg-sky-500/15 text-sky-300',
+  student: 'bg-ink-800 text-slate-300',
+  live: 'bg-rose-500/15 text-rose-400',
+  warning: 'bg-amber-500/15 text-amber-400',
+  danger: 'bg-rose-500/15 text-rose-400',
 }
 
 const DOT_TONES: Record<BadgeTone, string> = {
   neutral: 'bg-slate-400',
-  teacher: 'bg-amber-400',
+  accent: 'bg-brand-400',
+  success: 'bg-green-400',
+  teacher: 'bg-brand-400',
   assistant: 'bg-sky-400',
   student: 'bg-slate-400',
   live: 'bg-rose-400',
@@ -34,12 +52,12 @@ const DOT_TONES: Record<BadgeTone, string> = {
 }
 
 const SIZES: Record<BadgeSize, string> = {
-  xs: 'h-5 px-1.5 text-[10px] gap-1 rounded-md',
-  sm: 'h-6 px-2 text-xs gap-1.5 rounded-lg',
+  xs: 'px-2 py-0.5 text-[11px] gap-1',
+  sm: 'px-2.5 py-1 text-xs gap-1.5',
 }
 
 const classes = computed(() => [
-  'inline-flex shrink-0 items-center font-semibold uppercase tracking-wide ring-1 ring-inset',
+  'inline-flex shrink-0 items-center rounded-full font-semibold leading-tight',
   TONES[props.tone],
   SIZES[props.size],
 ])

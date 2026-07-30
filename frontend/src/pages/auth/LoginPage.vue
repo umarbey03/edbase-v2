@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { AppIcon, BaseButton } from '@/shared/ui'
@@ -21,12 +22,13 @@ const canSubmit = computed(
   () => email.value.trim().length > 0 && password.value.length > 0 && !isSubmitting.value,
 )
 
-function redirectTarget(): string {
+/** `?redirect=` dagi ichki manzil (bo'lmasa `null`). */
+function redirectTarget(): string | null {
   const raw = route.query['redirect']
   const value = Array.isArray(raw) ? raw[0] : raw
   // Faqat ichki yo'llarga yo'naltiramiz (ochiq redirect zaifligining oldini olish).
   if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) return value
-  return '/darslar'
+  return null
 }
 
 async function handleSubmit(): Promise<void> {
@@ -34,8 +36,12 @@ async function handleSubmit(): Promise<void> {
   isSubmitting.value = true
   errorMessage.value = null
   try {
-    await auth.login({ email: email.value.trim(), password: password.value })
-    await router.replace(redirectTarget())
+    const user = await auth.login({ email: email.value.trim(), password: password.value })
+    const target = redirectTarget()
+    // Manzil ko'rsatilmagan bo'lsa — ROLGA mos bosh sahifa. Ilgari hamma
+    // `/darslar` ga tushardi, shu sababli admin ham o'quvchi ekranini ko'rardi.
+    if (target !== null) await router.replace(target)
+    else await router.replace({ name: homeRouteFor(user.role) })
   } catch (error) {
     errorMessage.value = toUserMessage(error)
   } finally {
@@ -52,20 +58,24 @@ async function handleSubmit(): Promise<void> {
       aria-hidden="true"
       style="
         background:
-          radial-gradient(60rem 40rem at 20% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
-          radial-gradient(40rem 30rem at 90% 110%, rgba(16, 185, 129, 0.1), transparent 60%);
+          radial-gradient(60rem 40rem at 20% -10%, rgba(47, 158, 65, 0.18), transparent 60%),
+          radial-gradient(40rem 30rem at 90% 110%, rgba(34, 197, 94, 0.1), transparent 60%);
       "
     />
 
     <div class="relative w-full max-w-sm">
       <div class="mb-7 text-center">
         <div
-          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-600/30"
+          class="mx-auto flex size-12 items-center justify-center rounded-xl bg-brand-500 text-lg font-bold text-white"
         >
           Z
         </div>
-        <h1 class="mt-4 text-2xl font-semibold tracking-tight text-slate-50">Zin-Nur</h1>
-        <p class="mt-1 text-sm text-slate-400">Jonli darslar platformasi</p>
+        <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-50">
+          Zin<span class="text-brand-500">-Nur</span>
+        </h1>
+        <p class="mt-1 text-sm text-slate-400">
+          Jonli darslar platformasi
+        </p>
       </div>
 
       <form
@@ -84,7 +94,10 @@ async function handleSubmit(): Promise<void> {
           <span class="mb-1.5 block text-xs font-medium text-slate-400">Elektron pochta</span>
           <div class="relative">
             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
-              <AppIcon name="mail" :size="17" />
+              <AppIcon
+                name="mail"
+                :size="17"
+              />
             </span>
             <input
               v-model="email"
@@ -93,8 +106,8 @@ async function handleSubmit(): Promise<void> {
               autocomplete="email"
               required
               placeholder="ism@zinnur.uz"
-              class="h-11 w-full rounded-xl bg-ink-850 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-dim focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
           </div>
         </label>
 
@@ -102,7 +115,10 @@ async function handleSubmit(): Promise<void> {
           <span class="mb-1.5 block text-xs font-medium text-slate-400">Parol</span>
           <div class="relative">
             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
-              <AppIcon name="lock" :size="17" />
+              <AppIcon
+                name="lock"
+                :size="17"
+              />
             </span>
             <input
               v-model="password"
@@ -111,8 +127,8 @@ async function handleSubmit(): Promise<void> {
               autocomplete="current-password"
               required
               placeholder="••••••••"
-              class="h-11 w-full rounded-xl bg-ink-850 pl-10 pr-16 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-16 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-dim focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
             <button
               type="button"
               class="absolute inset-y-0 right-2 my-auto h-7 rounded-lg px-2 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
@@ -130,7 +146,14 @@ async function handleSubmit(): Promise<void> {
           v-text="errorMessage"
         />
 
-        <BaseButton class="mt-6" type="submit" size="lg" block :loading="isSubmitting" :disabled="!canSubmit">
+        <BaseButton
+          class="mt-6"
+          type="submit"
+          size="lg"
+          block
+          :loading="isSubmitting"
+          :disabled="!canSubmit"
+        >
           Kirish
         </BaseButton>
       </form>

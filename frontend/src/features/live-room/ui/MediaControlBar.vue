@@ -114,7 +114,10 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
       <span class="sr-only">Suhbat</span>
     </button>
 
-    <div class="mx-1 h-6 w-px bg-line" aria-hidden="true" />
+    <div
+      class="mx-1 h-6 w-px bg-line"
+      aria-hidden="true"
+    />
 
     <button
       type="button"

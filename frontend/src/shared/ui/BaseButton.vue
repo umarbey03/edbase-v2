@@ -25,27 +25,37 @@ const props = withDefaults(
   },
 )
 
+// Eski dizayndagi `button.btn`: to'q yashil `--accent`, oq matn, 8px radius,
+// soyasiz "tekis" ko'rinish.
+//
+// `primary` da `text-white` EMAS, `text-on-brand`: brend fonidagi matn rangi
+// temaga bog'liq — xodimda oq (to'q yashil fon), o'quvchida to'q ko'k (oltin
+// fon; oq matn u yerda o'qilmaydi, kontrast ~1.9:1). Qolgan variantlar ikkala
+// temada ham yashil/qizil fonda, shuning uchun `text-white` bo'lib qoladi.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    'bg-brand-600 text-white shadow-lg shadow-brand-600/25 hover:bg-brand-500 active:bg-brand-700',
-  secondary:
-    'bg-ink-750 text-slate-100 border border-line-strong hover:bg-ink-700 active:bg-ink-800',
-  ghost: 'bg-transparent text-slate-300 hover:bg-white/5 active:bg-white/10',
-  danger: 'bg-rose-600 text-white shadow-lg shadow-rose-600/25 hover:bg-rose-500 active:bg-rose-700',
-  success:
-    'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-500 active:bg-emerald-700',
+  primary: 'bg-brand-500 text-on-brand hover:bg-brand-400 active:bg-brand-600',
+  secondary: 'bg-ink-800 text-slate-100 border border-line hover:bg-ink-750 active:bg-ink-850',
+  ghost: 'bg-transparent text-slate-300 hover:bg-ink-800 active:bg-ink-750',
+  // Eski `--red: #ef4444` = Tailwind `red-500` (rose'dan ko'ra kamroq pushti).
+  danger: 'bg-red-500 text-white hover:bg-red-400 active:bg-red-600',
+  success: 'bg-green-500 text-white hover:bg-green-400 active:bg-green-600',
 }
 
+/*
+  Balandliklar teginish nishoniga moslangan: `md`/`lg` >= 44px. `sm` faqat
+  zich jadval qatorlarida ishlatiladi — u yerda qatorning o'zi barmoqqa
+  yetarli maydon beradi, aks holda jadval o'qib bo'lmas darajada cho'ziladi.
+*/
 const SIZES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-lg',
-  md: 'h-10 px-4 text-sm gap-2 rounded-xl',
-  lg: 'h-12 px-5 text-base gap-2.5 rounded-xl',
+  sm: 'h-9 px-3 text-xs gap-1.5 rounded-lg',
+  md: 'h-11 px-4 text-sm gap-2 rounded-lg',
+  lg: 'h-12 px-5 text-base gap-2.5 rounded-lg',
 }
 
 const isDisabled = computed(() => props.disabled || props.loading)
 
 const classes = computed(() => [
-  'inline-flex select-none items-center justify-center font-medium transition-colors duration-150',
+  'inline-flex select-none items-center justify-center font-semibold transition-colors duration-150',
   'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none',
   VARIANTS[props.variant],
   SIZES[props.size],
@@ -54,9 +64,19 @@ const classes = computed(() => [
 </script>
 
 <template>
-  <button :type="props.type" :class="classes" :disabled="isDisabled">
-    <BaseSpinner v-if="props.loading" size="sm" />
-    <slot v-else name="icon" />
+  <button
+    :type="props.type"
+    :class="classes"
+    :disabled="isDisabled"
+  >
+    <BaseSpinner
+      v-if="props.loading"
+      size="sm"
+    />
+    <slot
+      v-else
+      name="icon"
+    />
     <slot />
   </button>
 </template>

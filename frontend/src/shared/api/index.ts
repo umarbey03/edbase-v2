@@ -1,6 +1,6 @@
 export { ApiError, isApiError, toUserMessage } from './api-error'
 export { http, refreshAccessToken } from './http'
-export type { HttpMethod, QueryValue, RequestOptions } from './http'
+export type { DownloadedFile, HttpMethod, QueryValue, RequestOptions } from './http'
 export {
   clearTokens,
   getAccessToken,

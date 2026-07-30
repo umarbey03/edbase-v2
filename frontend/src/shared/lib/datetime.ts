@@ -30,6 +30,30 @@ const WEEKDAYS_UZ = [
   'Shanba',
 ] as const
 
+/**
+ * Bosh harfli oy nomlari — eski o'quvchi ilovasidagi `MON` massivining AYNAN
+ * nusxasi. Kalendar sarlavhasi ("Iyul 2026") va kun ro'yxati ("30-Iyul uchun
+ * dars yo'q") shu shaklda yozilgan; o'quvchi shu matnni o'qib o'rgangan,
+ * shuning uchun kichik harfli `MONTHS_UZ` dan ALOHIDA turadi.
+ */
+const MONTHS_UZ_CAPITALIZED = [
+  'Yanvar',
+  'Fevral',
+  'Mart',
+  'Aprel',
+  'May',
+  'Iyun',
+  'Iyul',
+  'Avgust',
+  'Sentabr',
+  'Oktabr',
+  'Noyabr',
+  'Dekabr',
+] as const
+
+/** Eski ilovadagi `WD` — kalendar setkasining ustun sarlavhalari. */
+const WEEKDAYS_SHORT_UZ = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan'] as const
+
 function pad2(value: number): string {
   return value < 10 ? `0${value}` : String(value)
 }
@@ -37,6 +61,14 @@ function pad2(value: number): string {
 export function toDate(value: string | Date): Date {
   return value instanceof Date ? value : new Date(value)
 }
+
+/** `6` -> `Iyul`. Chegaradan tashqari indeks bo'sh satr beradi. */
+export function monthNameCapitalized(monthIndex: number): string {
+  return MONTHS_UZ_CAPITALIZED[monthIndex] ?? ''
+}
+
+/** Kalendar setkasining ustun sarlavhalari; hafta YAKSHANBADAN boshlanadi. */
+export const WEEKDAY_HEADERS_UZ: readonly string[] = WEEKDAYS_SHORT_UZ
 
 /** `14:05` */
 export function formatTime(value: string | Date): string {
@@ -50,6 +82,92 @@ export function formatDateTime(value: string | Date): string {
   const date = toDate(value)
   if (Number.isNaN(date.getTime())) return ''
   return `${date.getDate()}-${MONTHS_UZ[date.getMonth()] ?? ''} ${formatTime(date)}`
+}
+
+/** `12-mart` */
+export function formatDate(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getDate()}-${MONTHS_UZ[date.getMonth()] ?? ''}`
+}
+
+/**
+ * `Payshanba, 30-iyul 19:00` — bosh sahifadagi "keyingi dars" kartochkasi.
+ *
+ * Eski ilova `toLocaleString('uz', …)` ishlatardi; bu yerda ATAYLAB
+ * takrorlanmadi: `uz` lokali brauzerlarda to'liq emas va hafta kuni
+ * inglizcha ("Thursday") chiqib qolishi mumkin. Qo'lda yozilgan nomlar
+ * har qanday qurilmada bir xil.
+ */
+export function formatWeekdayDateTime(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const weekday = WEEKDAYS_UZ[date.getDay()] ?? ''
+  return `${weekday}, ${date.getDate()}-${MONTHS_UZ[date.getMonth()] ?? ''} ${formatTime(date)}`
+}
+
+/** `12-mart 2026` — guruh boshlanish/tugash sanalari uchun (yil muhim). */
+export function formatDateWithYear(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${formatDate(date)} ${date.getFullYear()}`
+}
+
+/**
+ * `Payshanba, 30-iyul 2026` — eski ustoz panelidagi "Bugun" tabletkasi
+ * (`.todaypill`).
+ *
+ * Eski kod `toLocaleDateString('uz', {weekday, day, month, year})` chaqirardi;
+ * bu yerda ham `formatWeekdayDateTime` kabi qo'lda yozilgan nomlar ishlatiladi
+ * — `uz` lokali barcha brauzerlarda to'liq emas va hafta kuni inglizcha
+ * ("Thursday") chiqib qolishi mumkin edi.
+ */
+export function formatWeekdayDate(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const weekday = WEEKDAYS_UZ[date.getDay()] ?? ''
+  return `${weekday}, ${formatDateWithYear(date)}`
+}
+
+/**
+ * `<input type="datetime-local">` uchun qiymat: `YYYY-MM-DDTHH:mm`, MAHALLIY
+ * vaqtda.
+ *
+ * `toISOString().slice(0, 16)` ATAYLAB ishlatilmaydi: u UTC beradi va
+ * Toshkent vaqtida kiritilgan 19:00 maydonda 14:00 bo'lib ko'rinardi — ustoz
+ * vazifani har tahrirlaganda muddat 5 soatga surilib ketardi.
+ */
+export function toDateTimeLocalInput(value: string | null): string {
+  if (value === null) return ''
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const day = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+  return `${day}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+/**
+ * `datetime-local` qiymatidan server kutadigan ISO-8601 (`DateTimeOffset`).
+ * Bo'sh satr -> `null` ("muddatsiz").
+ *
+ * `new Date('2026-08-01T19:00')` — zonasiz shakl, spetsifikatsiya bo'yicha
+ * MAHALLIY vaqt deb o'qiladi; `toISOString()` uni to'g'ri UTC ga o'giradi.
+ */
+export function fromDateTimeLocalInput(value: string): string | null {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return null
+  const date = new Date(trimmed)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+/**
+ * Backend `TimeOnly` ni `HH:mm:ss` satri sifatida yuboradi — bu `Date` emas
+ * (vaqt zonasi yo'q), shuning uchun `new Date` bilan tahlil qilinmaydi.
+ */
+export function formatClock(value: string): string {
+  const parts = value.split(':')
+  if (parts.length < 2) return value
+  return `${parts[0] ?? ''}:${parts[1] ?? ''}`
 }
 
 /** Kunlar bir xilmi (mahalliy vaqt bo'yicha). */

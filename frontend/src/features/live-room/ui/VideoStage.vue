@@ -84,11 +84,19 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         :role-label="tileRole(mainTile)"
       />
 
-      <div v-else class="flex size-full flex-col items-center justify-center gap-3 px-6 text-center">
+      <div
+        v-else
+        class="flex size-full flex-col items-center justify-center gap-3 px-6 text-center"
+      >
         <div class="flex size-14 items-center justify-center rounded-2xl bg-ink-800 text-slate-500">
-          <AppIcon name="camera" :size="26" />
+          <AppIcon
+            name="camera"
+            :size="26"
+          />
         </div>
-        <p class="text-sm font-medium text-slate-300">Hozircha efirda hech kim yo‘q</p>
+        <p class="text-sm font-medium text-slate-300">
+          Hozircha efirda hech kim yo‘q
+        </p>
         <p class="max-w-xs text-xs text-slate-500">
           Ustoz efirga chiqishi bilan video shu yerda paydo bo‘ladi.
         </p>
@@ -99,8 +107,13 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         v-if="isBusyState"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink-950/80 backdrop-blur-sm"
       >
-        <BaseSpinner size="lg" class="text-brand-400" />
-        <p class="text-sm text-slate-300">Videoga ulanmoqda…</p>
+        <BaseSpinner
+          size="lg"
+          class="text-brand-400"
+        />
+        <p class="text-sm text-slate-300">
+          Videoga ulanmoqda…
+        </p>
       </div>
 
       <!-- Qayta ulanish -->
@@ -108,8 +121,13 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         v-else-if="props.status === 'reconnecting'"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink-950/75 backdrop-blur-sm"
       >
-        <BaseSpinner size="lg" class="text-amber-400" />
-        <p class="text-sm text-amber-200">Video aloqa tiklanmoqda…</p>
+        <BaseSpinner
+          size="lg"
+          class="text-amber-400"
+        />
+        <p class="text-sm text-amber-200">
+          Video aloqa tiklanmoqda…
+        </p>
       </div>
 
       <!-- Xatolik -->
@@ -118,21 +136,41 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-ink-950/90 px-6 text-center"
       >
         <div class="flex size-12 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-400">
-          <AppIcon name="wifi-off" :size="24" />
+          <AppIcon
+            name="wifi-off"
+            :size="24"
+          />
         </div>
         <div>
-          <p class="text-sm font-semibold text-slate-100">Videoga ulanib bo‘lmadi</p>
-          <p class="mt-1 max-w-sm text-xs text-slate-400" v-text="props.connectionError ?? ''" />
+          <p class="text-sm font-semibold text-slate-100">
+            Videoga ulanib bo‘lmadi
+          </p>
+          <p
+            class="mt-1 max-w-sm text-xs text-slate-400"
+            v-text="props.connectionError ?? ''"
+          />
         </div>
-        <BaseButton size="sm" variant="secondary" @click="emit('retry')">
-          <template #icon><AppIcon name="refresh" :size="15" /></template>
+        <BaseButton
+          size="sm"
+          variant="secondary"
+          @click="emit('retry')"
+        >
+          <template #icon>
+            <AppIcon
+              name="refresh"
+              :size="15"
+            />
+          </template>
           Qayta urinish
         </BaseButton>
       </div>
     </div>
 
     <!-- Filmstrip -->
-    <div v-if="filmstrip.length > 0" class="shrink-0">
+    <div
+      v-if="filmstrip.length > 0"
+      class="shrink-0"
+    >
       <div class="scrollbar-slim flex gap-2 overflow-x-auto pb-1">
         <VideoTile
           v-for="tile in filmstrip"

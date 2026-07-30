@@ -95,8 +95,15 @@ const hasVideo = computed(() => props.track !== null)
       v-if="!hasVideo"
       class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink-850"
     >
-      <BaseAvatar :name="props.name" :size="props.large ? 'lg' : 'md'" />
-      <span v-if="props.large" class="text-sm text-slate-400" v-text="props.roleLabel" />
+      <BaseAvatar
+        :name="props.name"
+        :size="props.large ? 'lg' : 'md'"
+      />
+      <span
+        v-if="props.large"
+        class="text-sm text-slate-400"
+        v-text="props.roleLabel"
+      />
     </div>
 
     <!-- Pastki yozuv -->
@@ -108,8 +115,14 @@ const hasVideo = computed(() => props.track !== null)
         :size="14"
         :class="props.micEnabled ? 'text-emerald-400' : 'text-rose-400'"
       />
-      <span class="truncate text-xs font-medium text-white/90" v-text="props.name" />
-      <span v-if="props.isLocal" class="text-[10px] text-white/60">(siz)</span>
+      <span
+        class="truncate text-xs font-medium text-white/90"
+        v-text="props.name"
+      />
+      <span
+        v-if="props.isLocal"
+        class="text-[10px] text-white/60"
+      >(siz)</span>
     </div>
 
     <span

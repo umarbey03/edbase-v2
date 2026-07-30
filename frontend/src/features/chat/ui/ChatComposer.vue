@@ -52,7 +52,10 @@ function onKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <form class="border-t border-line bg-ink-900 p-3" @submit.prevent="submit">
+  <form
+    class="border-t border-line bg-ink-900 p-3"
+    @submit.prevent="submit"
+  >
     <div
       class="flex items-end gap-2 rounded-xl bg-ink-850 p-1.5 ring-1 ring-inset transition-colors"
       :class="props.disabled ? 'ring-line opacity-60' : 'ring-line focus-within:ring-brand-500/70'"
@@ -75,23 +78,47 @@ function onKeydown(event: KeyboardEvent): void {
         :disabled="!canSubmit"
         :title="isCoolingDown ? `${cooldownSeconds} soniyadan so‘ng` : 'Yuborish'"
       >
-        <BaseSpinner v-if="props.isSending" size="sm" />
-        <span v-else-if="isCoolingDown" class="text-xs font-semibold tabular-nums">
+        <BaseSpinner
+          v-if="props.isSending"
+          size="sm"
+        />
+        <span
+          v-else-if="isCoolingDown"
+          class="text-xs font-semibold tabular-nums"
+        >
           {{ cooldownSeconds }}
         </span>
-        <AppIcon v-else name="send" :size="17" />
+        <AppIcon
+          v-else
+          name="send"
+          :size="17"
+        />
         <span class="sr-only">Yuborish</span>
       </button>
     </div>
 
     <div class="mt-1.5 flex h-4 items-center justify-between px-1 text-[11px]">
-      <span v-if="isCoolingDown" class="text-amber-400/90">
+      <span
+        v-if="isCoolingDown"
+        class="text-amber-400/90"
+      >
         Sekinroq — 2 soniyada bitta xabar
       </span>
-      <span v-else-if="props.disabled" class="text-slate-500" v-text="props.disabledHint" />
-      <span v-else class="text-slate-600">Enter — yuborish, Shift+Enter — yangi qator</span>
+      <span
+        v-else-if="props.disabled"
+        class="text-slate-500"
+        v-text="props.disabledHint"
+      />
+      <span
+        v-else
+        class="text-slate-600"
+      >Enter — yuborish, Shift+Enter — yangi qator</span>
 
-      <span v-if="remaining <= 100" class="tabular-nums" :class="remaining <= 0 ? 'text-rose-400' : 'text-slate-500'">
+      <span
+        v-if="remaining <= 100"
+        class="tabular-nums"
+        :class="remaining <= 0 ? 'text-rose-400' : 'text-slate-500'"
+      >
         {{ remaining }}
       </span>
     </div>

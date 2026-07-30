@@ -28,38 +28,74 @@ const timeRange = computed(
 </script>
 
 <template>
+  <!--
+    Telefonda ustun (tugma pastda, to'liq kenglikda), `sm` dan boshlab qator.
+    Shu almashinuv 390px ekranda tugma va sarlavha bir-birini siqib
+    qo'yishining oldini oladi.
+  -->
   <article
-    class="group flex flex-col gap-3 rounded-2xl bg-ink-900 p-4 ring-1 ring-inset ring-line transition-colors hover:ring-line-strong sm:flex-row sm:items-center"
+    class="flex flex-col gap-3 rounded-xl border border-line bg-ink-900 p-3.5 transition-colors hover:border-line-strong sm:flex-row sm:items-center sm:p-4"
   >
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">
-        <h3 class="truncate text-sm font-semibold text-slate-100" v-text="title" />
-        <BaseBadge :tone="statusTone" :dot="props.session.status === 'Live'">
+        <h3
+          class="min-w-0 truncate text-sm font-semibold text-slate-100"
+          v-text="title"
+        />
+        <BaseBadge
+          :tone="statusTone"
+          :dot="props.session.status === 'Live'"
+        >
           {{ sessionStatusLabel(props.session.status) }}
         </BaseBadge>
-        <BaseBadge v-if="props.session.isHost" tone="teacher">Siz olib borasiz</BaseBadge>
+        <BaseBadge
+          v-if="props.session.isHost"
+          tone="teacher"
+        >
+          Siz olib borasiz
+        </BaseBadge>
       </div>
 
-      <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-        <span class="inline-flex items-center gap-1.5">
-          <AppIcon name="users" :size="13" />
-          <span v-text="props.session.groupName" />
+      <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+        <span class="inline-flex min-w-0 items-center gap-1.5">
+          <AppIcon
+            name="users"
+            :size="13"
+          />
+          <span
+            class="truncate"
+            v-text="props.session.groupName"
+          />
         </span>
         <span class="inline-flex items-center gap-1.5">
-          <AppIcon name="calendar" :size="13" />
-          <span class="tabular-nums" v-text="timeRange" />
+          <AppIcon
+            name="calendar"
+            :size="13"
+          />
+          <span
+            class="tabular-nums"
+            v-text="timeRange"
+          />
         </span>
-        <span v-text="sessionTypeLabel(props.session.type)" />
+        <span
+          class="text-dim"
+          v-text="sessionTypeLabel(props.session.type)"
+        />
       </div>
     </div>
 
     <BaseButton
-      class="shrink-0"
+      class="w-full shrink-0 sm:w-auto"
       :variant="props.session.status === 'Live' ? 'primary' : 'secondary'"
       :disabled="!joinable"
       @click="emit('join', props.session.id)"
     >
-      <template #icon><AppIcon name="play" :size="14" /></template>
+      <template #icon>
+        <AppIcon
+          name="play"
+          :size="14"
+        />
+      </template>
       Darsga kirish
     </BaseButton>
   </article>

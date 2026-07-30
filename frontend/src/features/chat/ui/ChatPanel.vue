@@ -93,7 +93,10 @@ function roleOf(senderId: number): string {
         :class="tab === 'people' ? 'bg-ink-750 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
         @click="tab = 'people'"
       >
-        <AppIcon name="users" :size="15" />
+        <AppIcon
+          name="users"
+          :size="15"
+        />
         <span class="tabular-nums">{{ props.participantCount }}</span>
       </button>
 
@@ -110,7 +113,10 @@ function roleOf(senderId: number): string {
           title="Yopish"
           @click="emit('close')"
         >
-          <AppIcon name="close" :size="18" />
+          <AppIcon
+            name="close"
+            :size="18"
+          />
         </button>
       </div>
     </header>
@@ -121,7 +127,10 @@ function roleOf(senderId: number): string {
       class="shrink-0 border-b border-line bg-amber-500/10 px-3 py-2"
     >
       <div class="flex items-center gap-2 text-amber-300">
-        <AppIcon name="hand" :size="15" />
+        <AppIcon
+          name="hand"
+          :size="15"
+        />
         <span class="text-xs font-semibold">Qo‘l ko‘targanlar ({{ props.raisedHands.length }})</span>
       </div>
       <p class="mt-1 line-clamp-2 text-xs text-amber-200/80">
@@ -148,13 +157,23 @@ function roleOf(senderId: number): string {
             v-if="rows.length === 0"
             class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
           >
-            <BaseSpinner v-if="props.status === 'connecting'" class="text-slate-600" />
+            <BaseSpinner
+              v-if="props.status === 'connecting'"
+              class="text-slate-600"
+            />
             <template v-else>
               <div class="flex size-11 items-center justify-center rounded-2xl bg-ink-800 text-slate-600">
-                <AppIcon name="chat" :size="22" />
+                <AppIcon
+                  name="chat"
+                  :size="22"
+                />
               </div>
-              <p class="text-sm text-slate-400">Hozircha xabarlar yo‘q</p>
-              <p class="text-xs text-slate-600">Birinchi bo‘lib yozing</p>
+              <p class="text-sm text-slate-400">
+                Hozircha xabarlar yo‘q
+              </p>
+              <p class="text-xs text-slate-600">
+                Birinchi bo‘lib yozing
+              </p>
             </template>
           </div>
 
@@ -163,14 +182,26 @@ function roleOf(senderId: number): string {
             faqat yangilari DOM'ga qo'shiladi. Xabarlar 200 tadan oshsa eng
             eskilari ro'yxatdan (va DOM'dan) chiqib ketadi.
           -->
-          <template v-for="row in rows" :key="row.id">
-            <div v-if="row.dayLabel !== null" class="my-3 flex items-center gap-3 px-3">
-              <span class="h-px flex-1 bg-line" aria-hidden="true" />
+          <template
+            v-for="row in rows"
+            :key="row.id"
+          >
+            <div
+              v-if="row.dayLabel !== null"
+              class="my-3 flex items-center gap-3 px-3"
+            >
+              <span
+                class="h-px flex-1 bg-line"
+                aria-hidden="true"
+              />
               <span
                 class="rounded-full bg-ink-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-400"
                 v-text="row.dayLabel"
               />
-              <span class="h-px flex-1 bg-line" aria-hidden="true" />
+              <span
+                class="h-px flex-1 bg-line"
+                aria-hidden="true"
+              />
             </div>
 
             <ChatMessageRow
@@ -193,7 +224,10 @@ function roleOf(senderId: number): string {
           @click="jumpToBottom"
         >
           {{ unreadCount }} ta yangi xabar
-          <AppIcon name="arrow-down" :size="14" />
+          <AppIcon
+            name="arrow-down"
+            :size="14"
+          />
         </button>
       </div>
 
@@ -202,14 +236,20 @@ function roleOf(senderId: number): string {
         v-if="props.notice !== null"
         class="flex shrink-0 items-center gap-2 border-t border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
       >
-        <span class="flex-1" v-text="props.notice" />
+        <span
+          class="flex-1"
+          v-text="props.notice"
+        />
         <button
           type="button"
           class="rounded p-0.5 text-amber-300/70 hover:text-amber-200"
           title="Yopish"
           @click="emit('dismiss-notice')"
         >
-          <AppIcon name="close" :size="14" />
+          <AppIcon
+            name="close"
+            :size="14"
+          />
         </button>
       </div>
 
@@ -218,7 +258,10 @@ function roleOf(senderId: number): string {
         v-if="props.status === 'disconnected' && !props.sessionEnded"
         class="flex shrink-0 items-center gap-2 border-t border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
       >
-        <AppIcon name="wifi-off" :size="14" />
+        <AppIcon
+          name="wifi-off"
+          :size="14"
+        />
         <span class="flex-1">Suhbat aloqasi uzildi</span>
         <button
           type="button"

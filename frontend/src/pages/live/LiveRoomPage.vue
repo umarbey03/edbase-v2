@@ -10,6 +10,7 @@ import {
   sessionTitle,
   startLiveSession,
 } from '@/entities/session'
+import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import ChatPanel from '@/features/chat/ui/ChatPanel.vue'
 import { useLiveHub } from '@/features/live-hub/model/useLiveHub'
@@ -19,6 +20,29 @@ import VideoStage from '@/features/live-room/ui/VideoStage.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatCountdown } from '@/shared/lib/datetime'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
+
+/*
+  ★ JONLI DARS TEMASI — eski `live.html` AYNAN ustoz panelining tokenlarini
+  ishlatgan: `--bg:#092235`, `--accent:#ffcc33`, `--border:#1a476b`. Shuning
+  uchun yangi tema bloki yaratilmadi, `teacher` qayta ishlatiladi.
+
+  NIMA UCHUN SHU YERDA: jonli xona ikkala karkasdan ham TASHQARIDA (to'liq
+  ekran, yon menyusiz). Temasiz qolganda o'quvchi oltin ilovadan YASHIL
+  xonaga tushib qolardi — parite tekshiruvida shu topildi.
+*/
+const LIVE_THEME = 'teacher'
+let previousTheme: string | undefined
+
+onMounted(() => {
+  previousTheme = document.documentElement.dataset['theme']
+  document.documentElement.dataset['theme'] = LIVE_THEME
+})
+
+onBeforeUnmount(() => {
+  // Karkasga qaytganda o'sha karkasning temasi tiklanadi (o'quvchi -> oltin).
+  if (previousTheme === undefined) delete document.documentElement.dataset['theme']
+  else document.documentElement.dataset['theme'] = previousTheme
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -98,6 +122,10 @@ const actionError = ref<string | null>(null)
 const nowMs = ref(Date.now())
 let clockTimer: number | null = null
 
+// Darsdan chiqqanda qayerga qaytish ROLGA bog'liq: o'quvchi "Darslarim" ga,
+// ustoz "Guruhlarim" ga, o'quv bo'limi esa boshqaruv paneliga.
+const homeRoute = computed(() => homeRouteFor(auth.role))
+
 const session = computed(() => sessionQuery.data.value ?? null)
 const headerTitle = computed(() => {
   const current = session.value
@@ -163,7 +191,7 @@ const BANNER_CLASS: Record<BannerTone, string> = {
 
 async function handleLeave(): Promise<void> {
   await leaveMedia()
-  await router.push({ name: 'sessions' })
+  await router.push({ name: homeRoute.value })
 }
 
 async function handleToggleHand(): Promise<void> {
@@ -239,19 +267,35 @@ onBeforeUnmount(() => {
     >
       <button
         type="button"
-        class="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-100"
+        class="tap-target flex items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
         title="Orqaga"
         @click="handleLeave"
       >
-        <AppIcon name="arrow-left" :size="18" />
+        <AppIcon
+          name="arrow-left"
+          :size="18"
+        />
       </button>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <h1 class="truncate text-sm font-semibold text-slate-100 sm:text-base" v-text="headerTitle" />
-          <BaseBadge v-if="isLive" tone="live" dot>Jonli</BaseBadge>
+          <h1
+            class="truncate text-sm font-semibold text-slate-100 sm:text-base"
+            v-text="headerTitle"
+          />
+          <BaseBadge
+            v-if="isLive"
+            tone="live"
+            dot
+          >
+            Jonli
+          </BaseBadge>
         </div>
-        <p v-if="groupName.length > 0" class="truncate text-xs text-slate-500" v-text="groupName" />
+        <p
+          v-if="groupName.length > 0"
+          class="truncate text-xs text-slate-500"
+          v-text="groupName"
+        />
       </div>
 
       <div class="flex items-center gap-2">
@@ -261,7 +305,10 @@ onBeforeUnmount(() => {
           :class="isEndingSoon ? 'text-amber-300' : 'text-slate-300'"
           title="Dars tugashiga qolgan vaqt"
         >
-          <AppIcon name="calendar" :size="14" />
+          <AppIcon
+            name="calendar"
+            :size="14"
+          />
           {{ countdown }}
         </span>
 
@@ -269,7 +316,10 @@ onBeforeUnmount(() => {
           class="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 tabular-nums ring-1 ring-inset ring-line"
           title="Ishtirokchilar soni"
         >
-          <AppIcon name="users" :size="14" />
+          <AppIcon
+            name="users"
+            :size="14"
+          />
           {{ participantCount }}
         </span>
 
@@ -280,7 +330,12 @@ onBeforeUnmount(() => {
           :loading="actionBusy"
           @click="handleStartSession"
         >
-          <template #icon><AppIcon name="play" :size="14" /></template>
+          <template #icon>
+            <AppIcon
+              name="play"
+              :size="14"
+            />
+          </template>
           <span class="hidden sm:inline">Darsni boshlash</span>
         </BaseButton>
 
@@ -304,8 +359,14 @@ onBeforeUnmount(() => {
       :class="BANNER_CLASS[banner.tone]"
       role="status"
     >
-      <AppIcon :name="banner.tone === 'error' ? 'wifi-off' : 'refresh'" :size="14" />
-      <span class="flex-1" v-text="banner.text" />
+      <AppIcon
+        :name="banner.tone === 'error' ? 'wifi-off' : 'refresh'"
+        :size="14"
+      />
+      <span
+        class="flex-1"
+        v-text="banner.text"
+      />
       <button
         v-if="banner.tone === 'error'"
         type="button"
@@ -321,9 +382,19 @@ onBeforeUnmount(() => {
       class="flex shrink-0 items-center gap-2 border-b border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-200"
       role="alert"
     >
-      <span class="flex-1" v-text="mediaError" />
-      <button type="button" class="rounded p-0.5 hover:text-amber-100" @click="dismissMediaError">
-        <AppIcon name="close" :size="14" />
+      <span
+        class="flex-1"
+        v-text="mediaError"
+      />
+      <button
+        type="button"
+        class="rounded p-0.5 hover:text-amber-100"
+        @click="dismissMediaError"
+      >
+        <AppIcon
+          name="close"
+          :size="14"
+        />
       </button>
     </div>
 
@@ -332,23 +403,46 @@ onBeforeUnmount(() => {
       class="flex shrink-0 items-center gap-2 border-b border-rose-500/25 bg-rose-500/10 px-4 py-1.5 text-xs text-rose-200"
       role="alert"
     >
-      <span class="flex-1" v-text="actionError" />
-      <button type="button" class="rounded p-0.5 hover:text-rose-100" @click="actionError = null">
-        <AppIcon name="close" :size="14" />
+      <span
+        class="flex-1"
+        v-text="actionError"
+      />
+      <button
+        type="button"
+        class="rounded p-0.5 hover:text-rose-100"
+        @click="actionError = null"
+      >
+        <AppIcon
+          name="close"
+          :size="14"
+        />
       </button>
     </div>
 
     <!-- ============================== Asosiy =============================== -->
-    <div v-if="!isValidSession" class="flex flex-1 items-center justify-center px-6 text-center">
+    <div
+      v-if="!isValidSession"
+      class="flex flex-1 items-center justify-center px-6 text-center"
+    >
       <div>
-        <p class="text-sm font-semibold text-slate-200">Dars manzili noto‘g‘ri</p>
-        <BaseButton class="mt-4" size="sm" variant="secondary" @click="router.push({ name: 'sessions' })">
+        <p class="text-sm font-semibold text-slate-200">
+          Dars manzili noto‘g‘ri
+        </p>
+        <BaseButton
+          class="mt-4"
+          size="sm"
+          variant="secondary"
+          @click="router.push({ name: homeRoute })"
+        >
           Darslarim
         </BaseButton>
       </div>
     </div>
 
-    <div v-else class="flex min-h-0 flex-1">
+    <div
+      v-else
+      class="flex min-h-0 flex-1"
+    >
       <!-- Video + boshqaruv -->
       <main class="flex min-w-0 flex-1 flex-col gap-3 p-3">
         <VideoStage
@@ -396,7 +490,7 @@ onBeforeUnmount(() => {
         class="min-h-0 border-line bg-ink-900 lg:static lg:inset-auto lg:z-auto lg:flex lg:w-[380px] lg:shrink-0 lg:animate-none lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none xl:w-[420px]"
         :class="
           chatOpen
-            ? 'fixed inset-x-0 bottom-0 top-14 z-40 flex animate-sheet-up flex-col rounded-t-2xl border-t shadow-2xl'
+            ? 'fixed inset-0 z-40 flex animate-sheet-up flex-col shadow-2xl'
             : 'hidden'
         "
       >
@@ -432,11 +526,22 @@ onBeforeUnmount(() => {
         <div
           class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-300"
         >
-          <AppIcon name="check" :size="24" />
+          <AppIcon
+            name="check"
+            :size="24"
+          />
         </div>
-        <h2 class="mt-4 text-lg font-semibold text-slate-100">Dars yakunlandi</h2>
-        <p class="mt-1 text-sm text-slate-400">Qatnashganingiz uchun rahmat.</p>
-        <BaseButton class="mt-5" block @click="router.push({ name: 'sessions' })">
+        <h2 class="mt-4 text-lg font-semibold text-slate-100">
+          Dars yakunlandi
+        </h2>
+        <p class="mt-1 text-sm text-slate-400">
+          Qatnashganingiz uchun rahmat.
+        </p>
+        <BaseButton
+          class="mt-5"
+          block
+          @click="router.push({ name: homeRoute })"
+        >
           Darslarim ro‘yxatiga
         </BaseButton>
       </div>

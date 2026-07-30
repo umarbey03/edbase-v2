@@ -412,15 +412,28 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     try {
       // SPEC 6.1: to'liq ishtirokchilar ro'yxati FAQAT shu javobda keladi.
       // Keyin faqat delta (`PresenceChanged`) keladi.
+      //
+      // ★ JAVOB SHAKLI: `JoinSessionResult(Session, Participants, Count)` —
+      // ya'ni OBYEKT (`{ session, participants, count }`), massiv EMAS
+      // (hub shartnomasi: `LiveClassHub.cs`). Ilgari shu yerda `Array.isArray`
+      // tekshirilardi va u DOIM `false` bo'lgani uchun ro'yxat hech qachon
+      // to'ldirilmasdi: 20 kishilik darsga kirgan odam bo'sh ishtirokchilar
+      // panelini va `0` sanog'ini ko'rardi, faqat undan KEYIN kirganlar delta
+      // bilan qo'shilardi. Xato ham chiqmagani uchun ko'zga tashlanmagan.
       const result: unknown = await target.invoke(HubMethod.JoinSession, sessionId)
-      if (Array.isArray(result)) {
+      const participants = isRecord(result) ? result['participants'] : null
+
+      if (Array.isArray(participants)) {
         presence.clear()
-        for (const raw of result) {
+        for (const raw of participants) {
           const entry = toPresenceEntry(raw)
           if (entry === null) continue
           presence.set(entry.userId, entry)
           rememberRole(entry.userId, entry.role)
         }
+        // Server `count` ni ham yuboradi, lekin sanoq RO'YXATDAN hisoblanadi:
+        // ikki manba ajralib qolsa ekranda "3 ishtirokchi" yozilib, ro'yxatda
+        // 2 kishi ko'rinardi.
         participantCount.value = presence.size
         renderPresence()
       }

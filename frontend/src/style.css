@@ -1,30 +1,84 @@
 /* Tailwind CSS v4 — konfiguratsiya shu faylda (tailwind.config.js YO'Q). */
 @import 'tailwindcss';
 
+/*
+  DIZAYN TILI: v1 (Zinnur-platform/app/static/app.css) dan ko'chirilgan.
+  Rang sxemasi INDIGO emas, YASHIL (#2f9e41) — foydalanuvchilar eski panelni
+  shu rangda tanishadi, brend uzluksizligi buzilmasligi kerak.
+
+  Eski o'zgaruvchilar -> shu yerdagi tokenlar:
+    --bg       #070d09  -> ink-950
+    --surface  #0e1712  -> ink-900
+    --elevated #15201a  -> ink-800
+    --hover    #1c2c22  -> ink-750
+    --border   #1d3326  -> line
+    --accent   #2f9e41  -> brand-500
+    --text     #e8edf5  -> slate-100
+    --muted    #8494ac  -> slate-400 / `muted`
+    --dim      #4d6280  -> slate-600 / `dim`
+
+  MUHIM: eski LAYOUT (100vh, overflow:hidden, qat'iy 230px sidebar) KO'CHIRILMADI —
+  u telefonda buziladi. Layout noldan responsive qilib qurilgan (AppShell).
+*/
+
 @theme {
   --font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
-  /* Brend rangi */
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  /* Brend — eski `--accent: #2f9e41` atrofidagi ramp. 500 AYNAN eski accent. */
+  --color-brand-100: #dcf5e1;
+  --color-brand-200: #b8ecc1;
+  --color-brand-300: #86d894;
+  --color-brand-400: #4fbb64;
+  --color-brand-500: #2f9e41;
+  --color-brand-600: #268035;
+  --color-brand-700: #1d6328;
+  --color-brand-900: #0f3316;
 
-  /* Qorong'i mavzu asosiy sirtlari */
-  --color-ink-950: #070b14;
-  --color-ink-900: #0b1120;
-  --color-ink-850: #0f1626;
-  --color-ink-800: #131c2e;
-  --color-ink-750: #18223a;
-  --color-ink-700: #1e2a44;
+  /* Qorong'i-yashil sirtlar (eski --bg/--surface/--elevated/--hover) */
+  --color-ink-950: #070d09;
+  --color-ink-900: #0e1712;
+  --color-ink-850: #121b16;
+  --color-ink-800: #15201a;
+  --color-ink-750: #1c2c22;
+  --color-ink-700: #24382b;
 
-  /* Chegaralar */
-  --color-line: #1e293b;
-  --color-line-strong: #2b3a55;
+  /* Chegaralar (eski --border) */
+  --color-line: #1d3326;
+  --color-line-strong: #2c4c37;
+
+  /*
+    Matn ramp'i. Tailwind'ning standart `slate` shkalasi ATAYLAB qayta yozilgan:
+    mavjud komponentlar (jonli dars, chat) `text-slate-*` ishlatadi — token
+    qiymatini almashtirsak, ular bitta qatorga ham tegmasdan eski dizayn
+    ranglariga o'tadi.
+  */
+  --color-slate-50: #f4f8fd;
+  --color-slate-100: #e8edf5;
+  --color-slate-200: #cdd7e5;
+  --color-slate-300: #a9b7ca;
+  --color-slate-400: #8494ac;
+  --color-slate-500: #6a7d97;
+  --color-slate-600: #4d6280;
+  --color-slate-700: #3a4c66;
+
+  /* Semantik qisqartmalar — yangi sahifalarda o'qish osonroq bo'lsin. */
+  --color-muted: #8494ac;
+  --color-dim: #4d6280;
+
+  /*
+    Brend fonidagi MATN rangi. `text-white` o'rniga shu token ishlatiladi
+    (`BaseButton` primary, `BaseBadge` va h.k.).
+
+    NEGA: xodim temasida brend to'q yashil (#2f9e41) — ustidagi matn oq
+    bo'lishi kerak. O'quvchi temasida brend OLTIN (#f5b731) — oq matn u yerda
+    o'qilmaydi (kontrast ~1.9:1), eski ilova ham to'q ko'k (#071e2c) matn
+    ishlatgan. Rangni tokenga chiqarish `BaseButton` ni ikkiga bo'lmasdan
+    ikkala temada to'g'ri ishlashini ta'minlaydi.
+  */
+  --color-on-brand: #ffffff;
 
   --radius-xl2: 1.125rem;
 
@@ -32,6 +86,13 @@
      200 foydalanuvchida bu compositor'ni bo'g'adi. Faqat panel/pill uchun. */
   --animate-fade-up: fade-up 0.18s ease-out both;
   --animate-sheet-up: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-in-left: slide-in-left 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /* O'quvchi (Mini App) temasi uchun — eski `student.html` dagi animatsiyalar. */
+  --animate-pop: pop 0.5s both;
+  --animate-ping-live: ping-live 1.5s infinite;
+  --animate-pulse-btn: pulse-btn 1.8s infinite;
+  --animate-node-pulse: node-pulse 1.8s ease-in-out infinite;
 }
 
 @keyframes fade-up {
@@ -54,6 +115,287 @@
   }
 }
 
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Eski `student.html` dagi `@keyframes pop` — avatar/chip paydo bo'lishi. */
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Jonli dars nuqtasi (eski `.live-dot`). */
+@keyframes ping-live {
+  0% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgb(239 68 68 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+
+/* Jonli darsga kirish tugmasi (eski `.btn.live`, `.mini-next.live`). */
+@keyframes pulse-btn {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgb(239 68 68 / 0);
+  }
+}
+
+/* Kurs yo'lakchasidagi "hozirgi" dars tugmasi (eski `@keyframes cnPulse`). */
+@keyframes node-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+
+/*
+  ============================ SHRIFT ============================
+  Plus Jakarta Sans — eski o'quvchi ilovasining shrifti.
+
+  O'ZIMIZDA saqlanadi (`public/fonts/*.woff2`), Google Fonts'ga so'rov
+  YUBORILMAYDI. Uch sabab:
+   1) maxfiylik — har o'quvchining IP manzili uchinchi tomonga ketmasin;
+   2) tezlik — mobil internetda `fonts.googleapis.com` + `fonts.gstatic.com`
+      ikkita qo'shimcha DNS + TLS qo'l siqishini talab qiladi;
+   3) ishonchlilik — Google Fonts bloklangan tarmoqda ilova baribir
+      to'g'ri shrift bilan ochiladi.
+
+  Bitta O'ZGARUVCHI (variable) fayl 300–800 og'irliklarni qoplaydi, shuning
+  uchun 6 ta alohida fayl o'rniga 2 ta subset (latin + latin-ext) yetadi
+  (~49 KB jami). `swap` — matn shrift yuklanguncha ham ko'rinadi.
+*/
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('/fonts/plus-jakarta-sans-latin-ext.woff2') format('woff2');
+  /* O'zbek lotin alifbosidagi `oʻ`/`gʻ` (U+02BB) va `ʼ` shu subsetda. */
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/*
+  ====================== O'QUVCHI TEMASI (Mini App) ======================
+
+  QAROR: dizayn tizimi IKKIGA BO'LINMAYDI. `shared/ui` da bitta `BaseButton`,
+  bitta `BaseCard`, bitta `BaseModal` qoladi — ular o'zgartirilmaydi.
+  Almashadigan yagona narsa — TOKEN QIYMATLARI.
+
+  Bu ishlaydi, chunki Tailwind v4 utility'lari qiymatni ichiga YOZMAYDI, balki
+  o'zgaruvchiga murojaat qiladi:
+      .bg-brand-500 { background-color: var(--color-brand-500) }
+  Ya'ni `[data-theme='student']` ostida `--color-brand-500` ni qayta
+  belgilasak, shu daraxt ichidagi HAR BIR `bg-brand-500` avtomatik oltin
+  bo'ladi — birorta komponentga tegmasdan.
+
+  Muqobil yechimlar nega tanlanmadi:
+   • `shared/ui` ni nusxalash — ikkita `BaseButton` bir-biridan asta-sekin
+     uzoqlashadi, tuzatish har doim ikki joyda qilinishi kerak bo'lardi;
+   • har komponentga `theme` prop'i — har chaqiruvda uzatish esdan chiqadi va
+     xodim sahifalari ham o'zgarishi kerak bo'lardi (regressiya xavfi).
+
+  ★ ATRIBUT `<html>` GA QO'YILADI (`StudentShell` mount'da qo'yadi, unmount'da
+  oladi), karkas `<div>` iga EMAS. Sabab amalda topildi: `BaseModal` va toast
+  `<Teleport to="body">` bilan chiziladi va karkasdan TASHQARIDA turadi —
+  `<div>` da bo'lsa profil varag'i xodim temasining yashil ranglarida
+  ko'rinardi. `<html>` da bo'lganda esa `<body>` foni ham o'zi to'g'rilanadi.
+
+  Qiymatlar eski `student.html` dagi `:root` dan AYNAN olingan.
+*/
+[data-theme='student'] {
+  /* Sirtlar: --bg / --surface / --surface2 / --hover */
+  --color-ink-950: #051e2d;
+  --color-ink-900: rgb(8 44 64 / 0.86);
+  --color-ink-850: rgb(10 51 73 / 0.9);
+  --color-ink-800: rgb(13 58 82 / 0.92);
+  --color-ink-750: rgb(20 74 104 / 0.96);
+  --color-ink-700: rgb(26 86 120 / 0.96);
+
+  /* Chegara: --border va uning kuchliroq varianti */
+  --color-line: rgb(245 183 49 / 0.2);
+  --color-line-strong: rgb(245 183 49 / 0.38);
+
+  /* Brend: --accent (#f5b731) va --accent2 (#fcd34d) */
+  --color-brand-100: #fef3c7;
+  --color-brand-200: #fde68a;
+  --color-brand-300: #fcd34d;
+  --color-brand-400: #fcd34d;
+  --color-brand-500: #f5b731;
+  --color-brand-600: #dd9f18;
+  --color-brand-700: #b27f12;
+  --color-brand-900: #5c400a;
+
+  /* Oltin fonda oq matn o'qilmaydi — eski ilovadagi to'q ko'k. */
+  --color-on-brand: #071e2c;
+
+  /* Matn: --text / --muted / --dim */
+  --color-slate-50: #ffffff;
+  --color-slate-100: #ffffff;
+  --color-slate-200: rgb(255 255 255 / 0.86);
+  --color-slate-300: rgb(255 255 255 / 0.74);
+  --color-slate-400: rgb(255 255 255 / 0.62);
+  --color-slate-500: rgb(255 255 255 / 0.48);
+  --color-slate-600: rgb(255 255 255 / 0.35);
+  --color-slate-700: rgb(255 255 255 / 0.22);
+  --color-muted: rgb(255 255 255 / 0.62);
+  --color-dim: rgb(255 255 255 / 0.35);
+
+  /*
+    Eski ilova `--red: #ef4444` (Tailwind `red-500`) ishlatgan, v2 komponentlari
+    esa `rose-*`. Tokenni almashtiramiz — "Jonli" nishoni va jonli dars
+    kartasi eski ilovadagidek AYNAN #ef4444 bo'ladi.
+  */
+  --color-rose-400: #f87171;
+  --color-rose-500: #ef4444;
+
+  /* Eski `--r: 16px` — kartochka radiusi. */
+  --radius-xl: 1rem;
+
+  --font-sans:
+    'Plus Jakarta Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+}
+
+/*
+  ================================ USTOZ / KURATOR ================================
+
+  Qiymatlar eski `teacher.html` ning inline `:root` idan AYNAN olingan.
+
+  ★ NIMA UCHUN BU KERAK BO'LDI: v2 boshida rangni `app/static/app.css` dan —
+  ya'ni BAZAVIY fayldan — olgan edi (yashil `#2f9e41`). Lekin eski loyihada
+  HAR BIR panel o'sha bazani inline ustidan yozadi va navy + oltin ishlatadi.
+  Natijada v2 da HECH BIR foydalanuvchi ko'rmagan rang butun tizimga
+  tarqalgan edi. Yagona istisno — kirish sahifasi: u eskisida ham yashil,
+  shuning uchun temasiz qoladi.
+*/
+[data-theme='teacher'] {
+  /* --bg / --surface / --elevated / --hover */
+  --color-ink-950: #092235;
+  --color-ink-900: #0e304b;
+  --color-ink-850: #113a5a;
+  --color-ink-800: #154165;
+  --color-ink-750: #1e527d;
+  --color-ink-700: #24608f;
+
+  --color-line: #1a476b;
+  --color-line-strong: #2a6394;
+
+  /* --accent: #ffcc33, --yellow: #fbbf24 */
+  --color-brand-100: #fff7db;
+  --color-brand-200: #ffeaa8;
+  --color-brand-300: #ffdf80;
+  --color-brand-400: #fbbf24;
+  --color-brand-500: #ffcc33;
+  --color-brand-600: #e0ad14;
+  --color-brand-700: #b3890f;
+  --color-brand-900: #5c4607;
+
+  /* Oltin fonda oq matn o'qilmaydi. */
+  --color-on-brand: #092235;
+
+  /* --text / --muted / --dim */
+  --color-slate-50: #ffffff;
+  --color-slate-100: #ffffff;
+  --color-slate-200: #d7e6f2;
+  --color-slate-300: #bcd4e6;
+  --color-slate-400: #a3c2db;
+  --color-slate-500: #85a8c4;
+  --color-slate-600: #5c7f9c;
+  --color-slate-700: #46647c;
+  --color-muted: #a3c2db;
+  --color-dim: #5c7f9c;
+
+  /* Eski `--green: #10b981`, `--red: #f43f5e`. */
+  --color-green-400: #34d399;
+  --color-green-500: #10b981;
+  --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+
+  --font-sans:
+    'Plus Jakarta Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+}
+
+/*
+  ============================ O'QUV BO'LIMI / ADMIN ============================
+  Qiymatlar eski `academic.html` ning inline `:root` idan AYNAN olingan.
+*/
+[data-theme='manage'] {
+  --color-ink-950: #0f2d48;
+  --color-ink-900: #163a5a;
+  --color-ink-850: #1a4060;
+  --color-ink-800: #1d4567;
+  --color-ink-750: #245074;
+  --color-ink-700: #2b5c85;
+
+  --color-line: #2b5276;
+  --color-line-strong: #3d6e9c;
+
+  /* --accent va --yellow eskisida BIR XIL: #f2c84b */
+  --color-brand-100: #fdf5da;
+  --color-brand-200: #fae9ab;
+  --color-brand-300: #f7dd83;
+  --color-brand-400: #f5d367;
+  --color-brand-500: #f2c84b;
+  --color-brand-600: #d4a91f;
+  --color-brand-700: #a88519;
+  --color-brand-900: #56430c;
+
+  --color-on-brand: #0f2d48;
+
+  --color-slate-50: #ffffff;
+  --color-slate-100: #eaf2f9;
+  --color-slate-200: #d5e5f1;
+  --color-slate-300: #bad2e5;
+  --color-slate-400: #9fbad4;
+  --color-slate-500: #7f9dba;
+  --color-slate-600: #5a7c9a;
+  --color-slate-700: #46647c;
+  --color-muted: #9fbad4;
+  --color-dim: #5a7c9a;
+
+  --font-sans:
+    'Plus Jakarta Sans', -apple-system, system-ui, 'Segoe UI', sans-serif;
+}
+
 /* ---- Bazaviy uslublar ---- */
 
 html {
@@ -64,8 +406,15 @@ html {
 
 body {
   margin: 0;
+  /*
+    `100vh` ATAYLAB ishlatilmaydi: mobil brauzerda manzil paneli yig'ilganda
+    vh noto'g'ri hisoblanadi va sahifa "sakraydi". Hamma joyda `dvh`.
+  */
   min-height: 100dvh;
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-slate-100);
   overscroll-behavior-y: none;
 }
 
@@ -79,7 +428,7 @@ body {
   outline-offset: 2px;
 }
 
-/* Nozik scrollbar — chat va filmstrip uchun */
+/* Nozik scrollbar — chat, filmstrip va jadval konteynerlari uchun */
 @utility scrollbar-slim {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line-strong) transparent;
@@ -96,7 +445,7 @@ body {
     border-radius: 9999px;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background-color: #3b4b6b;
+    background-color: #3a6248;
   }
 }
 
@@ -106,4 +455,121 @@ body {
 @utility chat-scroll-container {
   contain: layout paint style;
   overflow-anchor: none;
+}
+
+/*
+  Teginish nishoni: telefonda barmoq uchun kamida 44x44 px kerak (WCAG 2.5.5).
+  Ikonkali tugmalar vizual jihatdan kichik bo'lsa ham shu utility bilan
+  "bosiladigan" maydoni kattalashadi.
+*/
+@utility tap-target {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/*
+  Keng kontent (jadval, diagramma) uchun: skroll SHU konteyner ichida bo'ladi,
+  sahifaning o'zi gorizontal skroll qilmaydi.
+*/
+@utility scroll-x-safe {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+  Teginish maydonini KENGAYTIRADI, ko'rinishini o'zgartirmasdan.
+
+  `tap-target` (min-w/min-h 2.75rem) elementning O'ZINI kattalashtiradi — bu
+  o'quvchi appbar'idagi 34px balandlikdagi "keyingi dars" chipi uchun yaramaydi:
+  chip eski ilovadagidan baland bo'lib ko'rinardi. Bu utility esa ko'rinmas
+  `::after` bilan bosiladigan to'rtburchakni har tomondan 6px kengaytiradi
+  (34 + 12 = 46px > 44px, WCAG 2.5.5).
+*/
+@utility tap-expand {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+}
+
+/*
+  Yashirin skrollbar — o'quvchi ilovasidagi gorizontal chiplar (guruh tanlash)
+  uchun. Eski ilovada `.gsel` da aynan shunday edi.
+*/
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---- Eski dizayndan ko'chirilgan komponent uslublari ---- */
+
+@layer components {
+  /*
+    Jadval (eski `table/th/td`). Faqat DESKTOP uchun: telefonda sahifalar
+    kartochka ko'rinishiga o'tadi (`md:` dan yuqorida jadval ko'rinadi).
+  */
+  .zn-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .zn-table th,
+  .zn-table td {
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+  .zn-table th {
+    color: var(--color-muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .zn-table tbody tr:hover td {
+    background: var(--color-ink-800);
+  }
+  .zn-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Eski `input,select,textarea` uslubi. Balandlik 44px — teginish nishoni. */
+  .zn-input {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 9px 11px;
+    background: var(--color-ink-950);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    color: var(--color-slate-100);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .zn-input::placeholder {
+    color: var(--color-dim);
+  }
+  .zn-input:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+  }
+  .zn-input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* `select` uchun o'zbekcha o'qiladigan variantlar qora fonli bo'lsin. */
+  .zn-input option {
+    background: var(--color-ink-900);
+    color: var(--color-slate-100);
+  }
 }
