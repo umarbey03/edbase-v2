@@ -39,8 +39,13 @@ public sealed class TestAttemptConfiguration : IEntityTypeConfiguration<TestAtte
         // yutqazgan so'rov 0 qator yangilaydi -> `DbUpdateConcurrencyException`
         // -> servis 409 qaytaradi. Ikkinchi himoya —
         // `UX_TestAnswers_AttemptId_QuestionId_OptionId`.
+        //
+        // `UseXminAsConcurrencyToken()` yordamchisi o'rniga OSHKOR yozuv:
+        // Npgsql'ning rasmiy tavsiyasi aynan shu shakl.
         // ============================================================
-        builder.UseXminAsConcurrencyToken();
+        builder.Property<uint>("xmin")
+            .IsRowVersion()
+            .HasColumnName("xmin");
 
         builder.HasOne(a => a.Test)
             .WithMany()

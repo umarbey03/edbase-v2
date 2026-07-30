@@ -36,8 +36,13 @@ public sealed class SubmissionConfiguration : IEntityTypeConfiguration<Submissio
         // aylantiradi — foydalanuvchi qaytadan urinadi.
         //
         // Ustun YARATILMAYDI: `xmin` har Postgres jadvalida allaqachon bor.
+        //
+        // `UseXminAsConcurrencyToken()` yordamchisi o'rniga OSHKOR yozuv:
+        // Npgsql'ning rasmiy tavsiyasi aynan shu shakl.
         // ============================================================
-        builder.UseXminAsConcurrencyToken();
+        builder.Property<uint>("xmin")
+            .IsRowVersion()
+            .HasColumnName("xmin");
 
         builder.HasOne(s => s.Assignment)
             .WithMany(a => a.Submissions)

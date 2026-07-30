@@ -35,20 +35,30 @@ curl -s localhost:5080/health/ready
 | Faza | Holat |
 |---|---|
 | 1.1 EF migratsiyalari | ✅ 3 migratsiya, jonli bazada tasdiqlangan |
-| 1.2 Testlar + CI | ✅ **225 test** (206 unit + 19 integratsiya) |
+| 1.2 Testlar + CI | ✅ **298 test** (267 unit + 31 integratsiya) |
 | 1.3 Kuzatuv | ✅ Sentry + strukturali log + health checks |
 | 2.1 Foydalanuvchilar (CRM) | ✅ 403 himoyasi **amalda isbotlangan** |
 | 2.2/2.3 Guruhlar + jadval | ✅ 69 dars generatsiyasi **tasdiqlangan** |
-| 3 (Domain) | ✅ 9 entity + 47 test |
+| 3 (Domain) | ✅ 9 entity + testlar |
+| 3 (EF + migratsiya) | ✅ `AddLearningProcessTables`, 9 jadval bazada |
 
 ---
 
 ## 3. ⚠️ TUGALLANMAGAN ISH — birinchi navbatda shu
 
-### 3.1. Faza 3 Application/API — agent BOSHLAMAGAN
+### 3.1. Faza 3 Application/API — QISMAN bajarilgan
 
-`Application/Assignments`, `Application/Tests`, `Application/Gating` —
-**0 fayl**. Agent ishga tushirilgan edi, lekin kontekst tugadi.
+| Qism | Holat |
+|---|---|
+| Domain (9 entity) | ✅ tayyor va testlangan |
+| EF konfiguratsiyalari | ✅ tayyor |
+| Migratsiya `AddLearningProcessTables` | ✅ bazaga qo'llangan, 9 jadval |
+| `Application/Gating` | 🔶 3 fayl (tugallanmagan) |
+| `Application/Assignments` | ❌ **0 fayl** |
+| `Application/Tests` | ❌ **0 fayl** |
+| `AssignmentsController`, `TestsController` | ❌ yo'q |
+
+Ya'ni **baza qatlami tayyor**, servis va API qatlami qolgan.
 
 **Domain TAYYOR va TESTLANGAN** — faqat Application + WebApi + migratsiya kerak:
 
@@ -63,30 +73,40 @@ curl -s localhost:5080/health/ready
 Testlar `tests/Zinnur.UnitTests/Entities/{Submission,TestAttempt,TestQuestionScoring}Tests.cs`
 da — **niyatni ular ko'rsatadi**.
 
+**Bazada allaqachon mavjud unikal kalitlar** (tasdiqlangan):
+```
+UX_Submissions_AssignmentId_StudentId
+UX_TestAttempts_TestId_StudentId
+UX_LessonProgress_StudentId_ModuleLessonId
+UX_TestAnswers_AttemptId_QuestionId_OptionId   ← uchtalik, TO'G'RI
+```
+
 **Kerakli ishlar:**
-1. 9 entity uchun `IEntityTypeConfiguration` + `IApplicationDbContext` ga DbSet'lar
-2. BITTA migratsiya. Unikal kalitlar:
-   - `Submission` → `(AssignmentId, StudentId)`
-   - `TestAttempt` → `(TestId, StudentId)`
-   - `LessonProgress` → `(StudentId, ModuleLessonId)`
-   - `TestAnswer` → **`(AttemptId, QuestionId, OptionId)`** ← `(Attempt,Question)` EMAS!
-     (eski tizimda o'sha juftlik unikal edi va ko'p tanlovli savol ishlamasdi)
-   - Ballar `decimal(6,2)`, hech qachon `float`
-3. `AssignmentService`, `SubmissionService`, `TestService`, `GatingService`
-4. `AssignmentsController`, `TestsController`
-5. Fayl yuklash: **chegara STREAMING paytida** tekshirilsin (eski tizimda
+1. `AssignmentService`, `SubmissionService`, `TestService`, `GatingService` (tugatish)
+2. `AssignmentsController`, `TestsController`
+3. Fayl yuklash: **chegara STREAMING paytida** tekshirilsin (eski tizimda
    butun fayl RAM'ga o'qilib, keyin tekshirilardi — chegara hech nimani
    himoya qilmasdi)
-6. Gating Redis'da keshlansin (~60s), eski tizimda har so'rovda butun kurs
+4. Gating Redis'da keshlansin (~60s), eski tizimda har so'rovda butun kurs
    daraxti qayta hisoblanardi
 
 To'liq talablar: `docs/ROADMAP.md` → FAZA 3.
 
-### 3.2. Groups agenti qoldirgan ikki ish
-1. `tests/Zinnur.UnitTests/Scheduling/` — **yozilmagan** (ScheduleGenerator testlari)
-2. `PUT /api/v1/groups/{id}` javobida `scheduleTouched`/`regenerated`/
-   `hostsUpdated`/`titlesUpdated` xulosasi **ko'rinmadi** — chaqiruvchi nima
-   bo'lganini bilishi kerak
+### 3.2. Groups moduli — TUGADI (ikki ish yopildi)
+1. ✅ `tests/Zinnur.UnitTests/Scheduling/` yozildi (+61 test)
+2. ✅ Xulosa MAVJUD edi — `"schedule"` ichida ichma-ich, ildizda emas:
+   `UpdateGroupResponse(GroupDto Group, ScheduleChangeSummary Schedule)`.
+   Mening tekshiruvim ildizga qaragani uchun bo'sh chiqqan edi.
+
+### 3.3. ⚠️ `GroupMember.PausedUntil` — EF shadow ustunida
+Groups agenti `pausedUntil` ni Domain'ga qo'shmasdan (Domain uning
+qamrovida emas edi) EF shadow ustuni sifatida saqladi. Ustun bazada
+HAQIQIY (`GroupMembers.PausedUntil date`), lekin `GroupMember` entity'sida
+xossa yo'q — `EF.Property<DateOnly?>` orqali o'qiladi.
+
+**Keyingi qadam:** Domain'ga tegilganda `GroupMember.PausedUntil` xossasini
+qo'shish. Nom va tur bir xil — **migratsiya kerak bo'lmaydi**.
+Sabab `GroupMemberFields.cs` da yozilgan.
 
 ---
 

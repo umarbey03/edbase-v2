@@ -579,3 +579,75 @@ LiveKit ICE, test konfiguratsiyasi) va isbotlanmagan da'volar ro'yxati.
 **Faza 3 Application/API agenti ishni BOSHLAMAGAN** (0 fayl) — kontekst
 tugagani uchun. Domain tayyor va testlangan, faqat Application + WebApi +
 migratsiya qoldi.
+
+---
+
+## ⚠️ REPO BUZUQ HOLATDAN TIKLANDI (sessiya oxirida)
+
+Groups agenti tugagach muhim ogohlantirish berdi va u **to'g'ri chiqdi**:
+repozitoriy kompilyatsiya bo'lmayotgan holatda edi, ishlab turgan konteyner
+esa faqat **eski образ** tufayli tirik edi. Rebuild qilinsa ishga tushmasdi.
+
+### Muammo 1 — Npgsql 9 da olib tashlangan API
+
+Faza 3 agenti `SubmissionConfiguration.cs` va `TestAttemptConfiguration.cs`
+da `builder.UseXminAsConcurrencyToken()` yozgan. Bu metod **Npgsql 9 da
+olib tashlangan** → `error CS1061`.
+
+**Tuzatish:** rasmiy almashtiruv
+```csharp
+builder.Property<uint>("xmin").IsRowVersion().HasColumnName("xmin");
+```
+Izoh qo'shildi: nima uchun optimistik qulflash kerak (o'quvchi ikki tabda
+"Topshirish" bosса yoki tarmoq uzilib qayta yuborilsa — 409, jimgina
+ma'lumot yo'qolishi o'rniga).
+
+### Muammo 2 — model va migratsiya mos kelmasdi
+
+Faza 3 EF konfiguratsiyalari modelda bor edi, lekin **migratsiya yo'q**.
+Natijada `DbInitializer.MigrateAsync` `PendingModelChangesWarning` bilan
+istisno ko'tarardi va **ilova umuman ishga tushmasdi** — shu jumladan
+oldindan ishlab turgan Auth integratsiya testlari ham yiqilardi.
+
+**Tuzatish:** `20260730032934_AddLearningProcessTables` generatsiya qilindi.
+
+### Tiklangandan keyingi holat — TASDIQLANGAN
+
+```
+Build            : 0 xato, 0 ogohlantirish
+Testlar          : 298 (267 unit + 31 integratsiya), hammasi yashil
+Migratsiyalar    : 4 ta, bazaga qo'llangan
+Yangi jadvallar  : Assignments LessonProgress SubmissionFiles Submissions
+                   TestAnswers TestAttempts TestOptions TestQuestions Tests
+API              : qayta qurildi va ISHGA TUSHDI (healthy)
+```
+
+Kritik unikal kalitlar bazada tasdiqlandi:
+```
+UX_TestAnswers_AttemptId_QuestionId_OptionId   ← UCHTALIK (to'g'ri)
+UX_Submissions_AssignmentId_StudentId
+UX_TestAttempts_TestId_StudentId
+UX_LessonProgress_StudentId_ModuleLessonId
+```
+
+### Saboq
+Agent "build yashil" deb hisobot bergani — **butun solution yashil** degani
+emas. Groups agenti buni o'zi sezdi va aytdi; agar aytmagan bo'lsa,
+buzuq holat commit qilinib ketardi. Har agent hisobotidan keyin
+**butun solution**ni o'zim tekshirishim shart.
+
+---
+
+## ✅ Groups moduli — agent TUGATDI
+
+- `tests/Zinnur.UnitTests/Scheduling/` (+61 test)
+- Integratsiya testlari (+12): teacher-only ID'larni saqlaydi, name-only
+  o'rnida tahrirlaydi, **course-only hech nimaga tegmaydi**, hafta kuni
+  o'zgarishi o'tmishni saqlaydi
+- `Weekdays` uchun `PrimitiveCollection(...).HasColumnType("integer[]")`
+  ANIQ berilishi kerak edi — EF Core 9 default'i JSON ustun
+- `PUT` javobidagi xulosa MAVJUD edi, `"schedule"` ichida ichma-ich —
+  mening tekshiruvim ildizga qaragani uchun bo'sh chiqqan
+- ⚠️ `pausedUntil` EF shadow ustunida (Domain qamrovdan tashqari edi) —
+  keyingi Domain o'zgarishida xossa qilib qo'shish kerak, migratsiya
+  kerak bo'lmaydi
