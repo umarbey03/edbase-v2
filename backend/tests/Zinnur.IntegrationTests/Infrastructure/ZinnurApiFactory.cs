@@ -126,13 +126,35 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // konfiguratsiyaga yozadi.
         foreach (var (key, value) in TestSettings())
             builder.UseSetting(key, value);
+
+        // Hosila fixture'lar uchun QO'SHIMCHA sozlamalar (masalan moliya
+        // "yumshoq rejimi"). Odatiy ro'yxatdan KEYIN qo'llanadi — ya'ni
+        // ustidan yozadi.
+        foreach (var (key, value) in ExtraSettings())
+            builder.UseSetting(key, value);
     }
+
+    /// <summary>
+    /// Hosila test fixture'i konfiguratsiyani shu yerdan o'zgartiradi
+    /// (`AuthRateLimitTests` uslubi, lekin ixtiyoriy kalitlar uchun).
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string>> ExtraSettings() => [];
 
     /// <summary>Test muhiti uchun konfiguratsiya qiymatlari.</summary>
     private IEnumerable<KeyValuePair<string, string>> TestSettings() =>
     [
         new("ConnectionStrings:Postgres", TestConnectionString),
         new("ConnectionStrings:Redis", RedisConnectionString),
+
+        // ★ REDIS KALIT MAKONI — har test sinfiga O'ZINIKI.
+        //
+        // Har sinf o'z Postgres bazasini oladi, Redis esa UMUMIY. Makonsiz
+        // kalitlar (`auth:state:4`) turli bazalardagi bir xil raqamli Id'lar
+        // uchun bir-birining ustiga yozilardi: bir sinfda o'chirilgan
+        // foydalanuvchi, ikkinchisida faol — va testlar sababsiz "flaky"
+        // bo'lardi. Aynan shu holat sessiya versiyasi tekshiruvi qo'shilganda
+        // yuzaga chiqdi (9 ta test yiqildi).
+        new("Redis:KeyPrefix", _databaseName),
 
         // Testlar uchun qat'iy, oldindan ma'lum sirlar (32+ belgi majburiy)
         new("Jwt:Secret", "integration_test_secret_min_32_chars_0123456789"),

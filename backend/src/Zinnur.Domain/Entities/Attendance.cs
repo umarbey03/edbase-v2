@@ -44,7 +44,52 @@ public class Attendance : BaseEntity
     /// <summary>Qo'lda o'zgartirilganmi (ustoz/o'quv bo'limi).</summary>
     public bool IsManual { get; set; }
 
+    /// <summary>
+    /// Qo'lda tuzatish SABABI — "interneti uzildi", "kasal", "kechikib
+    /// keldi". Faqat <see cref="IsManual"/> bo'lganda ma'noli.
+    ///
+    /// NIMA UCHUN AUDITDA EMAS, SHU YERDA HAM: bu joriy holatning
+    /// TUSHUNTIRISHI va davomat jadvalidagi katakda ko'rsatiladi. Audit
+    /// esa TARIX — undan "hozirgi sabab nima" degan savolga javob olish
+    /// har katak uchun alohida so'rov talab qilardi (jadvalda 30 o'quvchi
+    /// × 70 dars).
+    /// </summary>
+    public string? Reason { get; set; }
+
     // ---------------------------------------------------------------- xatti-harakat
+
+    /// <summary>
+    /// ★ QO'LDA TUZATISH (ustoz / kurator / o'quv bo'limi).
+    ///
+    /// FAQAT bahoni va sababni o'zgartiradi. Vaqt maydonlariga
+    /// (<see cref="FirstJoinAt"/>, <see cref="LastJoinAt"/>,
+    /// <see cref="LeftAt"/>, <see cref="DurationSeconds"/>) UMUMAN
+    /// TEGMAYDI.
+    ///
+    /// NIMA UCHUN TEGMAYDI: bu maydonlar SignalR hodisalarining o'lchov
+    /// natijasi va <see cref="RegisterJoin"/>/<see cref="RegisterLeave"/>
+    /// juftligi ular ustida invariant saqlaydi ("qayta ulanish vaqtni ikki
+    /// barobar qilmaydi"). Qo'lda tuzatish ular ichiga yozsa, o'quvchi
+    /// hozir XONADA bo'lgan holatda ochiq seans buzilib, dars oxiridagi
+    /// <see cref="Finalize"/> vaqtni noto'g'ri qo'shardi. Ustoz "kelgan"
+    /// deb belgilaydi — o'lchov esa o'zi bo'lganicha qoladi va
+    /// <see cref="IsManual"/> bayrog'i "bu son emas, QAROR" deb aytadi.
+    ///
+    /// Shu tufayli tuzatishni dars DAVOM ETAYOTGANDA ham qilish xavfsiz:
+    /// keyingi <see cref="RegisterJoin"/> ham, yakuniy
+    /// <see cref="Finalize"/> ham <see cref="IsManual"/> tufayli bahoni
+    /// qayta yozmaydi.
+    /// </summary>
+    /// <param name="status">Yangi baho.</param>
+    /// <param name="reason">Sabab (ixtiyoriy). <c>null</c> — sabab tozalanadi.</param>
+    /// <param name="now">Amal vaqti (UTC).</param>
+    public void ApplyManual(AttendanceStatus status, string? reason, DateTimeOffset now)
+    {
+        Status = status;
+        Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        IsManual = true;
+        UpdatedAt = now;
+    }
 
     /// <summary>O'quvchi xonaga kirdi (birinchi marta yoki qayta ulandi).</summary>
     public void RegisterJoin(DateTimeOffset now)

@@ -77,6 +77,37 @@ public sealed record CourseModuleDto(
 /// kurator) uchun DOIM <c>true</c>: gating faqat o'quvchiga tegishli.
 /// </param>
 /// <param name="LockReason">Nima uchun yopiq. Ochiq bo'lsa <c>null</c>.</param>
+/// <param name="Completed">
+/// ★ Dars TUGATILGANMI: video ko'rilgan **VA** kurs vazifasi topshirilgan
+/// **VA** e'lon qilingan test yechilgan — faqat MAVJUD bo'lganlari uchun
+/// (qoida: <c>LessonGate.IsComplete</c>).
+///
+/// NIMA UCHUN <paramref name="Unlocked"/> DAN ALOHIDA: bu ikki BOSHQA-BOSHQA
+/// savol. Dars OCHIQ, lekin hali TUGATILMAGAN bo'lishi mumkin — o'quvchi
+/// hozir o'tirgan dars aynan shunday. "Ochilgan"ni "tugatilgan" deb
+/// ko'rsatish o'quvchini chalg'itardi: u yo'lakchani yashil ko'rib
+/// vazifasini topshirmasdi va keyingi dars nega ochilmayotganini
+/// tushunmasdi.
+///
+/// ★ QULFLANGAN DARSDA DOIM <c>false</c>. Talabi yo'q dars (vazifasi ham,
+/// e'lon qilingan testi ham yo'q) qoidaga ko'ra "tugatilgan" sanaladi —
+/// gating keyingi darsni AYNAN shu asosda ochadi. Lekin ekranda
+/// "qulflangan, lekin tugatilgan" ma'nosiz bo'lardi, shuning uchun tashqi
+/// shartnomada bu maydon ochiqlikka bo'ysunadi:
+/// <c>completed = unlocked &amp;&amp; talab qolmagan</c>.
+///
+/// ★ TALABI YO'Q OCHIQ DARS DARHOL <c>true</c> bo'ladi. Bu xato emas:
+/// "tugatilgan" — "o'quvchi mehnat qildi" degani EMAS, "shu darsda
+/// TALAB qilinadigan hech nima qolmadi" degani.
+///
+/// QO'SHIMCHA SO'ROV YO'Q: qiymat gating daraxtidan olinadi
+/// (<c>LessonGateDto.Completed</c>), u esa butun kurs uchun BIR MARTA
+/// hisoblanadi va keshlanadi.
+///
+/// XODIM uchun DOIM <c>false</c>: "tugatish" — o'quvchi progressi, xodimda
+/// esa progress yozuvi umuman bo'lmaydi. (<paramref name="Unlocked"/> aksincha,
+/// xodimda doim <c>true</c> — u kontentni to'liq ko'radi.)
+/// </param>
 /// <param name="HasTest">
 /// Darsga E'LON QILINGAN test biriktirilganmi. Qoralama test SANALMAYDI —
 /// `GatingService` ham aynan shunday hisoblaydi (`t.IsPublished`), ikki
@@ -92,6 +123,7 @@ public sealed record CourseLessonDto(
     int? DurationMin,
     bool Unlocked,
     LessonLockReason? LockReason,
+    bool Completed,
     bool HasAssignment,
     bool HasTest);
 

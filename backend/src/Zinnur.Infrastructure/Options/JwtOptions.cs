@@ -38,7 +38,16 @@ public sealed class JwtOptions
     [Range(1, 24 * 60, ErrorMessage = "Jwt:AccessMinutes 1..1440 oralig'ida bo'lishi kerak.")]
     public int AccessMinutes { get; set; } = 15;
 
-    /// <summary>Yangilash tokeni umri (kun). SPEC: 14.</summary>
+    /// <summary>
+    /// Yangilash tokeni umri (kun).
+    ///
+    /// SPEC'da 14 edi, 7 ga QISQARTIRILDI (qaror, 2026-07-30). Sabab:
+    /// rotatsiya bor, lekin ESKI refresh token bekor qilinmaydi (`jti`
+    /// saqlanmagani uchun qayta ishlatishni aniqlab bo'lmaydi) — ya'ni
+    /// o'g'irlangan token o'z muddatigacha ishlayveradi. Muddatni ikki
+    /// barobar qisqartirish shu oynani kamaytiradi. To'liq yechim
+    /// (`jti` ro'yxati + reuse detection) hamon ochiq.
+    /// </summary>
     [Range(1, 365, ErrorMessage = "Jwt:RefreshDays 1..365 oralig'ida bo'lishi kerak.")]
-    public int RefreshDays { get; set; } = 14;
+    public int RefreshDays { get; set; } = 7;
 }

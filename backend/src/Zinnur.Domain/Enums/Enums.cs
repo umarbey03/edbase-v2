@@ -106,3 +106,89 @@ public enum AttachmentKind
     Audio = 1,
     Document = 2,
 }
+
+// ============================================================================
+// MOLIYA (FAZA 4)
+// ============================================================================
+
+/// <summary>
+/// Oylik to'lov yozuvining holati.
+///
+/// <c>Partial</c> ATAYLAB alohida: eski tizimda qisman to'lov ham "paid"
+/// bo'lib qolardi va markaz jimgina pul yo'qotardi (100 000 so'm 540 000 lik
+/// oyni yopardi).
+/// </summary>
+public enum PaymentStatus
+{
+    /// <summary>Yozuv ochilgan, hali to'lov tushmagan.</summary>
+    Due = 0,
+
+    /// <summary>Bir qismi to'langan — qolgani hamon qarz.</summary>
+    Partial = 1,
+
+    /// <summary>To'liq to'langan.</summary>
+    Paid = 2,
+
+    /// <summary>Kechirilgan (pul olinmagan, lekin qarz ham emas).</summary>
+    Waived = 3,
+}
+
+/// <summary>Chegirma turi.</summary>
+public enum DiscountKind
+{
+    /// <summary>Foizda (0..100).</summary>
+    Percent = 0,
+
+    /// <summary>Qat'iy summada (so'm).</summary>
+    Amount = 1,
+}
+
+/// <summary>Moliya jurnalidagi yozuv turi.</summary>
+public enum PaymentTransactionKind
+{
+    /// <summary>Naqd/karta orqali tushgan to'lov.</summary>
+    Payment = 0,
+
+    /// <summary>Qaytarilgan pul.</summary>
+    Refund = 1,
+
+    /// <summary>Kechirim (pul tushmagan).</summary>
+    Waiver = 2,
+
+    /// <summary>Balansdagi ortiqcha puldan yopilgan qarz.</summary>
+    BalanceUse = 3,
+}
+
+/// <summary>
+/// Qarzdorlik uchun bloklash qamrovi. Ierarxik: keyingisi oldingisini
+/// O'Z ICHIGA OLADI (<c>Platform</c> hamma narsani yopadi).
+/// </summary>
+public enum PaymentBlockScope
+{
+    /// <summary>Bloklash o'chiq.</summary>
+    None = 0,
+
+    /// <summary>Faqat video darslar (eng avval yopiladi).</summary>
+    Video = 1,
+
+    /// <summary>Video + jonli darsga kirish.</summary>
+    Live = 2,
+
+    /// <summary>Butun platforma.</summary>
+    Platform = 3,
+}
+
+/// <summary>
+/// To'lov usuli.
+///
+/// ATAYLAB IKKITA (qaror, 2026-07-30): markaz amalda faqat naqd va karta
+/// qabul qiladi. Erkin satr bo'lganda `"naqd"`, `"cash"`, `"CASH"` uchalasi
+/// ham yozilib, kunlik kassa hisoboti usul bo'yicha BO'LINMAY qolardi —
+/// eski tizimda aynan shunday edi. Yangi usul qo'shilsa (Click, Payme) shu
+/// yerga qo'shiladi va hisobot avtomatik ajratadi.
+/// </summary>
+public enum PaymentMethod
+{
+    Cash = 0,
+    Card = 1,
+}

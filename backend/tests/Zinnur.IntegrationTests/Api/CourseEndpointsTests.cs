@@ -501,6 +501,125 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         lessons[1].Name.Should().Be("Yopiq dars", "sarlavha ko'rinishi kerak");
         lessons[1].Description.Should().BeNull("qulflangan darsning MAZMUNI berilmaydi");
         lessons[1].LockReason.Should().NotBeNull();
+
+        // ★★ QULFLANGAN DARS HECH QACHON "tugatilgan" emas.
+        //
+        // Ichki gating qoidasi uchun bu dars TEXNIK jihatdan "tugatilgan"
+        // (unda vazifa ham, test ham yo'q — ya'ni talab qolmagan), lekin
+        // tashqi shartnomada `completed` OCHIQLIKKA bo'ysunadi: o'quvchi
+        // darsni ocha ham olmagan bo'lsa, uni yashil ko'rsatish yolg'on
+        // bo'lardi va vazifasi yo'q kurs butunlay yashil chiqardi.
+        lessons[1].Completed.Should().BeFalse("qulflangan darsni tugatib bo'lmaydi");
+    }
+
+    // ================================================================== ★ TUGATILGANMI (Completed)
+
+    /// <summary>
+    /// ★★ <c>Completed</c> ("TUGATILGAN") <c>Unlocked</c> ("OCHIQ") DAN
+    /// ALOHIDA maydon: dars ochiq, lekin hali tugatilmagan bo'lishi
+    /// mumkin — o'quvchi hozir o'tirgan dars aynan shunday.
+    ///
+    /// Stsenariy: darsga KURS VAZIFASI biriktirilgan.
+    ///   • topshirilmagan -> `unlocked: true`, `completed: false`;
+    ///   • topshirilgan   -> `completed: true`.
+    ///
+    /// Frontend "ochilgan"ni "tugatilgan" deb ko'rsatsa, o'quvchi
+    /// yo'lakchani yashil ko'rib vazifasini topshirmasdi va keyingi dars
+    /// nega ochilmayotganini tushunmasdi.
+    /// </summary>
+    [Fact]
+    public async Task Tree_AsStudent_MarksLessonCompletedOnlyAfterTheWorkIsSubmitted()
+    {
+        var (courseId, moduleId) = await NewCourseWithModuleAsync();
+        var lessonId = await CreateLessonAsync(courseId, moduleId, "Vazifali dars", "Mazmun");
+
+        var (email, password, studentId) = await CreateStudentInCourseAsync(courseId);
+
+        using var admin = await AdminClientAsync();
+
+        var created = await admin.PostAsJsonAsync(
+            new Uri("/api/v1/assignments", UriKind.Relative),
+            new { title = "Kurs vazifasi", moduleLessonId = lessonId, maxScore = 5m });
+
+        created.StatusCode.Should().Be(HttpStatusCode.Created,
+            await created.Content.ReadAsStringAsync());
+
+        var assignment = await created.Content.ReadFromJsonAsync<AssignmentRow>();
+
+        await InvalidateGateAsync(studentId);
+
+        using var student = await ClientAsync(email, password);
+
+        var before = (await TreeAsync(student, courseId)).Modules.Single().Lessons.Single();
+
+        before.HasAssignment.Should().BeTrue();
+        before.Unlocked.Should().BeTrue("birinchi dars DOIM ochiq");
+        before.Completed.Should().BeFalse("vazifa hali topshirilmagan");
+
+        await factory.WithDbAsync(async db =>
+        {
+            db.Submissions.Add(Submission.Create(
+                assignment!.Id, studentId, "Mening javobim", isLate: false, DateTimeOffset.UtcNow));
+
+            return await db.SaveChangesAsync();
+        });
+
+        await InvalidateGateAsync(studentId);
+
+        var after = (await TreeAsync(student, courseId)).Modules.Single().Lessons.Single();
+
+        after.Unlocked.Should().BeTrue();
+        after.Completed.Should().BeTrue("vazifa topshirildi -> dars tugatildi");
+    }
+
+    /// <summary>
+    /// ★ SHARTNOMA UCHUN MUHIM: TALABI YO'Q **OCHIQ** dars DARHOL
+    /// "tugatilgan" bo'ladi (vazifasi ham, e'lon qilingan testi ham yo'q;
+    /// video kontenti hali modellashtirilmagan — `GatingService` izohiga
+    /// qarang).
+    ///
+    /// Bu g'alati emas, AYNI qoida: gating keyingi darsni ochish uchun
+    /// ham "oldingisi tugatilgan" shartini AYNAN shunday hisoblaydi.
+    /// Boshqacha bo'lganda kurs birinchi darsdayoq abadiy qulflanardi.
+    /// Ya'ni frontend "tugatilgan" belgisini shu ta'rifga qarab chizishi
+    /// kerak: u "o'quvchi mehnat qildi" emas, "shu darsda TALAB
+    /// qilinadigan hech nima qolmadi" degani.
+    /// </summary>
+    [Fact]
+    public async Task Tree_AsStudent_UnlockedLessonWithoutAnyRequirement_IsAlreadyCompleted()
+    {
+        var (courseId, moduleId) = await NewCourseWithModuleAsync();
+        await CreateLessonAsync(courseId, moduleId, "Talabsiz dars", "Mazmun");
+
+        var (email, password, studentId) = await CreateStudentInCourseAsync(courseId);
+        await InvalidateGateAsync(studentId);
+
+        using var student = await ClientAsync(email, password);
+
+        var lesson = (await TreeAsync(student, courseId)).Modules.Single().Lessons.Single();
+
+        lesson.HasAssignment.Should().BeFalse();
+        lesson.HasTest.Should().BeFalse();
+        lesson.Completed.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// ★ XODIM uchun <c>completed</c> DOIM <c>false</c>: "tugatish" —
+    /// o'quvchi progressi, xodimda esa progress yozuvi umuman bo'lmaydi.
+    /// (<c>unlocked</c> esa aksincha, xodimda doim <c>true</c>.)
+    /// </summary>
+    [Fact]
+    public async Task Tree_AsTeacher_NeverMarksLessonsCompleted()
+    {
+        var (courseId, moduleId) = await NewCourseWithModuleAsync();
+        await CreateLessonAsync(courseId, moduleId, "Xodim ko'radigan dars", "Mazmun");
+
+        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+
+        var lesson = (await TreeAsync(teacher, courseId)).Modules.Single().Lessons.Single();
+
+        lesson.Unlocked.Should().BeTrue();
+        lesson.Completed.Should().BeFalse();
     }
 
     /// <summary>O'quvchi faqat O'Z kursini ko'radi.</summary>
@@ -814,9 +933,14 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     private sealed record ModuleRow(
         long Id, long CourseId, string Name, int Position, List<LessonRow> Lessons);
 
+    /// <summary>
+    /// ★ <c>Completed</c> — "dars TUGATILGANMI". <c>Unlocked</c> ("dars
+    /// OCHIQMI") dan alohida maydon; ikkisi boshqa-boshqa savol.
+    /// </summary>
     private sealed record LessonRow(
         long Id, long ModuleId, string Name, string? Description, int Position,
-        int? DurationMin, bool Unlocked, string? LockReason, bool HasAssignment, bool HasTest);
+        int? DurationMin, bool Unlocked, string? LockReason, bool Completed,
+        bool HasAssignment, bool HasTest);
 
     private sealed record PositionRow(long Id, int Position);
 

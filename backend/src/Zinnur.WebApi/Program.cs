@@ -50,6 +50,11 @@ builder.Services.AddSingleton<ChatMessageWriter>();
 builder.Services.AddSingleton<IChatMessageWriter>(sp => sp.GetRequiredService<ChatMessageWriter>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatMessageWriter>());
 
+// Jonli dars xabarnomasi: use-case (`Application`) SignalR ni bilmaydi, shuning
+// uchun port shu yerda — WebApi tomonida — ulanadi. `IHubContext` singleton,
+// lekin ro'yxat scoped: uni ishlatadigan `LiveSessionService` ham scoped.
+builder.Services.AddScoped<ILiveSessionNotifier, LiveSessionNotifier>();
+
 // ---------------------------------------------------------------- auth
 var jwtSecret = builder.Configuration["Jwt:Secret"]
     ?? throw new InvalidOperationException("Jwt:Secret sozlanmagan.");
@@ -59,6 +64,11 @@ if (jwtSecret.Length < 32)
 
 // Tokendagi ism claim'ining QISQA nomi (JwtTokenService shu nom bilan yozadi).
 const string JwtNameClaim = "name";
+
+// Sessiya versiyasi claim'i — `JwtTokenService.TokenVersionClaim` bilan BIR XIL
+// bo'lishi shart. Satr ikki joyda yozilgani uchun izoh: Infrastructure loyihasi
+// WebApi'ga bog'lanmaydi, shuning uchun konstanta import qilinmaydi.
+const string TokenVersionClaim = "ver";
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -116,7 +126,7 @@ builder.Services
             //
             // Shuning uchun YETISHMAYOTGAN yagona xaritalashni qo'shamiz,
             // ishlab turgan `sub`/`role` xaritalariga TEGMAYMIZ.
-            OnTokenValidated = context =>
+            OnTokenValidated = async context =>
             {
                 if (context.Principal?.Identity is ClaimsIdentity identity
                     && identity.FindFirst(ClaimTypes.Name) is null
@@ -125,7 +135,48 @@ builder.Services
                     identity.AddClaim(new Claim(ClaimTypes.Name, shortName.Value));
                 }
 
-                return Task.CompletedTask;
+                // ---- XAVFSIZLIK TUZATISHI: `ver` HAQIQATAN tekshiriladi ----
+                //
+                // `JwtTokenService` tokenga `ver` (TokenVersion) qo'yadi va uning
+                // izohida "WebApi ham SHU nomni tekshiradi" deb yozilgan edi —
+                // lekin tekshiruv YOZILMAGAN edi. Natijada imzosi to'g'ri kirish
+                // tokeni 15 daqiqa davomida so'zsiz qabul qilinardi:
+                //
+                //   * `logout` qilingan foydalanuvchi ishlayveradi;
+                //   * O'CHIRILGAN (haydalgan yoki to'lamagan) o'quvchi jonli
+                //     darsga LiveKit tokeni olib, video/audio efirga chiqa olardi
+                //     va chatga yozardi — jonli tekshiruvda isbotlangan.
+                //
+                // Kurs/vazifa/guruh servislari buni `IsActive` tekshiruvi bilan
+                // qisman qoplaydi, lekin bu HAR endpointda takrorlanishi kerak
+                // bo'lgan qoida edi va jonli dars servisida tushib qolgan.
+                // Shuning uchun tekshiruv MARKAZIY joyga — token tasdiqlash
+                // bosqichiga qo'yildi: bir marta yozilgan, hamma joyda amal
+                // qiladi (SignalR ulanishi ham shu yerdan o'tadi).
+                var principal = context.Principal;
+                var userIdText = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var versionText = principal?.FindFirstValue(TokenVersionClaim);
+
+                if (!long.TryParse(userIdText, CultureInfo.InvariantCulture, out var userId)
+                    || !int.TryParse(versionText, CultureInfo.InvariantCulture, out var tokenVersion))
+                {
+                    context.Fail("Token tarkibi to'liq emas.");
+                    return;
+                }
+
+                var authState = context.HttpContext.RequestServices
+                    .GetRequiredService<IAuthStateCache>();
+
+                var state = await authState
+                    .GetAsync(userId, context.HttpContext.RequestAborted)
+                    .ConfigureAwait(false);
+
+                if (state is null || !state.IsActive || state.TokenVersion != tokenVersion)
+                {
+                    // 401 qaytadi — klient `refresh` ga urinadi va u yerda
+                    // aniq sabab bilan rad etiladi ("Sessiya bekor qilingan").
+                    context.Fail("Sessiya endi yaroqli emas.");
+                }
             },
         };
     });
@@ -192,6 +243,29 @@ var authWindowSeconds = PositiveSetting(
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // ★ `Retry-After` — foydalanuvchi QANCHA kutishini bilsin.
+    //
+    // Ilgari 429 javobi bo'sh tana va sarlavhasiz kelardi; frontend esa
+    // "Juda tez-tez so'rov yubordingiz. Biroz kuting" degan umumiy matnni
+    // ko'rsatardi. "Biroz" — bu necha soniya? Foydalanuvchi bilmagach qayta
+    // bosaveradi va oynani yana uzaytiradi.
+    //
+    // Qat'iy oynada (fixed window) aniq qolgan vaqtni limiter bermaydi,
+    // shuning uchun eng yomon holat — to'liq oyna uzunligi — beriladi.
+    // Bu HTTP standarti ruxsat bergan yondashuv va har doim xavfsiz tomonga
+    // yaxlitlaydi.
+    options.OnRejected = (context, _) =>
+    {
+        var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var hint)
+            ? (int)Math.Ceiling(hint.TotalSeconds)
+            : authWindowSeconds;
+
+        context.HttpContext.Response.Headers.RetryAfter =
+            retryAfter.ToString(CultureInfo.InvariantCulture);
+
+        return ValueTask.CompletedTask;
+    };
 
     // Kirish — parol taxmin qilinadigan YAGONA joy.
     //

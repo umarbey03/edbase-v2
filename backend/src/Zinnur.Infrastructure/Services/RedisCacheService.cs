@@ -41,13 +41,36 @@ public sealed class RedisCacheService : ICacheService
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>Kalit makoni berilmasa ishlatiladigan standart qiymat.</summary>
+    public const string DefaultPrefix = "zinnur";
+
     private readonly IDatabase _db;
 
-    public RedisCacheService(IConnectionMultiplexer redis)
+    /// <summary>
+    /// Kalitlar oldiga qo'yiladigan MAKON (namespace).
+    ///
+    /// ★ NIMA UCHUN KERAK: bitta Redis bir nechta muhitga xizmat qilishi
+    /// mumkin (dev/staging, integratsiya testlari, ikkinchi instance). Kalitlar
+    /// yalang'och bo'lsa turli bazalardagi BIR XIL raqamli Id'lar bir-birining
+    /// yozuviga tushadi: `auth:state:4` bir bazada faol o'quvchi, ikkinchisida
+    /// o'chirilgan xodim bo'lishi mumkin. Bu jimgina xato — hech qayerda
+    /// ko'rinmaydi, faqat "nega bu foydalanuvchi kira olmayapti?" degan savol
+    /// qoladi.
+    ///
+    /// Integratsiya testlari aynan shu holatga tushdi: har test sinfi O'Z
+    /// Postgres bazasini oladi, Redis esa UMUMIY.
+    /// </summary>
+    private readonly string _prefix;
+
+    public RedisCacheService(IConnectionMultiplexer redis, string? keyPrefix = null)
     {
         ArgumentNullException.ThrowIfNull(redis);
         _db = redis.GetDatabase();
+        _prefix = string.IsNullOrWhiteSpace(keyPrefix) ? DefaultPrefix : keyPrefix.Trim();
     }
+
+    private string Qualify(string key) =>
+        string.Create(CultureInfo.InvariantCulture, $"{_prefix}:{key}");
 
     /// <summary>Rate-limit kalitini bir xil ko'rinishda yasaydi (DRY — hub va API bir xil kalit ishlatsin).</summary>
     public static string RateLimitKey(string action, long userId) =>
@@ -58,7 +81,7 @@ public sealed class RedisCacheService : ICacheService
     {
         ct.ThrowIfCancellationRequested();
 
-        var value = await _db.StringGetAsync(key).ConfigureAwait(false);
+        var value = await _db.StringGetAsync(Qualify(key)).ConfigureAwait(false);
         var raw = (string?)value;
 
         return raw is null ? default : JsonSerializer.Deserialize<T>(raw, SerializerOptions);
@@ -70,7 +93,7 @@ public sealed class RedisCacheService : ICacheService
         ct.ThrowIfCancellationRequested();
 
         var json = JsonSerializer.Serialize(value, SerializerOptions);
-        await _db.StringSetAsync(key, json, ttl).ConfigureAwait(false);
+        await _db.StringSetAsync(Qualify(key), json, ttl).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -78,7 +101,7 @@ public sealed class RedisCacheService : ICacheService
     {
         ct.ThrowIfCancellationRequested();
 
-        await _db.KeyDeleteAsync(key).ConfigureAwait(false);
+        await _db.KeyDeleteAsync(Qualify(key)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -89,7 +112,7 @@ public sealed class RedisCacheService : ICacheService
         // TTL millisekundda: sekundga yaxlitlansa 2 sekundlik oyna 1 ga tushib qolardi.
         var ttlMs = (long)Math.Max(1d, ttl.TotalMilliseconds);
 
-        var keys = new RedisKey[] { key };
+        var keys = new RedisKey[] { Qualify(key) };
         var values = new RedisValue[] { ttlMs };
 
         var result = await _db.ScriptEvaluateAsync(IncrementScript, keys, values).ConfigureAwait(false);

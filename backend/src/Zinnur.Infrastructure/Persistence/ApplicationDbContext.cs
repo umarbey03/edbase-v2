@@ -33,7 +33,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Attendance> Attendances => Set<Attendance>();
 
+    public DbSet<AttendanceAudit> AttendanceAudits => Set<AttendanceAudit>();
+
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+
+    public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
 
     // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
 
@@ -55,6 +59,28 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
 
+    // ---------------------------------------------------------------- FAZA 4: moliya
+
+    public DbSet<Payment> Payments => Set<Payment>();
+
+    public DbSet<Tariff> Tariffs => Set<Tariff>();
+
+    public DbSet<StudentDiscount> StudentDiscounts => Set<StudentDiscount>();
+
+    public DbSet<StudentAccount> StudentAccounts => Set<StudentAccount>();
+
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+
+    public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
+
+    /// <summary>
+    /// Ish jarayonida o'zgartiriladigan sozlamalar (bloklash chegarasi va
+    /// qamrovi). <c>IApplicationDbContext</c> da ATAYLAB YO'Q: Application
+    /// qatlami bu jadvalni bilmaydi va sozlamani port orqali oladi
+    /// (<c>IFinanceSettingsStore</c>) — sabab <see cref="AppSetting"/> da.
+    /// </summary>
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -69,9 +95,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         base.ConfigureConventions(configurationBuilder);
 
-        // PUL: hozircha domain'da pul maydoni yo'q, lekin qachon paydo bo'lsa —
-        // `double` emas, `numeric(18,2)` bo'lishi kafolatlansin (SPEC 9.6).
-        // Konvensiya sifatida bir marta yozildi, har joyda takrorlanmaydi (DRY).
+        // PUL: har `decimal` ustun `numeric(18,2)` bo'ladi, `double` EMAS (SPEC 9.6).
+        // Konvensiya sifatida bir marta yozildi — yangi pul maydoni qo'shilganda
+        // aniqlikni belgilash UNUTILSA ham tur to'g'ri qoladi. Moliya
+        // konfiguratsiyalari buni `HasPrecision` bilan OSHKOR takrorlaydi:
+        // pul ustunining turi konfiguratsiya faylida ko'rinib tursin.
         configurationBuilder.Properties<decimal>().HavePrecision(18, 2);
 
         // VAQT: barcha DateTimeOffset -> `timestamptz`. Npgsql bu turga faqat

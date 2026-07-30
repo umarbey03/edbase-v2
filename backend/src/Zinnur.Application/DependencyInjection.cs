@@ -1,10 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
+using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
+using Zinnur.Application.Messaging.Services;
+using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Tests.Services;
 using Zinnur.Application.Users.Services;
@@ -20,7 +24,19 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IAuthService, AuthService>();
+
+        // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
+        // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).
+        services.AddScoped<IAuthStateCache, AuthStateCache>();
+
         services.AddScoped<ILiveSessionService, LiveSessionService>();
+
+        // DAVOMATNI QO'LDA TUZATISH — jonli oqim servisidan ATAYLAB alohida
+        // (sabab `IAttendanceService` izohida). SCOPED: tuzatish va uning
+        // audit izi AYNI `DbContext` kuzatuvchisida to'planib, BITTA
+        // `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi.
+        services.AddScoped<IAttendanceService, AttendanceService>();
+
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IGroupService, GroupService>();
 
@@ -51,6 +67,38 @@ public static class DependencyInjection
         // qolardi va HAMMA o'quvchiga o'sha bitta o'quvchining ochiq
         // darslari ko'rinardi.
         services.AddScoped<ICourseService, CourseService>();
+
+        // ---------------------------------------------------------------- FAZA 4.3
+        //
+        // MOLIYA. SCOPED — servis `DbContext` ning ChangeTracker'iga tayanadi:
+        // bitta so'rovdagi barcha o'zgarish (oy yozuvi, jurnal, balans, audit)
+        // AYNI kuzatuvchida to'planib, BITTA `SaveChanges` bilan yoziladi.
+        // Singleton bo'lsa scoped `DbContext` ushlab qolinardi (captive
+        // dependency) va ikkinchi so'rovda allaqachon yopilgan kontekst bilan
+        // pul yozishga urinilardi.
+        services.AddScoped<IPaymentService, PaymentService>();
+
+        // Blok darvozasi ALOHIDA va KICHIK interfeys: uni moliyadan
+        // TASHQARIDAGI servislar chaqiradi (jonli darsga kirish, kurs
+        // kontenti) — ular butun moliya servisiga bog'lanib qolmasin.
+        services.AddScoped<IPaymentBlockService, PaymentBlockService>();
+
+        // ---------------------------------------------------------------- FAZA 5
+        //
+        // O'QUVCHI ILOVASI: reyting, davomat xulosasi va kurator yozishmasi.
+        //
+        // Hammasi SCOPED — barchasi so'rov umriga bog'langan `DbContext` ga
+        // tayanadi. Singleton bo'lsa scoped kontekst ushlab qolinardi
+        // ("captive dependency") va ikkinchi so'rovda allaqachon yopilgan
+        // kontekst bilan ishlashga urinilardi.
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
+
+        // "Kim kim bilan bog'langan" qoidasi ALOHIDA servisda: uni yozishma
+        // ham, kelajakdagi kurator paneli ham ishlatadi. Eski tizimda shu
+        // qoida bir necha joyda qo'lda takrorlangan va ba'zisida chala edi.
+        services.AddScoped<ICuratorDirectory, CuratorDirectory>();
+        services.AddScoped<IDirectMessageService, DirectMessageService>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

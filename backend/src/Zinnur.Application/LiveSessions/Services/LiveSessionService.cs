@@ -4,6 +4,9 @@ using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
+using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Scheduling.Services;
+using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -16,8 +19,20 @@ namespace Zinnur.Application.LiveSessions.Services;
 public sealed class LiveSessionService(
     IApplicationDbContext db,
     ILiveKitTokenService liveKit,
+    ILiveSessionNotifier notifier,
+    IPaymentBlockService paymentBlock,
+    IScheduleTimeZoneProvider timeZone,
     TimeProvider clock) : ILiveSessionService
 {
+    /// <summary>
+    /// Kalendar so'rovining eng uzun oralig'i (kun).
+    ///
+    /// NIMA UCHUN CHEGARA BOR: <c>?from=2000-01-01&amp;to=2100-01-01</c>
+    /// butun bazani bitta javobga yig'ishga urinardi. Uch oy — kalendar
+    /// ko'rinishi uchun yetarlidan ham ko'p (odatda bir oy so'raladi).
+    /// </summary>
+    private const int MaxCalendarDays = 92;
+
     public async Task<IReadOnlyList<LiveSessionDto>> ListForUserAsync(
         long userId, CancellationToken ct = default)
     {
@@ -30,18 +45,7 @@ public sealed class LiveSessionService(
             .Include(s => s.Group)
             .Where(s => s.Status != SessionStatus.Cancelled && s.ScheduledEnd >= now.AddHours(-6));
 
-        query = user.Role switch
-        {
-            UserRole.Admin or UserRole.Academic => query,
-
-            UserRole.Teacher or UserRole.Assistant =>
-                query.Where(s => s.Group!.TeacherId == userId || s.Group!.AssistantId == userId),
-
-            _ => query.Where(s => db.GroupMembers.Any(m =>
-                    m.GroupId == s.GroupId &&
-                    m.StudentId == userId &&
-                    m.Status == MemberStatus.Active)),
-        };
+        query = ScopeByRole(query, user);
 
         var rows = await query
             .OrderBy(s => s.ScheduledStart)
@@ -49,6 +53,70 @@ public sealed class LiveSessionService(
             .ToListAsync(ct);
 
         return rows.Select(s => Map(s, IsHost(s, user))).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CalendarSessionDto>> GetCalendarAsync(
+        long userId, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
+    {
+        var user = await LoadUserAsync(userId, ct);
+
+        if (fromDate > toDate)
+            throw Invalid("fromDate", "Boshlanish sanasi tugash sanasidan keyin bo'lishi mumkin emas.");
+
+        if (toDate.DayNumber - fromDate.DayNumber + 1 > MaxCalendarDays)
+            throw Invalid("toDate", $"Oraliq {MaxCalendarDays} kundan oshmasin.");
+
+        var zone = timeZone.TimeZone;
+
+        // Mahalliy kun chegaralari -> UTC. `to` KIRADI, shuning uchun
+        // keyingi kunning boshi olinadi: kun oxirini `23:59:59` deb yozish
+        // o'sha oxirgi soniyadagi darsni yo'qotardi.
+        var fromUtc = LocalWallClock.StartOfDayUtc(fromDate, zone);
+        var toUtc = LocalWallClock.StartOfDayUtc(toDate.AddDays(1), zone);
+
+        // ★ Bekor qilingani ham QAYTADI (izoh interfeysda).
+        var query = db.LiveSessions.AsNoTracking()
+            .Where(s => s.ScheduledStart >= fromUtc && s.ScheduledStart < toUtc);
+
+        query = ScopeByRole(query, user);
+
+        // ★ N+1 YO'Q: davomat ichki (korrelyatsion) so'rov bilan AYNI
+        // `SELECT` da keladi. Har dars uchun alohida so'rov yuborilsa
+        // bir oylik kalendar 20+ borish-kelish bo'lardi.
+        var rows = await query
+            .OrderBy(s => s.ScheduledStart)
+            .ThenBy(s => s.Id)
+            .Select(s => new CalendarRow(
+                s.Id,
+                s.GroupId,
+                s.Group!.Name,
+                s.Title,
+                s.Type,
+                s.Status,
+                s.HostId,
+                s.Group.TeacherId,
+                s.Group.AssistantId,
+                db.Attendances
+                    .Where(a => a.SessionId == s.Id && a.StudentId == userId)
+                    .Select(a => (AttendanceStatus?)a.Status)
+                    .FirstOrDefault(),
+                s.ScheduledStart,
+                s.ScheduledEnd))
+            .ToListAsync(ct);
+
+        return rows.ConvertAll(row => new CalendarSessionDto(
+            row.Id,
+            row.GroupId,
+            row.GroupName,
+            row.Title,
+            row.Type.ToString(),
+            row.Status.ToString(),
+            LocalWallClock.LocalDate(row.ScheduledStart, zone),
+            row.ScheduledStart,
+            row.ScheduledEnd,
+            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            row.MyAttendance?.ToString()));
     }
 
     public async Task<LiveSessionDto> GetAsync(long sessionId, long userId, CancellationToken ct = default)
@@ -90,6 +158,17 @@ public sealed class LiveSessionService(
             a.Finalize(now);
 
         await db.SaveChangesAsync(ct);
+
+        // ★ COMMIT-THEN-SEND: xabar faqat ma'lumot YOZILGANDAN keyin ketadi.
+        // Teskarisi bo'lsa (avval xabar, keyin saqlash) saqlash yiqilganda
+        // o'quvchilarda "dars tugadi" ekrani chiqib, baza esa darsni jonli deb
+        // turaverardi — eski tizimning xatosi aynan shu edi (`docs/ROADMAP.md`).
+        //
+        // Yuborish O'ZI hech qachon istisno ko'tarmaydi (port kelishuvi),
+        // shuning uchun bu yerda try/catch YO'Q: xato ikki joyda yutilsa
+        // sababini topib bo'lmay qolardi.
+        await notifier.SessionEndedAsync(sessionId, ct);
+
         return Map(session, isHost: true);
     }
 
@@ -108,6 +187,19 @@ public sealed class LiveSessionService(
             if (session.Status is SessionStatus.Ended or SessionStatus.Cancelled)
                 throw new ConflictException("Dars yakunlangan.");
         }
+
+        // ★ QARZDORLIK DARVOZASI (FAZA 4.3) — AYNAN SHU YERDA.
+        //
+        // Token JONLI XONAGA KIRISH kaliti: u berilgandan keyin serverning
+        // "yo'q" deyishi mumkin emas, chunki klient to'g'ridan-to'g'ri
+        // LiveKit'ga ulanadi. Ya'ni tekshiruv token BERILISHIDAN oldin
+        // bo'lishi shart — ro'yxat yoki sahifa darajasida emas.
+        //
+        // Faqat O'QUVCHIGA: ustoz va kurator o'z darsiga hech qachon
+        // bloklanmaydi. Qarzsiz o'quvchi uchun bu bitta indeksli
+        // `SUM` so'rovi (`IX_Payments_StudentId_Status`).
+        if (!host && user.Role == UserRole.Student)
+            await paymentBlock.EnsureAllowedAsync(user.Id, PaymentBlockScope.Live, ct);
 
         var token = liveKit.CreateAccessToken(new LiveKitTokenRequest(
             RoomName: session.RoomName,
@@ -174,9 +266,28 @@ public sealed class LiveSessionService(
 
     // ---------------------------------------------------------------- ichki yordamchi
 
-    private async Task<User> LoadUserAsync(long userId, CancellationToken ct) =>
-        await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct)
-        ?? throw new NotFoundException(nameof(User), userId);
+    /// <summary>
+    /// Foydalanuvchini yuklaydi va hisob FAOL ekanini tekshiradi.
+    ///
+    /// ★ `IsActive` tekshiruvi ilgari shu servisda TUSHIB QOLGAN edi (kurs,
+    /// vazifa va guruh servislarida bor edi). Natijada o'chirilgan o'quvchi
+    /// eski kirish tokeni bilan jonli darsga LiveKit tokeni olib, video/audio
+    /// efirga chiqa olardi — jonli tekshiruvda isbotlangan.
+    ///
+    /// Asosiy himoya endi markaziy (`OnTokenValidated` da sessiya versiyasi
+    /// tekshiriladi); bu yerdagi tekshiruv ikkinchi qatlam: kelajakda kimdir
+    /// servisni boshqa yo'l bilan chaqirsa ham qoida saqlanadi.
+    /// </summary>
+    private async Task<User> LoadUserAsync(long userId, CancellationToken ct)
+    {
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new NotFoundException(nameof(User), userId);
+
+        if (!user.IsActive)
+            throw new ForbiddenException("Profilingiz faol emas.");
+
+        return user;
+    }
 
     /// <summary>Darsni yuklaydi va foydalanuvchining unga kirish huquqini tekshiradi.</summary>
     private async Task<(LiveSession Session, User User)> LoadAndAuthorizeAsync(
@@ -207,9 +318,43 @@ public sealed class LiveSessionService(
     }
 
     private static bool IsHost(LiveSession session, User user) =>
+        IsHost(user, session.HostId, session.Group?.TeacherId, session.Group?.AssistantId);
+
+    /// <summary>
+    /// "Host" qoidasi — entity YUKLANMAGAN holat uchun ham.
+    ///
+    /// Kalendar darslarni to'liq entity sifatida emas, tor proyeksiya
+    /// bilan o'qiydi (faqat kerakli ustunlar), shuning uchun qoida
+    /// navigatsiyaga emas, ID'larga tayanadi. Ikki nusxa bo'lmasin deb
+    /// entity'li variant ham shu metodni chaqiradi.
+    /// </summary>
+    private static bool IsHost(User user, long? hostId, long? teacherId, long? assistantId) =>
         user.Role is UserRole.Admin or UserRole.Academic
-        || session.HostId == user.Id
-        || (session.Group?.IsStaff(user.Id) ?? false);
+        || hostId == user.Id
+        || teacherId == user.Id
+        || assistantId == user.Id;
+
+    /// <summary>
+    /// Rol bo'yicha ko'rinish filtri — <see cref="ListForUserAsync"/> va
+    /// <see cref="GetCalendarAsync"/> uchun YAGONA qoida.
+    ///
+    /// NIMA UCHUN AJRATILDI: ikki ro'yxat ikki xil filtrga ega bo'lsa,
+    /// bittasida a'zolik tekshiruvi zaifroq qolishi mumkin edi — ya'ni
+    /// kalendarda begona guruh darslari ko'rinib qolardi.
+    /// </summary>
+    private IQueryable<LiveSession> ScopeByRole(IQueryable<LiveSession> query, User user) =>
+        user.Role switch
+        {
+            UserRole.Admin or UserRole.Academic => query,
+
+            UserRole.Teacher or UserRole.Assistant =>
+                query.Where(s => s.Group!.TeacherId == user.Id || s.Group!.AssistantId == user.Id),
+
+            _ => query.Where(s => db.GroupMembers.Any(m =>
+                    m.GroupId == s.GroupId &&
+                    m.StudentId == user.Id &&
+                    m.Status == MemberStatus.Active)),
+        };
 
     private static LiveSessionDto Map(LiveSession s, bool isHost) => new(
         s.Id,
@@ -223,4 +368,22 @@ public sealed class LiveSessionService(
         s.ActualStart,
         s.EndsAt,
         isHost);
+
+    private static ValidationException Invalid(string field, string message) =>
+        new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
+
+    /// <summary>Kalendar so'rovining tor proyeksiyasi (butun entity tortilmaydi).</summary>
+    private sealed record CalendarRow(
+        long Id,
+        long GroupId,
+        string GroupName,
+        string? Title,
+        SessionType Type,
+        SessionStatus Status,
+        long? HostId,
+        long? TeacherId,
+        long? AssistantId,
+        AttendanceStatus? MyAttendance,
+        DateTimeOffset ScheduledStart,
+        DateTimeOffset ScheduledEnd);
 }

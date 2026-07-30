@@ -11,7 +11,27 @@ public sealed class ForbiddenException(string message) : Exception(message);
 public sealed class UnauthorizedException(string message) : Exception(message);
 
 /// <summary>Holat ziddiyati (masalan takror amal) -> HTTP 409.</summary>
-public sealed class ConflictException(string message) : Exception(message);
+public sealed class ConflictException : Exception
+{
+    public ConflictException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>
+    /// Ichki sabab bilan — bazadagi to'qnashuvni (unikal indeks buzilishi)
+    /// 409 ga o'girishda ishlatiladi.
+    ///
+    /// NIMA UCHUN SABAB SAQLANADI: foydalanuvchi tushunarli xabar oladi,
+    /// lekin Sentry'ga ASL istisno (SQL holati va stek bilan) tushadi.
+    /// Ichki sabab tashlab yuborilsa, "409 keldi, lekin nima uchun?"
+    /// degan savolga logdan javob topib bo'lmasdi.
+    /// </summary>
+    public ConflictException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 /// <summary>
 /// Tashqi bog'liqlik (obyekt ombori, LiveKit) sozlanmagan yoki javob

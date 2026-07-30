@@ -13,7 +13,8 @@ namespace Zinnur.Application.Auth.Services;
 public sealed class AuthService(
     IApplicationDbContext db,
     IPasswordHasher hasher,
-    IJwtTokenService tokens) : IAuthService
+    IJwtTokenService tokens,
+    IAuthStateCache authState) : IAuthService
 {
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
@@ -65,6 +66,10 @@ public sealed class AuthService(
 
         user.InvalidateTokens();
         await db.SaveChangesAsync(ct);
+
+        // ★ Keshdagi eski versiya tozalanmasa chiqish 60 sekundgacha kuchga
+        // kirmasdi — "chiqdim" bosgan odam hamon ichkarida bo'lardi.
+        await authState.InvalidateAsync(userId, ct);
     }
 
     public async Task<UserDto> GetCurrentAsync(long userId, CancellationToken ct = default)

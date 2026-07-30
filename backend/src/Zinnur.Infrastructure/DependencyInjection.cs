@@ -51,6 +51,11 @@ public static class DependencyInjection
         // ilova umri davomida keshda qoladi.
         services.AddSingleton<IScheduleTimeZoneProvider, ConfiguredScheduleTimeZone>();
 
+        // Moliya sozlamalari — SCOPED: u `ApplicationDbContext` ga tayanadi
+        // va o'zgarishlarni AYNI so'rovning ChangeTracker'iga qo'shadi
+        // (sozlama va uning audit izi bitta tranzaksiyada saqlanishi uchun).
+        services.AddScoped<IFinanceSettingsStore, FinanceSettingsStore>();
+
         return services;
     }
 
@@ -116,6 +121,19 @@ public static class DependencyInjection
                 o => o.HasValidServiceUrl,
                 "Storage:ServiceUrl absolyut http(s) manzil bo'lishi kerak "
                 + "(masalan `https://<account>.r2.cloudflarestorage.com`).")
+            .ValidateOnStart();
+
+        // MOLIYA. Bu yerda `ValidateOnStart` KERAK EMAS: barcha maydonlar
+        // xavfsiz standart qiymatga ega va bo'lim umuman bo'lmasa ham ilova
+        // to'g'ri ishlaydi (chegara/qamrov baribir bazadan o'qiladi).
+        // Yagona tekshiruv — qamrov nomi haqiqiy enum bo'lishi.
+        services.AddOptions<PaymentsOptions>()
+            .Bind(configuration.GetSection(PaymentsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                o => Enum.IsDefined(o.DefaultBlockScope) && o.DefaultBlockThreshold >= 0,
+                "Payments:DefaultBlockScope None|Video|Live|Platform bo'lishi va "
+                + "Payments:DefaultBlockThreshold manfiy bo'lmasligi kerak.")
             .ValidateOnStart();
     }
 
@@ -221,7 +239,15 @@ public static class DependencyInjection
             return ConnectionMultiplexer.Connect(options);
         });
 
-        services.AddSingleton<ICacheService, RedisCacheService>();
+        // Kalit MAKONI sozlanadi: bitta Redis'ni bir nechta muhit baham
+        // ko'rganda (dev/staging, integratsiya testlari, ikkinchi instance)
+        // bir xil raqamli Id'lar bir-birining yozuviga tushmasin.
+        // Berilmasa `RedisCacheService.DefaultPrefix` ishlatiladi.
+        var cachePrefix = configuration["Redis:KeyPrefix"];
+
+        services.AddSingleton<ICacheService>(sp =>
+            new RedisCacheService(sp.GetRequiredService<IConnectionMultiplexer>(), cachePrefix));
+
         services.AddSingleton<IPresenceService, RedisPresenceService>();
     }
 

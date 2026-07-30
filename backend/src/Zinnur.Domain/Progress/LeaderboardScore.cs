@@ -1,0 +1,146 @@
+using Zinnur.Domain.Exceptions;
+
+namespace Zinnur.Domain.Progress;
+
+/// <summary>
+/// ========================================================================
+/// OYLIK REYTING BALI — ADOLATLI, FOIZLI MODEL
+/// ========================================================================
+///
+/// Qoida ESKI TIZIMDAN olingan (<c>app/services/points_svc.py</c>,
+/// 2026-07-20 da qayta yozilgan versiya) va o'zgartirilmagan:
+///
+///   • HAR OY toza start. Faqat shu oydagi darslar/vazifalar/testlar
+///     hisobga olinadi — kech qo'shilgan o'quvchi ham birinchi o'rinni
+///     ola oladi. (Absolyut ball modelida bu IMKONSIZ edi: yanvardan
+///     o'qiyotgan o'quvchining ballini iyunda qo'shilgan hech qachon
+///     quvib yetolmasdi.)
+///
+///   • Uch mezon, TENG vaznda, har biri 0..100 foiz:
+///       – davomat%  = qatnashgan ustoz darslari / o'tilgan ustoz darslari
+///       – vazifa%   = o'rtacha (baho / maksimal baho)
+///       – test%     = o'rtacha (ball / maksimal ball)
+///
+///   • ★ Yakuniy ball = MAVJUD mezonlar o'rtachasi. Elementi bo'lmagan
+///     mezon o'rtachaga UMUMAN KIRMAYDI.
+///
+///     NIMA UCHUN AYNAN SHUNDAY: agar bo'sh mezon 0 deb olinsa, oyning
+///     birinchi haftasida (hali test ham, vazifa ham berilmagan) hamma
+///     o'quvchining bali 33 ga tushib qolardi va reyting mutlaqo
+///     ma'nosiz bo'lardi. O'quvchi O'ZI bajarmagan ish uchun emas,
+///     faqat MARKAZ hali bermagan ish uchun jazolanmasligi kerak.
+///
+///   • Hech bir mezon bo'lmasa — 0.
+///
+/// SOF FUNKSIYA: bazaga ham, joriy vaqtga ham bog'liq emas. Shu tufayli
+/// butun hisob bazasiz test qilinadi.
+/// </summary>
+/// <param name="StudentId">O'quvchi.</param>
+/// <param name="StudentName">Ko'rinadigan ism (teng balda tartib uchun ham kerak).</param>
+/// <param name="AttendancePercent">Davomat foizi. <c>null</c> — shu oyda o'tilgan dars YO'Q.</param>
+/// <param name="AssignmentPercent">Vazifa foizi. <c>null</c> — shu oyda baholangan vazifa YO'Q.</param>
+/// <param name="TestPercent">Test foizi. <c>null</c> — shu oyda topshirilgan test YO'Q.</param>
+public sealed record LeaderboardScore(
+    long StudentId,
+    string StudentName,
+    decimal? AttendancePercent,
+    decimal? AssignmentPercent,
+    decimal? TestPercent)
+{
+    /// <summary>Foizlar bir xonali kasr bilan saqlanadi (78.4).</summary>
+    public const int PercentDecimals = 1;
+
+    /// <summary>Yakuniy ball (0..100).</summary>
+    public decimal Total => Combine(AttendancePercent, AssignmentPercent, TestPercent);
+
+    /// <summary>
+    /// Mavjud mezonlar o'rtachasi. <c>null</c> mezon hisobga OLINMAYDI.
+    /// </summary>
+    public static decimal Combine(decimal? attendance, decimal? assignment, decimal? test)
+    {
+        var sum = 0m;
+        var count = 0;
+
+        if (attendance is { } a) { sum += a; count++; }
+        if (assignment is { } b) { sum += b; count++; }
+        if (test is { } c) { sum += c; count++; }
+
+        return count == 0 ? 0m : Round(sum / count);
+    }
+
+    /// <summary>
+    /// Ulushni foizga aylantiradi. Maxraj 0 yoki manfiy bo'lsa 0 —
+    /// nolga bo'lish (<c>NaN</c>) hech qachon foydalanuvchiga chiqmasin.
+    /// </summary>
+    public static decimal Percent(decimal achieved, decimal max) =>
+        max <= 0 ? 0m : Round(achieved / max * 100m);
+
+    /// <summary>Nisbat (0..1) dan foizga.</summary>
+    public static decimal PercentFromRatio(decimal ratio) => Round(ratio * 100m);
+
+    /// <summary>
+    /// YAGONA yaxlitlash qoidasi. <see cref="MidpointRounding.AwayFromZero"/>
+    /// ATAYLAB: .NET ning standarti "banker's rounding" (juftga yaxlitlash)
+    /// va u 82.25 ni 82.2 ga, 82.35 ni esa 82.4 ga aylantiradi — bir xil
+    /// ko'rinadigan ikki holat turlicha yaxlitlanardi va o'quvchiga buni
+    /// tushuntirib bo'lmasdi.
+    /// </summary>
+    private static decimal Round(decimal value) =>
+        Math.Round(value, PercentDecimals, MidpointRounding.AwayFromZero);
+}
+
+/// <summary>Reytingdagi bitta qator: o'rin + ball tafsiloti.</summary>
+public sealed record RankedScore(int Rank, LeaderboardScore Score);
+
+/// <summary>
+/// Ballardan O'RIN chiqaradi.
+///
+/// ★ ESKI TIZIMDAN FARQ — ATAYLAB QILINGAN TUZATISH:
+/// eski kod shunchaki <c>rows.sort(...)</c> qilib <c>i + 1</c> yozardi,
+/// ya'ni AYNAN BIR XIL balga ega ikki o'quvchi turli o'rin olardi va
+/// kim yuqori turishi Python sort'ining barqarorligiga — ya'ni
+/// tasodifga — bog'liq edi. Bir xil ball bilan "5-o'rin" va "6-o'rin"
+/// olgan ikki o'quvchi orasidagi farqni hech kim tushuntira olmasdi.
+///
+/// Bu yerda MUSOBAQA (standart) tartibi: teng ball — TENG o'rin, keyingi
+/// o'rin esa sakraydi (1, 2, 2, 4). Ko'rsatish tartibi ham deterministik:
+/// ball -> ism -> Id. Ya'ni bir xil ma'lumot HAR DOIM bir xil jadval beradi.
+/// </summary>
+public static class LeaderboardRanking
+{
+    /// <summary>Guruh chegarasi — bir guruhda shuncha o'quvchidan oshmaydi.</summary>
+    public const int MaxRows = 500;
+
+    /// <summary>Ballarni tartiblaydi va o'rin beradi (eng yuqori ball — 1-o'rin).</summary>
+    public static IReadOnlyList<RankedScore> Rank(IEnumerable<LeaderboardScore> scores)
+    {
+        ArgumentNullException.ThrowIfNull(scores);
+
+        var ordered = scores
+            .OrderByDescending(s => s.Total)
+            .ThenBy(s => s.StudentName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.StudentId)
+            .ToList();
+
+        if (ordered.Count > MaxRows)
+            throw new DomainException($"Reyting jadvali {MaxRows} qatordan oshmasligi kerak.");
+
+        var result = new List<RankedScore>(ordered.Count);
+        var rank = 0;
+        decimal? previousTotal = null;
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var score = ordered[i];
+
+            // Teng ball — oldingi o'rin saqlanadi; aks holda joriy pozitsiya.
+            if (previousTotal != score.Total)
+                rank = i + 1;
+
+            result.Add(new RankedScore(rank, score));
+            previousTotal = score.Total;
+        }
+
+        return result;
+    }
+}

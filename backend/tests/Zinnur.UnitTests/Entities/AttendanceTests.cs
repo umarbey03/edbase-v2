@@ -636,4 +636,183 @@ public class AttendanceTests
 
         attendance.UpdatedAt.Should().BeNull();
     }
+
+    // ------------------------------------------------------------------ ★ ApplyManual (qo'lda tuzatish)
+
+    [Fact]
+    public void ApplyManual_SetsTheRequestedStatus()
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Present, reason: null, AtMinute(90));
+
+        attendance.Status.Should().Be(AttendanceStatus.Present);
+    }
+
+    [Fact]
+    public void ApplyManual_RaisesTheManualFlag()
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Late, reason: null, AtMinute(90));
+
+        attendance.IsManual.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ApplyManual_StoresTheTrimmedReason()
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Present, "  interneti uzildi  ", AtMinute(90));
+
+        attendance.Reason.Should().Be("interneti uzildi");
+    }
+
+    /// <summary>Bo'sh yoki faqat bo'shliqdan iborat sabab — sabab YO'Q.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ApplyManual_WithBlankReason_StoresNull(string? reason)
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Present, reason, AtMinute(90));
+
+        attendance.Reason.Should().BeNull();
+    }
+
+    /// <summary>Sababni QAYTA tuzatishda tozalash mumkin (PUT semantikasi).</summary>
+    [Fact]
+    public void ApplyManual_CalledAgainWithoutReason_ClearsThePreviousReason()
+    {
+        var attendance = NewAttendance();
+        attendance.ApplyManual(AttendanceStatus.Absent, "kasal", AtMinute(90));
+
+        attendance.ApplyManual(AttendanceStatus.Present, reason: null, AtMinute(95));
+
+        attendance.Reason.Should().BeNull();
+    }
+
+    [Fact]
+    public void ApplyManual_SetsUpdatedAt()
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Present, reason: null, AtMinute(90));
+
+        attendance.UpdatedAt.Should().Be(AtMinute(90));
+    }
+
+    // ------------------------------------------------------------------ ★★ ApplyManual O'LCHOVGA TEGMAYDI
+
+    /// <summary>
+    /// ★★ ENG MUHIM YANGI TEST: qo'lda tuzatish VAQT O'LCHOVLARINI
+    /// buzmaydi. Ustoz "kelmagan" desa ham o'quvchi xonada bo'lgan 20
+    /// daqiqa faktik ma'lumot bo'lib qoladi — hisobotda "baho: kelmagan,
+    /// xonada: 20 daqiqa" bu ziddiyat emas, dalil.
+    /// </summary>
+    [Fact]
+    public void ApplyManual_DoesNotTouchDurationSeconds()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(20));
+
+        attendance.ApplyManual(AttendanceStatus.Absent, "kamerani yoqmadi", AtMinute(90));
+
+        attendance.DurationSeconds.Should().Be(20 * 60);
+    }
+
+    [Fact]
+    public void ApplyManual_DoesNotTouchFirstJoinAt()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+
+        attendance.ApplyManual(AttendanceStatus.Absent, reason: null, AtMinute(90));
+
+        attendance.FirstJoinAt.Should().Be(AtMinute(0));
+    }
+
+    [Fact]
+    public void ApplyManual_DoesNotTouchLeftAt()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.RegisterLeave(AtMinute(20));
+
+        attendance.ApplyManual(AttendanceStatus.Present, reason: null, AtMinute(90));
+
+        attendance.LeftAt.Should().Be(AtMinute(20));
+    }
+
+    /// <summary>
+    /// ★★ O'quvchi HOZIR xonada bo'lganda tuzatilsa, OCHIQ SEANS ochiq
+    /// qolishi shart. Aks holda dars oxiridagi <c>Finalize</c> o'sha
+    /// seansning vaqtini umuman qo'sha olmasdi — ya'ni ustozning bir marta
+    /// bosishi davomiylik hisobini buzardi.
+    /// </summary>
+    [Fact]
+    public void ApplyManual_WhileStudentIsStillInsideTheRoom_KeepsTheOpenSession()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+
+        attendance.ApplyManual(AttendanceStatus.Late, reason: null, AtMinute(10));
+
+        attendance.LastJoinAt.Should().Be(AtMinute(0));
+    }
+
+    /// <summary>
+    /// ★★ Yuqoridagining natijasi: dars yakunlanganda ochiq seans vaqti
+    /// TO'LIQ va BIR MARTA qo'shiladi, baho esa qo'lda qo'yilganicha qoladi.
+    /// </summary>
+    [Fact]
+    public void Finalize_AfterApplyManualDuringLiveSession_AddsFullTimeAndKeepsManualStatus()
+    {
+        var attendance = NewAttendance();
+        attendance.RegisterJoin(AtMinute(0));
+        attendance.ApplyManual(AttendanceStatus.Late, reason: null, AtMinute(10));
+
+        attendance.Finalize(AtMinute(80));
+
+        attendance.DurationSeconds.Should().Be(80 * 60);
+        attendance.Status.Should().Be(AttendanceStatus.Late);
+    }
+
+    /// <summary>
+    /// ★ Qo'lda "kelgan" deb belgilangan, lekin xonaga UMUMAN kirmagan
+    /// o'quvchi: dars yakunlanganda avto-hisob uni "Absent" ga qaytarib
+    /// qo'ymaydi (0 soniya bo'lsa ham).
+    /// </summary>
+    [Fact]
+    public void Finalize_AfterApplyManualPresentWithNoTimeInRoom_KeepsPresent()
+    {
+        var attendance = NewAttendance();
+
+        attendance.ApplyManual(AttendanceStatus.Present, "interneti uzildi", AtMinute(30));
+        attendance.Finalize(AtMinute(80));
+
+        attendance.Status.Should().Be(AttendanceStatus.Present);
+        attendance.DurationSeconds.Should().Be(0);
+    }
+
+    /// <summary>
+    /// ★ Tuzatilgandan KEYIN o'quvchi qayta ulansa ham baho va sabab
+    /// o'zgarmaydi — `RegisterJoin` dagi `IsManual` himoyasi
+    /// `ApplyManual` bilan birga ishlaydi.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_AfterApplyManualAbsent_KeepsStatusAndReason()
+    {
+        var attendance = NewAttendance();
+        attendance.ApplyManual(AttendanceStatus.Absent, "darsga kirmadi", AtMinute(30));
+
+        attendance.RegisterJoin(AtMinute(40));
+
+        attendance.Status.Should().Be(AttendanceStatus.Absent);
+        attendance.Reason.Should().Be("darsga kirmadi");
+    }
 }

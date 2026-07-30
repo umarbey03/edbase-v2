@@ -1,9 +1,12 @@
 using Zinnur.Domain.Common;
-using Zinnur.Domain.Exceptions;
 
 namespace Zinnur.Domain.Entities;
 
-/// <summary>Jonli darsdagi chat xabari.</summary>
+/// <summary>
+/// Jonli darsdagi chat xabari (xona oqimi).
+/// Kurator bilan shaxsiy yozishma uchun <see cref="DirectMessage"/> —
+/// farqi o'sha sinf izohida batafsil yozilgan.
+/// </summary>
 public class ChatMessage : BaseEntity
 {
     /// <summary>Maksimal uzunlik — server tomonda majburiy kesiladi.</summary>
@@ -26,34 +29,14 @@ public class ChatMessage : BaseEntity
 
     public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Kiruvchi matnni tozalaydi va tekshiradi.</summary>
-    public static string NormalizeBody(string? raw)
-    {
-        var text = (raw ?? string.Empty).Trim();
-
-        if (text.Length == 0)
-            throw new DomainException("Xabar bo'sh bo'lishi mumkin emas.");
-
-        if (text.Length <= MaxBodyLength)
-            return text;
-
-        // XAVFSIZ KESISH — emoji ikkiga bo'linib qolmasin.
-        //
-        // C# satri UTF-16 kod birliklaridan iborat. Emoji (va BMP'dan tashqari
-        // boshqa belgilar) IKKI kod birligi — surrogat juftlik — bilan
-        // ifodalanadi. Oddiy `text[..500]` juftlikning o'rtasidan kesib,
-        // YOLG'IZ surrogat qoldirishi mumkin.
-        //
-        // Oqibati: bunday satrni Postgres'ga yozishda u `U+FFFD` (almashtirish
-        // belgisi) ga aylanadi, qat'iy kodlashda esa `EncoderFallbackException`
-        // bilan yiqiladi. Ya'ni 500-belgisi emojiga to'g'ri kelgan xabar chatni
-        // buzardi.
-        //
-        // Yechim: chegara yolg'iz yuqori surrogatga tushsa — bitta belgi orqaga.
-        var cut = MaxBodyLength;
-        if (char.IsHighSurrogate(text[cut - 1]))
-            cut--;
-
-        return text[..cut];
-    }
+    /// <summary>
+    /// Kiruvchi matnni tozalaydi va tekshiradi.
+    ///
+    /// Qoidaning O'ZI <see cref="MessageText"/> da: aynan shu tozalash
+    /// (bo'shliq kesish + surrogat juftlikni buzmasdan qirqish) kurator
+    /// bilan shaxsiy yozishmada ham kerak, faqat chegara boshqa. Ikki
+    /// nusxa bo'lganda himoya bittasida unutilardi.
+    /// </summary>
+    public static string NormalizeBody(string? raw) =>
+        MessageText.Normalize(raw, MaxBodyLength);
 }

@@ -1,3 +1,4 @@
+using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Exceptions;
@@ -60,7 +61,7 @@ public static class ScheduleGenerator
                     $"Jadval juda uzun ({MaxSessionsPerGroup}+ dars). " +
                     "Boshlanish sanasi va kurs davomiyligini tekshiring.");
 
-            var start = ToUtc(day, group.StartTime, timeZone);
+            var start = LocalWallClock.ToUtc(day, group.StartTime, timeZone);
 
             sessions.Add(new PlannedSession(
                 Index: index,
@@ -85,26 +86,9 @@ public static class ScheduleGenerator
             ? $"{group.Name} — {index}-yordamchi dars"
             : $"{group.Name} — {index}-dars";
 
-    /// <summary>
-    /// Mahalliy devor-vaqtini aniq UTC instant'ga aylantiradi.
-    ///
-    /// NIMA UCHUN SHUNCHAKI `DateTime.SpecifyKind` EMAS: yozgi/qishki vaqt
-    /// (DST) o'tishida mahalliy soat MAVJUD BO'LMASLIGI yoki IKKI MARTA
-    /// takrorlanishi mumkin. Toshkentda DST yo'q, lekin bu mantiq boshqa
-    /// mintaqada ishlatilishi mumkin — shuning uchun to'g'ri ishlov beramiz.
-    /// </summary>
-    private static DateTimeOffset ToUtc(DateOnly date, TimeOnly time, TimeZoneInfo timeZone)
-    {
-        var local = date.ToDateTime(time, DateTimeKind.Unspecified);
-
-        // DST tufayli mavjud bo'lmagan soat (masalan 02:30 -> 03:30 sakragan):
-        // bir soat oldinga suramiz, aks holda konvertatsiya xato beradi.
-        if (timeZone.IsInvalidTime(local))
-            local = local.AddHours(1);
-
-        var offset = timeZone.GetUtcOffset(local);
-        return new DateTimeOffset(local, offset).ToUniversalTime();
-    }
+    // Mahalliy devor-vaqtini UTC ga o'girish `LocalWallClock` da —
+    // aynan shu konvertatsiya oylik reyting oralig'ida ham kerak
+    // (`BillingPeriod.UtcRange`), va DST tuzog'i ikkalasida bir xil.
 }
 
 /// <summary>

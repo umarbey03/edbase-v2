@@ -6,6 +6,16 @@ namespace Zinnur.Infrastructure.Persistence.Configurations;
 
 public sealed class AttendanceConfiguration : IEntityTypeConfiguration<Attendance>
 {
+    /// <summary>
+    /// Qo'lda tuzatish sababi — bir jumla ("interneti uzildi", "kasal
+    /// bo'lgani haqida ma'lumotnoma keltirdi"). Uzun matn uchun joy emas:
+    /// sabab davomat jadvalidagi katakning ostida ko'rsatiladi.
+    ///
+    /// Audit jadvali AYNI chegarani ishlatadi — eski qiymat yangi
+    /// qiymatga sig'masligi mumkin bo'lgan holat bo'lmasin.
+    /// </summary>
+    public const int ReasonMaxLength = 300;
+
     public void Configure(EntityTypeBuilder<Attendance> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -14,6 +24,8 @@ public sealed class AttendanceConfiguration : IEntityTypeConfiguration<Attendanc
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.Status).HasConversion<int>();
+
+        builder.Property(a => a.Reason).HasMaxLength(ReasonMaxLength);
 
         builder.HasOne(a => a.Session)
             .WithMany()

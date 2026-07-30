@@ -6,6 +6,7 @@ using Zinnur.Application.Common.Models;
 using Zinnur.Application.Courses.Dtos;
 using Zinnur.Application.Gating.Dtos;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Application.Payments.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -75,7 +76,8 @@ namespace Zinnur.Application.Courses.Services;
 /// </summary>
 public sealed class CourseService(
     IApplicationDbContext db,
-    IGatingService gating) : ICourseService
+    IGatingService gating,
+    IPaymentBlockService paymentBlock) : ICourseService
 {
     // ================================================================= o'qish
 
@@ -124,9 +126,21 @@ public sealed class CourseService(
         return new PagedResult<CourseDto>(items, page, pageSize, total);
     }
 
+    /// <summary>
+    /// Kurs daraxti (modullar va VIDEO darslar).
+    ///
+    /// ★ QARZDORLIK DARVOZASI (FAZA 4.3): o'quvchi uchun bu endpoint —
+    /// video darslarga kirish nuqtasi (<c>ModuleLesson</c> = video dars),
+    /// shuning uchun <c>Video</c> qamrovi aynan shu yerda tekshiriladi.
+    /// Xodim (ustoz, kurator, o'quv bo'limi, admin) hech qachon
+    /// bloklanmaydi — ular kontentni ko'rishi ish talabi.
+    /// </summary>
     public async Task<CourseTreeDto> GetAsync(long id, long actorId, CancellationToken ct = default)
     {
         var actor = await LoadActorAsync(actorId, ct);
+
+        if (actor.Role == UserRole.Student)
+            await paymentBlock.EnsureAllowedAsync(actor.Id, PaymentBlockScope.Video, ct);
 
         var head = await db.Courses.AsNoTracking()
             .Where(c => c.Id == id)
@@ -719,15 +733,24 @@ public sealed class CourseService(
     /// O'quvchi kursda nima borligini bilishi kerak (nimaga intilayotganini
     /// ko'rsin), lekin tavsif — bu darsning o'zi. Uni ochiq qoldirish
     /// gating'ning butun ma'nosini yo'qqa chiqarardi.
+    ///
+    /// ★ `Completed` AYNI shu xaritadan olinadi (<c>gate.Completed</c>) —
+    /// gating daraxti allaqachon butun kurs uchun bir marta hisoblangan,
+    /// shuning uchun "tugatilgan" belgisi uchun bironta ham qo'shimcha
+    /// so'rov yuborilmaydi.
     /// </summary>
     private static CourseLessonDto MapLesson(LessonRow row, Dictionary<long, LessonGateDto>? gates)
     {
         // Xodim uchun gating YO'Q — u kontentni to'liq ko'radi.
+        //
+        // `Completed: false` ATAYLAB: "tugatilgan" — o'quvchi progressi,
+        // xodimda esa progress yozuvi yo'q. Uni `true` qilish ustoz
+        // panelida butun kursni "tugatilgan" ko'rsatardi.
         if (gates is null)
         {
             return new CourseLessonDto(
                 row.Id, row.ModuleId, row.Name, row.Description, row.Position, row.DurationMin,
-                Unlocked: true, LockReason: null, row.HasAssignment, row.HasTest);
+                Unlocked: true, LockReason: null, Completed: false, row.HasAssignment, row.HasTest);
         }
 
         var found = gates.TryGetValue(row.Id, out var gate);
@@ -749,6 +772,24 @@ public sealed class CourseService(
             row.DurationMin,
             unlocked,
             reason,
+
+            // ★★ QULFLANGAN DARS HECH QACHON "TUGATILGAN" EMAS.
+            //
+            // `LessonGateDto.Completed` ning O'ZI ochiqlikka qaramaydi —
+            // u sof "talab qilingan ish qoldimi?" degan savol va gating
+            // qoidasi uni AYNAN shunday ishlatadi (oldingi dars tugadimi).
+            // Talabi yo'q dars uchun bu `true`, hatto u hali qulflangan
+            // bo'lsa ham.
+            //
+            // Lekin EKRANDA "qulflangan, lekin tugatilgan" — ma'nosiz:
+            // o'quvchi darsni ocha ham olmagan. Vazifasi/testi yo'q kurs
+            // esa butunlay yashil ko'rinardi va yo'lakcha hech qanday
+            // ma'lumot bermay qolardi. Shuning uchun tashqi shartnomada
+            // `completed` OCHIQLIKKA bo'ysunadi.
+            //
+            // Xaritada umuman yo'q dars uchun ham `false` — gating u
+            // haqda hech nima bilmaydi.
+            unlocked && found && gate!.Completed,
             row.HasAssignment,
             row.HasTest);
     }

@@ -36,6 +36,25 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // `IsActive = false` deb yaratilgan foydalanuvchi bazada `true` bo'lib
         // qolardi. C# property initializer bu ishni xavfsiz bajaradi.
 
+        // ============================================================
+        // MOLIYA: BLOKLASHDAN ISTISNO — SOYA (shadow) USTUN
+        // ============================================================
+        //
+        // `PaymentBlockPolicy.IsBlocked` `exempt` argumentini talab qiladi
+        // (eski tizimdagi `users.payment_exempt`), lekin `User` entity'sida
+        // bunday maydon yo'q va Domain qatlami FAZA 4.3 doirasida
+        // O'ZGARTIRILMAYDI. Soya ustun ma'lumotni BAZADA saqlaydi va
+        // migratsiyaga tushadi; kodda unga `EF.Property<bool>(u, "PaymentExempt")`
+        // orqali murojaat qilinadi (`Application/Payments/PaymentFields.cs`).
+        //
+        // `HasDefaultValue(false)` bu yerda XAVFSIZ (yuqoridagi `IsActive`
+        // holatidan farqli): "istisno emas" — ayni CLR default, ya'ni EF
+        // ustunni INSERT'dan tashlab yuborsa ham bazadagi qiymat to'g'ri
+        // bo'ladi. U MAVJUD qatorlar uchun ham kerak: migratsiya `NOT NULL`
+        // ustunni to'ldirishi shart.
+        builder.Property<bool>("PaymentExempt")
+            .HasDefaultValue(false);
+
         builder.HasIndex(u => u.Email)
             .IsUnique()
             .HasDatabaseName("IX_Users_Email");

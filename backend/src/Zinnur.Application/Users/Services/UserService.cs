@@ -17,7 +17,8 @@ namespace Zinnur.Application.Users.Services;
 /// </summary>
 public sealed class UserService(
     IApplicationDbContext db,
-    IPasswordHasher hasher) : IUserService
+    IPasswordHasher hasher,
+    IAuthStateCache authState) : IUserService
 {
     // ================================================================= o'qish
 
@@ -133,10 +134,17 @@ public sealed class UserService(
 
         // ChangeRole ichida InvalidateTokens() bor — rol o'zgarsa eski tokendagi
         // rol claim'i darhol yaroqsiz bo'ladi.
-        if (request.Role is { } newRole)
-            user.ChangeRole(newRole);
+        var roleChanged = request.Role is { } newRole && newRole != user.Role;
+        if (request.Role is { } role)
+            user.ChangeRole(role);
 
         await SaveWithUniqueGuardAsync(ct);
+
+        // Rol o'zgargan bo'lsa `ChangeRole` sessiyalarni bekor qildi — kesh ham
+        // tozalansin, aks holda eski roldagi token 60 sekund qabul qilinardi.
+        if (roleChanged)
+            await authState.InvalidateAsync(user.Id, ct);
+
         return Map(user);
     }
 
@@ -159,6 +167,12 @@ public sealed class UserService(
             user.InvalidateTokens();
 
         await db.SaveChangesAsync(ct);
+
+        // ★ Sessiya holati keshi tozalanadi. Faollashtirishda ham tozalanadi:
+        // aks holda keshda "faol emas" yozuvi qolib, tiklangan foydalanuvchi
+        // 60 sekundgacha kira olmasdi.
+        await authState.InvalidateAsync(user.Id, ct);
+
         return Map(user);
     }
 
@@ -175,6 +189,9 @@ public sealed class UserService(
         // SetPassword ichida InvalidateTokens() bor — eski sessiyalar o'ladi.
         user.SetPassword(await hasher.HashAsync(password, ct));
         await db.SaveChangesAsync(ct);
+
+        // Parol tiklangach eski qurilmalardagi kirish tokeni ham darhol o'lsin.
+        await authState.InvalidateAsync(user.Id, ct);
 
         // Parol OCHIQ KO'RINISHDA hech qayerda saqlanmaydi — faqat shu javobda.
         return new ResetPasswordResponse(user.Id, password);

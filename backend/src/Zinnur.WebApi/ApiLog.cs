@@ -47,6 +47,19 @@ internal static partial class ApiLog
         Message = "Uzilishda tozalash xatosi: session={SessionId}")]
     public static partial void DisconnectCleanupFailed(ILogger logger, Exception exception, long sessionId);
 
+    [LoggerMessage(
+        EventId = 2002,
+        Level = LogLevel.Information,
+        Message = "Dars yakunlandi, xona xabardor qilindi: session={SessionId}")]
+    public static partial void SessionEndBroadcast(ILogger logger, long sessionId);
+
+    [LoggerMessage(
+        EventId = 2003,
+        Level = LogLevel.Warning,
+        Message = "Dars yakunlandi, lekin xabar yuborilmadi: session={SessionId}")]
+    public static partial void SessionEndBroadcastFailed(
+        ILogger logger, Exception exception, long sessionId);
+
     // ---------------------------------------------------------------- chat writer
 
     [LoggerMessage(

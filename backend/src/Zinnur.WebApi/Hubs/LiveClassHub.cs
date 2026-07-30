@@ -58,7 +58,13 @@ public sealed class LiveClassHub(
 
     // ---------------------------------------------------------------- yordamchi
 
-    private static string GroupName(long sessionId) =>
+    /// <summary>
+    /// SignalR guruh nomi. <c>internal</c> — hub'dan TASHQARIDA ham kerak:
+    /// <see cref="Services.LiveSessionNotifier"/> xuddi shu xonaga xabar
+    /// yuboradi. Nom ikki joyda qo'lda yozilsa, biri o'zgarganda ikkinchisi
+    /// bo'sh xonaga xabar yuborib turardi va buni hech kim sezmasdi.
+    /// </summary>
+    internal static string GroupName(long sessionId) =>
         $"session-{sessionId.ToString(CultureInfo.InvariantCulture)}";
 
     private long UserId =>
@@ -223,3 +229,14 @@ public sealed record PresenceDelta(
     long UserId, string DisplayName, string Role, bool Joined, int Count);
 
 public sealed record HandRaisedEvent(long UserId, string DisplayName, bool Raised);
+
+/// <summary>
+/// <c>SessionEnded</c> — dars yakunlandi. Klient buni olib video va hub
+/// ulanishini yopadi (`useLiveHub.handleSessionEnded`).
+///
+/// Hub ICHIDAN emas, <see cref="Services.LiveSessionNotifier"/> orqali
+/// yuboriladi: darsni yakunlash hub metodi emas, use-case
+/// (`LiveSessionService.EndAsync`) — u REST orqali ham, kelajakda fon xizmati
+/// orqali ham chaqiriladi.
+/// </summary>
+public sealed record SessionEndedEvent(long SessionId);
