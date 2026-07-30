@@ -4,8 +4,12 @@
 > Yangi sessiya shu faylni o'qib, oldingi suhbatsiz davom eta oladi.
 >
 > **Oxirgi yangilanish:** 2026-07-30, kechki sessiya oxiri
-> **Oxirgi commit:** `8b17815` — ★ **undan keyingi HAMMA ish COMMIT QILINMAGAN
-> (189 fayl)**. Birinchi qadamlardan biri — commitga ajratish (7-bo'lim).
+> **Oxirgi commitlar:** `edbf1d0` (backend) · `c9fa062` (frontend) ·
+> `b28e767` (hujjatlar) — ✅ ish tarixga yozilgan, working tree TOZA.
+> Push qilinmagan (repo lokal).
+>
+> **Ekran suratlari:** `~/Documents/Projects/zinnur-v2-shots/` (57 ta PNG —
+> parite tekshiruvi va brauzer sinovlari; repoga qo'shilmadi, 9.8 MB).
 >
 > Batafsil jurnal: `docs/PROGRESS.md` · Reja: `docs/ROADMAP.md` ·
 > Dizayn ko'chirish: `docs/DIZAYN_KOCHIRISH_REJASI.md` · Shartnoma: `docs/SPEC.md`
@@ -195,21 +199,16 @@ o'quv bo'limi ~60% · jonli dars ~40% (tema tuzatilgandan keyin yuqoriroq).
 
 ---
 
-## 7. ★ BIRINCHI QADAM: COMMIT
+## 7. COMMIT TARIXI (bajarildi)
 
-`8b17815` dan keyin **189 fayl commit qilinmagan**. Tavsiya etilgan bo'linish:
+```
+b28e767  Hujjatlar: ish jurnali, dizayn ko'chirish rejasi va sessiya topshirig'i
+c9fa062  Frontend: eski ilova dizayni ko'chirildi + moliya, testlar, a'zolik
+edbf1d0  Backend: moliya moduli, testlar oqimi, reyting/DM, davomat, xavfsizlik
+8b17815  (oldingi sessiya)
+```
 
-1. **Xavfsizlik va tuzatishlar** — token bekor qilish (`AuthStateCache`,
-   `Program.cs`), Redis makon, `SessionEnded` broadcast, `useLiveHub`,
-   qidiruv minimumi, `courseId` yo'qolishi
-2. **FAZA 4 moliya** — Domain, EF, migratsiyalar, servis, API, UI
-3. **FAZA 3.4 testlar + uy vazifalari** oqimi
-4. **Guruh a'zoligi + kurs kontenti** UI
-5. **Reyting, DM, davomat tuzatish, kalendar** (backend + UI)
-6. **Dizayn ko'chirish** — temalar, o'quvchi Mini App karkasi, ustoz paneli
-7. **Hujjatlar** (`PROGRESS.md`, `DIZAYN_KOCHIRISH_REJASI.md`, shu fayl)
-
----
+Working tree toza. Repo LOKAL — push qilinmagan, GitHub remote sozlanmagan.
 
 ## 8. ISH USLUBI
 
