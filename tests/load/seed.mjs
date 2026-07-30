@@ -24,14 +24,37 @@
  * Shuning uchun har klient O'Z foydalanuvchisi va O'Z tokeni bilan ulanadi.
  *
  * ========================================================================
- * NIMA UCHUN PAROL BILAN KIRISH (token o'zimiz imzolamaymiz)
+ * NIMA UCHUN TOKENNI O'ZIMIZ IMZOLAYMIZ (parol bilan kirmaymiz)
  * ========================================================================
- * Tokenni `Jwt:Secret` bilan lokal imzolash tezroq bo'lardi, lekin u holda
- * skript ishlab turgan tizimning haqiqiy kirish yo'lini chetlab o'tardi va
- * sirni fayldan o'qishga majbur bo'lardi. Bitta kirish ~120 ms
- * (BCrypt WorkFactor=11), 200 ta kirish esa cheklangan parallellik bilan
- * ~3 sekund — o'lchovdan OLDIN tugaydi va natijaga ta'sir qilmaydi.
+ * Ilgari skript har o'quvchi uchun `POST /api/v1/auth/login` qilardi va shu
+ * yerda "200 ta kirish ~3 sekund, o'lchovga ta'sir qilmaydi" deb yozilgan
+ * edi. O'SHA HISOB ENDI TO'G'RI EMAS.
+ *
+ * Sabab: kirish endpointi parol topishga qarshi CHEKLANDI
+ * (`[EnableRateLimiting("auth")]`, IP bo'yicha 20 so'rov/daqiqa). Bitta
+ * IP'dan 200 ta ketma-ket kirish — bu aynan cheklov to'sishi KERAK bo'lgan
+ * naqsh. Ya'ni tanlov "tez" va "sekin" o'rtasida emas edi:
+ *
+ *   • yuklama uchun cheklovni bo'shatish   -> himoyani o'chirish demak;
+ *   • skriptni 10+ daqiqa kutishga majburlash -> test amalda ishlamay qoladi.
+ *
+ * Shuning uchun tayyorgarlik bosqichi kirish endpointidan UMUMAN
+ * foydalanmaydi: tokenlar `JWT_SECRET` bilan lokal imzolanadi (HS256 —
+ * server ham aynan shuni tekshiradi, ya'ni token HAQIQIY).
+ *
+ * BU O'LCHOVNI BUZMAYDI: test SignalR hub'ining sig'imini o'lchaydi, kirish
+ * endpointining unumdorligini emas. Kirish o'lchov BOSHLANISHIDAN oldin
+ * tugardi va natijaga baribir kirmasdi. Yutuq esa bor: 200 ta BCrypt
+ * (WorkFactor=11) hisobi ~24 sekund CPU yeyardi — endi u yo'q.
+ *
+ * NARXI: skript `JWT_SECRET` ni bilishi kerak (`.env` dan yoki muhitdan).
+ * Bu maqbul — u allaqachon admin paroli bilan ishlaydi va faqat o'z
+ * stack'ingizga qarshi yugurtiriladi.
  */
+import { createHmac, randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PREFIX = 'zload';
 const DOMAIN = 'zinnur.test';
@@ -219,17 +242,96 @@ export const ensureUsers = async (api, token, count, groupId, onProgress) => {
   return { users, created, added };
 };
 
-/** Har foydalanuvchi uchun HAQIQIY kirish tokeni oladi. */
-export const loginAll = async (api, users, onProgress) => {
-  let done = 0;
+// ---------------------------------------------------------------- tokenlar
 
-  return mapLimit(users, 20, async (u) => {
-    const res = await call(api, '/api/v1/auth/login', {
-      method: 'POST',
-      body: { email: u.email, password: LOAD_PASSWORD },
-    });
+/**
+ * `.env` ni o'qiydi (oddiy `KALIT=qiymat`). Muhit o'zgaruvchisi USTUN —
+ * boshqa stack'ga qarshi yugurtirish uchun `JWT_SECRET=... node ...` yetarli.
+ */
+const dotEnv = () => {
+  const file = path.join(
+    path.dirname(fileURLToPath(import.meta.url)), '../..', '.env',
+  );
 
-    onProgress?.(++done, users.length);
-    return { ...u, token: res.accessToken, fullName: res.user.fullName };
+  if (!fs.existsSync(file)) return {};
+
+  const values = {};
+
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (match) values[match[1]] = match[2].trim();
+  }
+
+  return values;
+};
+
+const jwtConfig = () => {
+  const env = { ...dotEnv(), ...process.env };
+
+  if (!env.JWT_SECRET) {
+    throw new Error(
+      'JWT_SECRET topilmadi. `.env` faylini tekshiring yoki '
+      + 'JWT_SECRET=... qilib bering — tokenlar lokal imzolanadi '
+      + '(sabab: kirish endpointi rate-limit ostida).',
+    );
+  }
+
+  return {
+    secret: env.JWT_SECRET,
+    issuer: env.JWT_ISSUER ?? 'zinnur',
+    audience: env.JWT_AUDIENCE ?? 'zinnur-web',
+  };
+};
+
+const b64url = (value) => Buffer.from(value).toString('base64url');
+
+/**
+ * Bitta kirish tokeni. Claim'lar `JwtTokenService.CreateAccessToken` bilan
+ * AYNAN bir xil bo'lishi shart — aks holda server tokenni qabul qiladi-yu,
+ * hub'da foydalanuvchi "Noma'lum" bo'lib chiqadi yoki rol topilmaydi.
+ *
+ * `ver` (TokenVersion) = 0: bu foydalanuvchilarni shu skriptning o'zi
+ * yaratadi va ularning paroli hech qachon almashtirilmaydi, "hamma
+ * qurilmadan chiqish" ham qilinmaydi — ya'ni versiya 0 bo'lib qolaveradi.
+ */
+const signAccessToken = (user, config, ttlSeconds) => {
+  const now = Math.floor(Date.now() / 1000);
+
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+
+  const payload = b64url(JSON.stringify({
+    sub: String(user.id),
+    jti: randomUUID().replaceAll('-', ''),
+    ver: '0',
+    token_use: 'access',
+    role: 'Student',
+    name: user.fullName,
+    iss: config.issuer,
+    aud: config.audience,
+    iat: now,
+    nbf: now,
+    exp: now + ttlSeconds,
+  }));
+
+  const data = `${header}.${payload}`;
+  const signature = createHmac('sha256', config.secret).update(data).digest('base64url');
+
+  return `${data}.${signature}`;
+};
+
+/**
+ * Har foydalanuvchi uchun kirish tokeni yasaydi (kirish endpointiga
+ * tegmasdan — sabab fayl boshida).
+ *
+ * TTL uzun (1 soat): eng uzun yuklama yugurtirishi ham unga sig'adi va
+ * o'lchov o'rtasida token muddati tugab, "uzilish" statistikasini
+ * yolg'on to'ldirib qo'ymaydi.
+ */
+export const issueTokens = (users, ttlSeconds = 3600) => {
+  const config = jwtConfig();
+
+  return users.map((u) => {
+    const fullName = nameFor(u.index);
+    return { ...u, fullName, token: signAccessToken({ ...u, fullName }, config, ttlSeconds) };
   });
 };

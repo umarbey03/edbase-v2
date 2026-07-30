@@ -25,8 +25,33 @@ namespace Zinnur.IntegrationTests.Infrastructure;
 ///   lokal  -> ishlab turgan `zinnur-v2` stack (localhost:5440 / 6390)
 ///   CI     -> GitHub Actions service konteynerlari (localhost:5432 / 6379)
 /// </summary>
-public sealed class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    /// <summary>
+    /// Kirish endpointining rate-limit budjeti (`RateLimiting:Auth:PermitLimit`).
+    ///
+    /// Odatiy fixture'da ATAYLAB juda baland. NEGA: `TestServer` da
+    /// `RemoteIpAddress` — null, ya'ni sinfdagi HAMMA so'rov bitta
+    /// "unknown" bo'limiga tushadi, bitta test sinfi esa o'nlab marta
+    /// kirish qiladi. Prod chegarasi bilan testlar bir-birini bloklab,
+    /// sababsiz "flaky" bo'lardi — ya'ni yashil natija hech nima
+    /// isbotlamasdi.
+    ///
+    /// Chegaraning O'ZINI tekshiradigan test uni pasaytirib override qiladi
+    /// (`AuthRateLimitTests`) — shuning uchun bu sinf `sealed` emas.
+    /// </summary>
+    protected virtual int AuthPermitLimit => 1000;
+
+    /// <summary>Token yangilash budjeti — sababi <see cref="AuthPermitLimit"/> bilan bir xil.</summary>
+    protected virtual int AuthRefreshPermitLimit => 1000;
+
+    /// <summary>
+    /// Oyna uzunligi (sekund). Chegara testida ATAYLAB uzaytiriladi:
+    /// qat'iy oyna (fixed window) so'rovlar orasida yopilib qolsa,
+    /// hisoblagich nolga qaytib test tasodifan yiqilardi.
+    /// </summary>
+    protected virtual int AuthWindowSeconds => 60;
+
     private readonly string _databaseName =
         $"zinnur_test_{Guid.NewGuid():N}"[..24];
 
@@ -125,6 +150,14 @@ public sealed class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLif
 
         // Sentry testlarda o'chiq — tashqi tarmoqqa chiqmasin
         new("Sentry:Dsn", string.Empty),
+
+        // Rate-limit: izoh yuqorida (AuthPermitLimit).
+        new("RateLimiting:Auth:PermitLimit",
+            AuthPermitLimit.ToString(CultureInfo.InvariantCulture)),
+        new("RateLimiting:Auth:RefreshPermitLimit",
+            AuthRefreshPermitLimit.ToString(CultureInfo.InvariantCulture)),
+        new("RateLimiting:Auth:WindowSeconds",
+            AuthWindowSeconds.ToString(CultureInfo.InvariantCulture)),
     ];
 
     /// <summary>Seed qilingan admin bilan kirib, tokenlarni qaytaradi.</summary>

@@ -34,7 +34,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { pickTarget, ensureUsers, loginAll } from './seed.mjs';
+import { pickTarget, ensureUsers, issueTokens } from './seed.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(here, '../../frontend/package.json'));
@@ -92,6 +92,8 @@ const pct = (arr, p) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- tayyorgarlik
+// BITTA admin kirishi — o'quvchi tokenlari esa lokal imzolanadi (seed.mjs).
+// Bitta so'rov `auth` rate-limit budjetiga (20/daqiqa) bemalol sig'adi.
 async function loginAdmin() {
   const r = await fetch(`${API}/api/v1/auth/login`, {
     method: 'POST',
@@ -202,12 +204,11 @@ const main = async () => {
 
   console.log(`    yaratildi: ${created} · a'zo qilindi: ${added} · jami: ${users.length}   `);
 
-  const ready = await loginAll(
-    API, users,
-    (done, total) => process.stdout.write(`    kirish: ${done}/${total}   \r`),
-  );
+  // Tokenlar LOKAL imzolanadi — kirish endpointiga tegilmaydi (u parol
+  // topishga qarshi rate-limit ostida; batafsil sabab: seed.mjs).
+  const ready = issueTokens(users);
 
-  console.log(`    kirish: ${ready.length}/${users.length} tayyor   \n`);
+  console.log(`    token: ${ready.length}/${users.length} tayyor   \n`);
 
   const stopAt = Date.now() + DURATION_SEC * 1000;
   const gap = RAMP_MS / USERS;
