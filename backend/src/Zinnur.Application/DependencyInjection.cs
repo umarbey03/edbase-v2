@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
+using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
@@ -40,6 +41,16 @@ public static class DependencyInjection
 
         services.AddScoped<IAssignmentService, AssignmentService>();
         services.AddScoped<ITestService, TestService>();
+
+        // ---------------------------------------------------------------- FAZA 3.1
+        //
+        // KURS KONTENTI. SCOPED — u `IGatingService` ga bog'liq, u esa so'rov
+        // ichida keshlanadigan snapshot saqlaydi. Singleton bo'lsa scoped
+        // bog'liqlikni ushlab qolib "captive dependency" hosil bo'lardi:
+        // birinchi so'rovning gating snapshot'i butun ilova umriga qotib
+        // qolardi va HAMMA o'quvchiga o'sha bitta o'quvchining ochiq
+        // darslari ko'rinardi.
+        services.AddScoped<ICourseService, CourseService>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);
