@@ -1,8 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
+using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Tests.Services;
 using Zinnur.Application.Users.Services;
 
 namespace Zinnur.Application;
@@ -24,6 +27,19 @@ public static class DependencyInjection
         // (muddati o'tgan darslarni yopish) ham chaqiradi.
         // `IScheduleTimeZoneProvider` — Infrastructure'da (konfiguratsiyadan o'qiladi).
         services.AddScoped<IScheduleService, ScheduleService>();
+
+        // ---------------------------------------------------------------- FAZA 3
+        //
+        // GATING SCOPED bo'lishi SHART: u so'rov ichida hisoblangan daraxtni
+        // xotirada eslab qoladi (`_snapshot`), ya'ni bitta HTTP so'rovida
+        // daraxt ko'pi bilan bir marta quriladi. Singleton bo'lsa bu memo
+        // FOYDALANUVCHILAR ORASIDA bo'lishilardi — bir o'quvchi boshqasining
+        // progressini ko'rardi. Transient bo'lsa memo har chaqiruvda
+        // yo'qolardi va kesh foydasi qolmasdi.
+        services.AddScoped<IGatingService, GatingService>();
+
+        services.AddScoped<IAssignmentService, AssignmentService>();
+        services.AddScoped<ITestService, TestService>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

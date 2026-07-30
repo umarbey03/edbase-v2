@@ -76,8 +76,14 @@ public sealed class ExceptionHandlingMiddleware(
         {
             Status = status,
             Title = title,
-            // Ichki tafsilot faqat dev muhitida
-            Detail = status >= StatusCodes.Status500InternalServerError && !env.IsDevelopment()
+            // Ichki tafsilot faqat dev muhitida.
+            //
+            // AYNAN 500 tekshiriladi (`>= 500` emas): 503 xabari ATAYLAB
+            // foydalanuvchiga ko'rsatiladi — u bizning bug emas, balki
+            // "fayl ombori sozlanmagan" kabi aniq va foydali holat.
+            // `>= 500` bo'lganda bu xabar prod'da "kutilmagan xato" bilan
+            // almashtirilib, sababi yo'qolardi.
+            Detail = status == StatusCodes.Status500InternalServerError && !env.IsDevelopment()
                 ? "Serverda kutilmagan xato yuz berdi. Iltimos, keyinroq urinib ko'ring."
                 : detail,
             Type = $"https://httpstatuses.io/{status.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
@@ -113,6 +119,12 @@ public sealed class ExceptionHandlingMiddleware(
 
         ValidationException =>
             (StatusCodes.Status400BadRequest, "Ma'lumot noto'g'ri", ex.Message),
+
+        // Sozlanmagan yoki javob bermayotgan tashqi xizmat (masalan fayl
+        // ombori). 500 EMAS: bu bizning bug'imiz emas va xato xabari
+        // foydalanuvchiga ko'rsatilishi kerak.
+        ServiceUnavailableException =>
+            (StatusCodes.Status503ServiceUnavailable, "Xizmat vaqtincha mavjud emas", ex.Message),
 
         // Biznes qoidasi buzilgan (Domain qatlamidan)
         DomainException =>

@@ -23,6 +23,10 @@
          Microsoft.Extensions.Hosting paketida joylashgan. -->
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <!-- `IHttpClientFactory` — obyekt omboriga (R2/S3) `PUT` uchun. Nomlangan
+         klient socket'ni qayta ishlatadi va DNS'ni vaqti-vaqti bilan
+         yangilaydi; bitta `static HttpClient` esa DNS o'zgarganini sezmaydi. -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
     <!-- [LoggerMessage] manba generatori (CA1848). Generatorlar ProjectReference
          orqali TRANZITIV o'tmaydi, shuning uchun to'g'ridan-to'g'ri kerak. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />

@@ -13,6 +13,17 @@ public sealed class UnauthorizedException(string message) : Exception(message);
 /// <summary>Holat ziddiyati (masalan takror amal) -> HTTP 409.</summary>
 public sealed class ConflictException(string message) : Exception(message);
 
+/// <summary>
+/// Tashqi bog'liqlik (obyekt ombori, LiveKit) sozlanmagan yoki javob
+/// bermayapti -> HTTP 503.
+///
+/// NIMA UCHUN ALOHIDA TUR: 500 ("bizda bug") va 503 ("xizmat vaqtincha
+/// yo'q") boshqa-boshqa hodisa. Sozlanmagan omborni 500 bilan qaytarish
+/// ogohlantirish tizimini bekordan uyg'otardi va foydalanuvchi "keyinroq
+/// urinib ko'ring" degan to'g'ri maslahatni olmasdi.
+/// </summary>
+public sealed class ServiceUnavailableException(string message) : Exception(message);
+
 /// <summary>Kiruvchi ma'lumot noto'g'ri -> HTTP 400.</summary>
 public sealed class ValidationException(IDictionary<string, string[]> errors)
     : Exception("Kiritilgan ma'lumotlarda xatolik bor.")

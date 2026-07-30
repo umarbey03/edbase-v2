@@ -26,6 +26,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Zinnur.Domain\Zinnur.Domain.csproj" />
+    <!--
+      GATING QOIDASI (`Zinnur.Application.Gating.LessonGate`) ham SOF funksiya:
+      bazasiz, HTTP'siz, mock'siz sinaladi — shuning uchun u Domain testlari
+      bilan bir loyihada tekshiriladi va mock kutubxonasi baribir kerak emas.
+      Application'ning SERVISLARI bu yerda SINALMAYDI (ular bazaga tayanadi va
+      integratsiya testlariga tegishli).
+    -->
+    <ProjectReference Include="..\..\src\Zinnur.Application\Zinnur.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

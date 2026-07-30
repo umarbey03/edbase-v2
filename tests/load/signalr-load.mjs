@@ -16,10 +16,17 @@
  *     brauzer ↔ LiveKit orasida ketadi. Media yuklamasini o'lchash uchun
  *     alohida vosita kerak (livekit-cli load-test).
  *
+ * HAR KLIENT — O'Z FOYDALANUVCHISI
+ *   Server rate-limit'ni ham, presence'ni ham FOYDALANUVCHI bo'yicha
+ *   kalitlaydi. Bitta tokenni ulashish o'lchovni buzadi (batafsil: seed.mjs).
+ *   Shuning uchun skript kerakli sonda o'quvchi tayyorlaydi (idempotent) va
+ *   har biri o'z tokeni bilan ulanadi.
+ *
  * ISHLATISH
  *   node tests/load/signalr-load.mjs                 # 200 klient (default)
  *   USERS=50 node tests/load/signalr-load.mjs        # 50 klient
  *   USERS=200 DURATION=120 node tests/load/signalr-load.mjs
+ *   SESSION_ID=282 GROUP_ID=4 node tests/load/signalr-load.mjs
  *
  * TALAB: `frontend/node_modules` o'rnatilgan bo'lishi kerak (@microsoft/signalr).
  * Skript uni avtomatik topadi.
@@ -27,6 +34,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { pickTarget, ensureUsers, loginAll } from './seed.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(here, '../../frontend/package.json'));
@@ -61,6 +69,12 @@ const stats = {
   messagesSent: 0,
   messagesReceived: 0,
   rateLimited: 0,
+
+  /** `JoinSession` javobida ko'rilgan eng katta ishtirokchi soni.
+   *  Bu 200 ta ALOHIDA foydalanuvchi haqiqatan bir xonada bo'lganining
+   *  ISBOTI — bitta token bilan bu son 1 bo'lib qolardi. */
+  presenceMax: 0,
+
   errors: new Map(),
 };
 
@@ -78,7 +92,7 @@ const pct = (arr, p) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- tayyorgarlik
-async function login() {
+async function loginAdmin() {
   const r = await fetch(`${API}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -86,15 +100,6 @@ async function login() {
   });
   if (!r.ok) throw new Error(`login ${r.status}: ${await r.text()}`);
   return r.json();
-}
-
-async function firstSessionId(token) {
-  const r = await fetch(`${API}/api/v1/live-sessions`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const list = await r.json();
-  if (!list.length) throw new Error('Dars topilmadi — avval seed qiling');
-  return list[0].id;
 }
 
 // ---------------------------------------------------------------- bitta klient
@@ -116,7 +121,17 @@ async function runClient(index, token, sessionId, stopAt) {
   });
   conn.on('PresenceChanged', () => {});
   conn.on('HandRaised', () => {});
-  conn.onclose(() => { stats.disconnects++; });
+
+  // ★ ATAYLAB YOPISHNI UZILISHDAN AJRATAMIZ.
+  //
+  // `onclose` NORMAL `conn.stop()` da ham chaqiriladi. Bayroqsiz har klient
+  // test oxirida o'zini "uzilgan" deb sanardi va `disconnects` DOIMO
+  // `USERS` ga teng bo'lardi — ya'ni quyidagi baho sharti
+  // (`disconnects > USERS * 0.05`) HAR YUGURTIRISHDA yiqilardi va test
+  // hech qachon "muvaffaqiyatli" deb chiqmasdi. Amalda tekshirildi:
+  // 5 klient, 0 xato, natija "5 ta kutilmagan uzilish".
+  let closing = false;
+  conn.onclose(() => { if (!closing) stats.disconnects++; });
 
   try {
     const t0 = Date.now();
@@ -125,11 +140,15 @@ async function runClient(index, token, sessionId, stopAt) {
     stats.connected++;
 
     const t1 = Date.now();
-    await conn.invoke('JoinSession', sessionId);
+    const joined = await conn.invoke('JoinSession', sessionId);
     stats.joinMs.push(Date.now() - t1);
+
+    // Xonadagi ALOHIDA foydalanuvchilar soni (presence Redis'dan).
+    if (joined?.count > stats.presenceMax) stats.presenceMax = joined.count;
   } catch (e) {
     stats.failed++;
     recordError(e);
+    closing = true;
     try { await conn.stop(); } catch { /* ahamiyatsiz */ }
     return;
   }
@@ -148,6 +167,8 @@ async function runClient(index, token, sessionId, stopAt) {
     }
     await sleep(MSG_INTERVAL_MS + Math.random() * 2000);
   }
+
+  closing = true;
 
   try {
     await conn.invoke('LeaveSession', sessionId);
@@ -168,16 +189,32 @@ const main = async () => {
   Xabar oralig'i: ${MSG_INTERVAL_MS / 1000} sekund/klient
 `);
 
-  const auth = await login();
-  const sessionId = await firstSessionId(auth.accessToken);
-  console.log(`  Dars #${sessionId} · foydalanuvchi: ${auth.user.fullName}\n`);
+  const auth = await loginAdmin();
+  const target = await pickTarget(API, auth.accessToken);
+
+  console.log(`  Dars #${target.sessionId} · guruh #${target.groupId} · ${target.title}`);
+  console.log('  o\'quvchilar tayyorlanmoqda...');
+
+  const { users, created, added } = await ensureUsers(
+    API, auth.accessToken, USERS, target.groupId,
+    (what, done, total) => process.stdout.write(`    ${what}: ${done}/${total}   \r`),
+  );
+
+  console.log(`    yaratildi: ${created} · a'zo qilindi: ${added} · jami: ${users.length}   `);
+
+  const ready = await loginAll(
+    API, users,
+    (done, total) => process.stdout.write(`    kirish: ${done}/${total}   \r`),
+  );
+
+  console.log(`    kirish: ${ready.length}/${users.length} tayyor   \n`);
 
   const stopAt = Date.now() + DURATION_SEC * 1000;
   const gap = RAMP_MS / USERS;
 
   const clients = [];
   for (let i = 0; i < USERS; i++) {
-    clients.push(runClient(i, auth.accessToken, sessionId, stopAt));
+    clients.push(runClient(i, ready[i].token, target.sessionId, stopAt));
     if (gap >= 1) await sleep(gap);
 
     if ((i + 1) % 25 === 0)
@@ -206,6 +243,7 @@ const main = async () => {
 
   JOIN SESSION
     p50/p95/p99      : ${pct(stats.joinMs, 50)} / ${pct(stats.joinMs, 95)} / ${pct(stats.joinMs, 99)} ms
+    xonadagi eng ko'p ishtirokchi : ${stats.presenceMax}
 
   CHAT
     yuborildi        : ${stats.messagesSent}
@@ -229,6 +267,12 @@ const main = async () => {
   if (p95Chat > 1000) problems.push(`chat kechikishi p95 = ${p95Chat} ms (chegara 1000)`);
   if (pct(stats.connectMs, 95) > 3000) problems.push('ulanish p95 > 3 sekund');
   if (stats.disconnects > USERS * 0.05) problems.push(`${stats.disconnects} ta kutilmagan uzilish`);
+
+  // Presence to'plami to'lmagan bo'lsa test o'zi ISHONCHSIZ: bu holda
+  // xonada da'vo qilingan sondan kam odam bo'lgan va broadcast narxi ham,
+  // JoinSession javobi ham haqiqiy yuklamani ko'rsatmagan.
+  if (stats.presenceMax < USERS * 0.9)
+    problems.push(`presence faqat ${stats.presenceMax}/${USERS} ishtirokchini ko'rdi`);
 
   if (problems.length === 0) {
     console.log(`  ✅ ${USERS} FOYDALANUVCHI MUAMMOSIZ KO'TARILDI\n`);

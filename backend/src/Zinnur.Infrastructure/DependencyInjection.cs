@@ -2,8 +2,10 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
+using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Infrastructure.Options;
@@ -36,6 +38,7 @@ public static class DependencyInjection
         AddOptions(services, configuration);
         AddPersistence(services, configuration);
         AddRedis(services, configuration);
+        AddStorage(services);
 
         // Token va parol xizmatlari holatsiz (stateless) — Singleton.
         // Har so'rovda qayta yaratish JWT kaliti va HMAC obyektlarini
@@ -94,6 +97,25 @@ public static class DependencyInjection
                      || LiveKitOptions.HasSupportedScheme(o.PublicUrl, "ws", "wss", "https"),
                 "LiveKit:PublicUrl `wss://` (prod) yoki `ws://` (dev) bo'lishi kerak — "
                 + "HTTPS sahifadan `ws://` ga ulanishni brauzer bloklaydi.")
+            .ValidateOnStart();
+
+        // OBYEKT OMBORI (R2/S3) — IXTIYORIY, lekin YARIM sozlash TAQIQ.
+        //
+        // Bo'sh bo'lsa ilova ko'tariladi va fayl yuklash 503 qaytaradi
+        // (o'quvchi matnli javob topshira oladi). Yarim to'ldirilgan bo'lsa
+        // esa ilova UMUMAN ko'tarilmaydi: aks holda xato faqat birinchi
+        // yuklashda — haqiqiy o'quvchi javob topshirayotganda — ko'rinardi.
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection(StorageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                o => !o.IsPartiallyConfigured,
+                "Storage:* yarim to'ldirilgan. TO'RTTASI ham kerak: "
+                + "ServiceUrl, Bucket, AccessKey, SecretKey (yoki hech qaysisi).")
+            .Validate(
+                o => o.HasValidServiceUrl,
+                "Storage:ServiceUrl absolyut http(s) manzil bo'lishi kerak "
+                + "(masalan `https://<account>.r2.cloudflarestorage.com`).")
             .ValidateOnStart();
     }
 
@@ -201,5 +223,27 @@ public static class DependencyInjection
 
         services.AddSingleton<ICacheService, RedisCacheService>();
         services.AddSingleton<IPresenceService, RedisPresenceService>();
+    }
+
+    /// <summary>
+    /// Uy vazifasi ilovalarini saqlash (Cloudflare R2 / S3).
+    ///
+    /// Servis HOLATSIZ (Singleton) — imzo har so'rovda qaytadan hisoblanadi.
+    /// `IHttpClientFactory` ishlatiladi: nomlangan klient socket'larni qayta
+    /// ishlatadi va DNS ni vaqti-vaqti bilan yangilaydi (bitta `static
+    /// HttpClient` esa DNS o'zgarganini hech qachon sezmaydi).
+    /// </summary>
+    private static void AddStorage(IServiceCollection services)
+    {
+        services.AddHttpClient(R2SubmissionStorage.HttpClientName, (provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<StorageOptions>>().Value;
+
+            // Timeout MAJBURIY: ombor javob bermay qolsa so'rov mangu
+            // osilib turardi va thread pool asta-sekin tugab borardi.
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 300));
+        });
+
+        services.AddSingleton<ISubmissionStorage, R2SubmissionStorage>();
     }
 }
