@@ -191,19 +191,97 @@ public class TestAttemptTests
 
     // ------------------------------------------------------------------ vaqt chegarasi
 
-    [Fact]
-    public void Deadline_WithoutTimeLimit_IsNull()
+    /// <summary>
+    /// Muddat hisobi uchun test: faqat ikkita maydon ahamiyatli —
+    /// <c>TimeLimitMinutes</c> va <c>DueAt</c>.
+    /// </summary>
+    private static Test TestWith(int? timeLimitMinutes, DateTimeOffset? dueAt) => new()
     {
-        NewAttempt().Deadline(null).Should().BeNull();
+        Id = 1,
+        Title = "Muddat testi",
+        TimeLimitMinutes = timeLimitMinutes,
+        DueAt = dueAt,
+    };
+
+    /// <summary>(e) Hech qanday chegara yo'q — urinish cheksiz ochiq.</summary>
+    [Fact]
+    public void Deadline_WithoutTimeLimitAndWithoutDueAt_IsNull()
+    {
+        NewAttempt().Deadline(TestWith(null, null)).Should().BeNull();
     }
 
+    /// <summary>(a) Faqat vaqt chegarasi: boshlanish + limit + tolerantlik.</summary>
     [Fact]
-    public void Deadline_WithTimeLimit_IncludesGracePeriod()
+    public void Deadline_WithTimeLimitOnly_IncludesGracePeriod()
     {
         var attempt = NewAttempt();
 
-        attempt.Deadline(30).Should()
+        attempt.Deadline(TestWith(30, dueAt: null)).Should()
             .Be(Started.AddMinutes(30).Add(Test.SubmitGracePeriod));
+    }
+
+    /// <summary>
+    /// (b) Faqat muddat: vaqt chegarasi yo'q bo'lsa ham urinish CHEKSIZ EMAS —
+    /// `DueAt` dan keyin `EnsureOpenForSubmission` baribir rad etadi, shuning
+    /// uchun taymer ham o'sha onni ko'rsatishi kerak.
+    /// </summary>
+    [Fact]
+    public void Deadline_WithDueAtOnly_UsesDueAt()
+    {
+        var due = Started.AddHours(2);
+
+        NewAttempt().Deadline(TestWith(timeLimitMinutes: null, due)).Should()
+            .Be(due.Add(Test.SubmitGracePeriod));
+    }
+
+    /// <summary>
+    /// ★ (c) ASOSIY BUG. 30 daqiqalik test, muddati boshlanishdan 5 daqiqa
+    /// keyin. Ilgari taymer 30 daqiqa ko'rsatardi, server esa 5-daqiqadan
+    /// keyingi topshirishni RAD ETARDI — o'quvchi ishini yo'qotardi.
+    /// </summary>
+    [Fact]
+    public void Deadline_WhenDueAtIsEarlierThanTimeLimit_UsesDueAt()
+    {
+        var due = Started.AddMinutes(5);
+
+        NewAttempt().Deadline(TestWith(30, due)).Should()
+            .Be(due.Add(Test.SubmitGracePeriod),
+                "muddat vaqt chegarasidan oldin kelsa — test o'sha yerda tugaydi");
+    }
+
+    /// <summary>
+    /// (d) Teskari holat: muddat uzoq, lekin o'quvchining shaxsiy vaqti
+    /// tugaydi. Bu yerda muddat urinishni UZAYTIRMASLIGI kerak.
+    /// </summary>
+    [Fact]
+    public void Deadline_WhenTimeLimitIsEarlierThanDueAt_UsesTimeLimit()
+    {
+        var due = Started.AddHours(5);
+
+        NewAttempt().Deadline(TestWith(30, due)).Should()
+            .Be(Started.AddMinutes(30).Add(Test.SubmitGracePeriod));
+    }
+
+    /// <summary>
+    /// Taymer va serverning "kech bo'ldi" qarori BIR ONDA ishlashi shart.
+    /// Aks holda o'quvchi taymerda vaqt bor deb turib 409 olardi.
+    /// </summary>
+    [Fact]
+    public void Deadline_MatchesTheMomentSubmissionStopsBeingAccepted()
+    {
+        var due = Started.AddMinutes(5);
+        var test = TestWith(30, due);
+        test.IsPublished = true;   // aks holda boshqa sabab bilan yiqilardi
+
+        var deadline = NewAttempt().Deadline(test)!.Value;
+
+        // Aynan deadline'da — hali qabul qilinadi.
+        test.Invoking(t => t.EnsureOpenForSubmission(deadline))
+            .Should().NotThrow();
+
+        // Bir soniya keyin — yopiq.
+        test.Invoking(t => t.EnsureOpenForSubmission(deadline.AddSeconds(1)))
+            .Should().Throw<DomainException>();
     }
 
     [Fact]

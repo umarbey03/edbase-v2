@@ -47,13 +47,46 @@ public class TestAttempt : BaseEntity
             : null;
 
     /// <summary>
-    /// Vaqt chegarasi qachon tugaydi. Chegara yo'q bo'lsa <c>null</c>.
-    /// Tolerantlik <see cref="Test.SubmitGracePeriod"/> shu yerda qo'shiladi.
+    /// Urinish qachon tugaydi — SERVER hisobi bo'yicha. Chegara yo'q bo'lsa <c>null</c>.
+    ///
+    /// IKKI mustaqil chegara bor va ERTAROG'I kuchda bo'ladi:
+    ///   • vaqt chegarasi  — <c>StartedAt + TimeLimitMinutes</c> (har o'quvchida boshqa);
+    ///   • topshirish muddati — <c>Test.DueAt</c> (butun guruhga bir xil).
+    ///
+    /// ★ NEGA IKKALASI: ilgari faqat vaqt chegarasi hisoblanardi va bu
+    ///   o'quvchining ishini YO'QOTARDI. Misol: test 30 daqiqalik, muddati
+    ///   18:00. O'quvchi 17:59 da boshlaydi -> klient taymeri 18:29 ni
+    ///   ko'rsatadi, lekin <c>Test.EnsureOpenForSubmission</c> 18:01 dagi
+    ///   topshirishni RAD ETADI. Ya'ni taymer server BERMAYDIGAN vaqtni
+    ///   va'da qilardi. Endi taymer 18:00 ni ko'rsatadi.
+    ///
+    /// Tolerantlik (<see cref="Test.SubmitGracePeriod"/>) eng oxirida
+    /// BIR MARTA qo'shiladi — `EnsureOpenForSubmission` ham aynan shunday
+    /// qiladi, ya'ni ikkala tekshiruv bir xil onda ishga tushadi va
+    /// "taymer tugadi, lekin server hali qabul qiladi" farqi qolmaydi.
+    ///
+    /// Testni PARAMETR sifatida olamiz (navigatsiya <see cref="Test"/> emas):
+    /// urinish ko'pincha `AsNoTracking` bilan alohida o'qiladi va navigatsiya
+    /// null bo'ladi — o'sha holda muddat JIMGINA yo'qolib ketardi.
     /// </summary>
-    public DateTimeOffset? Deadline(int? timeLimitMinutes) =>
-        timeLimitMinutes is { } limit
-            ? StartedAt.AddMinutes(limit).Add(Test.SubmitGracePeriod)
+    public DateTimeOffset? Deadline(Test test)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+
+        DateTimeOffset? byTimeLimit = test.TimeLimitMinutes is { } limit
+            ? StartedAt.AddMinutes(limit)
             : null;
+
+        DateTimeOffset? earliest = (byTimeLimit, test.DueAt) switch
+        {
+            ({ } byLimit, { } byDue) => byLimit <= byDue ? byLimit : byDue,
+            ({ } byLimit, null) => byLimit,
+            (null, { } byDue) => byDue,
+            _ => null,
+        };
+
+        return earliest?.Add(Test.SubmitGracePeriod);
+    }
 
     // ---------------------------------------------------------------- xatti-harakat
 

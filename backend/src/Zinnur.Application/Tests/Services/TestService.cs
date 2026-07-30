@@ -16,7 +16,8 @@ namespace Zinnur.Application.Tests.Services;
 /// Testlar use-case'i. Biznes qoidalari Domain'da va TAKROLANMAYDI:
 ///   • <c>Test.Validate()/Publish()</c>            — tuzilma tekshiruvi;
 ///   • <c>Test.EnsureOpenForSubmission()</c>       — MUDDAT (serverda!);
-///   • <c>TestAttempt.Deadline()</c>               — vaqt chegarasi;
+///   • <c>TestAttempt.Deadline(test)</c>           — vaqt chegarasi VA muddat
+///                                                   (ikkisidan ERTAROG'I);
 ///   • <c>TestQuestion.Score()</c>                 — baholash ("hammasi yoki hech nima");
 ///   • <c>TestAttempt.SubmitAnswers()/CloseByTimeout()</c> — urinishni yopish.
 ///
@@ -460,7 +461,7 @@ public sealed class TestService(
             // IDEMPOTENT: sahifa yangilangan yoki ikkinchi tab ochilgan.
             // AYNI urinish qaytadi — `StartedAt` O'ZGARMAYDI, aks holda
             // o'quvchi sahifani yangilab taymerni cheksiz uzaytira olardi.
-            return Describe(existing, test.TimeLimitMinutes);
+            return Describe(existing, test);
         }
 
         var attempt = new TestAttempt
@@ -490,10 +491,10 @@ public sealed class TestService(
                 .FirstOrDefaultAsync(a => a.TestId == testId && a.StudentId == studentId, ct)
                 ?? throw new ConflictException("Testni boshlash bajarilmadi. Qaytadan urinib ko'ring.");
 
-            return Describe(winner, test.TimeLimitMinutes);
+            return Describe(winner, test);
         }
 
-        return Describe(attempt, test.TimeLimitMinutes);
+        return Describe(attempt, test);
     }
 
     public async Task<TakeTestDto> GetForTakingAsync(
@@ -535,7 +536,7 @@ public sealed class TestService(
             test.DueAt,
             attempt.Id,
             attempt.StartedAt,
-            attempt.Deadline(test.TimeLimitMinutes),
+            attempt.Deadline(test),
             questions.Sum(q => q.Points),
             questions);
     }
@@ -684,11 +685,19 @@ public sealed class TestService(
     /// Muddat o'tgan bo'lsa urinish 0 ball bilan YOPILADI (Domain
     /// `CloseByTimeout`) — javobsiz "muzlab qolgan" urinish qolmasin, aks
     /// holda o'quvchi keyin qaytib kelib topshira olardi.
+    ///
+    /// ★ QOIDA BU YERDA TAKRORLANMAYDI. "Qachon kech bo'ldi" degan savolga
+    /// YAGONA javob — <c>TestAttempt.Deadline(test)</c>. U vaqt chegarasi
+    /// bilan `DueAt` dan ERTAROG'INI oladi, ya'ni klientga ko'rsatilgan
+    /// taymer bilan bu tekshiruv AYNAN bir xil ondan foydalanadi. Shart shu
+    /// yerda qo'lda yozilsa (masalan faqat `TimeLimitMinutes` bo'yicha)
+    /// ikkalasi ajralib ketardi va o'quvchi taymerda vaqt bor deb turib
+    /// 409 olardi.
     /// </summary>
     private async Task EnsureWithinTimeLimitAsync(
         TestAttempt attempt, Test test, DateTimeOffset now, CancellationToken ct)
     {
-        if (attempt.Deadline(test.TimeLimitMinutes) is not { } deadline || now <= deadline)
+        if (attempt.Deadline(test) is not { } deadline || now <= deadline)
             return;
 
         var maxScore = await db.TestQuestions
@@ -831,15 +840,21 @@ public sealed class TestService(
             .FirstOrDefaultAsync(ct)
         ?? throw new NotFoundException(nameof(TestQuestion), questionId);
 
-    private static StartAttemptDto Describe(TestAttempt attempt, int? timeLimitMinutes) => new(
+    /// <summary>
+    /// Urinish -> "boshlandi" javobi.
+    ///
+    /// Test BUTUNLIGICHA uzatiladi (faqat `TimeLimitMinutes` emas): muddat
+    /// hisobiga `DueAt` ham kiradi va uni yo'qotib qo'yish mumkin bo'lmasin.
+    /// </summary>
+    private static StartAttemptDto Describe(TestAttempt attempt, Test test) => new(
         attempt.Id,
         attempt.TestId,
         attempt.StartedAt,
 
         // Muddat SERVER hisobi bo'yicha (tolerantlik ichida) — klient
         // taymeri shunga sozlanadi.
-        attempt.Deadline(timeLimitMinutes),
-        timeLimitMinutes);
+        attempt.Deadline(test),
+        test.TimeLimitMinutes);
 
     private static MyResultDto Map(Test test, TestAttempt attempt) => new(
         test.Id,

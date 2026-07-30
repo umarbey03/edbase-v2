@@ -49,8 +49,42 @@ public class Test : BaseEntity
 
     public bool IsLessonTest => Kind == TestKind.Lesson && ModuleLessonId is not null;
 
-    /// <summary>Testning umumiy maksimal bali.</summary>
-    public decimal MaxScore => Questions.Sum(q => q.Points);
+    /// <summary>
+    /// Testning umumiy maksimal bali (savollar balining yig'indisi).
+    ///
+    /// ★ SAVOLSIZ TESTDA 0 EMAS, XATO QAYTADI.
+    ///
+    /// NEGA: <c>Questions</c> — navigatsiya to'plami. Test uni `Include`
+    /// qilmasdan o'qilgan bo'lsa to'plam BO'SH keladi va eski hisob JIMGINA
+    /// `0` qaytarardi. Ya'ni "ma'lumot yuklanmagan" va "testda savol yo'q"
+    /// bir xil qiymat berardi — Domain esa EF haqida hech narsa bilmagani
+    /// uchun ularni ajrata olmaydi.
+    ///
+    /// 0 ning narxi jimgina va katta: chaqiruvchi foizni `Score / MaxScore`
+    /// deb hisoblasa nolga bo'lish yoki `NaN` chiqadi, "o'tish bali"
+    /// tekshiruvi esa har doim "o'tdi" beradi. Bug BAHOda ko'rinadi —
+    /// sababidan uzoqda.
+    ///
+    /// Baland ovozda yiqilish bu yerda XAVFSIZ, chunki bo'sh test amalda
+    /// yechilmaydi: <see cref="Publish"/> savolsiz testni e'lon qildirmaydi.
+    /// Demak bo'sh to'plam deyarli har doim "yuklashni unutdim" degani.
+    ///
+    /// METOD EMAS, XOSSA bo'lib qoladi: EF konfiguratsiyasi uni
+    /// `builder.Ignore(t => t.MaxScore)` bilan ustunlardan chiqaradi va bu
+    /// ifoda XOSSA talab qiladi (metodga aylantirilsa o'sha satr
+    /// kompilyatsiya bo'lmaydi).
+    ///
+    /// DIQQAT — bu xossa EF SO'ROVI ichida ishlatilmaydi: Application qatlami
+    /// yig'indini BAZADA (`t.Questions.Sum(q => (decimal?)q.Points) ?? 0m`)
+    /// hisoblaydi. O'sha yerda savolsiz test HAQIQATAN 0 bo'lishi kerak —
+    /// ro'yxatda hali to'ldirilmagan qoralama ham ko'rinadi.
+    /// </summary>
+    /// <exception cref="DomainException">Savollar yuklanmagan yoki test bo'sh.</exception>
+    public decimal MaxScore => Questions.Count > 0
+        ? Questions.Sum(q => q.Points)
+        : throw new DomainException(
+            "Testning maksimal bali savolsiz hisoblanmaydi — "
+            + "savollar yuklanmagan bo'lishi mumkin (Include unutilgan).");
 
     // ---------------------------------------------------------------- xatti-harakat
 

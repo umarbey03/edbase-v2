@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -12,6 +13,7 @@ using Zinnur.Application.Common.Interfaces;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.WebApi;
+using Zinnur.WebApi.Controllers;
 using Zinnur.WebApi.Hubs;
 using Zinnur.WebApi.Middleware;
 using Zinnur.WebApi.Observability;
@@ -166,19 +168,74 @@ if (!string.IsNullOrWhiteSpace(redisConnection))
 // ---------------------------------------------------------------- rate limiting
 // Kirish endpointi parol topishga qarshi cheklanadi (eski tizimda bu
 // jarayon xotirasida edi va har server qayta ishga tushganda nolga qaytardi).
+//
+// ★ SIYOSATNI E'LON QILISH YETARLI EMAS. Bu yerda u FAQAT ro'yxatdan
+//   o'tadi; endpointga `[EnableRateLimiting(...)]` bilan biriktirilmasa
+//   HECH NARSA qilmaydi. Ilgari aynan shunday edi — siyosat bor, atribut
+//   yo'q, va bitta IP'dan 1500 ta kirish so'rovi to'siqsiz o'tgan.
+//   Endi nomlar `AuthController` dagi const'lar (satr xatosi bo'lmaydi),
+//   atributlar esa o'sha faylda — ikkalasi yonma-yon ko'rinadi.
+//
+// CHEGARA SOZLANADIGAN (`RateLimiting:Auth:*`): to'g'ri qiymat joylashuvga
+// bog'liq. Bitta maktab bitta NAT IP orqasida turadi va "IP = bitta odam"
+// farazi u yerda ishlamaydi. Noto'g'ri chegara yangi image yig'masdan,
+// konfiguratsiya bilan tuzatilsin.
+var authPermitLimit = PositiveSetting(
+    builder.Configuration, "RateLimiting:Auth:PermitLimit", defaultValue: 20);
+
+var authRefreshPermitLimit = PositiveSetting(
+    builder.Configuration, "RateLimiting:Auth:RefreshPermitLimit", defaultValue: 60);
+
+var authWindowSeconds = PositiveSetting(
+    builder.Configuration, "RateLimiting:Auth:WindowSeconds", defaultValue: 60);
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+    // Kirish — parol taxmin qilinadigan YAGONA joy.
+    //
+    // 20/daqiqa (ilgari 10). BCrypt WorkFactor=11 da bitta urinish ~120 ms,
+    // ya'ni hujumchi uchun 10 ham, 20 ham bir xil darajada umidsiz. Farq
+    // FOYDALANUVCHI tomonida: 10 talik budjet bilan bitta NAT orqasidagi
+    // sinf dars boshida o'zini o'zi bloklardi — bu hujum emas, oddiy ish
+    // kuni. Hisob darajasidagi (email bo'yicha) bloklash — keyingi qadam.
+    options.AddPolicy(AuthController.LoginRateLimitPolicy,
+        context => FixedWindowByIp(context, authPermitLimit, authWindowSeconds));
+
+    // Yangilash — boshqa tahdid modeli, kengroq budjet (izoh: AuthController).
+    options.AddPolicy(AuthController.RefreshRateLimitPolicy,
+        context => FixedWindowByIp(context, authRefreshPermitLimit, authWindowSeconds));
+});
+
+// IP bo'yicha qat'iy oyna (fixed window).
+static RateLimitPartition<string> FixedWindowByIp(
+    HttpContext context, int permitLimit, int windowSeconds) =>
+    RateLimitPartition.GetFixedWindowLimiter(
+
+        // DIQQAT: proksi orqasida bu proksining IP'si bo'ladi va hamma
+        // bitta bo'limga tushadi. `X-Forwarded-For` ni to'g'ri hisobga
+        // olish uchun `ForwardedHeaders` middleware kerak (ROADMAP);
+        // ishonchsiz header'ni shu yerda o'qish esa cheklovni bitta
+        // qalbaki qator bilan chetlab o'tish imkonini berardi.
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
-            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromSeconds(windowSeconds),
+
+            // Navbat YO'Q: oshgan so'rov kutmaydi, darhol 429 oladi. Navbat
+            // bo'lsa hujumchining so'rovlari server resurslarini ushlab
+            // turib, cheklovning o'zi DoS vositasiga aylanardi.
             QueueLimit = 0,
-        }));
-});
+        });
+
+// Musbat butun sonli sozlama; yo'q yoki buzuq bo'lsa — standart qiymat.
+static int PositiveSetting(IConfiguration configuration, string key, int defaultValue) =>
+    int.TryParse(configuration[key], NumberStyles.Integer, CultureInfo.InvariantCulture,
+        out var value) && value > 0
+        ? value
+        : defaultValue;
 
 // ---------------------------------------------------------------- MVC + hujjat
 builder.Services
