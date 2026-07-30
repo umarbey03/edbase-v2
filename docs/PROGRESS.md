@@ -463,3 +463,47 @@ submission.Resubmit(...) // QAYTA topshirish (AllowResubmit talab qiladi)
 
 Endi chaqiruvchi nima qilayotganini aniq bildiradi va `Id` ga tayanish yo'q.
 Bu — testlarning kodni yaxshilashga majburlashining tipik misoli.
+
+---
+
+## ✅ FAZA 2.2/2.3 — Guruhlar + jadval — **TASDIQLANDI**
+
+`Application/Groups/` (4 fayl) · `Application/Scheduling/` (4 fayl) ·
+`GroupsController.cs` · migratsiya `AddGroupScheduleRuleAndMemberPause`
+
+### Jonli tekshiruv natijalari
+
+```
+POST /api/v1/groups  (dush+chor, 19:00, 80 daq, 8 oy)
+  -> 69 dars generatsiya qilindi
+
+Jadval to'g'riligi:
+  2026-09-02 14:00Z = Toshkent 19:00 (Wed)  80 daq  ATF-2026 — 1-dars
+  2026-09-07 14:00Z = Toshkent 19:00 (Mon)  80 daq  ATF-2026 — 2-dars
+  ...
+  ✅ faqat dush/chor, aynan 19:00 Toshkent, 80 daqiqa, ketma-ket raqamlangan
+```
+
+### ★ Regeneratsiya qoidasi — eski tizim buzgan xatti-harakat
+
+| Sinov | Natija |
+|---|---|
+| Faqat **nom** o'zgardi | ✅ dars ID'lari `2,3,4,5,6` **o'zgarmadi** |
+| **Hafta kunlari** o'zgardi | ✅ o'tilgan (`Ended`) dars **saqlandi**, kelajakdagilar Sesh/Pay ga qayta tuzildi |
+
+Eski tizimda regeneratsiya **shartsiz** ishlardi: kursni yoki kuratorni
+almashtirsangiz ham butun kelajak jadval o'chib qayta yaratilardi, dars
+ID'lari o'zgarib tashqi havolalar buzilardi.
+
+### Baza xaritalashi tasdiqlandi
+```
+Weekdays        : ARRAY _int4        ← integer[], JSON EMAS (to'g'ri)
+StartTime       : time without time zone
+Type            : integer
+CuratorGroupId  : bigint
+```
+
+### Agentga qaytarilgan ikki ish
+1. Unit + integratsiya testlari yozilmagan (test soni o'zgarmagan: 206 + 19)
+2. `PUT /groups/{id}` javobida `scheduleTouched`/`regenerated`/`hostsUpdated`
+   xulosasi ko'rinmadi — chaqiruvchi nima bo'lganini bilishi kerak
