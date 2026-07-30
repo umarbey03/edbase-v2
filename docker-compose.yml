@@ -177,6 +177,21 @@ services:
 
     # Image'ning ENTRYPOINT'i `livekit-server`, shuning uchun bu yerda faqat
     # argumentlar. `--config` — mount qilingan yaml.
+    # `--node-ip 127.0.0.1` — FAQAT LOKAL ISHLAB CHIQISH UCHUN.
+    #
+    # NIMA UCHUN KERAK: `livekit.yaml` da `use_external_ip: true` turadi —
+    # bu PRODUCTION uchun to'g'ri. Lekin lokal mashinada LiveKit o'zining
+    # OQ IP'sini (masalan 185.x.x.x) aniqlab, ICE nomzodlarida shuni
+    # e'lon qiladi. Brauzer esa o'sha oq IP:7882 ga UDP yuborishga urinadi,
+    # holbuki konteyner faqat `localhost:7882` orqali ochiq.
+    #
+    # Natija o'zini YASHIRADI: xona ochiladi, ishtirokchilar ro'yxati to'ladi,
+    # lekin OVOZ VA VIDEO KELMAYDI. Bu self-hosted LiveKit'dagi eng ko'p
+    # uchraydigan va topish qiyin nosozlik.
+    #
+    # `--node-ip` ni aniq ko'rsatib, avtomatik aniqlashni chetlab o'tamiz.
+    # PRODUCTION'da bu YO'Q — u yerda `network_mode: host` ishlatiladi
+    # (docker-compose.prod.yml) va server haqiqiy IP'sini o'zi ko'radi.
     command: ["--config", "/etc/livekit/livekit.yaml"]
 
     environment:
@@ -187,6 +202,29 @@ services:
       # LIVEKIT_KEYS fayldagi `keys:` blokini BUTUNLAY almashtiradi.
       # Format qat'iy YAML: "<kalit>: <sir>" — ikki nuqtadan keyin PROBEL SHART.
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+
+      # ---- FAQAT LOKAL ISHLAB CHIQISH UCHUN ICE SOZLAMALARI ----
+      #
+      # MUAMMO: `livekit.yaml` PRODUCTION uchun `use_external_ip: true` bilan
+      # yozilgan — server o'zining OQ IP'sini aniqlab, ICE nomzodlarida shuni
+      # e'lon qilishi kerak. Lekin lokal mashinada bu NOTO'G'RI: LiveKit
+      # oq IP'ni (masalan 185.x.x.x) e'lon qiladi, brauzer esa o'sha manzilga
+      # UDP yuborishga urinadi, holbuki konteyner faqat `localhost:7882` da.
+      #
+      # Natija o'zini YASHIRADI — xona ochiladi, ishtirokchilar ro'yxati
+      # to'ladi, lekin OVOZ VA VIDEO KELMAYDI. Bu self-hosted LiveKit'dagi
+      # eng ko'p uchraydigan va topish qiyin nosozlik.
+      #
+      # NEGA ENV, ALOHIDA YAML EMAS: ikki konfiguratsiya fayli vaqt o'tib
+      # bir-biridan uzoqlashadi va "mening mashinamda ishlaydi" holati
+      # tug'iladi. LiveKit har sozlama uchun env o'zgaruvchisi beradi, shuning
+      # uchun bitta fayl qoladi va dev faqat kerakli ikkitasini o'zgartiradi.
+      #
+      # PRODUCTION'da bu uchtasi YO'Q — `docker-compose.prod.yml`
+      # `network_mode: host` ishlatadi va server haqiqiy IP'sini o'zi ko'radi.
+      NODE_IP: 127.0.0.1
+      LIVEKIT_RTC_USE_EXTERNAL_IP: "false"
+      LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE: "true"
       TZ: ${TZ}
 
     ports:

@@ -35,6 +35,26 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
+    // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
+
+    public DbSet<Assignment> Assignments => Set<Assignment>();
+
+    public DbSet<Submission> Submissions => Set<Submission>();
+
+    public DbSet<SubmissionFile> SubmissionFiles => Set<SubmissionFile>();
+
+    public DbSet<Test> Tests => Set<Test>();
+
+    public DbSet<TestQuestion> TestQuestions => Set<TestQuestion>();
+
+    public DbSet<TestOption> TestOptions => Set<TestOption>();
+
+    public DbSet<TestAttempt> TestAttempts => Set<TestAttempt>();
+
+    public DbSet<TestAnswer> TestAnswers => Set<TestAnswer>();
+
+    public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

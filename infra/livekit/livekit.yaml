@@ -82,8 +82,20 @@ rtc:
   # external_ip: "203.0.113.10"
   use_external_ip: true
 
-  # 127.0.0.1 nomzodlarini e'lon qilmaslik. Ular boshqa mashinada hech qachon
-  # ishlamaydi, faqat ICE tekshiruvini uzaytiradi (ulanish sekinlashadi).
+  # 127.0.0.1 nomzodlari.
+  #
+  # PRODUCTION'da bu `false` bo'lishi kerak: loopback nomzodi boshqa mashinada
+  # hech qachon ishlamaydi va faqat ICE tekshiruvini uzaytiradi.
+  #
+  # LEKIN lokal ishlab chiqishda brauzer ham, LiveKit ham BIR mashinada —
+  # loopback yagona ishlaydigan yo'l. `docker-compose.yml` da
+  # `--node-ip 127.0.0.1` berilgani uchun bu YOQIQ bo'lishi shart, aks holda
+  # nomzod filtrlanib, media umuman kelmaydi.
+  #
+  # BU FAYL PRODUCTION UCHUN. Lokal ishlab chiqishda `docker-compose.yml`
+  # buni env orqali (`LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE=true`) ustidan
+  # yozadi — shu tufayli dev va prod uchun IKKI ALOHIDA fayl kerak emas va
+  # ular bir-biridan uzoqlashib ketmaydi.
   enable_loopback_candidate: false
 
   # ICE-lite O'CHIRIQ (ataylab).

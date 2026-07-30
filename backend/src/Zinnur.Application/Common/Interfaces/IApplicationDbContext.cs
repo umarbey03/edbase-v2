@@ -20,5 +20,17 @@ public interface IApplicationDbContext
     DbSet<Attendance> Attendances { get; }
     DbSet<ChatMessage> ChatMessages { get; }
 
+    // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
+
+    DbSet<Assignment> Assignments { get; }
+    DbSet<Submission> Submissions { get; }
+    DbSet<SubmissionFile> SubmissionFiles { get; }
+    DbSet<Test> Tests { get; }
+    DbSet<TestQuestion> TestQuestions { get; }
+    DbSet<TestOption> TestOptions { get; }
+    DbSet<TestAttempt> TestAttempts { get; }
+    DbSet<TestAnswer> TestAnswers { get; }
+    DbSet<LessonProgress> LessonProgress { get; }
+
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

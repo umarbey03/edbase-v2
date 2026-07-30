@@ -64,9 +64,25 @@ services:
     ports: !reset null
 
     environment:
+      # ⚠️ DEV OVERRIDE'LARINI BEKOR QILAMIZ — bu MAJBURIY.
+      #
+      # `docker-compose.yml` (dev) LiveKit'ga `NODE_IP=127.0.0.1` va
+      # `LIVEKIT_RTC_USE_EXTERNAL_IP=false` beradi, chunki lokal mashinada
+      # brauzer ham LiveKit ham bir joyda. Compose overlay'lari env'ni
+      # BIRLASHTIRADI, ya'ni bu qiymatlar prod'ga ham o'tib ketardi.
+      #
+      # Production'da bu HALOKAT bo'lardi: LiveKit masofadagi brauzerlarga
+      # `127.0.0.1` ni ICE nomzodi sifatida e'lon qilardi va media HECH QACHON
+      # ishlamasdi — yana o'sha "xona ochiladi, ovoz yo'q" holati.
+      #
+      # `!reset` bilan ularni butunlay olib tashlaymiz (compose v2.24+).
+      NODE_IP: !reset null
+      LIVEKIT_RTC_USE_EXTERNAL_IP: !reset null
+      LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE: !reset null
+
       # Host tarmog'ida LiveKit serverning tashqi IP'sini o'zi aniqlaydi.
-      # Agar server NAT orqasida bo'lsa (masalan bulutli provayder), oq IP'ni
-      # aniq ko'rsating — aks holda yana ichki IP e'lon qilinadi.
+      # Agar server NAT orqasida bo'lsa (bulutli provayder), oq IP'ni ANIQ
+      # ko'rsating — aks holda yana ichki IP e'lon qilinadi.
       LIVEKIT_NODE_IP: ${SERVER_PUBLIC_IP:-}
 
     deploy:

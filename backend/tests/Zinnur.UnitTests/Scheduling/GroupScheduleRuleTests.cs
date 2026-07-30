@@ -163,9 +163,10 @@ public class GroupScheduleRuleTests
     }
 
     [Theory]
-    [InlineData(0)]
+    [InlineData(-1)]
     [InlineData(Group.MinCourseMonths - 1)]
     [InlineData(Group.MaxCourseMonths + 1)]
+    [InlineData(240)]
     public void Validate_WithCourseMonthsOutOfRange_Throws(int courseMonths)
     {
         var group = NewGroup(courseMonths: courseMonths);
@@ -224,7 +225,7 @@ public class GroupScheduleRuleTests
 
         var validate = () => group.ValidateScheduleRule();
 
-        validate.Should().Throw<DomainException>().WithMessage("*kurator*");
+        validate.Should().Throw<DomainException>().WithMessage("*kurator (yordamchi)*");
     }
 
     [Fact]

@@ -507,3 +507,75 @@ CuratorGroupId  : bigint
 1. Unit + integratsiya testlari yozilmagan (test soni o'zgarmagan: 206 + 19)
 2. `PUT /groups/{id}` javobida `scheduleTouched`/`regenerated`/`hostsUpdated`
    xulosasi ko'rinmadi — chaqiruvchi nima bo'lganini bilishi kerak
+
+---
+
+## ✅ LiveKit — o'z serverimizda (self-hosted) TASDIQLANDI
+
+```
+Образ    : livekit/livekit-server:v1.8  (bulutga bog'liqlik YO'Q)
+Portlar  : 7880/tcp (WS+API) · 7881/tcp (RTC zaxira) · 7882/udp (media mux) · 3478/udp (TURN)
+Konfig   : infra/livekit/livekit.yaml — 405 satr, max_participants: 250
+Signalling: /rtc/validate -> "success" (soxta token 401)
+```
+
+### ⚠️ Topilgan va tuzatilgan ICE muammosi
+
+Loglar aynan men ogohlantirgan nosozlikni ko'rsatdi:
+
+```
+could not validate external IP {"ip": "185.213.230.94"}
+no external IPs found, using node IP for NAT1To1Ips {"ip": "185.213.230.94"}
+```
+
+LiveKit lokal mashinada **oq IP'ni** ICE nomzodi sifatida e'lon qilardi.
+Brauzer o'sha manzilga UDP yuborishga urinardi, holbuki konteyner faqat
+`localhost:7882` da ochiq. Natija: **xona ochiladi, ro'yxat to'ladi, ovoz
+va video KELMAYDI** — self-hosted LiveKit'dagi eng ko'p uchraydigan va
+topish qiyin nosozlik.
+
+**Yechim (dev):** `docker-compose.yml` da env orqali
+```
+NODE_IP=127.0.0.1
+LIVEKIT_RTC_USE_EXTERNAL_IP=false
+LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE=true
+```
+Natija: `nodeIP: 127.0.0.1` ✓
+
+**Nima uchun env, alohida yaml emas:** ikki konfiguratsiya fayli vaqt o'tib
+bir-biridan uzoqlashadi va "mening mashinamda ishlaydi" holati tug'iladi.
+LiveKit har sozlama uchun env o'zgaruvchisi beradi (`help-verbose` bilan
+topildi), shuning uchun bitta fayl qoldi.
+
+### ⚠️ Yo'l-yo'lakay O'ZIM kiritgan bug — darhol tuzatildi
+
+Compose overlay'lari `environment` ni **birlashtiradi**, ya'ni dev
+override'lari `docker-compose.prod.yml` ga ham o'tib ketgan edi.
+Production'da `NODE_IP=127.0.0.1` **halokat** bo'lardi: LiveKit masofadagi
+brauzerlarga loopback manzilini e'lon qilardi va media hech qachon ishlamasdi.
+
+Prod overlay endi ularni `!reset null` bilan bekor qiladi. Tasdiqlash:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config \
+  | grep -E "NODE_IP|USE_EXTERNAL"
+# faqat LIVEKIT_NODE_IP: "" ko'rinadi ✓
+```
+
+### Hali isbotlanmagan
+Ikki brauzer ochib **haqiqiy media oqimi** sinalmagan. Signalling ishlaydi,
+lekin bu media kelishini kafolatlamaydi — aynan shu farq yuqoridagi
+nosozlikni shunday xavfli qiladi.
+
+---
+
+## 📋 SESSIYA TUGADI — kontekst chegarasi
+
+Yangi sessiya uchun to'liq topshiriq: **`docs/DAVOM_ETTIRISH.md`**
+
+Unda: holatni tiklash buyruqlari, tugallanmagan ishlar, build/test
+buyruqlari, analizator tuzoqlari, 3 ta "mina" (DayOfWeek konvensiyasi,
+LiveKit ICE, test konfiguratsiyasi) va isbotlanmagan da'volar ro'yxati.
+
+**Faza 3 Application/API agenti ishni BOSHLAMAGAN** (0 fayl) — kontekst
+tugagani uchun. Domain tayyor va testlangan, faqat Application + WebApi +
+migratsiya qoldi.
