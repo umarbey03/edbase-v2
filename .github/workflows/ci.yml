@@ -121,10 +121,42 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      # ----------------------------------------------------------------------
+      # MINIO — obyekt ombori (S3-mos), fayl testlari uchun.
+      #
+      # NIMA UCHUN `services:` BLOKIDA EMAS: GitHub Actions xizmat
+      # konteyneriga BUYRUQ ARGUMENTI bera olmaydi, MinIO esa `server /data`
+      # argumentisiz faqat yordam matnini chiqarib to'xtaydi. Shuning uchun
+      # oddiy qadam sifatida ko'tariladi.
+      #
+      # NIMA UCHUN UMUMAN KERAK: `SubmissionFileStorageTests` SigV4 imzosini,
+      # path-style URL'ni va oqim bilan o'qishni HAQIQIY ombor bilan
+      # tekshiradi. Soxta ombor bularning hammasini "to'g'ri" deb qabul
+      # qilardi — aynan shu joyda `host` sarlavhasidagi port yo'qligi bugi
+      # tutilgan edi.
+      # ----------------------------------------------------------------------
+      - name: MinIO (fayl ombori)
+        run: |
+          docker run -d --name zinnur-ci-minio \
+            -p 9010:9000 \
+            -e MINIO_ROOT_USER=zinnur_dev_minio \
+            -e MINIO_ROOT_PASSWORD=zinnur_dev_minio_secret \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:9010/minio/health/live >/dev/null 2>&1 && break
+            sleep 2
+          done
+
+          docker run --rm --network host \
+            -e MC_HOST_zinnur=http://zinnur_dev_minio:zinnur_dev_minio_secret@localhost:9010 \
+            minio/mc:RELEASE.2025-08-13T08-35-41Z \
+            mb --ignore-existing zinnur/zinnur-dev
+
       - name: Integratsiya testlari
         working-directory: backend
         env:
-          # ZinnurApiFactory SHU IKKI o'zgaruvchini o'qiydi. Qolgan sozlamalarni
+          # ZinnurApiFactory SHU o'zgaruvchilarni o'qiydi. Qolgan sozlamalarni
           # (Jwt, LiveKit) factory o'zi `UseSetting` orqali beradi — shuning uchun
           # ular bu yerda takrorlanmaydi (DRY).
           #
@@ -132,6 +164,13 @@ jobs:
           # yaratadi va tugagach o'chiradi; bu esa ulanish uchun bosh baza.
           TEST_POSTGRES: "Host=localhost;Port=5432;Database=postgres;Username=zinnur;Password=zinnur"
           TEST_REDIS: "localhost:6379"
+
+          # Ombor: `StorageBackedApiFactory` shu manzilni ishlatadi.
+          # Kalitlar yuqoridagi konteyner bilan BIR XIL bo'lishi shart.
+          TEST_STORAGE_URL: "http://localhost:9010"
+          TEST_STORAGE_BUCKET: "zinnur-dev"
+          TEST_STORAGE_ACCESS_KEY: "zinnur_dev_minio"
+          TEST_STORAGE_SECRET_KEY: "zinnur_dev_minio_secret"
         run: |
           if ls tests/Zinnur.IntegrationTests/*.csproj >/dev/null 2>&1; then
             dotnet test tests/Zinnur.IntegrationTests/Zinnur.IntegrationTests.csproj -c Release

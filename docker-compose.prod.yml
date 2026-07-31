@@ -158,6 +158,33 @@ services:
           memory: 1500M
 
   # ==========================================================================
+  # MINIO — PROD'DA ISHLAMAYDI
+  # ==========================================================================
+  #  Dev'da MinIO obyekt ombori vazifasini bajaradi. Prod'da esa fayllar
+  #  Cloudflare R2 da yotadi va MinIO KERAK EMAS: u serverning diskini,
+  #  xotirasini va (eng yomoni) ikkita ochiq portini bekorga band qilardi.
+  #
+  #  IKKI QATLAMLI TO'SIQ — ataylab:
+  #    1) `profiles` — xizmat faqat ATAYLAB so'ralganda ishga tushadi;
+  #       oddiy `docker compose up` uni umuman ko'rmaydi;
+  #    2) portlar `127.0.0.1` ga bog'langan — kimdir profilni tasodifan
+  #       yoqib yuborsa ham ombor internetdan OCHIQ bo'lib qolmaydi.
+  #
+  #  Bir qatlam yetarli emas: Docker'ning published portlari UFW qoidalarini
+  #  CHETLAB O'TADI, ya'ni "keyin firewall bilan yopamiz" ishlamaydi.
+  # ==========================================================================
+  minio:
+    profiles: ["dev-only"]
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
+
+  minio-init:
+    profiles: ["dev-only"]
+    logging: *default-logging
+
+  # ==========================================================================
   # API
   # ==========================================================================
   api:
@@ -168,6 +195,38 @@ services:
 
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+
+      # ---- OBYEKT OMBORI: DEV MinIO QIYMATLARI SHU YERDA O'LADI ----------
+      #
+      # ⚠️ BU BLOK MAJBURIY. Compose overlay'lari `environment` ni
+      # BIRLASHTIRADI (almashtirmaydi): `docker-compose.yml` dagi
+      # `Storage__ServiceUrl: http://minio:9000` shu yerda qayta
+      # yozilmasa, PROD api mavjud bo'lmagan MinIO'ga murojaat qilardi va
+      # o'quvchining har bir fayli 503 bilan yo'qolardi.
+      #
+      # Bu loyihada aynan shunday bug bir marta bo'lgan: dev LiveKit
+      # sozlamalari (`NODE_IP=127.0.0.1`) prod'ga o'tib ketib, media umuman
+      # ishlamagan edi. Shuning uchun dev va prod o'zgaruvchilari ATAYLAB
+      # boshqa-boshqa nomlanadi (`STORAGE_*` va `R2_*`) — bir xil nom
+      # ishlatilsa, "ustidan yozdim" degan ishonch soxta bo'lardi.
+      #
+      # TEKSHIRISH (dev qiymati oqib o'tmaganiga ishonch hosil qilish):
+      #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+      #     config | grep -i storage
+      # Chiqishda `minio` so'zi UMUMAN bo'lmasligi kerak.
+      #
+      # `R2_*` bo'sh bo'lsa to'rttasi ham bo'sh bo'ladi => ombor
+      # "sozlanmagan" holatga tushadi va fayl yuklash OCHIQ 503 beradi
+      # (yarim sozlangan holatda esa ilova umuman ko'tarilmaydi).
+      Storage__ServiceUrl: ${R2_SERVICE_URL:-}
+      Storage__Bucket: ${R2_BUCKET:-}
+      Storage__AccessKey: ${R2_ACCESS_KEY:-}
+      Storage__SecretKey: ${R2_SECRET_KEY:-}
+      Storage__Region: ${R2_REGION:-auto}
+      # Prefiks sir emas, lekin u ham DEV faylidan meros qolmasin —
+      # "bitta blok, oltita kalit" qoidasi buzilsa, keyingi safar
+      # yangi kalit qo'shilganda aynan shu yerda unutilardi.
+      Storage__KeyPrefix: ${R2_KEY_PREFIX:-submissions}
       # Server GC: ko'p yadroli serverda o'tkazuvchanlikni sezilarli oshiradi.
       # Konteynerda default Workstation GC bo'lib qolishi mumkin.
       DOTNET_gcServer: "1"

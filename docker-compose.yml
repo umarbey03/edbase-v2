@@ -165,6 +165,103 @@ services:
     networks: [zinnur-v2-net]
 
   # ===========================================================================
+  #  MINIO — obyekt ombori (S3-mos), FAQAT ISHLAB CHIQISH UCHUN
+  # ===========================================================================
+  #  NIMA UCHUN KERAK: o'quvchi vazifaga rasm/ovoz biriktiradi. Prod'da bu
+  #  fayllar Cloudflare R2 da yotadi, lekin dev mashinada R2 yo'q — natijada
+  #  fayl yuklash lokal muhitda UMUMAN sinab ko'rilmasdi va nosozlik faqat
+  #  prod'da, haqiqiy o'quvchi javob topshirayotganda chiqardi.
+  #
+  #  NIMA UCHUN AYNAN MINIO: u R2 bilan BIR XIL protokolni (S3 + SigV4,
+  #  path-style URL) gapiradi. Ya'ni `R2SubmissionStorage` ning AYNI kod
+  #  yo'li dev'da ham, prod'da ham ishlaydi — o'zgaradigan narsa faqat
+  #  `Storage:*` qiymatlari. "Dev uchun alohida fayl ombori" yozilganda esa
+  #  ikki yo'l vaqt o'tib bir-biridan uzoqlashardi va dev'dagi yashil natija
+  #  hech nimani isbotlamasdi.
+  #
+  #  PROD'DA BU XIZMAT ISHLAMAYDI — docker-compose.prod.yml uni o'chiradi
+  #  va `Storage:*` ni R2 qiymatlari bilan QAYTA yozadi.
+  # ===========================================================================
+  minio:
+    # Sana bilan PIN QILINGAN: `latest` bir kun ertalab jimgina yangilanib,
+    # sabab ko'rsatmasdan buziladigan yagona narsa bo'lib qolardi.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: zinnur-v2-minio
+    restart: unless-stopped
+
+    # Image ENTRYPOINT'i faqat kirish nuqtasi; server buyrug'i shu yerda.
+    command: ["server", "/data", "--console-address", ":9001"]
+
+    environment:
+      # Ildiz kaliti = api ishlatadigan `Storage:AccessKey`/`SecretKey`.
+      # Bitta manbadan (.env) olinadi — mos kelmay qolib "SignatureDoesNotMatch"
+      # bermasin (bu xatoni topish juda azob, chunki sabab ko'rinmaydi).
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+      TZ: ${TZ}
+
+    ports:
+      # 9010/9011 — 9000/9001 EMAS: mashinada boshqa loyihaning MinIO'si
+      # (govori-minio) allaqachon 9000/9001 ni egallagan.
+      #   9010 -> S3 API (imzolangan so'rovlar shu yerga tushadi)
+      #   9011 -> veb konsol (brauzerda bucket'ni ko'rish uchun)
+      - "9010:9000"
+      - "9011:9001"
+
+    volumes:
+      - minio-data:/data
+
+    healthcheck:
+      # MinIO'ning o'z sog'liq yo'li. Image ichida `curl` bor.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
+  #  MINIO-INIT — bucket yaratadi va O'CHADI (bir martalik qadam)
+  # ===========================================================================
+  #  NEGA ALOHIDA KONTEYNER: MinIO bucket'ni o'zi yaratmaydi, api esa uni
+  #  yaratmasligi KERAK — prod'da (R2) api'da bucket yaratish huquqi yo'q va
+  #  bo'lmasligi ham kerak. Bucket — infratuzilma, kod emas.
+  #
+  #  `restart: "no"` — vazifa bajarilgach konteyner "Exited (0)" bo'lib qoladi,
+  #  bu NORMAL holat.
+  # ===========================================================================
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: zinnur-v2-minio-init
+    restart: "no"
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set zinnur http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing "zinnur/$${STORAGE_BUCKET}"
+        # ⚠️ ANONIM KIRISH ATAYLAB BERILMAYDI (`mc anonymous set download` YO'Q).
+        # Eski tizimning X-6 kamchiligi aynan shu edi: `/media` katalogi
+        # ochiq bo'lib, havolani bilgan har kim o'quvchining ishini ko'rardi.
+        # Fayl FAQAT `GET /api/v1/submissions/files/{id}` orqali, ruxsat
+        # tekshirilgandan keyin beriladi.
+        mc anonymous set none "zinnur/$${STORAGE_BUCKET}" || true
+        echo "minio: bucket '$${STORAGE_BUCKET}' tayyor (xususiy)"
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
   #  LIVEKIT — SFU (video/audio)
   # ===========================================================================
   #  Eng og'ir xizmat. 200 ishtirokchi uchun sozlash sirlari
@@ -334,6 +431,45 @@ services:
       Cors__AllowedOrigins__0: ${CORS_ORIGIN_0}
       Cors__AllowedOrigins__1: ${CORS_ORIGIN_1}
 
+      # ---- OBYEKT OMBORI (vazifa fayllari) --------------------------------
+      # DEV: MinIO (yuqoridagi xizmat). PROD: Cloudflare R2 — qiymatlar
+      # docker-compose.prod.yml da QAYTA yoziladi, chunki compose overlay'lari
+      # `environment` ni BIRLASHTIRADI va bu qatorlar aks holda prod'ga ham
+      # o'tib ketardi (LiveKit bilan bir marta shunday bo'lgan).
+      #
+      # ServiceUrl ICHKI docker DNS nomi — `http://minio:9000`. Host'dagi
+      # 9010 porti EMAS: imzo (SigV4) HOST bilan bog'langan va konteyner
+      # ichidan `localhost:9010` ga umuman chiqib bo'lmaydi.
+      #
+      # ⚠️ TO'RTTASI HAM bo'lishi yoki HECH QAYSISI bo'lmasligi kerak:
+      # yarim to'ldirilgan `Storage:*` da ilova ATAYLAB ko'tarilmaydi
+      # (`StorageOptions` + `ValidateOnStart`).
+      Storage__ServiceUrl: ${STORAGE_SERVICE_URL}
+      Storage__Bucket: ${STORAGE_BUCKET}
+      Storage__AccessKey: ${STORAGE_ACCESS_KEY}
+      Storage__SecretKey: ${STORAGE_SECRET_KEY}
+      Storage__Region: ${STORAGE_REGION}
+      Storage__KeyPrefix: ${STORAGE_KEY_PREFIX}
+
+      # ---- Telegram (FAZA 5.1) --------------------------------------------
+      # O'quvchilar uchun YAGONA kirish yo'li. Dev'da odatda BO'SH: u holda
+      # webhook 404 qaytaradi, Mini App kirishi 503 beradi va xabarlar
+      # navbatdan logga tushadi — ya'ni ilova ODATDAGIDEK ishlaydi.
+      #
+      # ⚠️ `BotToken` va `WebhookSecret` JUFT: bittasi to'ldirilib ikkinchisi
+      # bo'sh qolsa ilova ATAYLAB ko'tarilmaydi (`ValidateOnStart`). Sabab —
+      # sirsiz webhook internetga OCHIQ qolardi: har kim soxta "yangilanish"
+      # yuborib bot nomidan ish qildira olardi.
+      Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      Telegram__WebhookSecret: ${TELEGRAM_WEBHOOK_SECRET:-}
+      Telegram__MiniAppUrl: ${TELEGRAM_MINI_APP_URL:-}
+      Telegram__BotUsername: ${TELEGRAM_BOT_USERNAME:-}
+
+      # ---- Notifikatsiya navbati (FAZA 5.2) -------------------------------
+      # Telegram global chegarasi 30 xabar/sekund. 25 — ataylab pastroq:
+      # chegaraga tegib 429 olgandan ko'ra sal sekin yuborgan afzal.
+      Notifications__RateLimit__PerSecond: ${NOTIFY_RATE_PER_SECOND:-25}
+
       # ---- .NET ish faoliyati ---------------------------------------------
       # Server GC: ko'p yadroli, yuqori o'tkazuvchanlikli rejim. ASP.NET uchun
       # odatda sukut bo'yicha yoqiq, lekin konteynerda ba'zan Workstation GC
@@ -367,6 +503,13 @@ services:
         # bog'liq emas (token imzolash offline amal). Video kechroq
         # tayyor bo'lsa ham login/jadval ishlayveradi.
         condition: service_started
+
+      # ⚠️ `minio` ATAYLAB YO'Q. Ikki sabab:
+      #   1) api ishga tushishda omborga umuman tegmaydi — HTTP klient
+      #      birinchi fayl so'ralganda yaratiladi;
+      #   2) PROD'da bu xizmat butunlay o'chirilgan (u yerda R2 ishlatiladi).
+      #      Bog'liqlik yozilsa, prod'da api mavjud bo'lmagan xizmatni
+      #      kutib turib, umuman ko'tarilmasdi.
 
     healthcheck:
       # SPEC 5: /health/ready — baza va redis ulanishini ham tekshiradi.
@@ -447,3 +590,7 @@ volumes:
     name: zinnur-v2-livekit-data
   dataprotection-keys:
     name: zinnur-v2-dataprotection-keys
+  # Dev fayl ombori. `docker compose down` da SAQLANADI — sinov uchun
+  # yuklangan rasmlar har restartda yo'qolib ketmasin.
+  minio-data:
+    name: zinnur-v2-minio-data
