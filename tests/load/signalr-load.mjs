@@ -33,6 +33,7 @@
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pickTarget, ensureUsers, issueTokens } from './seed.mjs';
 
@@ -70,6 +71,22 @@ const stats = {
   messagesReceived: 0,
   rateLimited: 0,
 
+  /**
+   * ★ SIMDA KELDI ≠ EKRANDA KO'RINDI.
+   *
+   * Bu o'lchov ATAYLAB qo'shildi. Ilgari test faqat `messagesReceived` ni
+   * sanardi va u DOIM to'g'ri chiqardi — hodisalar haqiqatan kelardi.
+   * Lekin frontend takrorlarni KALIT bo'yicha filtrlaydi, server esa har
+   * broadcast'da bir xil `id = 0` yuborardi: birinchi xabardan keyingi
+   * HAMMASI klientda jimgina tashlanardi va chat ekranda qotib qolardi.
+   * Ya'ni tizim "sog'lom" deb baholanardi, foydalanuvchi esa "kechikish
+   * bor" derdi — va ikkalasi ham haq edi.
+   *
+   * Endi skript klient mantig'ini (kalit bo'yicha dedupe) TAKRORLAYDI va
+   * ekranga chiqqan xabarlarni ham sanaydi. Ikki son ajralsa — test yiqiladi.
+   */
+  messagesRendered: 0,
+
   /** `JoinSession` javobida ko'rilgan eng katta ishtirokchi soni.
    *  Bu 200 ta ALOHIDA foydalanuvchi haqiqatan bir xonada bo'lganining
    *  ISBOTI — bitta token bilan bu son 1 bo'lib qolardi. */
@@ -90,6 +107,16 @@ const pct = (arr, p) => {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Frontend `entities/message/messageKey` ning AYNAN nusxasi.
+ * Ikkisi ajralib qolsa test noto'g'ri narsani tekshirardi, shuning uchun
+ * qoida shu yerda ham qisqa va ochiq yozilgan.
+ */
+const messageKey = (m) =>
+  typeof m?.clientId === 'string' && m.clientId.length > 0
+    ? `c:${m.senderId}:${m.clientId}`
+    : `s:${m.id}`;
 
 // ---------------------------------------------------------------- tayyorgarlik
 // BITTA admin kirishi — o'quvchi tokenlari esa lokal imzolanadi (seed.mjs).
@@ -115,9 +142,20 @@ async function runClient(index, token, sessionId, stopAt) {
     .withAutomaticReconnect()
     .build();
 
+  // Bu klient EKRANIDA allaqachon ko'rilgan xabarlar (frontend `seenKeys`).
+  const seenKeys = new Set();
+
   // Chat kechikishini o'lchash: xabar matniga vaqt muhrini yozamiz
   conn.on('ChatMessage', (m) => {
     stats.messagesReceived++;
+
+    // Frontend mantig'i: kalit takrorlansa xabar EKRANGA CHIQMAYDI.
+    const key = messageKey(m);
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      stats.messagesRendered++;
+    }
+
     const stamp = /\|t=(\d+)\|/.exec(m.body ?? '');
     if (stamp) stats.chatLatencyMs.push(Date.now() - Number(stamp[1]));
   });
@@ -160,8 +198,11 @@ async function runClient(index, token, sessionId, stopAt) {
 
   while (Date.now() < stopAt) {
     try {
+      // Uchinchi argument — broadcast kaliti (frontend `newClientId` bilan
+      // bir xil rol). Serverga berilmasa u o'zi yasaydi, lekin haqiqiy
+      // klient yo'lini o'lchash uchun bu yerda ham beriladi.
       await conn.invoke('SendMessage', sessionId,
-        `yuklama-${index}|t=${Date.now()}|`);
+        `yuklama-${index}|t=${Date.now()}|`, randomUUID());
       stats.messagesSent++;
     } catch (e) {
       if (/tez|rate|kuting/i.test(String(e?.message))) stats.rateLimited++;
@@ -249,6 +290,7 @@ const main = async () => {
   CHAT
     yuborildi        : ${stats.messagesSent}
     qabul qilindi    : ${stats.messagesReceived}
+    EKRANGA CHIQDI   : ${stats.messagesRendered}   (dedupe'dan keyin)
     rate-limit       : ${stats.rateLimited}
     kechikish p50/p95/p99 : ${pct(stats.chatLatencyMs, 50)} / ${pct(stats.chatLatencyMs, 95)} / ${pct(stats.chatLatencyMs, 99)} ms
 `);
@@ -266,6 +308,15 @@ const main = async () => {
 
   if (okConnect < USERS * 0.98) problems.push(`ulanishlarning ${(100 - rate).toFixed(1)}% i yiqildi`);
   if (p95Chat > 1000) problems.push(`chat kechikishi p95 = ${p95Chat} ms (chegara 1000)`);
+
+  // ★ ENG MUHIM YANGI SHART: simda kelgan har xabar EKRANGA ham chiqishi kerak.
+  // Aynan shu shart bo'lmagani uchun "chat qotib qolishi" nosozligi
+  // yuklama testida yashil bo'lib o'tib ketgan edi.
+  if (stats.messagesReceived > 0 && stats.messagesRendered < stats.messagesReceived) {
+    problems.push(
+      `${stats.messagesReceived - stats.messagesRendered} ta xabar klientda `
+      + 'jimgina tashlandi (kalit takrorlangan) — ekranda ko\'rinmaydi');
+  }
   if (pct(stats.connectMs, 95) > 3000) problems.push('ulanish p95 > 3 sekund');
   if (stats.disconnects > USERS * 0.05) problems.push(`${stats.disconnects} ta kutilmagan uzilish`);
 

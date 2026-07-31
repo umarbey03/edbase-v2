@@ -1359,3 +1359,79 @@ Bu ish boshlangan edi, lekin **sessiya limiti** tufayli uzildi.
 > O'quvchi ustozga va kuratorga ALOHIDA yozadi. Ma'lumot ko'chirishda buni
 > tashlab yuborilsa **ikki oqim jimgina qo'shilib ketardi** va ustoz
 > o'quvchining kuratorga atalgan savollarini o'qib qolardi.
+
+---
+
+# Kunduzgi sessiya (2026-07-31) — FAZA 5 va 7 yopildi
+
+## Yakuniy holat
+
+```
+Build       : backend 0/0 (--no-incremental) · frontend + eslint toza
+Testlar     : 1034 yashil (621 unit + 413 integratsiya)
+              sessiya boshida 614 edi -> +420
+Migratsiya  : 3 ta qo'shildi —
+              AddNotificationOutboxTelegramAndFinanceIndex
+              AddGroupChat
+              AddSessionRecordings
+```
+
+## ✅ Tugatilgan
+
+| Ish | Izoh |
+|---|---|
+| **FAZA 5.3** dars yozuvi | LiveKit Egress + webhook imzo (tana xeshi bilan) + watchdog |
+| **FAZA 7** ma'lumot ko'chirish | Vosita + sintetik sinov + hujjat. Prod'da YURGIZILMAGAN |
+| **Guruh chati** backend | Ikki kanal, cursor sahifalash, o'qilmaganlar, SignalR |
+| **Sozlamalar runtime** | 13 sozlama endi paneldan haqiqatan o'zgaradi (avval 2 ta) |
+
+## 🔴 Xavfsizlik — jonli isbotlangan
+
+**LiveKit webhook** (eski tizimda imzo UMUMAN tekshirilmasdi — audit X-3):
+```
+to'g'ri imzo + mos tana            -> 200
+to'g'ri imzo + O'ZGARTIRILGAN tana -> 401   ← faqat JWT emas, tana xeshi ham
+buzilgan imzo                      -> 401
+imzosiz                            -> 401
+takroriy hodisa                    -> 200, bazada 1 qator (idempotent)
+```
+
+**Sozlamalar runtime** (uchdan-uchgacha):
+```
+fayl o'qish -> 200 · paneldan storage.access_key buzildi -> 503
+paneldan tiklandi -> 200        (qayta ishga tushirishsiz)
+```
+
+## 🔴 Ko'chirish vositasi: tekshiruv O'ZIDAGI ikki xatoni ushladi
+
+Birinchi to'liq yurish **xato kodi 1** bilan tugadi:
+- manfiy balansli qator `AddSkippedMoney` siz o'tkazib yuborilardi
+- manfiy summa `Refund` ga o'girilib **musbat** yozilardi — belgi almashinuvi
+  hisobga olinmasdi (farq ikki barobar summa)
+
+**Salbiy nazorat:** `LegacyMap` ataylab buzilganda (konvertatsiyasiz weekday +
+kanal yopishtirilgan) tekshiruvlar 10 ta xato berdi. Eng muhim dalil:
+**jami xabar soni ikkala holatda ham 67** — ya'ni jami raqam kanallar
+qo'shilib ketganini YASHIRADI, faqat `(guruh, kanal)` kesimi ushlaydi.
+
+## ⚠️ Ko'chirishda YO'QOLADIGAN ma'lumot (qaror kerak)
+
+- **18 jadval ko'chmaydi:** `grades`, `student_notes` (xodimlarning o'quvchi
+  haqidagi izohlari), `lesson_videos`, `student_free_lessons`, `refresh_tokens`
+- `users` dagi **butun shaxsiy anketa** (`birth_date`, `gender`, `region`,
+  `address`, `sons_count`…) — v2 da bu maydonlar yo'q
+- Manfiy balans va `PaidAmount > Amount` — **qo'lda aralashuv** talab qiladi
+
+To'liq ro'yxat: `docs/MA_LUMOT_KOCHIRISH.md`.
+
+## Koordinator tuzatgan qoldiq xatolar
+
+Uzilib qolgan agentlardan qolgan sintaksis xatolari:
+- `CS9007` ×2 — JSON ichidagi literal `}}` raw string interpolatsiyasi bilan
+  to'qnashgan; `$$$` bilan hal qilindi
+- `CS1620` — `[..24]` kesish `string.Create(...)` ICHIDA qolib ketgan
+- `string.Join` ajratgichi `"),"` deb buzilgan (`", "` bo'lishi kerak edi)
+
+Bitta test taxmini ham tuzatildi: `999999999999999999` nanosekund "buzuq" deb
+hisoblangan, aslida u `2001-09-09` — yaroqli sana. `long` nanosekund orqali
+`DateTimeOffset` chegarasidan chiqib bo'lmaydi (eng katta qiymat ~2261-yil).

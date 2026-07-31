@@ -142,6 +142,13 @@ internal static class Core
             {
                 // v2 da `CK_StudentAccounts_Balance_NonNegative` bor: manfiy
                 // balans "yashirin qarz" bo'lib, qarz hisobotida ko'rinmasdi.
+                //
+                // ★ SUMMA "KO'CHMAGAN PUL" HISOBIGA YOZILADI. Busiz
+                // `manba = ko'chgan + ko'chmagan` tengligi buzilardi va
+                // tekshiruv "qayerda yo'qoldi" degan savolga javob bera
+                // olmasdi — aynan shu holat sintetik sinovda ushlangan.
+                ctx.Report.AddSkippedMoney("StudentAccounts.Balance", balance);
+
                 return ctx.Skip(
                     "Balans MANFIY — v2 cheklovi ruxsat bermaydi (qarz sifatida qo'lda kiritilsin)",
                     RowContext.Str(balance));
@@ -661,24 +668,42 @@ internal static class Core
             var groupId = ctx.Int64(1);
             var senderId = ctx.Int64(3);
 
+            // Kanal ENG AVVAL aniqlanadi: qator o'tkazib yuborilsa ham
+            // (guruh ko'chmagan, matn bo'sh) u QAYSI OQIMDAN tushib
+            // qolgani sanalishi kerak — aks holda oqim tekshiruvidagi
+            // "manba = ko'chgan + ko'chmagan" tengligi buzilardi.
+            var channel = LegacyMap.Channel(ctx.Text(2), out var known);
+
             if (!ctx.State.Has("groups", groupId))
+            {
+                ctx.Report.CountChannel(groupId, (int)channel, migrated: false);
                 return ctx.Skip("Guruh ko'chmagan", RowContext.Str(groupId));
+            }
 
             if (!ctx.State.Has("users", senderId))
+            {
+                ctx.Report.CountChannel(groupId, (int)channel, migrated: false);
                 return ctx.Skip("Yuboruvchi ko'chmagan", RowContext.Str(senderId));
+            }
 
-            var channel = LegacyMap.Channel(ctx.Text(2), out var known);
             if (!known)
                 ctx.Fixed("Chat kanali tanilmadi — ustoz oqimiga qo'yildi", ctx.Text(2));
 
             if (!LegacyMap.TryRole(ctx.Text(5), out var role))
+            {
+                ctx.Report.CountChannel(groupId, (int)channel, migrated: false);
                 return ctx.Skip("Yuboruvchi roli tanilmadi", ctx.Text(5));
+            }
 
             var body = RowContext.Clip(ctx.Text(6)?.Trim(), 2000);
             if (string.IsNullOrEmpty(body))
+            {
+                ctx.Report.CountChannel(groupId, (int)channel, migrated: false);
                 return ctx.Skip("Xabar matni bo'sh");
+            }
 
             var sentAt = ctx.Instant(7);
+            ctx.Report.CountChannel(groupId, (int)channel, migrated: true);
 
             return
             [

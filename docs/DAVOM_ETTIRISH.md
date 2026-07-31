@@ -64,9 +64,11 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
   mcr.microsoft.com/dotnet/sdk:9.0 dotnet test Zinnur.sln --nologo -v q
 ```
 
-**Kutilgan natija: 537 unit + 323 integratsiya = 860 test, 0 yiqilgan.**
+**Kutilgan natija: 621 unit + 413 integratsiya = 1034 test, 0 yiqilgan.**
 
 ⚠️ `TEST_STORAGE_*` bermasangiz 5 ta fayl testi yiqiladi (MinIO'ga yetmaydi).
+⚠️ `--no-incremental` MAJBURIY: Docker bind-mount'da inkremental build eski DLL
+bilan "succeeded" deb yozadi va sizni chalg'itadi (bu bir marta yuz bergan).
 
 ---
 
@@ -74,63 +76,75 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
 
 ```
 Build       : backend 0 xato / 0 ogohlantirish · frontend + eslint toza
-Testlar     : 860 yashil (oldingi sessiyada 614 edi)
-Migratsiya  : 11 ta, oxirgisi 20260730200125_AddNotificationOutbox...
+Testlar     : 1034 yashil (sessiya boshida 614 edi)
+Migratsiya  : 13 ta, oxirgisi AddSessionRecordings
 ```
 
-### ✅ Bu sessiyada tugatildi
+### ✅ Tugatildi
 
-- **FAZA 5.4** fayl ombori (MinIO + `GET /submissions/files/{id}`)
-- **FAZA 5.2** notifikatsiya outbox + worker
-- **FAZA 5.1** Telegram bot + Mini App autentifikatsiyasi
-- Moliya `GET /payments/summary` + CSV eksport
-- Super-admin sozlamalar paneli (**backend**)
-- Tekshirish navbati UI (klaviatura yorliqlari + fayl ochish)
-- Moliya dashboard UI
+**FAZA 5 to'liq yopildi:**
+- **5.1** Telegram bot + Mini App autentifikatsiyasi (backend)
+- **5.2** notifikatsiya outbox + worker (commit-then-send, `SKIP LOCKED`)
+- **5.3** dars yozuvi (LiveKit Egress + webhook imzo + watchdog)
+- **5.4** fayl ombori (MinIO + `GET /submissions/files/{id}`)
+- **5.5** fon vazifalari + Postgres advisory leader lock
+
+**FAZA 7:** ma'lumot ko'chirish vositasi + sintetik sinov + hujjat
+(`docs/MA_LUMOT_KOCHIRISH.md`). 🔴 **Prod'da hech qachon yurgizilmagan.**
+
+**Boshqa:**
+- Guruh chati backend (ikki kanal, cursor sahifalash, o'qilmaganlar, SignalR)
+- Sozlamalar paneli: backend + UI, **13 sozlama runtime** (avval 2 ta edi)
+- Moliya `GET /payments/summary` + CSV eksport + dashboard UI
+- Tekshirish navbati UI (klaviatura yorliqlari + himoyalangan fayl ochish)
 
 ---
 
 ## 3. KEYINGI QADAM — shu yerdan davom eting
 
-Quyidagilar boshlangan yoki rejalashtirilgan, lekin **sessiya limiti** tufayli
-tugallanmagan. Tartib — muhimlik bo'yicha.
+Backend fazalari yopildi. Qolgani — asosan **frontend** va **deploy**.
 
 | № | Ish | Holat |
 |---|---|---|
-| 1 | **Sozlamalarni runtime qilish** (`IOptions` → `ISettingsResolver`) | boshlangan, kod yozilmagan |
-| 2 | **Sozlamalar paneli UI** (shartnoma tayyor, 4-bo'limga qarang) | boshlangan, kod yozilmagan |
-| 3 | **Guruh chati** (backend + UI) — parite bo'shlig'i #1/#2 | `GroupChatChannel.cs` yozilgan, qolgani yo'q |
-| 4 | **FAZA 5.5** fon vazifalari + DB leader lock | boshlangan, kod yozilmagan |
-| 5 | **FAZA 5.3** dars yozuvi (LiveKit Egress → R2) | boshlanmagan |
-| 6 | **FAZA 7** ma'lumot ko'chirish + staging + prod deploy | boshlanmagan |
+| 1 | **Telegram Mini App frontend** — o'quvchi kirish oqimi | backend tayyor, UI qolgan |
+| 2 | **Guruh chati UI** — brauzerda ko'rinish | protokol isbotlangan, UI qolgan |
+| 3 | **Dars yozuvi UI** — parite bo'shlig'i #4 | backend tayyor, UI qolgan |
+| 4 | **Hub xato tarjimasi uchun regressiya testi** | ishlaydi, lekin test YO'Q |
+| 5 | **Qolgan parite bo'shliqlari** — #5 xabarlar, #7 KPI, #8 profil modali, #9 tranzaksiya tarixi | boshlanmagan |
+| 6 | **Deploy** — staging, prod cutover | boshlanmagan |
 
-### 3.1. Sozlamalar panelining halol cheklovi — 1-ishning MOHIYATI
+### 3.1. Guruh chati UI — protokol ALLAQACHON isbotlangan
 
-Panel 27 sozlamani ko'rsatadi, lekin **faqat 2 tasi tahrirlanadi**
-(`finance.block_threshold`, `finance.block_scope`). Qolgani ishga tushishda
-`IOptions<T>` singleton'ga **qotadi** — bazadan boshqarilsa panel "saqlandi"
-derdi-yu tizim eskisi bilan ishlayverardi (**jimgina yolg'on**).
+Koordinator ikki haqiqiy SignalR WebSocket klienti bilan tekshirdi (14/15):
+realtime yetkazish · **yuboruvchiga ham broadcast kelishi** · kanal
+izolyatsiyasi · emoji buzilmasligi · tarix tartibi va takrorsizligi.
 
-Loyiha egasi "barcha env sozlamalarini paneldan boshqarish" ni so'ragan, ya'ni
-bu ish uning talabining o'zagi.
+🔴 **UI uchun eng muhim natija:** yuboruvchi o'z xabarining broadcast'ini ham
+oladi, ya'ni **`id` bo'yicha dedupe SHART** — aks holda xabar ikki marta
+ko'rinadi.
 
-**Retsept:** iste'molchini `ISettingsResolver` ga o'tkaz + registrda
-`Source = Database`. Nomzodlar: Telegram (`BotToken`, `WebhookSecret`,
-`MiniAppUrl`), Storage (`ServiceUrl`, `Bucket`, `AccessKey`, `SecretKey`),
-LiveKit kalitlari — hammasi har so'rovda ishlatiladi.
+⚠️ Brauzer sinovida **ikki alohida kontekst** naqshi bu muhitda ikki marta
+qotib qolgan. Bitta kontekst + protokol darajasidagi Node sinovi ishonchli.
 
-⚠️ **Uch tuzoq:**
-1. `R2SubmissionStorage` `_options` ni konstruktorda oladi — har chaqiruvda
-   olinishi kerak.
-2. Telegram yuboruvchisida `.RemoveAllLoggers()` bor (bot tokeni logga ochiq
-   tushmasligi uchun) — **buni tasodifan orqaga qaytarmang**, regressiya testi
-   bor: `TelegramHttpClient_HasNoLoggingHandlers`.
-3. `ValidateOnStart` "TO'LIQ yoki BO'SH" himoyasi ishga tushish paytida
-   ma'nosini yo'qotadi — uni **yozish paytiga** (validatsiyaga) ko'chiring.
+### 3.2. FAZA 7 — ko'chirishdan OLDIN o'qing
 
-⚠️ **Kesh kerak** (har so'rovda bazaga borish qimmat), lekin kesh bilan
-yangilanish ko'rinmay qolishi mumkin — ya'ni tuzatayotgan muammo boshqa
-shaklda qaytadi. Ko'p instance holatini hisobga oling.
+Vosita tayyor va sintetik ma'lumotda isbotlangan, lekin **prod'da hech qachon
+yurgizilmagan**. Majburiy birinchi qadam: prod bazasining **nusxasida**
+`--only=preflight`.
+
+🔴 **Loyiha egasi qaror qabul qilishi kerak:** 18 ta jadval ko'chmaydi
+(`grades`, `student_notes`, `lesson_videos`…) va `users` dagi butun shaxsiy
+anketa yo'qoladi — v2 da bu maydonlar yo'q. To'liq ro'yxat:
+`docs/MA_LUMOT_KOCHIRISH.md`.
+
+### 3.3. Ochiq biznes savoli
+
+**Juda eskirgan, lekin hech qachon boshlanmagan darslar** bilan nima qilish
+kerak? Avto-yakunlash qamrovi ataylab faqat boshlangan darslar bilan
+cheklangan: `AttendanceSummaryService` har `Ended` darsni "o'tkazilgan" deb
+maxrajga qo'shadi, ya'ni o'tkazilmagan darsni yopish **har o'quvchining
+davomat foizini jimgina pasaytirardi**. Kerak: alohida "o'tkazilmadi" holati
+yoki avto-bekor qilish — bu Domain o'zgarishi.
 
 ---
 

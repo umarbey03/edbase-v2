@@ -250,6 +250,37 @@ internal static class LegacyMap
     };
 
     /// <summary>
+    /// Fayl turini KENGAYTMADAN taxmin qiladi.
+    ///
+    /// Faqat eski <c>submissions.file_url</c> ustuni uchun kerak: u yerda
+    /// fayl turi umuman saqlanmagan (jadval bitta matn ustuni edi).
+    /// <c>submission_files</c> da esa haqiqiy <c>kind</c> bor va
+    /// <see cref="AttachmentKind(string?)"/> ishlatiladi.
+    ///
+    /// Bu TAXMIN va har qo'llanishi hisobotga tushadi.
+    /// </summary>
+    public static AttachmentKind KindFromExtension(string? url)
+    {
+        var value = Key(url);
+
+        // So'rov qismi (`?v=2`) kengaytmani yashirib qo'yardi.
+        var question = value.IndexOf('?', StringComparison.Ordinal);
+        if (question >= 0) value = value[..question];
+
+        var dot = value.LastIndexOf('.');
+        if (dot < 0 || dot == value.Length - 1) return Domain.Enums.AttachmentKind.Document;
+
+        return value[(dot + 1)..] switch
+        {
+            "jpg" or "jpeg" or "png" or "webp" or "gif" or "heic" or "bmp"
+                => Domain.Enums.AttachmentKind.Image,
+            "mp3" or "ogg" or "oga" or "m4a" or "wav" or "aac" or "opus" or "webm"
+                => Domain.Enums.AttachmentKind.Audio,
+            _ => Domain.Enums.AttachmentKind.Document,
+        };
+    }
+
+    /// <summary>
     /// Eski <c>assignments.answer_formats</c> (CSV: <c>"text,image,audio"</c>)
     /// -> <see cref="AnswerFormats"/> bayroqlari.
     ///

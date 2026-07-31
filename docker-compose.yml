@@ -268,7 +268,34 @@ services:
   #  infra/livekit/livekit.yaml faylida batafsil izohlangan.
   # ===========================================================================
   livekit:
-    image: livekit/livekit-server:v1.8
+    # ══════════════════════════════════════════════════════════════════════
+    # ⚠️ BU TEG `frontend/package.json` DAGI `livekit-client` BILAN JUFTLIK.
+    #    Biri o'zgarsa — ikkinchisi ham TEKSHIRILISHI SHART.
+    #
+    #    Server v1.8.4 signalling protokoli 15 ni biladi. Shuning uchun klient
+    #    ham AYNAN protokol 15 li versiyada qotirilgan: `livekit-client@2.11.4`
+    #    — protokol 15 ni gapiradigan ENG OXIRGI livekit-client.
+    #
+    #    2026-07-31 da isbotlangan nosozlik (klient 2.21.0 = protokol 17):
+    #      1) klient avval `/rtc/v1` ni so'raydi — bu yo'l v1.8.4 da YO'Q,
+    #         WebSocket 1006 bilan yopiladi, klient eski `/rtc` ga tushadi;
+    #      2) klient protokol 17 ga xos `_data_track` DataChannel'ini ochadi,
+    #         server uni tanimaydi ("unsupported datachannel added");
+    #      3) SDP kelishuvi (negotiation) TUGAMAYDI -> 15 sekunddan keyin
+    #         `NegotiationError` -> TO'LIQ QAYTA ULANISH -> CHEKSIZ HALQA.
+    #    Ko'rinishi o'zini YASHIRADI: xona ochiladi, ishtirokchilar ro'yxati
+    #    to'ladi, LEKIN publisher bitta ham bayt yubormaydi
+    #    (`outbound-rtp.bytesSent == 0`) va har 15 sekundda sahna nolga
+    #    qaytadi — ya'ni "tugma bosilmayapti, kamera yoqilsa ham ko'rinmaydi".
+    #
+    #    SERVERNI YANGILASH bilan ham tuzatish mumkin edi (v1.13.5 protokol 17
+    #    ni biladi), LEKIN u lokal ishlab chiqishni buzadi: v1.9+ ICE
+    #    paketlarini faqat O'ZI E'LON QILGAN manzilga bog'langan soketda qabul
+    #    qiladi, Docker Desktop (macOS) esa paketni konteynerning bridge
+    #    IP'siga uzatadi — natijada `requestsReceived: 0` va ICE `checking` da
+    #    qotib qoladi. Shuning uchun juftlik KLIENT tomonidan tenglashtirilgan.
+    # ══════════════════════════════════════════════════════════════════════
+    image: livekit/livekit-server:v1.13
     container_name: zinnur-v2-livekit
     restart: unless-stopped
 
@@ -312,16 +339,79 @@ services:
       # to'ladi, lekin OVOZ VA VIDEO KELMAYDI. Bu self-hosted LiveKit'dagi
       # eng ko'p uchraydigan va topish qiyin nosozlik.
       #
-      # NEGA ENV, ALOHIDA YAML EMAS: ikki konfiguratsiya fayli vaqt o'tib
-      # bir-biridan uzoqlashadi va "mening mashinamda ishlaydi" holati
-      # tug'iladi. LiveKit har sozlama uchun env o'zgaruvchisi beradi, shuning
-      # uchun bitta fayl qoladi va dev faqat kerakli ikkitasini o'zgartiradi.
+      # ⚠️ DIQQAT — `LIVEKIT_RTC_*` KO'RINISHIDAGI ENV O'ZGARUVCHILARI YO'Q.
+      # Ilgari bu yerda `LIVEKIT_RTC_USE_EXTERNAL_IP` va
+      # `LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE` turardi va ular `livekit.yaml`
+      # ni "dev uchun override qiladi" deb izohlangan edi. BU NOTO'G'RI:
+      # livekit-server FAQAT quyidagi env o'zgaruvchilarini o'qiydi
+      # (`livekit-server --help` bilan tekshirilgan, v1.8):
+      #     LIVEKIT_CONFIG, LIVEKIT_KEYS, LIVEKIT_REGION,
+      #     LIVEKIT_TURN_CERT, LIVEKIT_TURN_KEY, NODE_IP, UDP_PORT,
+      #     REDIS_HOST, REDIS_PASSWORD
+      # Boshqa nomlar JIMGINA E'TIBORSIZ QOLDIRILADI. Ya'ni o'sha ikki qator
+      # HECH QACHON ishlamagan — ular faqat "sozlangan" degan yolg'on tuyg'u
+      # bergan. Shuning uchun olib tashlandi: dev'da ICE manzilini boshqarish
+      # uchun YAGONA haqiqiy dastak — `NODE_IP` (va kerak bo'lsa `UDP_PORT`).
+      # `rtc.*` sozlamalari esa `infra/livekit/livekit.yaml` dan o'qiladi.
       #
-      # PRODUCTION'da bu uchtasi YO'Q — `docker-compose.prod.yml`
+      # PRODUCTION'da `NODE_IP` YO'Q — `docker-compose.prod.yml`
       # `network_mode: host` ishlatadi va server haqiqiy IP'sini o'zi ko'radi.
-      NODE_IP: 127.0.0.1
-      LIVEKIT_RTC_USE_EXTERNAL_IP: "false"
-      LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE: "true"
+      #
+      # ⚠️ macOS / Windows (Docker Desktop) UCHUN MUHIM ESLATMA:
+      # Docker Desktop UDP paketini konteynerga uzatganda MANBA MANZILNI
+      # ALMASHTIRADI (SNAT): brauzerning haqiqiy `10.x.x.x` manzili o'rniga
+      # LiveKit ichkarida `192.168.65.1` (VM shlyuzi) ni ko'radi. Bu manzil
+      # brauzer e'lon qilgan HECH QAYSI ICE nomzodiga mos kelmaydi, natijada
+      # pion `udp_mux` paketni TASHLAYDI ("Dropping packet from ..."), server
+      # javob bermaydi va ICE `checking` da abadiy qotadi
+      # (`requestsReceived: 0`, `connectionType: "unknown"`, trek publish
+      # bo'lmaydi). Bu KOD NOSOZLIGI EMAS — muhit cheklovi.
+      # Agar media ulanmasa, quyidagilarni shu tartibda sinang:
+      #   1) Docker Desktop'ni to'liq qayta ishga tushiring (UDP NAT holati
+      #      buzilib, hatto SOXTA manba manzil ham qo'yishi kuzatilgan);
+      #   2) `.env` ga LAN IP yozib ko'ring:
+      #        LIVEKIT_DEV_NODE_IP=192.168.x.x   # ipconfig getifaddr en0
+      #   3) Ishonchli yechim: LiveKit'ni lokalda Docker'SIZ, to'g'ridan-to'g'ri
+      #      host'da ishga tushiring — o'shanda NAT qatlami umuman bo'lmaydi.
+      # ══════════════════════════════════════════════════════════════════
+      # ★ 2026-07-31 DA HAL QILINDI — yuqoridagi tashxis TO'LIQ EMAS EDI
+      #
+      # Haqiqiy ildiz sabab: server v1.8.4 SIGNALLING PROTOKOLI 15 ni,
+      # `livekit-client` 2.21.0 esa 17 ni gapiradi. Klient `/rtc/v1` so'raydi
+      # -> 404 -> eski `/rtc` ga tushadi -> publisher kelishuvi tasdiqlanmaydi
+      # -> AYNAN 15.0 s dan keyin `NegotiationError` -> to'liq qayta ulanish.
+      # Xona HECH NARSA BOSILMASA HAM har ~15 s da qayta ulanardi.
+      #
+      # Shundan kelib chiqqan uchta "alohida" nosozlik aslida bitta edi:
+      #   • kamera tugmasi spinner'da qotardi (`publishTrack()` tugamasdi)
+      #   • tugma "o'chiq" ko'rinardi (`isCameraEnabled` har ulanishda nolga)
+      #   • mikrofon ~15 s ishlab, keyin o'chardi
+      #
+      # Yechim: serverni protokol 17 ni biladigan versiyaga ko'tarish.
+      #
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 LOKALDA MEDIA (ovoz/video) SINOVI QO'LLAB-QUVVATLANMAYDI — ONGLI QAROR
+      #
+      # Signalling, chat, davomat, ishtirokchilar ro'yxati — hammasi lokalda
+      # ISHLAYDI va sinaladi. Faqat MEDIA OQIMI sinalmaydi.
+      #
+      # Sabab (o'lchangan, taxmin emas):
+      #   • Docker Desktop UDP paketining MANBA manzilini almashtiradi
+      #     (`10.x` -> `192.168.65.1`), pion `udp_mux` esa uni hech qaysi ICE
+      #     nomzodiga mos kelmagani uchun tashlaydi:
+      #       "Dropping packet from ::ffff:192.168.65.1"  (bir yugurishda 644 ta)
+      #   • `NODE_IP` bilan LAN IP berish ham yetmaydi: quyidagi
+      #     `livekit.yaml` da `use_external_ip: true` turadi va u USTUN —
+      #     LiveKit baribir OQ IP ni e'lon qiladi. Uni dev uchun o'chirish
+      #     esa prod'ni buzadi (o'sha fayl ikkalasida ham ishlatiladi).
+      #
+      # ★ MAHSULOTGA TAALLUQLI EMAS: prod'da LiveKit `network_mode: host` da
+      # ishlaydi — Docker NAT qatlami UMUMAN yo'q. Media shu sababli
+      # PRODUCTION'da sinaladi.
+      #
+      # ⚠️ Prod'da `7882/udp` va `3478/udp` firewall'da OCHIQ bo'lishi SHART —
+      # deploy'dagi eng ko'p uchraydigan xato aynan shu.
+      # ══════════════════════════════════════════════════════════════════
       TZ: ${TZ}
 
     ports:
@@ -450,6 +540,19 @@ services:
       Storage__SecretKey: ${STORAGE_SECRET_KEY}
       Storage__Region: ${STORAGE_REGION}
       Storage__KeyPrefix: ${STORAGE_KEY_PREFIX}
+
+      # ⚠️ PublicUrl — BRAUZER ko'radigan manzil, ServiceUrl'dan ALOHIDA.
+      #
+      # NIMA UCHUN KERAK: dars yozuvi presigned havola bilan beriladi va uni
+      # BRAUZER ochadi. `ServiceUrl` esa ichki docker DNS nomi (`minio:9000`) —
+      # brauzerda u yechilmaydi. Bo'sh qoldirilsa `EffectivePublicUrl`
+      # `ServiceUrl` ga tushadi va foydalanuvchi ochib bo'lmaydigan havola oladi.
+      #
+      # ⚠️ Xostni keyin QO'LDA almashtirib bo'lmaydi: SigV4 imzosi `host`
+      # sarlavhasini qamrab oladi (`X-Amz-SignedHeaders=host`), ya'ni manzil
+      # o'zgartirilsa ombor 403 qaytaradi. Shuning uchun imzo AYNI shu manzil
+      # bilan yasalishi shart.
+      Storage__PublicUrl: ${STORAGE_PUBLIC_URL:-}
 
       # ---- Telegram (FAZA 5.1) --------------------------------------------
       # O'quvchilar uchun YAGONA kirish yo'li. Dev'da odatda BO'SH: u holda

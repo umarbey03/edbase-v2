@@ -74,6 +74,12 @@ internal static class MigrationPlan
 
     public static TargetColumn Money(string name) => new(name, NpgsqlDbType.Numeric);
 
+    /// <summary>Pul BO'LMAGAN o'nlik son (ball, foiz). Turi ayni, ma'nosi boshqa.</summary>
+    public static TargetColumn Dec(string name) => new(name, NpgsqlDbType.Numeric);
+
+    /// <summary>Havola bo'lmagan <c>bigint</c> (masalan fayl hajmi).</summary>
+    public static TargetColumn Big(string name) => new(name, NpgsqlDbType.Bigint);
+
     public static TargetColumn Moment(string name) => new(name, NpgsqlDbType.TimestampTz);
 
     public static TargetColumn Day(string name) => new(name, NpgsqlDbType.Date);

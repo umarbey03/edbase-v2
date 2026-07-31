@@ -92,7 +92,7 @@ internal sealed class RowContext(MigrationState state, MigrationReport report, s
 
     /// <summary>Qator ko'chdi, lekin qiymat TUZATILDI — hisobotga chiqadi.</summary>
     public void Fixed(string reason, string? detail = null) =>
-        Report.Skip(SourceTable, Id, reason, detail);
+        Report.Fix(SourceTable, Id, reason, detail);
 
     // ---------------------------------------------------------------- yordamchi
 
