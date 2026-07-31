@@ -39,8 +39,28 @@ fail() { printf '\033[1;31m  ✗ %s\033[0m\n' "$*" >&2; }
 trap 'fail "TO'\''XTADI (satr $LINENO). Yuqoridagi xatoni o'\''qing."' ERR
 
 # ---------------------------------------------------------------- 0. Domen
-IP="$(curl -fsS --max-time 10 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
-[[ -n "$IP" ]] || { fail "Server IP aniqlanmadi."; exit 1; }
+# ⚠️ `-4` MAJBURIY: usiz `ifconfig.me` IPv6 qaytarishi mumkin va sslip.io
+# uchun nom buzilib ketadi (IPv6 da nuqta emas, ikki nuqta ishlatiladi —
+# `2a03:b0c0:...sslip.io` degan yaroqsiz nom hosil bo'ladi va curl uni
+# "Port number was not a decimal number" deb rad etadi).
+IP=""
+for src in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com"; do
+    IP="$(curl -4 -fsS --max-time 10 "$src" 2>/dev/null | tr -d '[:space:]')" || IP=""
+    [[ "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && break
+    IP=""
+done
+
+# Zaxira: mahalliy interfeysdagi birinchi IPv4 (NAT ortidagi serverda oq IP
+# bermaydi, lekin hech yo'qdan yaxshi — foydalanuvchi domenni qo'lda beradi).
+if [[ -z "$IP" ]]; then
+    IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1)"
+fi
+
+if [[ ! "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    fail "Serverning IPv4 manzili aniqlanmadi (topilgani: '${IP:-bo'sh}')."
+    fail "Domenni qo'lda bering:  ./infra/scripts/server-init.sh sizning-domeningiz.uz"
+    exit 1
+fi
 
 if [[ $# -ge 1 && -n "${1:-}" ]]; then
     DOMEN="$1"
