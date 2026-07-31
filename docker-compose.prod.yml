@@ -91,8 +91,8 @@ services:
           # SFU media'ni qayta kodlamaydi, faqat uzatadi — CPU asosan tarmoqqa
           # ketadi. 8 vCPU serverda 200 foydalanuvchi uchun 4 yadro yetarli,
           # qolgani api/postgres uchun qoladi.
-          cpus: "4.0"
-          memory: 2G
+          cpus: "${LIVEKIT_CPUS:-1.5}"
+          memory: ${LIVEKIT_MEM:-768M}
 
   # ==========================================================================
   # POSTGRES — tashqariga CHIQARILMAYDI
@@ -127,8 +127,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 4G
+          cpus: "${POSTGRES_CPUS:-1.5}"
+          memory: ${POSTGRES_MEM:-1G}
 
   # ==========================================================================
   # REDIS — tashqariga CHIQARILMAYDI
@@ -154,8 +154,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 1500M
+          cpus: "${REDIS_CPUS:-0.5}"
+          memory: ${REDIS_MEM:-384M}
 
   # ==========================================================================
   # MINIO — PROD'DA ISHLAMAYDI
@@ -236,8 +236,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 2G
+          cpus: "${API_CPUS:-1.5}"
+          memory: ${API_MEM:-1G}
 
   # ==========================================================================
   # WEB (nginx + statik fayllar)
@@ -250,5 +250,5 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "${WEB_CPUS:-0.5}"
+          memory: ${WEB_MEM:-192M}
