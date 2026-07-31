@@ -17,6 +17,12 @@ namespace Zinnur.Infrastructure.Options;
 ///     (registrda <c>Source = Database</c>);
 ///   • KeyPrefix — muhitdan: u ombor ICHIDAGI joylashuv sxemasi,
 ///     o'zgartirilsa eski fayllarga yo'l uzilardi (registrdagi sabab);
+///   • PublicUrl — MUHITDAN (FAZA 5.3). Bu BRAUZERGA ketadigan manzil,
+///     ya'ni <c>livekit.public_url</c> bilan AYNI turkum: u DNS va
+///     sertifikat bilan birga o'zgaradi — DEPLOY qarori, biznes qarori
+///     emas. Bundan tashqari paneldan boshqarilsa, panelga kirgan odam
+///     dars yozuvlarining butun oqimini o'z serveriga burib yubora
+///     olardi (<c>telegram.api_base_url</c> dagi AYNI mulohaza);
 ///   • TimeoutSeconds — registrda umuman yo'q: u `HttpClient` ga ishga
 ///     tushishda beriladi va ish jarayonida o'zgartirib bo'lmaydi.
 /// </summary>
@@ -44,6 +50,7 @@ public sealed class RuntimeStorageOptions(IRuntimeSettings runtime, IOptions<Sto
             Region = Fallback(snapshot.Value(SettingsRegistry.Keys.StorageRegion), Seed.Region),
 
             KeyPrefix = Seed.KeyPrefix,
+            PublicUrl = Seed.PublicUrl,
             TimeoutSeconds = Seed.TimeoutSeconds,
         };
     }

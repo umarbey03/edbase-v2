@@ -369,6 +369,30 @@ public static class SettingsRegistry
 
         new()
         {
+            Key = "storage.public_url",
+            Group = SettingGroup.Storage,
+            DisplayName = "Brauzer uchun ombor manzili",
+            Description =
+                "Dars yozuvining imzolangan ko'rish havolasi SHU manzildan quriladi. "
+                + "Bo'sh qoldirilsa yuqoridagi «Ombor manzili» ishlatiladi. "
+                + "⚠️ Dev'da ular FARQ QILADI: backend omborga Docker tarmog'i ichidan "
+                + "(`http://minio:9000`) boradi, brauzer esa faqat host portini "
+                + "(`http://localhost:9010`) ko'radi.",
+            Kind = SettingValueKind.Text,
+            Format = SettingFormat.Url,
+            Source = SettingSource.Environment,
+            ConfigurationKey = "Storage:PublicUrl",
+            ReadOnlyReason =
+                "🔴 XAVFSIZLIK VA DEPLOY. Bu qiymat BRAUZERGA ketadi, ya'ni "
+                + "`livekit.public_url` bilan AYNI turkum: u DNS va sertifikat bilan "
+                + "birga o'zgaradi — deploy qarori, biznes qarori emas. Bundan tashqari "
+                + "manzil paneldan boshqarilsa, panelga kirgan odam barcha dars "
+                + "yozuvlarining oqimini o'z serveriga yo'naltira olardi "
+                + "(`telegram.api_base_url` dagi AYNI mulohaza). " + StartupBoundReason,
+        },
+
+        new()
+        {
             Key = "storage.bucket",
             Group = SettingGroup.Storage,
             DisplayName = "Bucket nomi",

@@ -79,6 +79,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
 
+    // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
+
+    public DbSet<SessionRecording> SessionRecordings => Set<SessionRecording>();
+
     /// <summary>
     /// Ish jarayonida o'zgartiriladigan sozlamalar (bloklash chegarasi va
     /// qamrovi). <c>IApplicationDbContext</c> da ATAYLAB YO'Q: Application
@@ -112,6 +116,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// xabari bilan BITTA tranzaksiyada saqlanadi.
     /// </summary>
     public DbSet<TelegramUpdate> TelegramUpdates => Set<TelegramUpdate>();
+
+    // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
+
+    /// <summary>
+    /// Ishlangan LiveKit hodisalari (takrorga qarshi jurnal).
+    ///
+    /// <c>IApplicationDbContext</c> da ATAYLAB YO'Q — <see cref="TelegramUpdates"/>
+    /// bilan AYNI sabab: bu yetkazib berish mexanizmi. Use-case unga
+    /// <c>ILiveKitWebhookLog</c> porti orqali tegadi, yozuv esa yozuv
+    /// holatining o'zgarishi bilan BITTA tranzaksiyada saqlanadi.
+    /// </summary>
+    public DbSet<RecordingWebhookEvent> RecordingWebhookEvents => Set<RecordingWebhookEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

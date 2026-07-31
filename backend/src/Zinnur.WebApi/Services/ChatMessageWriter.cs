@@ -33,14 +33,15 @@ public sealed class ChatMessageWriter : BackgroundService, IChatMessageWriter
     /// Chegaralangan kanal: xotira cheksiz o'smasin.
     /// To'lib qolsa eng eski xabar tashlanadi (<see cref="BoundedChannelFullMode.DropOldest"/>) —
     /// chat yozilishi hech qachon jonli darsni bloklamaydi.
+    ///
+    /// ★ TASHLANGAN XABAR ENDI JIM EMAS: <c>itemDropped</c> qayta chaqiruvi
+    /// bilan har tashlash logga tushadi. Ilgari yuk ostida tarix jimgina
+    /// teshilardi va buni hech kim sezmasdi — "xabarim yo'qoldi" shikoyatini
+    /// tekshirib bo'lmasdi. Tashlash TARQATISHGA ta'sir qilmaydi (u allaqachon
+    /// bo'lib bo'lgan), faqat tarix yozuvi yo'qoladi — shuning uchun bu
+    /// yiqilish emas, OGOHLANTIRISH.
     /// </summary>
-    private readonly Channel<ChatMessage> _channel = Channel.CreateBounded<ChatMessage>(
-        new BoundedChannelOptions(10_000)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false,
-        });
+    private readonly Channel<ChatMessage> _channel;
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ChatMessageWriter> _logger;
@@ -49,6 +50,17 @@ public sealed class ChatMessageWriter : BackgroundService, IChatMessageWriter
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+
+        // Kanal konstruktorda quriladi: `itemDropped` ga `_logger` kerak,
+        // maydon initsializatoridan esa boshqa maydonga murojaat qilib bo'lmaydi.
+        _channel = Channel.CreateBounded<ChatMessage>(
+            new BoundedChannelOptions(10_000)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true,
+                SingleWriter = false,
+            },
+            itemDropped: dropped => ChatWriterLog.MessageDropped(_logger, dropped.SessionId));
     }
 
     /// <inheritdoc />
@@ -111,4 +123,24 @@ public sealed class ChatMessageWriter : BackgroundService, IChatMessageWriter
 
         ApiLog.ChatBatchWritten(_logger, batch.Count);
     }
+}
+
+/// <summary>
+/// Chat yozuvchisining loglari.
+///
+/// ★ NIMA UCHUN ALOHIDA SINF (<c>ApiLog</c> ga qo'shilmadi): <c>GroupChatLog</c>
+/// bilan AYNI sabab — har modul o'z EventId oralig'ini saqlaydi va umumiy
+/// faylga bir vaqtda bir necha modul yozib, raqamlarni to'qnashtirmaydi.
+///
+/// ★ NIMA UCHUN <c>[LoggerMessage]</c>: manba generatori ajratmasiz kod
+/// yozadi; oddiy <c>logger.LogWarning($"...")</c> log darajasi o'chiq
+/// bo'lganda ham satr yig'ardi (CA1848).
+/// </summary>
+internal static partial class ChatWriterLog
+{
+    [LoggerMessage(
+        EventId = 6100,
+        Level = LogLevel.Warning,
+        Message = "Chat navbati to'lgan — xabar tarixga yozilmadi: session={SessionId}")]
+    public static partial void MessageDropped(ILogger logger, long sessionId);
 }

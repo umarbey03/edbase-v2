@@ -8,6 +8,7 @@ using Npgsql;
 using StackExchange.Redis;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
@@ -43,6 +44,7 @@ public static class DependencyInjection
         AddRedis(services, configuration);
         AddRuntimeSettings(services, configuration);
         AddStorage(services);
+        AddRecordings(services);
 
         // Token va parol xizmatlari holatsiz (stateless) — Singleton.
         // Har so'rovda qayta yaratish JWT kaliti va HMAC obyektlarini
@@ -227,6 +229,17 @@ public static class DependencyInjection
                 o => o.HasValidServiceUrl,
                 "Storage:ServiceUrl absolyut http(s) manzil bo'lishi kerak "
                 + "(masalan `https://<account>.r2.cloudflarestorage.com`).")
+
+            // BRAUZERGA ketadigan manzil (FAZA 5.3, dars yozuvi presigned
+            // havolasi). Bo'sh bo'lsa `ServiceUrl` ishlatiladi — shakl
+            // tekshiruvi esa `.env` dagi xato yozilgan qiymatni ISHGA
+            // TUSHISHDA, sababi ko'rinib turganda tutadi. Aks holda u
+            // faqat birinchi yozuv ochilganda, "403 SignatureDoesNotMatch"
+            // ko'rinishida chiqardi.
+            .Validate(
+                o => o.HasValidPublicUrl,
+                "Storage:PublicUrl absolyut http(s) manzil bo'lishi kerak "
+                + "(dev'da `http://localhost:9010`).")
             .ValidateOnStart();
 
         // TELEGRAM (FAZA 5.1) — IXTIYORIY.
@@ -403,5 +416,42 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<ISubmissionStorage, R2SubmissionStorage>();
+    }
+
+    /// <summary>
+    /// ========================================================================
+    /// DARS YOZUVI (FAZA 5.3): Egress, webhook imzosi va ko'rish havolasi
+    /// ========================================================================
+    ///
+    /// ★ NIMA UCHUN UCHTASI HAM SINGLETON: ular HOLATSIZ. Kalitlar, sirlar
+    /// va ombor manzili har chaqiruvda <c>IRuntimeOptions&lt;T&gt;</c> dan
+    /// qayta o'qiladi (ular paneldan aylantiriladi), imzo esa har safar
+    /// qaytadan hisoblanadi. Scoped bo'lsa hech narsa yutilmasdi, faqat
+    /// har so'rovda keraksiz obyekt yasalardi.
+    ///
+    /// ⚠️ ISTISNO — <see cref="LiveKitWebhookLog"/>: u SCOPED, chunki
+    /// jurnal yozuvi JORIY so'rovning <c>DbContext</c> kuzatuvchisiga
+    /// tushishi va yozuv holati bilan BITTA tranzaksiyada saqlanishi kerak
+    /// (<c>TelegramUpdateLog</c> bilan AYNI naqsh).
+    /// </summary>
+    private static void AddRecordings(IServiceCollection services)
+    {
+        // Egress uchun ALOHIDA nomlangan klient: timeout QISQA.
+        //
+        // ★ NIMA UCHUN ombor klienti (`zinnur-storage`, 60 s) qayta
+        //   ishlatilmaydi: Egress chaqiruvi DARS BOSHLANAYOTGAN paytda,
+        //   ustoz tugmani bosgan lahzada bo'ladi. LiveKit javob bermay
+        //   qolsa ustoz yarim daqiqa "aylanayotgan" tugmaga qarab
+        //   o'tirardi. Yozuv boshlanmasligi esa dars uchun halokat emas —
+        //   watchdog qayta uradi. Shuning uchun tez taslim bo'lgan afzal.
+        services.AddHttpClient(
+            LiveKitEgressClient.HttpClientName,
+            client => client.Timeout = TimeSpan.FromSeconds(10));
+
+        services.AddSingleton<ILiveKitEgress, LiveKitEgressClient>();
+        services.AddSingleton<ILiveKitWebhookVerifier, LiveKitWebhookVerifier>();
+        services.AddSingleton<IRecordingStorage, R2RecordingStorage>();
+
+        services.AddScoped<ILiveKitWebhookLog, LiveKitWebhookLog>();
     }
 }

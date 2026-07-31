@@ -36,7 +36,9 @@ namespace Zinnur.WebApi.Hubs;
 ///
 ///  4) RATE-LIMIT SERVERDA (Redis hisoblagichi).
 ///     Bitta foydalanuvchi sekundiga 50 xabar yuborsa, 200 kishilik xonada
-///     bu 10 000 uzatish/sekund. Chegara: 1 xabar / 2 sekund.
+///     bu 10 000 uzatish/sekund. Chegara: 10 sekundda 5 xabar
+///     (<see cref="ChatRateMaxMessages"/> — nima uchun aynan shunday, izohi
+///     o'sha maydonda).
 ///
 ///  5) RUXSAT TEKSHIRUVI JOIN PAYTIDA BIR MARTA.
 ///     Har xabarda bazaga borish 200 kishida sezilarli yuk. Ulanish
@@ -51,8 +53,44 @@ public sealed class LiveClassHub(
     IChatMessageWriter chatWriter,
     ILogger<LiveClassHub> logger) : Hub
 {
-    /// <summary>Foydalanuvchiga chat yuborish oralig'i.</summary>
-    private static readonly TimeSpan ChatCooldown = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// Chat tezlik chegarasi oynasi. Oyna ichida
+    /// <see cref="ChatRateMaxMessages"/> tadan ortiq xabar qabul qilinmaydi.
+    /// </summary>
+    private static readonly TimeSpan ChatRateWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Bitta oynadagi maksimal xabar soni.
+    ///
+    /// ★ NIMA UCHUN "1 xabar / 2 sekund" DAN VOZ KECHILDI:
+    /// eski chegara qat'iy 2 sekundlik oyna edi va odam tabiiy yozadigan
+    /// ketma-ket ikki qatorni ("Assalomu alaykum" + "savolim bor")
+    /// IKKINCHISINI rad etardi. Jonli darsda bu "chat sekin ishlayapti"
+    /// bo'lib his qilinardi.
+    ///
+    /// O'RTACHA tezlik O'ZGARMADI: 10 sekundda 5 ta = 2 sekundda 1 ta.
+    /// Farqi — qisqa "portlash"ga yo'l qo'yiladi, ya'ni chatning tabiiy
+    /// naqshi ishlaydi, flood himoyasi esa joyida qoladi (200 kishilik
+    /// xonada har kishi uchun 0.5 xabar/sekund yuqori chegara).
+    ///
+    /// Shakl <c>GroupChatService</c> dagi bilan bir xil (u yerda 10/10 sek) —
+    /// ikki chat ikki xil mantiqda ishlamasin.
+    /// </summary>
+    private const int ChatRateMaxMessages = 5;
+
+    /// <summary>
+    /// Chegaraga urilganda klientga ketadigan matn.
+    ///
+    /// ★ <see cref="HubException"/> matnini SignalR HAR DOIM klientga uzatadi
+    /// (<c>EnableDetailedErrors</c> dan qat'i nazar) — ya'ni foydalanuvchi
+    /// xabari rad etilganini KO'RADI, u jimgina yo'qolmaydi.
+    /// </summary>
+    private static readonly string ChatRateLimitMessage = string.Create(
+        CultureInfo.InvariantCulture,
+        $"Juda tez yozyapsiz — {ChatRateWindow.TotalSeconds:0} soniyada {ChatRateMaxMessages} ta xabar. Biroz kuting.");
+
+    /// <summary>Klient bergan broadcast kalitining maksimal uzunligi.</summary>
+    private const int MaxClientIdLength = 64;
 
     private const string SessionItemKey = "sessionId";
 
@@ -94,8 +132,18 @@ public sealed class LiveClassHub(
         var userId = UserId;
 
         // Ruxsat: a'zo yoki host emasmi — Application qatlami hal qiladi (DRY).
-        // Xato bo'lsa ForbiddenException ko'tariladi va klientga HubException ketadi.
-        var dto = await sessions.GetAsync(sessionId, userId, Context.ConnectionAborted);
+        //
+        // ★ TARJIMA MAJBURIY (BUG TUZATISHI): bu qatorda ilgari
+        // `HubErrors.TranslateAsync` YO'Q edi va izohda "klientga
+        // HubException ketadi" deb YOZILGAN edi — lekin bu TO'G'RI EMAS edi.
+        // `ForbiddenException`/`NotFoundException` SignalR'ga o'zgarishsiz
+        // chiqib ketardi, u esa FAQAT `HubException` matnini uzatadi. Prod'da
+        // (`EnableDetailedErrors=false`) o'quvchi "Bu darsga ruxsatingiz yo'q"
+        // o'rniga "An unexpected error occurred invoking 'JoinSession'"
+        // ko'rardi — ya'ni sababni bilmay qayta-qayta urinaverardi.
+        // Batafsil: `HubErrors` sinfi izohi.
+        var dto = await HubErrors.TranslateAsync(
+            () => sessions.GetAsync(sessionId, userId, Context.ConnectionAborted));
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(sessionId), Context.ConnectionAborted);
         Context.Items[SessionItemKey] = sessionId;
@@ -103,8 +151,11 @@ public sealed class LiveClassHub(
         var entry = new PresenceEntry(userId, DisplayName, RoleName, HandRaised: false, DateTimeOffset.UtcNow);
         await presence.AddAsync(sessionId, entry, Context.ConnectionAborted);
 
-        // Davomat (host uchun yozilmaydi — servis o'zi hal qiladi)
-        await sessions.RegisterJoinAsync(sessionId, userId, Context.ConnectionAborted);
+        // Davomat (host uchun yozilmaydi — servis o'zi hal qiladi).
+        // Bu ham AYNI ruxsat tekshiruvidan o'tadi, ya'ni AYNI istisnolarni
+        // tashlaydi — tarjimasiz qoldirilsa teshik yarim yopilgan bo'lardi.
+        await HubErrors.TranslateAsync(
+            () => sessions.RegisterJoinAsync(sessionId, userId, Context.ConnectionAborted));
 
         var list = await presence.ListAsync(sessionId, Context.ConnectionAborted);
 
@@ -128,21 +179,34 @@ public sealed class LiveClassHub(
     /// Chat xabari. Server <c>SenderName</c> va <c>SentAt</c> ni O'ZI qo'yadi —
     /// klientga ishonilmaydi (soxta ism yoki vaqt yuborishning oldi olinadi).
     /// </summary>
-    public async Task SendMessage(long sessionId, string body)
+    /// <param name="sessionId">Dars identifikatori.</param>
+    /// <param name="body">Xabar matni (server tozalaydi va kesadi).</param>
+    /// <param name="clientId">
+    /// Klient yasagan barqaror kalit; broadcast'da o'zgarishsiz qaytariladi.
+    /// Nima uchun kerakligi: <see cref="NormalizeClientId"/>.
+    /// </param>
+    public async Task SendMessage(long sessionId, string body, string? clientId)
     {
         var userId = UserId;
 
         if (CurrentSessionId != sessionId)
             throw new HubException("Avval darsga qo'shiling.");
 
-        // --- Rate limit: 1 xabar / 2 sekund (Redis atomar hisoblagich) ---
+        // --- Tezlik chegarasi: oynada N ta xabar (Redis atomar hisoblagichi) ---
         var key = $"chatrate:{sessionId.ToString(CultureInfo.InvariantCulture)}:{userId.ToString(CultureInfo.InvariantCulture)}";
-        var hits = await cache.IncrementAsync(key, ChatCooldown, Context.ConnectionAborted);
-        if (hits > 1)
-            throw new HubException("Juda tez yozyapsiz. Bir necha soniya kuting.");
+        var hits = await cache.IncrementAsync(key, ChatRateWindow, Context.ConnectionAborted);
+        if (hits > ChatRateMaxMessages)
+            throw new HubException(ChatRateLimitMessage);
 
-        // Domain qoidasi: bo'shlik kesiladi, 500 belgidan uzuni qirqiladi
-        var text = ChatMessage.NormalizeBody(body);
+        // Domain qoidasi: bo'shlik kesiladi, 500 belgidan uzuni qirqiladi.
+        //
+        // ★ TARJIMA: bo'sh matnda `DomainException` ko'tariladi. Tarjimasiz
+        // klient sababni ("Xabar bo'sh bo'lishi mumkin emas") emas, umumiy
+        // xatoni ko'rardi — yuqoridagi ikki `HubException` bilan bir xil
+        // yo'lda bo'lishi uchun bu ham o'giriladi.
+        var text = HubErrors.Translate(() => ChatMessage.NormalizeBody(body));
+
+        var broadcastKey = NormalizeClientId(clientId);
 
         var message = new ChatMessage
         {
@@ -154,14 +218,56 @@ public sealed class LiveClassHub(
         };
 
         // 1) AVVAL broadcast — foydalanuvchi kechikishni sezmaydi.
-        //    Id hali 0: klient uni vaqtinchalik kalit sifatida ishlatadi.
+        //    `Id` hali 0 (baza raqamini fon xizmati beradi), shuning uchun
+        //    klient uchun kalit — `ClientId`.
         await Clients.Group(GroupName(sessionId)).SendAsync(
             "ChatMessage",
-            new ChatMessageDto(0, userId, DisplayName, text, message.SentAt),
+            new ChatMessageDto(0, userId, DisplayName, text, message.SentAt, broadcastKey),
             Context.ConnectionAborted);
 
         // 2) KEYIN navbatga — fon xizmati paketlab bazaga yozadi
         await chatWriter.EnqueueAsync(message, Context.ConnectionAborted);
+    }
+
+    /// <summary>
+    /// Broadcast kalitini tayyorlaydi.
+    ///
+    /// ★ BUG TUZATISHI — "chatda kechikish bor" shikoyatining ILDIZ SABABI.
+    ///
+    /// Ilgari broadcast'da <c>ChatMessageDto(0, ...)</c> ketardi, ya'ni HAR
+    /// xabarning identifikatori BIR XIL (0) edi. Klient esa takrorlarni
+    /// identifikator bo'yicha filtrlaydi (`useLiveHub.pushMessage`): birinchi
+    /// xabardan keyin 0 "ko'rilgan" ro'yxatiga tushardi va o'sha darsdagi
+    /// KEYINGI HAMMA xabar jimgina tashlanardi. Foydalanuvchi buni "xabar
+    /// kech keladi" deb his qilardi — aslida xabar umuman kelmasdi va faqat
+    /// sahifa yangilanganda (REST tarixi, haqiqiy Id bilan) paydo bo'lardi.
+    /// Sim bo'ylab o'lchov 5-7 ms ko'rsatgani uchun nosozlik yuklama testida
+    /// ham ko'rinmasdi — u ekranni emas, simni o'lchardi.
+    ///
+    /// Kalitni KLIENT yasashi bitta o'q bilan ikkinchi muammoni ham yechadi:
+    /// yuboruvchi xabarini DARHOL ekranga chiqaradi (optimistik ko'rsatish)
+    /// va o'z broadcast'i qaytganda uni AYNI kalit bo'yicha tanib, ikki marta
+    /// ko'rsatmaydi.
+    ///
+    /// ★ KLIENTGA ISHONILMAYDI: shakli buzuq yoki juda uzun kalit rad etiladi
+    /// va server o'zi yasaydi — kalit HAR broadcast'da BO'LISHI shart, aks
+    /// holda yuqoridagi nosozlik qaytadi. Kalitning noyobligi ham klientga
+    /// tashlab qo'yilmaydi: klient uni yuboruvchi identifikatori bilan
+    /// birga kalitlaydi, ya'ni birov boshqaning kalitini "band qilib"
+    /// uning xabarini bo'g'a olmaydi.
+    /// </summary>
+    private static string NormalizeClientId(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw) || raw.Length > MaxClientIdLength)
+            return Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+
+        foreach (var ch in raw)
+        {
+            if (!char.IsAsciiLetterOrDigit(ch) && ch != '-')
+                return Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        }
+
+        return raw;
     }
 
     /// <summary>Qo'l ko'tarish / tushirish.</summary>

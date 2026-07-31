@@ -58,9 +58,26 @@ public sealed record LiveKitJoinDto(
     bool IsHost,
     DateTimeOffset? EndsAt);
 
+/// <summary>
+/// Jonli dars chat xabari.
+///
+/// ★ <c>ClientId</c> — REAL VAQTDAGI broadcast uchun BARQAROR va NOYOB kalit.
+///
+/// NIMA UCHUN <c>Id</c> YETMAYDI: xabar avval tarqatiladi, keyin fon navbatida
+/// bazaga yoziladi (<c>ChatMessageWriter</c>) — ya'ni tarqatilayotgan payt baza
+/// raqami HALI YO'Q va u yerda 0 turadi. Klient esa takrorlarni <c>Id</c>
+/// bo'yicha filtrlaydi, natijada BIRINCHI xabardan keyingi hammasi
+/// "allaqachon ko'rilgan" deb jimgina tashlanardi (batafsil:
+/// <c>LiveClassHub.NormalizeClientId</c>).
+///
+/// REST tarixida (<c>GetRecentMessagesAsync</c>) bu maydon <c>null</c> bo'ladi —
+/// u yerda haqiqiy <c>Id</c> bor va kalit sifatida o'sha ishlatiladi.
+/// Bazada SAQLANMAYDI, ya'ni migratsiya talab qilmaydi.
+/// </summary>
 public sealed record ChatMessageDto(
     long Id,
     long SenderId,
     string SenderName,
     string Body,
-    DateTimeOffset SentAt);
+    DateTimeOffset SentAt,
+    string? ClientId = null);

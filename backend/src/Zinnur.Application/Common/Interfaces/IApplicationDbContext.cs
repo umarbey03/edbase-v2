@@ -70,5 +70,22 @@ public interface IApplicationDbContext
     DbSet<PaymentTransaction> PaymentTransactions { get; }
     DbSet<PaymentAudit> PaymentAudits { get; }
 
+    // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
+
+    /// <summary>
+    /// Dars yozuvi urinishlari (LiveKit Egress → obyekt ombori).
+    ///
+    /// ★ NIMA UCHUN BU YERDA OCHILADI, <see cref="AttendanceAudits"/> kabi:
+    /// yozuv — BIZNES ma'lumoti. O'quvchi uni ro'yxatda ko'radi, xodim esa
+    /// "nega bu darsning yozuvi yo'q?" degan savolga javobni AYNAN shu
+    /// jadvaldan oladi.
+    ///
+    /// ⚠️ Takroriy webhook hodisalarining jurnali BU YERDA YO'Q: u biznes
+    /// ma'lumoti emas, YETKAZIB BERISH mexanizmi va Infrastructure ichida
+    /// qoladi (<c>TelegramUpdates</c> bilan AYNI sabab). Use-case unga
+    /// <c>ILiveKitWebhookLog</c> porti orqali tegadi.
+    /// </summary>
+    DbSet<SessionRecording> SessionRecordings { get; }
+
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

@@ -11,6 +11,9 @@ using Serilog;
 using Zinnur.Application;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.GroupChat.Services;
+using Zinnur.Application.Jobs;
+using Zinnur.Application.Recordings.Jobs;
+using Zinnur.Application.Recordings.Services;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.WebApi;
@@ -82,6 +85,30 @@ builder.Services.AddZinnurTelegram(builder.Configuration);
 // ko'tariladi, lekin har vazifa Postgres advisory lock ostida yuradi —
 // ya'ni ish AYNAN BIR MARTA bajariladi (izoh: Workers/JobsSetup.cs).
 builder.Services.AddZinnurJobs(builder.Configuration);
+
+// Dars yozuvi WATCHDOG'i (FAZA 5.3): boshlanmagan yozuvni qayta uradi,
+// yo'qolgan webhook o'rniga ombordan tekshiradi, umidsizini `Failed` qiladi.
+//
+// ★ NIMA UCHUN `AddZinnurJobs` ICHIDA EMAS, SHU YERDA: rejalashtiruvchi
+//   `IEnumerable<IScheduledJob>` ni o'qiydi, ya'ni vazifa qayerda
+//   ro'yxatdan o'tgani AHAMIYATSIZ — u baribir AYNI qulf ostida, AYNI
+//   siklda yuradi. YANGI REJALASHTIRUVCHI YOZILMADI.
+//
+// SCOPED: vazifa `DbContext` ga (port orqali) tayanadi va rejalashtiruvchi
+// har aylanishda yangi scope ochadi (`JobSchedulerWorker`).
+//
+// ⚠️ CHEGARALAR HOZIRCHA KODDA (`RecordingWatchdogSettings.Default`), boshqa
+//    vazifalardagidek `Jobs:*` konfiguratsiyasida EMAS. Sozlanadigan qilish
+//    uchun `Jobs:RecordingWatchdog:*` bo'limini `JobsOptions` ga qo'shish
+//    kifoya — vazifaning O'ZI sozlamalarni allaqachon konstruktordan oladi
+//    (`SessionAutoCloseSettings` bilan AYNI naqsh).
+builder.Services.AddScoped<IScheduledJob>(sp => new RecordingWatchdogJob(
+    sp.GetRequiredService<IApplicationDbContext>(),
+    sp.GetRequiredService<ILiveKitEgress>(),
+    sp.GetRequiredService<IRecordingStorage>(),
+    sp.GetRequiredService<TimeProvider>(),
+    RecordingWatchdogSettings.Default,
+    sp.GetRequiredService<ILogger<RecordingWatchdogJob>>()));
 
 // ---------------------------------------------------------------- auth
 var jwtSecret = builder.Configuration["Jwt:Secret"]

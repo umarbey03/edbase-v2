@@ -2,11 +2,9 @@ using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.GroupChat.Dtos;
 using Zinnur.Application.GroupChat.Services;
 using Zinnur.Domain.Enums;
-using Zinnur.Domain.Exceptions;
 
 namespace Zinnur.WebApi.Hubs;
 
@@ -117,7 +115,7 @@ public sealed class GroupChatHub(
         var userId = UserId;
 
         // Ruxsat va kanal — Application qatlami hal qiladi (DRY).
-        var access = await TranslateAsync(() => chat.ResolveAccessAsync(
+        var access = await HubErrors.TranslateAsync(() => chat.ResolveAccessAsync(
             userId, groupId, channel, Context.ConnectionAborted));
 
         var thread = ThreadName(access.GroupId, access.Channel);
@@ -151,64 +149,23 @@ public sealed class GroupChatHub(
     /// </summary>
     public async Task<GroupChatMessageDto> SendMessage(
         long groupId, GroupChatChannel? channel, string body) =>
-        await TranslateAsync(() => chat.SendAsync(
+        await HubErrors.TranslateAsync(() => chat.SendAsync(
             UserId,
             groupId,
             new SendGroupChatMessageRequest(channel, body),
             Context.ConnectionAborted));
 
     // ---------------------------------------------------------------- xatolarni tarjima qilish
-
-    /// <summary>
-    /// Use-case istisnolarini <see cref="HubException"/> ga o'giradi.
-    ///
-    /// ★ NIMA UCHUN KERAK: SignalR FAQAT <see cref="HubException"/> ning
-    /// matnini klientga uzatadi. Boshqa har qanday istisno o'rniga
-    /// "An unexpected error occurred invoking 'JoinThread'" degan UMUMIY satr
-    /// ketadi (prod'da <c>EnableDetailedErrors=false</c>). Ya'ni ruxsat yo'qligi,
-    /// tezlik chegarasi va haqiqiy server nosozligi klient uchun BIR XIL
-    /// ko'rinardi: UI "ruxsat yo'q" deb ayta olmasdi va foydalanuvchi qayta-qayta
-    /// urinaverardi.
-    ///
-    /// REST tomonda bu ishni <c>ExceptionHandlingMiddleware</c> qiladi, lekin u
-    /// hub chaqiruvlariga UMUMAN tegmaydi — middleware quvuri SignalR
-    /// chaqiruvining ichida ishlamaydi. Shuning uchun tarjima shu yerda.
-    ///
-    /// ★ Kutilmagan istisnolar ATAYLAB ushlanmaydi: ular SignalR'ga o'tib,
-    /// logga to'liq stack bilan tushishi kerak (va klientga tafsilot ketmasin).
-    /// </summary>
-    private static async Task<T> TranslateAsync<T>(Func<Task<T>> action)
-    {
-        try
-        {
-            return await action();
-        }
-        catch (ForbiddenException ex)
-        {
-            throw new HubException(ex.Message, ex);
-        }
-        catch (NotFoundException ex)
-        {
-            throw new HubException(ex.Message, ex);
-        }
-        catch (TooManyRequestsException ex)
-        {
-            throw new HubException(ex.Message, ex);
-        }
-        catch (ConflictException ex)
-        {
-            throw new HubException(ex.Message, ex);
-        }
-        catch (ValidationException ex)
-        {
-            throw new HubException(ex.Message, ex);
-        }
-        catch (DomainException ex)
-        {
-            // Bo'sh xabar shu yerdan keladi — foydalanuvchi sababni ko'rsin.
-            throw new HubException(ex.Message, ex);
-        }
-    }
+    //
+    // ★ TARJIMA <see cref="HubErrors"/> DA — nima uchun kerakligi va nima
+    // uchun hub ichidagi `private` metod EMASligi o'sha sinf izohida.
+    // Qisqasi: SignalR FAQAT `HubException` matnini klientga uzatadi, va
+    // AYNI qoida `LiveClassHub` da ham kerak bo'ldi.
+    //
+    // ★ ISHLAYOTGANINI `HubErrorTranslationTests` isbotlaydi: u hub
+    // metodlarini HAQIQIY use-case bilan chaqirib, klientga `HubException`
+    // (turi bo'yicha, matn tarkibi bo'yicha emas) yetishini tekshiradi.
+    // Yangi ommaviy metod qo'shilsa, o'sha sinfdagi ro'yxat testi qizaradi.
 
     // ---------------------------------------------------------------- hayot sikli
 

@@ -32,6 +32,34 @@ public sealed class StorageOptions
     /// </summary>
     public string ServiceUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// BRAUZERGA beriladigan manzil — imzolangan ko'rish havolasi shundan
+    /// quriladi (FAZA 5.3, dars yozuvi).
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// ★ NIMA UCHUN IKKINCHI MANZIL KERAK BO'LDI
+    ///
+    /// <see cref="ServiceUrl"/> — SERVER-SERVER manzil: uni API konteyneri
+    /// (fayl yuklash/o'qish) va LiveKit Egress ishlatadi, dev'da u
+    /// <c>http://minio:9000</c> — Docker tarmog'i ICHIDAGI DNS nomi.
+    /// Brauzer bunday nomni umuman hal qila olmaydi.
+    ///
+    /// Dars yozuvi esa YAGONA joy bo'lib, unda havola BRAUZERGA beriladi
+    /// (proxy emas, presigned — sabab <c>IRecordingStorage</c> izohida).
+    /// SigV4 imzosi HOSTGA bog'langani uchun manzilni "keyin almashtirib
+    /// qo'yish" mumkin emas: imzo o'sha zahoti buziladi va ombor 403
+    /// qaytaradi.
+    ///
+    /// Bu AYNAN <c>LiveKit:Url</c> / <c>LiveKit:PublicUrl</c> juftligidagi
+    /// mulohaza: bitta o'zgaruvchi ikki xil ish bajara olmaydi.
+    ///
+    /// Bo'sh qoldirilsa <see cref="ServiceUrl"/> ishlatiladi — bir xil
+    /// manzil ikkala tomondan ham ko'rinadigan sozlamalarda (masalan
+    /// prod'dagi R2) qo'shimcha qiymat yozish shart emas.
+    /// ══════════════════════════════════════════════════════════════════
+    /// </summary>
+    public string PublicUrl { get; set; } = string.Empty;
+
     public string Bucket { get; set; } = string.Empty;
 
     public string AccessKey { get; set; } = string.Empty;
@@ -63,8 +91,26 @@ public sealed class StorageOptions
     //   to'silmadi?" degan savol bilan bilinardi.
 
     /// <summary>Manzil absolyut va <c>http(s)</c> bo'lishi kerak.</summary>
-    public bool HasValidServiceUrl =>
-        string.IsNullOrWhiteSpace(ServiceUrl)
-        || (Uri.TryCreate(ServiceUrl, UriKind.Absolute, out var uri)
+    public bool HasValidServiceUrl => IsAbsoluteHttpOrEmpty(ServiceUrl);
+
+    /// <summary>
+    /// Brauzer uchun manzil ham absolyut <c>http(s)</c> bo'lishi kerak
+    /// (bo'sh — ruxsat: u holda <see cref="ServiceUrl"/> ishlatiladi).
+    /// </summary>
+    public bool HasValidPublicUrl => IsAbsoluteHttpOrEmpty(PublicUrl);
+
+    /// <summary>
+    /// Imzolangan ko'rish havolasi quriladigan manzil:
+    /// <see cref="PublicUrl"/>, u bo'sh bo'lsa <see cref="ServiceUrl"/>.
+    ///
+    /// <c>LiveKitOptions.EffectivePublicUrl</c> bilan AYNI naqsh — qoida
+    /// bitta joyda tursin, iste'molchi "qaysi biri?" deb o'ylamasin.
+    /// </summary>
+    public string EffectivePublicUrl =>
+        string.IsNullOrWhiteSpace(PublicUrl) ? ServiceUrl : PublicUrl;
+
+    private static bool IsAbsoluteHttpOrEmpty(string value) =>
+        string.IsNullOrWhiteSpace(value)
+        || (Uri.TryCreate(value, UriKind.Absolute, out var uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
 }

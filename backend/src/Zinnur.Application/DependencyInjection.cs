@@ -10,6 +10,7 @@ using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Messaging.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Progress.Services;
+using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.Tests.Services;
@@ -141,6 +142,23 @@ public static class DependencyInjection
         // kontekst bilan yozishga urinilardi.
         services.AddScoped<ISettingsResolver, SettingsResolver>();
         services.AddScoped<ISettingsService, SettingsService>();
+
+        // ---------------------------------------------------------------- FAZA 5.3
+        //
+        // DARS YOZUVI (LiveKit Egress -> obyekt ombori).
+        //
+        // Ikkalasi ham SCOPED: ular `DbContext` ga (port orqali) tayanadi va
+        // o'zgarishlarni AYNI ChangeTracker'da to'playdi. Webhook uchun bu
+        // AYNIQSA muhim — takror jurnali yozuvi va yozuv holatining
+        // o'zgarishi BITTA `SaveChanges` bilan, ya'ni bitta tranzaksiyada
+        // saqlanishi kerak (aks holda "takror deb belgilandi, lekin holat
+        // o'zgarmadi" degan yo'qotish mumkin bo'lardi).
+        //
+        // Singleton bo'lsa scoped kontekst ushlab qolinardi ("captive
+        // dependency") va ikkinchi so'rovda allaqachon yopilgan kontekst
+        // bilan ishlashga urinilardi.
+        services.AddScoped<IRecordingService, RecordingService>();
+        services.AddScoped<IRecordingWebhookHandler, RecordingWebhookHandler>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);
