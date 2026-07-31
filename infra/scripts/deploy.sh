@@ -97,8 +97,20 @@ fi
 if [[ "${SKIP_BACKUP:-0}" != "1" ]]; then
     if "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx postgres; then
         log "Baza zaxirasi olinmoqda (migratsiyalardan OLDIN)"
-        ./infra/scripts/backup-db.sh
-        ok "zaxira tayyor"
+        # ⚠️ `PROJECT_DIR` MAJBURIY: `backup-db.sh` standart qiymat sifatida
+        # `/opt/zinnur` ni oladi (cron uchun qulay), lekin loyiha boshqa
+        # papkada bo'lsa compose faylini topa olmay `exit 2` bilan yiqiladi
+        # va butun deploy to'xtaydi. Haqiqiy yo'lni SHU YERDA beramiz.
+        if PROJECT_DIR="$ROOT" ./infra/scripts/backup-db.sh; then
+            ok "zaxira tayyor"
+        else
+            # Zaxira yiqilishi deploy'ni TO'XTATMASLIGI kerak edi — lekin
+            # migratsiyalar orqaga qaytmaydi, shuning uchun to'xtatamiz va
+            # sababni ko'rsatamiz. Ataylab davom etish uchun: SKIP_BACKUP=1
+            fail "Zaxira olinmadi. Sabab yuqorida (log: /var/log/zinnur-backup.log)."
+            fail "Ataylab zaxirasiz davom etish:  SKIP_BACKUP=1 ./infra/scripts/deploy.sh"
+            exit 1
+        fi
     else
         ok "postgres ishlamayapti — birinchi deploy, zaxira kerak emas"
     fi
