@@ -3,13 +3,9 @@
 > Bu fayl **kontekst tugaganda** ish uzilib qolmasligi uchun yuritiladi.
 > Yangi sessiya shu faylni o'qib, oldingi suhbatsiz davom eta oladi.
 >
-> **Oxirgi yangilanish:** 2026-07-30, kechki sessiya oxiri
-> **Oxirgi commitlar:** `edbf1d0` (backend) · `c9fa062` (frontend) ·
-> `b28e767` (hujjatlar) — ✅ ish tarixga yozilgan, working tree TOZA.
-> Push qilinmagan (repo lokal).
->
-> **Ekran suratlari:** `~/Documents/Projects/zinnur-v2-shots/` (57 ta PNG —
-> parite tekshiruvi va brauzer sinovlari; repoga qo'shilmadi, 9.8 MB).
+> **Oxirgi yangilanish:** 2026-07-31, tungi sessiya (PM + parallel agentlar)
+> **Holat:** ish COMMIT QILINMAGAN — `main` da, working tree'da turibdi.
+> Repo LOKAL, GitHub remote sozlanmagan.
 >
 > Batafsil jurnal: `docs/PROGRESS.md` · Reja: `docs/ROADMAP.md` ·
 > Dizayn ko'chirish: `docs/DIZAYN_KOCHIRISH_REJASI.md` · Shartnoma: `docs/SPEC.md`
@@ -21,7 +17,7 @@
 ```bash
 cd ~/Documents/Projects/zinnur-v2
 docker compose up -d
-docker compose ps                      # 5 xizmat healthy
+docker compose ps
 curl -s localhost:5080/health/ready
 ```
 
@@ -32,7 +28,7 @@ curl -s localhost:5080/health/ready
 | Admin | `admin@zinnur.uz` / `Admin!2345` |
 | Ustoz | `teacher@zinnur.uz` / `Demo!2345` |
 | O'quvchi | `student@zinnur.uz` / `Demo!2345` |
-| Postgres / Redis (host) | 5440 / 6390 |
+| Postgres / Redis / MinIO (host) | 5440 / 6390 / **9010** (konsol 9011) |
 | Eski loyiha (TEGILMAYDI) | http://localhost:8000 (`zinnur-legacy`) |
 
 ### ⚠️ Образ eskirmaganmi — HAR SAFAR tekshiring
@@ -40,135 +36,157 @@ curl -s localhost:5080/health/ready
 ```bash
 docker inspect zinnur/api:dev --format '{{.Created}}'
 docker inspect zinnur/web:dev --format '{{.Created}}'
-docker compose build api web && docker compose up -d api web   # kerak bo'lsa
+docker compose build api web && docker compose up -d api web
 ```
 
-Bugun ikki marta shu holat bo'ldi: kod yozilgan, lekin konteyner eski образdan
-ishlab, endpoint **404** qaytardi (javob tanasi ham bo'sh — UI'da tushunarli
-xato ko'rinmaydi).
+Bu tuzoq bu loyihada **bir necha marta** vaqt yedi: kod yozilgan, lekin
+konteyner eski образdan ishlab endpoint **404** qaytargan (javob tanasi ham
+bo'sh — UI'da tushunarli xato ko'rinmaydi).
+
+### Build va test — AYNAN ishlaydigan buyruqlar
+
+```bash
+cd ~/Documents/Projects/zinnur-v2/backend
+
+# Build (NuGet keshi bilan ~2 s, keshsiz ~4 daqiqa)
+docker run --rm -v "$PWD":/src -w /src -v zinnur-nuget-cache:/root/.nuget/packages \
+  mcr.microsoft.com/dotnet/sdk:9.0 dotnet build Zinnur.sln -v q --nologo
+
+# Testlar — jonli Postgres/Redis/MinIO ga ulanadi
+docker run --rm --add-host=host.docker.internal:host-gateway \
+  -v "$PWD":/src -w /src -v zinnur-nuget-cache:/root/.nuget/packages \
+  -e TEST_POSTGRES="Host=host.docker.internal;Port=5440;Database=postgres;Username=zinnur;Password=zinnur_dev_only_change_me" \
+  -e TEST_REDIS="host.docker.internal:6390" \
+  -e TEST_STORAGE_URL="http://host.docker.internal:9010" \
+  -e TEST_STORAGE_BUCKET="zinnur-dev" \
+  -e TEST_STORAGE_ACCESS_KEY="zinnur_dev_minio" \
+  -e TEST_STORAGE_SECRET_KEY="zinnur_dev_minio_secret" \
+  mcr.microsoft.com/dotnet/sdk:9.0 dotnet test Zinnur.sln --nologo -v q
+```
+
+**Kutilgan natija: 537 unit + 323 integratsiya = 860 test, 0 yiqilgan.**
+
+⚠️ `TEST_STORAGE_*` bermasangiz 5 ta fayl testi yiqiladi (MinIO'ga yetmaydi).
 
 ---
 
-## 2. BUGUN NIMA QILINDI (2026-07-30)
+## 2. HOZIRGI HOLAT
 
-### Tuzatilgan HAQIQIY xatolar (hammasi jonli isbotlangan)
+```
+Build       : backend 0 xato / 0 ogohlantirish · frontend + eslint toza
+Testlar     : 860 yashil (oldingi sessiyada 614 edi)
+Migratsiya  : 11 ta, oxirgisi 20260730200125_AddNotificationOutbox...
+```
 
-| Xato | Oqibati |
-|---|---|
-| `GroupFormDialog` `courseId`/`curatorGroupId` yubormasdi | Har tahrirlashda guruh kursi uzilardi → o'quvchilarda gating `NotInCourse`, butun kurs qulflanardi |
-| `useLiveHub` `Array.isArray(result)` | Ishtirokchilar ro'yxati HECH QACHON to'ldirilmasdi (server obyekt qaytaradi) |
-| `SessionEnded` backendda yuborilmasdi | Ustoz darsni yakunlaganda o'quvchi ekranida hech nima o'zgarmasdi |
-| Qidiruvda 1 belgi → 400 → jadval yo'qolardi | `USER/GROUP/COURSE_SEARCH_MIN` bilan yopildi |
-| **Kirish tokeni bekor qilinmasdi** (`ver` tekshirilmasdi) | O'chirilgan o'quvchi 15 daqiqa video xonaga kira olardi |
-| `RedisCacheService` kalitlari makonsiz | Testlarda bazalararo to'qnashuv (9 test yiqilgandi) |
-| `Payment.Validate` da `Amount = BaseAmount − DiscountAmount` yo'q | Moliya hisoboti uydirmaga aylanardi |
-| `outstanding` holatga qaramaydi | Kechirilgan oy jadvalda "qarz" bo'lib turardi — kassir yana pul so'rardi |
-| `BaseModal` qatlamlari | Hisob oynasidan ochilgan to'lov oynasi ORTIDA chizilardi |
-| Tema karkas `<div>` ida edi | Teleport qilingan modal/toast temadan chiqib ketardi |
+### ✅ Bu sessiyada tugatildi
 
-### Qo'shilgan funksiyalar
+- **FAZA 5.4** fayl ombori (MinIO + `GET /submissions/files/{id}`)
+- **FAZA 5.2** notifikatsiya outbox + worker
+- **FAZA 5.1** Telegram bot + Mini App autentifikatsiyasi
+- Moliya `GET /payments/summary` + CSV eksport
+- Super-admin sozlamalar paneli (**backend**)
+- Tekshirish navbati UI (klaviatura yorliqlari + fayl ochish)
+- Moliya dashboard UI
 
-- **FAZA 4 (moliya) to'liq:** Domain + sxema (11 `CHECK`) + `PaymentService` +
-  ~20 endpoint + **To'lovlar va Moliya UI**
-- **FAZA 3.4 (testlar):** tuzish, yechish (taymer bilan), natijalar, CSV
-- **Uy vazifalari:** yaratish/tahrirlash, o'quvchi topshirishi (multipart)
-- **Guruh a'zoligi:** qo'shish, pauza, ko'chirish, chiqarish + arxiv/jadval
-- **Reyting va kurator chati (DM)** — backend + ekranlar
-- **Davomatni qo'lda tuzatish** + audit izi
-- **Kalendar** (`/live-sessions/calendar`), dars `completed` bayrog'i
+---
 
-### Dizayn ko'chirish (1–4 to'lqin)
+## 3. KEYINGI QADAM — shu yerdan davom eting
 
-Eski ilova dizayni v2 ga ko'chirildi. Ildiz sabab: v2 rangni
-`app/static/app.css` dan (bazaviy fayl, yashil `#2f9e41`) olgan edi, holbuki
-eski loyihada har panel uni inline ustidan yozadi.
+Quyidagilar boshlangan yoki rejalashtirilgan, lekin **sessiya limiti** tufayli
+tugallanmagan. Tartib — muhimlik bo'yicha.
 
-| Rol | Tema | Karkas |
+| № | Ish | Holat |
 |---|---|---|
-| O'quvchi | `#051e2d` / `#f5b731` | 390px, pastda 5 tab |
-| Ustoz/kurator | `#092235` / `#ffcc33` | yon menyu |
-| O'quv bo'limi | `#0f2d48` / `#f2c84b` | yon menyu |
-| Jonli dars | `teacher` temasi (eskisida ham aynan shu) | to'liq ekran |
+| 1 | **Sozlamalarni runtime qilish** (`IOptions` → `ISettingsResolver`) | boshlangan, kod yozilmagan |
+| 2 | **Sozlamalar paneli UI** (shartnoma tayyor, 4-bo'limga qarang) | boshlangan, kod yozilmagan |
+| 3 | **Guruh chati** (backend + UI) — parite bo'shlig'i #1/#2 | `GroupChatChannel.cs` yozilgan, qolgani yo'q |
+| 4 | **FAZA 5.5** fon vazifalari + DB leader lock | boshlangan, kod yozilmagan |
+| 5 | **FAZA 5.3** dars yozuvi (LiveKit Egress → R2) | boshlanmagan |
+| 6 | **FAZA 7** ma'lumot ko'chirish + staging + prod deploy | boshlanmagan |
 
-**Holat:** 614 test yashil (408 unit + 206 integratsiya), build 0 ogohlantirish,
-`vue-tsc` + `eslint` toza, api va web образlari yangi.
+### 3.1. Sozlamalar panelining halol cheklovi — 1-ishning MOHIYATI
 
----
+Panel 27 sozlamani ko'rsatadi, lekin **faqat 2 tasi tahrirlanadi**
+(`finance.block_threshold`, `finance.block_scope`). Qolgani ishga tushishda
+`IOptions<T>` singleton'ga **qotadi** — bazadan boshqarilsa panel "saqlandi"
+derdi-yu tizim eskisi bilan ishlayverardi (**jimgina yolg'on**).
 
-## 3. QOLGAN ISH — DIZAYN PARITETI
+Loyiha egasi "barcha env sozlamalarini paneldan boshqarish" ni so'ragan, ya'ni
+bu ish uning talabining o'zagi.
 
-Mustaqil tekshiruvchi bahosi: o'quvchi ~90% · kurator ~80% · ustoz ~75% ·
-o'quv bo'limi ~60% · jonli dars ~40% (tema tuzatilgandan keyin yuqoriroq).
+**Retsept:** iste'molchini `ISettingsResolver` ga o'tkaz + registrda
+`Source = Database`. Nomzodlar: Telegram (`BotToken`, `WebhookSecret`,
+`MiniAppUrl`), Storage (`ServiceUrl`, `Bucket`, `AccessKey`, `SecretKey`),
+LiveKit kalitlari — hammasi har so'rovda ishlatiladi.
 
-### 3.1. Funksional yo'qotishlar — QAROR KERAK
+⚠️ **Uch tuzoq:**
+1. `R2SubmissionStorage` `_options` ni konstruktorda oladi — har chaqiruvda
+   olinishi kerak.
+2. Telegram yuboruvchisida `.RemoveAllLoggers()` bor (bot tokeni logga ochiq
+   tushmasligi uchun) — **buni tasodifan orqaga qaytarmang**, regressiya testi
+   bor: `TelegramHttpClient_HasNoLoggingHandlers`.
+3. `ValidateOnStart` "TO'LIQ yoki BO'SH" himoyasi ishga tushish paytida
+   ma'nosini yo'qotadi — uni **yozish paytiga** (validatsiyaga) ko'chiring.
 
-| # | Eski ilovada bor | v2 da | Nima kerak |
-|---|---|---|---|
-| 1 | Ustozda **"Chatlar" hubi** — barcha guruh chatlari bitta joyda | Yo'q | Backendda **guruh chati umuman yo'q** (faqat dars ichidagi SignalR va kurator DM). Yangi modul kerak |
-| 2 | **Guruh chati** o'quvchida ham | Yo'q | Yuqoridagi bilan bir xil |
-| 3 | **Moliya dashboard'i**: KPI, "Qarz yoshi", "Oxirgi 12 oy", guruh/usul kesimlari | Faqat sozlama sahifasi | `GET /payments/summary` yig'ma endpointi |
-| 4 | **"Dars yozuvlari"** bo'limi | Yo'q | FAZA 5.3 (LiveKit Egress → R2) |
-| 5 | **"Qarorlar / Xabarlar"** bo'limi | Yo'q | FAZA 5.2 (notifikatsiya) |
-| 6 | **"Tekshirish" navbati** — to'liq ekran, klaviatura yorliqlari (`1–5/Enter/→`) | Oddiy sahifa + modal | Navbat endpointi + UI |
-| 7 | Guruhlar sahifasida **4 ta KPI kartochka** | Yo'q | Yig'ma so'rov |
-| 8 | O'quvchi profil modali (statistika, baholar, izohlar) | Yo'q | `notes` endpointi yo'q |
-| 9 | To'lovlarda **global tranzaksiyalar tarixi**, **"Xabar matnlari"** | Yo'q | Audit o'qish endpointi + shablonlar |
-| 10 | Excel eksporti (moliya) | Yo'q | `http.download` tayyor, endpoint kerak |
-
-### 3.2. Kichik chekinishlar (tuzatilishi mumkin)
-
-- Sahifa **tavsif matnlari** almashtirilgan (masalan To'lovlar: eskisida
-  "Har 8 dars uchun 540 000 so'm...", hozir "Har oy uchun yozuv ochiladi...")
-- Guruh ichidagi "Vazifalar" tabi va menyudagi "Tekshirish" — nomlar yaqin,
-  chalkashishi mumkin
-- `💬` emoji sarlavhalardan olib tashlangan
-
-### 3.3. Tekshirilmagan
-
-- **To'ldirilgan** davomat/baholar jadvali (30 o'quvchi × 70 dars) — lokal
-  bazada bunday ma'lumot yo'q. Reja 6-bo'limida **6 ta ekran surati**
-  so'ralgan (eski ilovadan) — hali berilmagan
-- Haqiqiy LiveKit video oqimi (WS 404 qaytardi)
-- Eski ilovaning brauzerdagi ko'rinishi — parol yo'q, solishtirish faqat
-  shablon kodi bo'yicha qilingan
+⚠️ **Kesh kerak** (har so'rovda bazaga borish qimmat), lekin kesh bilan
+yangilanish ko'rinmay qolishi mumkin — ya'ni tuzatayotgan muammo boshqa
+shaklda qaytadi. Ko'p instance holatini hisobga oling.
 
 ---
 
-## 4. QAROR KUTAYOTGAN SAVOLLAR
+## 4. SOZLAMALAR UI UCHUN SHARTNOMA (tayyor, kod kutilmoqda)
 
-1. **Kurator baho qo'ya oladimi?** Eski tizim taqiqlagan (K2), v2 serveri
-   ruxsat beradi (`GradeRoles` da `Assistant` bor). Menyudan olib tashlandi,
-   lekin marshrut ochiq. Serverda ham taqiqlansinmi?
-2. **Refresh token qayta ishlatish aniqlanmaydi** — `jti` saqlanmaydi.
-   Muddat 7 kunga qisqartirildi (yarim yechim). To'liq yechim kerakmi?
-3. **Kvitansiya raqami** — Postgres `SEQUENCE` kerakmi? Hozir ikki kassir bir
-   vaqtda ishlasa 409 chiqadi (pul yo'qolmaydi, qayta urinish kerak).
-4. **Qarzdorga kurs daraxti butunlay yopiladi** (`Video` qamrovi) — o'quvchi
-   dars nomlarini ham ko'rmaydi. Yumshoqroq variant kerakmi?
-5. **Test taymeri 60 s tolerantlikni ko'rsatadi** (10 daqiqalik testda 11:00
-   dan sanaydi). Alohida "ko'rsatiladigan muddat" yuborilsinmi?
-6. **Davomatda "avtomatikka qaytarish"** tugmasi yo'q — `isManual` abadiy
-   qoladi. Qo'shilsinmi?
-7. **Guruh × kurs davomat matritsasi** endpointi yo'q (birlik — dars).
-8. **`completed` hozir "hamma yashil"**: video kontenti modellashtirilmagani
-   uchun vazifasi/testi yo'q darslar darhol tugatilgan hisoblanadi.
+Hammasi `[Authorize(Roles="Admin")]` — Academic ham ko'rmaydi.
 
----
-
-## 5. KEYINGI FAZALAR (ROADMAP bo'yicha)
-
-| Faza | Ish | Holat |
+| Metod | Yo'l | Javob |
 |---|---|---|
-| 5.1 | **Telegram bot va Mini App** — o'quvchilar uchun YAGONA kirish yo'li | ❌ boshlanmagan · **eski tizimni o'chirish uchun SHART** |
-| 5.2 | Notifikatsiya (outbox + worker, commit-then-send) | ❌ |
-| 5.3 | Dars yozuvi (LiveKit Egress → R2, webhook imzosi) | ❌ |
-| 5.4 | Fayl ombori (R2) — hozir fayl yuklashda **503** | ❌ |
-| 5.5 | Fon vazifalari (avto-yakunlash, oylik yozuvlar, DB leader lock) | ❌ |
-| 6 | Frontend qolgan qismi (3-bo'limdagi ro'yxat) | qisman |
-| 7 | **Ma'lumot ko'chirish** + staging + prod deploy | ❌ |
+| GET | `/api/v1/settings` | `{ groups: [...] }` |
+| GET | `/api/v1/settings/{key}` | `SettingDto` |
+| PUT | `/api/v1/settings/{key}` | tana `{"value":"..."}` |
+| POST | `/api/v1/settings/{key}/reset` | `SettingDto` |
 
-> **Eski tizimni o'chirish uchun minimal to'plam:** 5.1 (Telegram) + 5.4 (fayl)
-> + 7 (ma'lumot ko'chirish va deploy).
+Xatolar: **400** (validatsiya yoki "faqat o'qish" — sabab
+`problem.errors[key][0]`), **403** (rol), **404** (noma'lum kalit), **401**.
+
+`SettingDto`: `key, group, groupName, name, description, kind, isSecret,
+isEditable, readOnlyReason, origin, isSet, value, maskedValue, defaultValue,
+constraints{choices, minimum, maximum, maxLength, format}, updatedAt, updatedById`
+
+Enumlar (JSON'da SATR): `kind` = `Text|Number|Money|Toggle|Choice|Secret` ·
+`origin` = `Default|Environment|Database` · `format` = `None|Url|TimeZone` ·
+`group` = `General|Finance|Telegram|LiveKit|Storage|Security`
+
+**UI qoidalari:**
+1. Qiymat **har doim satr** (`"true"`, `"600000"`).
+2. `isSecret` → `value` va `defaultValue` DOIM `null`; faqat `maskedValue` +
+   `isSet`. **"Ko'rsatish" tugmasi BO'LMASIN** — server sirni umuman bermaydi.
+3. `isEditable=false` → maydon o'chiq, yonida `readOnlyReason` matni ko'rinsin.
+4. `origin !== "Database"` → "standartga qaytarish" tugmasi ma'nosiz, yashiring.
+5. Chegaralar `constraints` dan olinsin, kodda takrorlanmasin.
+6. 🔴 **Bo'sh sir maydoni:** foydalanuvchi maskani ko'rib, maydonga tegmasdan
+   "Saqlash" bossa — bo'sh qiymat yuborilib **sir o'chib ketmasligi** kerak.
+
+---
+
+## 5. TELEGRAM — frontend integratsiyasi uchun shartnoma
+
+**`POST /api/v1/telegram/mini-app/auth`** (anonim)
+```jsonc
+{ "initData": "<window.Telegram.WebApp.initData — AYNAN, o'zgartirmasdan>" }
+// 200 -> mavjud AuthResponse bilan BIR XIL (accessToken, refreshToken, user)
+```
+
+| Kod | Ma'no | Frontend nima qilsin |
+|---|---|---|
+| 200 | kirish | tokenlarni odatdagidek saqla |
+| 401 | imzo yaroqsiz/eskirgan | "Ilovani yopib, qaytadan oching" |
+| 403 | `Student` emas | "Xodimlar email+parol bilan kiradi" |
+| 409 | Telegram bog'lanmagan | **botga yo'naltir** — "raqamni ulashing" |
+| 429 | rate-limit | `Retry-After` sarlavhasi bor |
+| 503 | Telegram sozlanmagan | email+parol ekraniga qaytar |
+
+🔴 **Telefon kiritish oynasi YARATILMASIN** — bog'lash faqat botda
+(eski tizimning X-1/X-1b zaifligi aynan qo'lda kiritishdan kelib chiqqan).
 
 ---
 
@@ -176,52 +194,63 @@ o'quv bo'limi ~60% · jonli dars ~40% (tema tuzatilgandan keyin yuqoriroq).
 
 1. **`PUT` = TO'LIQ ALMASHTIRISH.** Yuborilmagan maydon `null` bo'lib bazaga
    tushadi. Har tahrirlash formasi mavjud qiymatlarni yuklab, HAMMASINI
-   qaytarsin.
+   qaytarsin. (Sozlamalar bundan mustasno — har kalit alohida resurs.)
 2. **Migratsiyasiz model o'zgarishi** → `PendingModelChangesWarning` → ilova
    UMUMAN ko'tarilmaydi (build yashil bo'lsa ham).
-3. **Npgsql 9 da `UseXminAsConcurrencyToken()` YO'Q** →
+3. **Parallel agentlar migratsiya yaratmasin** — zanjir buziladi. Koordinator
+   batch oxirida BITTA migratsiya yaratsin. (Bu sessiyada shunday qilindi va
+   ishladi: uch agentning model o'zgarishi bitta bog'inga tushdi.)
+4. **Npgsql 9 da `UseXminAsConcurrencyToken()` YO'Q** →
    `Property<uint>("xmin").IsRowVersion()`.
-4. **400 va 409 boshqa joyda:** 400 da sabab `problem.errors` da, 409 da
+5. **400 va 409 boshqa joyda:** 400 da sabab `problem.errors` da, 409 da
    `detail` to'liq. `toUserMessage(error)` ikkalasini to'g'ri o'qiydi.
-5. **Qidiruv minimal uzunligi:** foydalanuvchi 3, guruh 2, kurs 2 belgi.
-6. **`reorder` TO'LIQ ro'yxat kutadi** (yetishmasa 400).
-7. **Redis kalitlari makon bilan** (`Redis:KeyPrefix`) — bitta Redis'ni ikki
-   muhit baham ko'rsa aralashmaydi.
-8. **Tema `<html>` ga qo'yiladi**, karkas `<div>` iga emas (teleport).
-9. **`DayOfWeek`:** eski Python dushanba=0, .NET yakshanba=0 →
-   `dotnet = (python + 1) % 7`.
-10. **LiveKit ICE:** prod'da `NODE_IP=127.0.0.1` qolib ketsa media hech qachon
-    ishlamaydi.
-11. **`CA1848`** (`[LoggerMessage]`), **`CA1305`** (`CultureInfo.InvariantCulture`).
-12. **Kalendarda `localDate`** ishlatilsin — `scheduledStart` dan brauzerda
+6. **Qidiruv minimal uzunligi:** foydalanuvchi 3, guruh 2, kurs 2 belgi.
+7. **`reorder` TO'LIQ ro'yxat kutadi** (yetishmasa 400).
+8. **Redis kalitlari makon bilan** (`Redis:KeyPrefix`).
+9. **Tema `<html>` ga qo'yiladi**, karkas `<div>` iga emas (teleport).
+10. **Oltin fonda `text-white` ishlatmang** — kontrast ~1.9:1.
+11. **`DayOfWeek`:** eski Python dushanba=0, .NET yakshanba=0 →
+    `dotnet = (python + 1) % 7`. Ma'lumot ko'chirishda MAJBURIY.
+12. **LiveKit ICE:** prod'da `NODE_IP=127.0.0.1` qolib ketsa media hech qachon
+    ishlamaydi. Compose overlay'lari `environment` ni BIRLASHTIRADI —
+    prod'da `!reset null` kerak. Yangi sozlama qo'shganda **literal emas,
+    `${VAR:-}` havolasi** yozing, shunda dev qiymati prod'ga oqmaydi.
+13. **`CA1848`** (`[LoggerMessage]`), **`CA1305`** (`CultureInfo.InvariantCulture`),
+    `CA1711` (tur nomi `Queue` bilan tugamasin), `CA1716`.
+14. **Kalendarda `localDate`** ishlatilsin — `scheduledStart` dan brauzerda
     sana chiqarilsa, boshqa vaqt mintaqasida dars kechagi kunga tushadi.
-13. **zsh:** `GID` — tizim o'zgaruvchisi, skriptda ishlatib bo'lmaydi.
+15. **zsh:** `GID` — tizim o'zgaruvchisi, skriptda ishlatib bo'lmaydi.
+16. 🔴 **`SubmissionFiles` — `objectKey` UI'ga chiqmasin** (ichki ombor kaliti).
+17. 🔴 **Telegram: `contact.user_id == from.id` tekshiruvi shart.** Telegram'da
+    BOSHQA odamning kontaktini yuborish mumkin — bu tekshiruvsiz akkaunt
+    egallash yo'li ochiq qoladi.
 
 ---
 
-## 7. COMMIT TARIXI (bajarildi)
+## 7. TOZALANMAGAN SINOV MA'LUMOTI
 
-```
-b28e767  Hujjatlar: ish jurnali, dizayn ko'chirish rejasi va sessiya topshirig'i
-c9fa062  Frontend: eski ilova dizayni ko'chirildi + moliya, testlar, a'zolik
-edbf1d0  Backend: moliya moduli, testlar oqimi, reyting/DM, davomat, xavfsizlik
-8b17815  (oldingi sessiya)
-```
+Oldingi sessiyalardan qolgan (dev bazada):
+- tariflar **"UI sinov tarifi"** (guruh `UI-MOLIYA-TEST`), **"Smoke tarif"**
+  (guruh `MOLIYA-SMOKE`)
+- foydalanuvchilar `Begona O'quvchi (begona-...@zinnur.uz)`,
+  `Curl Oquvchi (curl-st-...@zinnur.uz)`
+- **`assignment id=7`** — "QA-NAVBAT sinov vazifasi (o'chirilishi mumkin)".
+  API orqali o'chirib bo'lmaydi (409: javoblar topshirilgan), `psql` bilan
+  olib tashlash mumkin.
+- ikkita `zinnur_test_*` bazasi (uzilib qolgan test yurishidan)
 
-Working tree toza. Repo LOKAL — push qilinmagan, GitHub remote sozlanmagan.
+---
 
-## 8. ISH USLUBI
-
-Bugun agentlar bilan ishlash yaxshi natija berdi, lekin **ikki qoida** bilan:
+## 8. ISH USLUBI — nima ishladi
 
 1. **Buyruq bermang, muammoni tushuntiring.** Agentlar shu tufayli mustaqil
-   xato topdi: `outstanding` holatga qaramasligi, modal qatlamlari, tema
-   teleportdan chiqib ketishi — hech biri topshiriqda yo'q edi.
-2. **Hisobotni DALIL bilan tekshiring.** Bugun bir necha marta agent xulosasi
-   noto'g'ri chiqdi (bir agent men bergan namunaviy URL'ni sinab "xato bor"
-   dedi; boshqasi seed ma'lumotini o'zgartirdi). Har hisobotdan keyin build,
-   test va jonli tekshiruv MENING zimmamda bo'ldi.
-
-**Parallel ishlashda:** umumiy fayllarni (`router`, `navigation`,
-`shared/types`) oldindan o'zim ulab, agentlarga "tegma" deb aytdim — aks holda
-ikki agent bir faylni bosib ketardi.
+   ikkita HAQIQIY bug topdi: SigV4 imzosida port tushib qolishi va Telegram
+   tokenining logga ochiq tushishi. Ikkalasi ham topshiriqda yo'q edi.
+2. **Hisobotni DALIL bilan tekshiring.** Har agent hisobotidan keyin
+   koordinator o'zi build, test va jonli tekshiruv qildi. Bir agent o'z
+   tiplarini "isbotlanmagan" deb belgiladi — koordinator haqiqiy API javobi
+   bilan solishtirib tasdiqladi.
+3. **Umumiy fayllarni oldindan taqsimlang.** Har agentga "SENIKI / UMUMIY
+   (faqat `Edit`, `Write` emas) / TEGMA" ro'yxati berildi. Bitta ham
+   to'qnashuv bo'lmadi.
+4. **Migratsiyani markazlashtiring** (3-tuzoq).

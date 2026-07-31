@@ -1283,3 +1283,79 @@ uch tema jonli tasdiqlandi (brauzer, 390px va 1280px)
 
 Demo ma'lumot: bir agent sinov uchun `ATF-1 (demo)` darsini "Ended" qilgan va
 o'quvchini "Absent" belgilagan edi — ochiq aytdi, SQL bilan qaytarildi.
+
+---
+
+# Tungi sessiya (2026-07-30 → 31) — FAZA 5 asosan yopildi
+
+> Ish uslubi: koordinator (PM) + parallel agentlar. Koordinator migratsiyani
+> markazlashtirdi, har agent hisobotini DALIL bilan qayta tekshirdi.
+
+## Yakuniy holat
+
+```
+Build       : backend 0 xato / 0 ogohlantirish · frontend + eslint toza
+Testlar     : 860 (537 unit + 323 integratsiya), 0 yiqilgan
+              boshida 614 edi -> +246
+Migratsiya  : 20260730200125_AddNotificationOutboxTelegramAndFinanceIndex
+              (MessageOutbox + TelegramUpdates + IX_Payments_Status_Period)
+Obrazlar    : api va web qayta qurildi, migratsiya jonli bazaga qo'llandi
+```
+
+## ✅ Tugatilgan
+
+| Faza | Ish |
+|---|---|
+| **5.4** | Fayl ombori: MinIO dev muhitiga (9010/9011), `GET /submissions/files/{id}` oqim bilan, ruxsat qoidasi qayta ishlatildi |
+| **5.2** | Notifikatsiya outbox + worker: commit-then-send, `SKIP LOCKED`, Redis token bucket, backoff |
+| **5.1** | Telegram bot + Mini App: `initData` HMAC, `contact_shared`, faqat `Student`, webhook siri |
+| — | Moliya `GET /payments/summary` + CSV eksport, qarz yoshi, 12 oy dinamikasi |
+| — | Super-admin sozlamalar paneli (backend): 27 sozlama, sir maskalash, audit |
+| — | Tekshirish navbati UI: to'liq ekran + klaviatura yorliqlari + fayl ochish |
+| — | Moliya dashboard UI: KPI, qarz yoshi, 12 oy, kesimlar, eksport |
+
+## 🔴 Topilgan HAQIQIY buglar (hammasi mavjud kodda edi)
+
+| Bug | Oqibati |
+|---|---|
+| `R2SubmissionStorage.Sign()` da `Uri.Host` — **port tushib qolardi** | SigV4 imzosi `Host:` sarlavhasi bilan mos kelmasdi. R2'da (443) ko'rinmasdi, lekin har standart bo'lmagan portli S3 xizmatida **har `PUT` 403**. Ya'ni fayl yuklash hech qachon haqiqiy ombor bilan sinalmagan edi. `Uri.Authority` ga o'zgartirildi |
+| `IHttpClientFactory` standart log ilgagi | Telegram **bot tokeni URL ichida, logga Information darajasida ochiq** yozilardi (8 marta ko'rindi). Prod'da ham chiqardi. `.RemoveAllLoggers()` + regressiya testi |
+
+## Muhim qarorlar
+
+- **Fayl o'qish — presigned URL EMAS, API orqali oqim.** Ruxsat HAR so'rovda
+  tekshiriladi; presigned havola chiqarilgach uni ushlagan har kim ochadi va
+  bekor qilib bo'lmaydi (eski tizimning X-6 kamchiligi aynan shu edi).
+- **Telegram qayta bog'lash AVTOMATIK EMAS.** Operator ishlatilmagan raqamni
+  qayta sotadi; Telegram raqam *egaligini* tasdiqlaydi, lekin raqam *kimga*
+  tegishli ekanini emas. Eski bog'lanishni faqat o'quv bo'limi bekor qiladi.
+- **HTML escape matn YASALAYOTGANDA, har parametrga alohida** — sender'da emas
+  (aks holda shablonning o'z `<b>` teglari so'zma-so'z ko'rinardi).
+- **Eksport CSV, .xlsx emas** — BOM + `sep=,` bilan. `.xlsx` uchun megabaytlab
+  NuGet zanjiri yoki tijorat litsenziyasi kerak bo'lardi.
+- **Sozlamalar: baza ustun, env boshlang'ich qiymat.** Lekin `Jwt:Secret`,
+  `ConnectionStrings:*` **faqat o'qish** — panelni egallagan odam JWT kalitini
+  o'zi qo'yib token qalbakilashtira olardi.
+
+## ⚠️ Sozlamalar panelining halol cheklovi
+
+Panel 27 sozlamani ko'rsatadi, lekin **hozircha faqat 2 tasi tahrirlanadi**
+(`finance.block_threshold`, `finance.block_scope`). Qolgani ishga tushishda
+`IOptions<T>` singleton'ga qotadi — bazadan boshqarilsa panel "saqlandi"
+derdi-yu tizim eskisi bilan ishlayverardi (jimgina yolg'on).
+
+**Retsept:** iste'molchini `IOptions<T>` dan `ISettingsResolver` ga o'tkazish +
+registrda `Source = Database`. Telegram tokeni, Storage kalitlari va LiveKit
+sirlari har so'rovda ishlatiladi, ya'ni ular haqiqatan runtime bo'la oladi.
+Bu ish boshlangan edi, lekin **sessiya limiti** tufayli uzildi.
+
+## Sessiya limiti — uzilib qolgan ishlar
+
+4 agent yarim yo'lda to'xtadi (API limiti). **Repo barqaror:** build yashil,
+860 test yashil. Yagona qoldiq — `Domain/Enums/GroupChatChannel.cs`
+(mustaqil enum, build'ni buzmaydi). U qimmatli topilmani saqlab qoldi:
+
+> Eski tizimda `chat_messages.channel` ustuni bor (`"teacher"`/`"assistant"`).
+> O'quvchi ustozga va kuratorga ALOHIDA yozadi. Ma'lumot ko'chirishda buni
+> tashlab yuborilsa **ikki oqim jimgina qo'shilib ketardi** va ustoz
+> o'quvchining kuratorga atalgan savollarini o'qib qolardi.
