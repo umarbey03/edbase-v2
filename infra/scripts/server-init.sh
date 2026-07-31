@@ -203,13 +203,22 @@ EOF
     # Certbot'ni chaqirishdan OLDIN webroot haqiqatan ishlashini tekshiramiz —
     # aks holda Let's Encrypt urinishlari bekorga sarflanadi (soatlik limit bor
     # va unga yetsangiz bir necha soat kutishga to'g'ri keladi).
-    echo probe > /var/www/certbot/probe
+    # ⚠️ FAYL YO'LI: nginx `root` bilan to'liq URI ni qo'shadi, ya'ni
+    # `/.well-known/acme-challenge/probe` -> `/var/www/certbot/.well-known/acme-challenge/probe`.
+    # Faylni to'g'ridan-to'g'ri `/var/www/certbot/probe` ga yozish 404 beradi
+    # (certbot ham AYNI shu chuqur yo'lga yozadi — tekshiruv unga mos bo'lsin).
+    mkdir -p /var/www/certbot/.well-known/acme-challenge
+    echo probe > /var/www/certbot/.well-known/acme-challenge/probe
     if curl -fsS --max-time 15 "http://$DOMEN/.well-known/acme-challenge/probe" >/dev/null; then
         ok "webroot tekshiruvdan o'tdi"
+        rm -f /var/www/certbot/.well-known/acme-challenge/probe
     else
         fail "webroot internetdan ochilmadi:"
         fail "  http://$DOMEN/.well-known/acme-challenge/probe"
-        fail "Sabab: DNS yechilmayapti yoki 80-port yopiq."
+        fail "Tekshiring:"
+        fail "  dig +short $DOMEN            # IP chiqishi kerak"
+        fail "  curl -I http://$DOMEN/       # 200 qaytishi kerak"
+        fail "  ufw status                   # 80/tcp ochiqmi"
         exit 1
     fi
 
