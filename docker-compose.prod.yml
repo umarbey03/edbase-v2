@@ -102,7 +102,12 @@ services:
     # DIQQAT: Docker'ning published portlari UFW qoidalarini CHETLAB O'TADI
     # (DOCKER-USER zanjiri orqali). Ya'ni `ufw deny 5432` bazani HIMOYA QILMAYDI.
     # Yagona ishonchli yechim — faqat localhost'ga bog'lash.
-    ports:
+    # 🔴 `!override` MAJBURIY: Compose `ports` RO'YXATLARINI BIRLASHTIRADI,
+    # almashtirmaydi. Usiz bazaviy fayldagi `"5440:5432"` (BARCHA interfeys!)
+    # va bu yerdagi `"127.0.0.1:..."` IKKALASI ham qolardi:
+    #   1) deploy yiqiladi — "failed to bind host port: address already in use"
+    #   2) undan ham yomoni — baza/redis INTERNETGA OCHIQ bo'lib qolardi.
+    ports: !override
       - "127.0.0.1:5440:5432"
 
     command:
@@ -135,7 +140,12 @@ services:
   # ==========================================================================
   redis:
     logging: *default-logging
-    ports:
+    # 🔴 `!override` MAJBURIY: Compose `ports` RO'YXATLARINI BIRLASHTIRADI,
+    # almashtirmaydi. Usiz bazaviy fayldagi `"5440:5432"` (BARCHA interfeys!)
+    # va bu yerdagi `"127.0.0.1:..."` IKKALASI ham qolardi:
+    #   1) deploy yiqiladi — "failed to bind host port: address already in use"
+    #   2) undan ham yomoni — baza/redis INTERNETGA OCHIQ bo'lib qolardi.
+    ports: !override
       - "127.0.0.1:6390:6379"
 
     command:
@@ -176,7 +186,12 @@ services:
   minio:
     profiles: ["dev-only"]
     logging: *default-logging
-    ports:
+    # 🔴 `!override` MAJBURIY: Compose `ports` RO'YXATLARINI BIRLASHTIRADI,
+    # almashtirmaydi. Usiz bazaviy fayldagi `"5440:5432"` (BARCHA interfeys!)
+    # va bu yerdagi `"127.0.0.1:..."` IKKALASI ham qolardi:
+    #   1) deploy yiqiladi — "failed to bind host port: address already in use"
+    #   2) undan ham yomoni — baza/redis INTERNETGA OCHIQ bo'lib qolardi.
+    ports: !override
       - "127.0.0.1:9010:9000"
       - "127.0.0.1:9011:9001"
 
@@ -189,7 +204,13 @@ services:
   # ==========================================================================
   api:
     logging: *default-logging
-    ports:
+    # 🔴 `!override` MAJBURIY: Compose `ports` RO'YXATLARINI BIRLASHTIRADI,
+    # almashtirmaydi. Usiz bazaviy fayldagi `"5080:8080"` (BARCHA interfeys!)
+    # va bu yerdagi `"127.0.0.1:..."` IKKALASI ham qolardi:
+    #   1) deploy yiqiladi — "failed to bind host port: address already in use"
+    #   2) undan ham yomoni — api INTERNETGA to'g'ridan ochiq bo'lardi, ya'ni
+    #      nginx'ni (va TLS'ni) chetlab o'tib.
+    ports: !override
       # Tashqariga host nginx chiqaradi (TLS bilan), api to'g'ridan ochilmaydi
       - "127.0.0.1:5080:8080"
 
@@ -244,7 +265,12 @@ services:
   # ==========================================================================
   web:
     logging: *default-logging
-    ports:
+    # 🔴 `!override` MAJBURIY: Compose `ports` RO'YXATLARINI BIRLASHTIRADI,
+    # almashtirmaydi. Usiz bazaviy fayldagi `"5440:5432"` (BARCHA interfeys!)
+    # va bu yerdagi `"127.0.0.1:..."` IKKALASI ham qolardi:
+    #   1) deploy yiqiladi — "failed to bind host port: address already in use"
+    #   2) undan ham yomoni — baza/redis INTERNETGA OCHIQ bo'lib qolardi.
+    ports: !override
       - "127.0.0.1:5173:80"
 
     deploy:
