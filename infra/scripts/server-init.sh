@@ -236,6 +236,18 @@ sed -e "s|livekit\.zinnur\.uz|$LKDOMEN|g" \
     -e "s|www\.zinnur\.uz|$DOMEN|g" \
     -e "s|zinnur\.uz|$DOMEN|g" \
     infra/nginx/zinnur.conf > /etc/nginx/sites-available/zinnur.conf
+
+# ⚠️ SERTIFIKAT YO'LI: `certbot -d A -d B` BITTA sertifikat yaratadi va uni
+# BIRINCHI domen papkasiga qo'yadi. Ikkinchi nom sertifikat ichida (SAN)
+# bor, lekin `live/<ikkinchi-nom>/` papkasi UMUMAN YARATILMAYDI.
+# Konfiguratsiya esa ikkita alohida papka kutadi va nginx ishga tushmaydi:
+#   [emerg] cannot load certificate ".../livekit.<domen>/fullchain.pem"
+# Shuning uchun LiveKit blokini asosiy sertifikatga yo'naltiramiz.
+if [[ ! -d "/etc/letsencrypt/live/$LKDOMEN" ]]; then
+    sed -i "s|/etc/letsencrypt/live/$LKDOMEN/|/etc/letsencrypt/live/$DOMEN/|g" \
+        /etc/nginx/sites-available/zinnur.conf
+    ok "LiveKit bloki asosiy sertifikatga yo'naltirildi (SAN ichida)"
+fi
 ln -sf /etc/nginx/sites-available/zinnur.conf /etc/nginx/sites-enabled/zinnur.conf
 nginx -t && systemctl reload nginx
 ok "nginx tayyor"
