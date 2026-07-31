@@ -63,6 +63,17 @@ function tileRole(tile: ParticipantTile): string {
 }
 
 const isBusyState = computed(() => props.status === 'loading' || props.status === 'connecting')
+
+/**
+ * `disconnected` HAM xatolik qoplamasini ko'rsatadi.
+ *
+ * Ilgari faqat `failed` holatida qoplama chiqardi. Ulanish o'rnatilgandan
+ * KEYIN uzilsa (server qayta ishga tushdi, internet uzildi, boshqa oynadan
+ * kirildi) holat `disconnected` bo'lardi va ekranda faqat bo'sh "Hozircha
+ * efirda hech kim yo'q" yozuvi qolardi — foydalanuvchi hech qachon
+ * "Qayta urinish" tugmasini ko'rmasdi. Aynan shu "jimgina ishlamaslik".
+ */
+const isErrorState = computed(() => props.status === 'failed' || props.status === 'disconnected')
 </script>
 
 <template>
@@ -130,9 +141,9 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         </p>
       </div>
 
-      <!-- Xatolik -->
+      <!-- Xatolik yoki uzilish -->
       <div
-        v-else-if="props.status === 'failed'"
+        v-else-if="isErrorState"
         class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-ink-950/90 px-6 text-center"
       >
         <div class="flex size-12 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-400">
@@ -143,7 +154,7 @@ const isBusyState = computed(() => props.status === 'loading' || props.status ==
         </div>
         <div>
           <p class="text-sm font-semibold text-slate-100">
-            Videoga ulanib bo‘lmadi
+            {{ props.status === 'failed' ? 'Videoga ulanib bo‘lmadi' : 'Video aloqasi uzildi' }}
           </p>
           <p
             class="mt-1 max-w-sm text-xs text-slate-400"

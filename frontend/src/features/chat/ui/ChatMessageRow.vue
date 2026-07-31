@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { roleLabel, roleTone } from '@/entities/user'
-import { BaseAvatar, BaseBadge } from '@/shared/ui'
+import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
 
 /**
  * DIQQAT: bu komponent FAQAT oddiy (primitiv) prop'lar qabul qiladi.
@@ -21,6 +21,12 @@ const props = withDefaults(
     isOwn: boolean
     showHeader: boolean
     role: string
+    /**
+     * Xabar ekranda bor, lekin server hali tasdiqlamagan (optimistik).
+     * Foydalanuvchi "ketdimi yoki yo'qmi" degan savolda qolmasligi uchun
+     * qator biroz xiralashadi va vaqt o'rniga soat belgisi turadi.
+     */
+    isPending: boolean
   }>(),
   { role: '' },
 )
@@ -67,12 +73,13 @@ const tone = computed(() => roleTone(props.role))
       </div>
 
       <div
-        class="max-w-full rounded-2xl px-3 py-1.5 text-sm leading-relaxed shadow-sm"
-        :class="
+        class="max-w-full rounded-2xl px-3 py-1.5 text-sm leading-relaxed shadow-sm transition-opacity"
+        :class="[
           props.isOwn
             ? 'rounded-br-sm bg-brand-600 text-white'
-            : 'rounded-bl-sm bg-ink-800 text-slate-100 ring-1 ring-inset ring-line'
-        "
+            : 'rounded-bl-sm bg-ink-800 text-slate-100 ring-1 ring-inset ring-line',
+          props.isPending ? 'opacity-60' : '',
+        ]"
       >
         <!-- `v-text` — HTML sifatida hech qachon talqin qilinmaydi (SPEC 9.9: `v-html` taqiqlangan). -->
         <p
@@ -80,10 +87,18 @@ const tone = computed(() => roleTone(props.role))
           v-text="props.body"
         />
         <span
-          class="mt-0.5 block text-right text-[10px] tabular-nums"
+          class="mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums"
           :class="props.isOwn ? 'text-white/60' : 'text-slate-500'"
-          v-text="props.time"
-        />
+        >
+          <template v-if="props.isPending">
+            <AppIcon
+              name="clock"
+              :size="10"
+            />
+            <span class="sr-only">Yuborilmoqda</span>
+          </template>
+          <span v-text="props.time" />
+        </span>
       </div>
     </div>
   </div>

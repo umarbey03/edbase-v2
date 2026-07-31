@@ -8,6 +8,7 @@ import { AppIcon, BaseSpinner } from '@/shared/ui'
 
 import { useChatScroll } from '../model/useChatScroll'
 import { useMessageRows } from '../model/useMessageRows'
+import { useOptimisticChat } from '../model/useOptimisticChat'
 import ChatComposer from './ChatComposer.vue'
 import ChatMessageRow from './ChatMessageRow.vue'
 
@@ -25,8 +26,14 @@ const props = defineProps<{
   cooldownRemainingMs: number
   notice: string | null
   sessionEnded: boolean
-  /** Yuborish funksiyasi — natijasi bo'yicha matn tozalanadi. */
-  send: (body: string) => Promise<boolean>
+  /**
+   * Yuborish funksiyasi.
+   *
+   * `clientId` — optimistik nusxa bilan server broadcast'ini bog'lovchi
+   * BARQAROR kalit (batafsil: `useOptimisticChat`). Chaqiruvchi uni
+   * o'zgarishsiz hub'ga uzatishi shart.
+   */
+  send: (body: string, clientId: string) => Promise<boolean>
 }>()
 
 const emit = defineEmits<{
@@ -43,8 +50,27 @@ const scrollerEl = ref<HTMLElement | null>(null)
 const messagesRef = toRef(props, 'messages')
 const currentUserIdRef = toRef(props, 'currentUserId')
 
-const rows = useMessageRows(messagesRef, currentUserIdRef)
-const { isPinnedToBottom, unreadCount, jumpToBottom } = useChatScroll(scrollerEl, messagesRef)
+/**
+ * O'z ismimiz ishtirokchilar ro'yxatidan olinadi — optimistik nusxa to'liq
+ * bo'lishi uchun. Alohida prop qo'shilmadi: ma'lumot allaqachon shu yerda.
+ * (O'z xabarida ism baribir chizilmaydi, lekin DTO chala qolmasin.)
+ */
+const currentUserName = computed(
+  () =>
+    props.participants.find((entry) => entry.userId === props.currentUserId)?.displayName ?? '',
+)
+
+// Optimistik ko'rsatish: xabar serverni kutmasdan ekranga chiqadi va
+// broadcast qaytganda kalit bo'yicha dedupe qilinadi.
+const { merged, pendingKeys, submit } = useOptimisticChat(
+  messagesRef,
+  currentUserIdRef,
+  currentUserName,
+  props.send,
+)
+
+const rows = useMessageRows(merged, currentUserIdRef, pendingKeys)
+const { isPinnedToBottom, unreadCount, jumpToBottom } = useChatScroll(scrollerEl, merged)
 
 // Mobil boshqaruv panelidagi nishoncha uchun.
 watch(unreadCount, (count) => emit('unread-change', count))
@@ -178,13 +204,16 @@ function roleOf(senderId: number): string {
           </div>
 
           <!--
-            `:key="row.id"` — barqaror kalit. Vue eski qatorlarni qayta ishlatadi,
+            `:key="row.key"` — barqaror kalit. Vue eski qatorlarni qayta ishlatadi,
             faqat yangilari DOM'ga qo'shiladi. Xabarlar 200 tadan oshsa eng
             eskilari ro'yxatdan (va DOM'dan) chiqib ketadi.
+
+            ★ ILGARI `row.id` EDI: real vaqtdagi xabarlarda `id` doim 0 bo'lgani
+            uchun hamma yangi qator BITTA kalitni bo'lishardi.
           -->
           <template
             v-for="row in rows"
-            :key="row.id"
+            :key="row.key"
           >
             <div
               v-if="row.dayLabel !== null"
@@ -211,6 +240,7 @@ function roleOf(senderId: number): string {
               :is-own="row.isOwn"
               :show-header="row.showHeader"
               :role="roleOf(row.senderId)"
+              :is-pending="row.isPending"
             />
           </template>
         </div>
@@ -273,7 +303,7 @@ function roleOf(senderId: number): string {
       </div>
 
       <ChatComposer
-        :send="props.send"
+        :send="submit"
         :can-send="props.canSend"
         :is-sending="props.isSending"
         :cooldown-remaining-ms="props.cooldownRemainingMs"

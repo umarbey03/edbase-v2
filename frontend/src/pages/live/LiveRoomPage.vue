@@ -17,6 +17,7 @@ import { useLiveHub } from '@/features/live-hub/model/useLiveHub'
 import { useLiveKitRoom } from '@/features/live-room/model/useLiveKitRoom'
 import MediaControlBar from '@/features/live-room/ui/MediaControlBar.vue'
 import VideoStage from '@/features/live-room/ui/VideoStage.vue'
+import SessionRecordingControl from '@/features/session-recording/ui/SessionRecordingControl.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatCountdown } from '@/shared/lib/datetime'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
@@ -72,7 +73,10 @@ const {
   isMicOn,
   isCameraOn,
   isScreenSharing,
-  isBusy: mediaBusy,
+  micPending,
+  cameraPending,
+  screenPending,
+  audioBlocked,
   mediaError,
   connectionError: mediaConnectionError,
   connect: connectMedia,
@@ -80,6 +84,7 @@ const {
   toggleMic,
   toggleCamera,
   toggleScreenShare,
+  enableAudio,
   dismissMediaError,
 } = media
 
@@ -172,8 +177,21 @@ const banner = computed<{ tone: BannerTone; text: string } | null>(() => {
   if (mediaStatus.value === 'reconnecting' || chatStatus.value === 'reconnecting') {
     return { tone: 'warn', text: 'Aloqa uzildi — qayta ulanmoqda…' }
   }
-  if (mediaStatus.value === 'failed' || chatStatus.value === 'disconnected') {
-    return { tone: 'error', text: 'Serverga ulanib bo‘lmadi. Internet aloqangizni tekshiring.' }
+  /*
+    `mediaStatus === 'disconnected'` HAM xato deb hisoblanadi.
+    Ilgari faqat `failed` tekshirilardi — ya'ni ulanish o'rnatilgandan KEYIN
+    uzilsa, yuqorida hech qanday chiziq chiqmasdi va "Qayta urinish" tugmasi
+    ham ko'rinmasdi. Video jimgina yo'qolardi.
+  */
+  if (
+    mediaStatus.value === 'failed' ||
+    mediaStatus.value === 'disconnected' ||
+    chatStatus.value === 'disconnected'
+  ) {
+    return {
+      tone: 'error',
+      text: mediaConnectionError.value ?? 'Serverga ulanib bo‘lmadi. Internet aloqangizni tekshiring.',
+    }
   }
   if (mediaStatus.value === 'loading' || mediaStatus.value === 'connecting' || chatStatus.value === 'connecting') {
     return { tone: 'info', text: 'Darsga ulanmoqda…' }
@@ -323,6 +341,17 @@ onBeforeUnmount(() => {
           {{ participantCount }}
         </span>
 
+        <!--
+          Yozuvni boshlash/to'xtatish — FAQAT dars egasiga va boshqaruvchiga,
+          faqat dars JONLI paytida. O'quvchi bu chaqiruvlardan 403, jonli
+          bo'lmagan darsda esa hamma 409 oladi (jonli tekshirilgan).
+        -->
+        <SessionRecordingControl
+          v-if="canManageSession && isLive && isValidSession"
+          :session-id="sessionId"
+          :is-live="isLive"
+        />
+
         <BaseButton
           v-if="canManageSession && session?.status === 'Scheduled'"
           size="sm"
@@ -374,6 +403,30 @@ onBeforeUnmount(() => {
         @click="handleRetry"
       >
         Qayta urinish
+      </button>
+    </div>
+
+    <!--
+      Brauzer ovozni avtomatik chalishga ruxsat bermaganda chiqadi.
+      Bu holat ilgari HECH QAYERDA ko'rinmasdi: ustoz gapirardi, o'quvchi esa
+      sukunatni "mikrofon ishlamayapti" deb tushunardi.
+    -->
+    <div
+      v-if="audioBlocked"
+      class="flex shrink-0 items-center gap-2 border-b border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs text-brand-200"
+      role="alert"
+    >
+      <AppIcon
+        name="mic-off"
+        :size="14"
+      />
+      <span class="flex-1">Brauzer ovozni bloklab qo‘ydi.</span>
+      <button
+        type="button"
+        class="rounded-md px-2 py-0.5 font-semibold underline-offset-2 hover:underline"
+        @click="enableAudio"
+      >
+        Ovozni yoqish
       </button>
     </div>
 
@@ -461,7 +514,9 @@ onBeforeUnmount(() => {
             :is-screen-sharing="isScreenSharing"
             :can-share-screen="isHost"
             :hand-raised="handRaised"
-            :is-busy="mediaBusy"
+            :mic-pending="micPending"
+            :camera-pending="cameraPending"
+            :screen-pending="screenPending"
             :disabled="sessionEnded"
             :unread-count="chatUnread"
             @toggle-mic="toggleMic"

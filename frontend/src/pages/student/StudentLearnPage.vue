@@ -291,6 +291,36 @@ function doneCount(lessons: CourseLessonDto[]): number {
           class="shrink-0 text-dim"
         />
       </RouterLink>
+
+      <!--
+        ★ "Dars yozuvlari" — eski `student.html` da yozuvlar hisoblagichi
+        (`learn-rec-meta`) AYNAN shu "O'quv" ekranida turgan, shuning uchun
+        kirish nuqtasi ham shu yerda. Pastki 5 tab TEGILMAGAN.
+      -->
+      <RouterLink
+        :to="{ name: 'student-recordings' }"
+        class="flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px]"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl"
+          style="background: rgb(139 92 246 / 0.18); color: #c4b5fd"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="camera"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Dars yozuvlari</b>
+          <span class="block text-xs text-dim">O‘tilgan darslarni qayta ko‘rish</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim"
+        />
+      </RouterLink>
     </div>
 
     <LessonSheet

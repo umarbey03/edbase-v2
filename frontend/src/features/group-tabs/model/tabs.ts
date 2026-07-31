@@ -1,12 +1,19 @@
 import type { IconName } from '@/shared/ui'
 
 /**
- * Guruh ichidagi 8 ta tab — eski `teacher.html` dagi `.tabs` bloki.
+ * Guruh ichidagi tablar — eski `teacher.html` dagi `.tabs` bloki.
  *
  * ★ TARTIB, NOM va IKONKA eski markupdan AYNAN olingan va o'zgartirilmaydi:
  * ustozlar shu ketma-ketlikni yodlab olishgan. Ikonkalar ham o'sha
  * sprite'dan (`i-att`, `i-grade`, `i-lesson`, `i-task`, `i-test`, `i-board`,
  * `i-student`, `i-chat`) — `AppIcon` ga qo'shilgan.
+ *
+ * ★ TO'QQIZINCHI TAB — "Yozuvlar". U eski `academic.html` dagi guruh
+ * tafsiloti panelidan olingan (615-qator: `tab('t-recordings')`, yorlig'i
+ * "🎬 Yozuvlar", 663–674-qatorlarda mazmuni). U yerda AYNAN OXIRGI tab
+ * bo'lgan, shu o'rni saqlandi va mavjud sakkiztaning tartibi TEGILMAGAN.
+ * v2 da guruh sahifasi ustoz va o'quv bo'limi uchun BITTA, shuning uchun
+ * tab ikkala rolda ham ko'rinadi — server ro'yxatni o'zi cheklaydi.
  *
  * Tab ALOHIDA MARSHRUT emas, sahifa ichidagi holat — eski `switchTab()`
  * kabi. Sabab: har tab almashishida brauzer tarixiga yozuv qo'shilsa,
@@ -21,6 +28,7 @@ export type GroupTabKey =
   | 'board'
   | 'students'
   | 'chat'
+  | 'recordings'
 
 export interface GroupTabDef {
   key: GroupTabKey
@@ -37,6 +45,9 @@ export const GROUP_TABS: readonly GroupTabDef[] = [
   { key: 'board', label: 'Reyting', icon: 'trophy' },
   { key: 'students', label: 'O‘quvchilar', icon: 'user' },
   { key: 'chat', label: 'Chat', icon: 'chat' },
+  // Yorliqdagi 🎬 emoji ko'chirilmadi: qolgan sakkiztasida emoji yo'q va
+  // bittasida bo'lishi qatorni notekis ko'rsatardi. Ikonka o'sha ma'noni beradi.
+  { key: 'recordings', label: 'Yozuvlar', icon: 'camera' },
 ]
 
 /**

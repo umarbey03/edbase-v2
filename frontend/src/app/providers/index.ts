@@ -3,6 +3,7 @@ import type { Router } from 'vue-router'
 import { onAuthExpired } from '@/shared/api'
 
 export { queryClient } from './query-client'
+export { registerTelegramShell } from './telegram-shell'
 
 /**
  * Refresh ham ishlamaganda foydalanuvchini login sahifasiga qaytaradi.

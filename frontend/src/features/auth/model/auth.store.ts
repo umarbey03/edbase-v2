@@ -1,10 +1,15 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
-import { fetchMe, login as loginRequest, logout as logoutRequest } from '@/entities/user'
+import {
+  fetchMe,
+  login as loginRequest,
+  loginWithTelegram as telegramLoginRequest,
+  logout as logoutRequest,
+} from '@/entities/user'
 import type { User } from '@/entities/user'
 import { clearTokens, getRefreshToken, onAuthExpired, refreshAccessToken, setTokens } from '@/shared/api'
-import type { LoginRequest } from '@/shared/types'
+import type { AuthResponse, LoginRequest } from '@/shared/types'
 
 /**
  * Autentifikatsiya store'i.
@@ -28,12 +33,37 @@ export const useAuthStore = defineStore('auth', () => {
   const role = computed(() => user.value?.role ?? null)
   const userId = computed(() => user.value?.id ?? null)
 
-  async function login(payload: LoginRequest): Promise<User> {
-    const response = await loginRequest(payload)
+  /**
+   * Muvaffaqiyatli javobni SESSIYAGA aylantiradi.
+   *
+   * ★ IKKALA kirish eshigi (email+parol va Telegram Mini App) shu YAGONA
+   * funksiyadan o'tadi. Har biri o'zi `setTokens` chaqirsa, kelajakda
+   * sessiyaga qo'shiladigan qadam (masalan tokenni boshqacha saqlash yoki
+   * audit) bittasida esdan chiqib, ikki yo'l bir-biridan uzoqlashardi —
+   * eski tizimning Telegram zaifligi ham aynan shunday "ikkinchi yo'l"
+   * bo'lgani uchun paydo bo'lgan edi.
+   */
+  function applySession(response: AuthResponse): User {
     setTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken })
     user.value = response.user
     isReady.value = true
     return response.user
+  }
+
+  async function login(payload: LoginRequest): Promise<User> {
+    return applySession(await loginRequest(payload))
+  }
+
+  /**
+   * Telegram Mini App orqali kirish.
+   *
+   * 🔴 `initData` bu yerda ham, quyi qatlamda ham PARCHALANMAYDI va
+   * saqlanmaydi: u faqat argument sifatida o'tib, so'rov tanasiga tushadi.
+   * Kimligini server imzodan aniqlaydi — frontend hech qanday shaxsiy
+   * ma'lumot (telefon, `telegramId`) yubormaydi.
+   */
+  async function loginWithTelegram(initData: string): Promise<User> {
+    return applySession(await telegramLoginRequest(initData))
   }
 
   async function logout(): Promise<void> {
@@ -86,6 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     bootstrap,
     login,
+    loginWithTelegram,
     logout,
     reloadProfile,
   }

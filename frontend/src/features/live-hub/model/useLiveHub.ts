@@ -8,10 +8,17 @@ import type { HubConnection } from '@microsoft/signalr'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
-import { MAX_RENDERED_MESSAGES, normalizeBody, SEND_COOLDOWN_MS } from '@/entities/message'
+import {
+  CHAT_RATE_MAX_MESSAGES,
+  CHAT_RATE_WINDOW_MS,
+  MAX_RENDERED_MESSAGES,
+  messageKey,
+  newClientId,
+  normalizeBody,
+} from '@/entities/message'
 import type { ChatMessage } from '@/entities/message'
 import { roleWeight } from '@/entities/user'
-import { getAccessToken, toUserMessage } from '@/shared/api'
+import { getAccessToken, hubErrorText, toUserMessage } from '@/shared/api'
 import { env } from '@/shared/config/env'
 import { HubEvent, HubMethod } from '@/shared/types'
 import type { HubStatus, PresenceEntry, UserRoleName } from '@/shared/types'
@@ -70,7 +77,8 @@ export interface UseLiveHubResult {
   handRaised: Ref<boolean>
   start: () => Promise<void>
   retry: () => Promise<void>
-  sendMessage: (body: string) => Promise<boolean>
+  /** `clientId` — optimistik ko'rsatish uchun barqaror kalit (ixtiyoriy). */
+  sendMessage: (body: string, clientId?: string) => Promise<boolean>
   raiseHand: (raised: boolean) => Promise<void>
   seedMessages: (history: readonly ChatMessage[]) => void
   dismissNotice: () => void
@@ -94,7 +102,7 @@ function asRole(value: unknown): UserRoleName {
 
 function toChatMessage(payload: unknown): ChatMessage | null {
   if (!isRecord(payload)) return null
-  const { id, senderId, senderName, body, sentAt } = payload
+  const { id, senderId, senderName, body, sentAt, clientId } = payload
   if (typeof id !== 'number' || typeof senderId !== 'number') return null
   if (typeof body !== 'string') return null
   return {
@@ -103,6 +111,8 @@ function toChatMessage(payload: unknown): ChatMessage | null {
     senderName: typeof senderName === 'string' ? senderName : '—',
     body,
     sentAt: typeof sentAt === 'string' ? sentAt : new Date().toISOString(),
+    // Real vaqtdagi xabarning YAGONA barqaror kaliti — `id` broadcast'da 0.
+    clientId: typeof clientId === 'string' ? clientId : null,
   }
 }
 
@@ -159,8 +169,15 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
   let pendingMessages: ChatMessage[] = []
   let flushHandle: number | null = null
 
-  /** Takroriy xabarlarni (tarix + realtime ustma-ust tushishi) filtrlash. */
-  let seenIds = new Set<number>()
+  /**
+   * Takroriy xabarlarni (tarix + realtime ustma-ust tushishi) filtrlash.
+   *
+   * ★ KALIT `id` EMAS (TUZATILGAN NOSOZLIK): broadcast'da `id` DOIM 0 keladi
+   * (baza raqamini fon xizmati beradi). `id` bo'yicha filtrlanganda birinchi
+   * xabardan keyingi HAMMASI "ko'rilgan" deb tashlanardi va chat qotib
+   * qolardi. Batafsil: `entities/message` -> `messageKey`.
+   */
+  let seenKeys = new Set<string>()
 
   /**
    * (4) Presence — reaktiv BO'LMAGAN `Map`.
@@ -180,7 +197,8 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
   let presenceRenderTimer: number | null = null
   let lastPresenceRenderAt = 0
 
-  let lastSentAt = 0
+  /** Oynadagi yuborish vaqtlari — server qoidasining klientdagi nusxasi. */
+  let sentAtTimes: number[] = []
   const cooldownRemainingMs = ref(0)
   let cooldownTimer: number | null = null
 
@@ -204,22 +222,23 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     messages.value =
       next.length > MAX_RENDERED_MESSAGES ? next.slice(next.length - MAX_RENDERED_MESSAGES) : next
 
-    pruneSeenIds()
+    pruneSeenKeys()
   }
 
-  function pruneSeenIds(): void {
-    // `seenIds` cheksiz o'smasligi kerak — vaqti-vaqti bilan tirik xabarlar bo'yicha
-    // qayta quramiz.
-    if (seenIds.size <= MAX_RENDERED_MESSAGES * 4) return
-    const fresh = new Set<number>()
-    for (const message of messages.value) fresh.add(message.id)
-    for (const message of pendingMessages) fresh.add(message.id)
-    seenIds = fresh
+  function pruneSeenKeys(): void {
+    // `seenKeys` cheksiz o'smasligi kerak — vaqti-vaqti bilan tirik xabarlar
+    // bo'yicha qayta quramiz.
+    if (seenKeys.size <= MAX_RENDERED_MESSAGES * 4) return
+    const fresh = new Set<string>()
+    for (const message of messages.value) fresh.add(messageKey(message))
+    for (const message of pendingMessages) fresh.add(messageKey(message))
+    seenKeys = fresh
   }
 
   function pushMessage(message: ChatMessage): void {
-    if (seenIds.has(message.id)) return
-    seenIds.add(message.id)
+    const key = messageKey(message)
+    if (seenKeys.has(key)) return
+    seenKeys.add(key)
     pendingMessages.push(message)
 
     // Tab fonda bo'lsa `requestAnimationFrame` ishlamaydi va bufer o'sib ketishi
@@ -231,21 +250,29 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     scheduleMessageFlush()
   }
 
-  /** Darsga kirganda REST orqali olingan tarixni qo'shadi (takrorlarsiz). */
+  /**
+   * Darsga kirganda REST orqali olingan tarixni qo'shadi (takrorlarsiz).
+   *
+   * TARTIB `id` bo'yicha EMAS, VAQT bo'yicha: tarixda haqiqiy `id` bor, real
+   * vaqtda kelganida esa u 0. `id` bo'yicha saralanganda tarix yuklanishi
+   * bilan realtime xabarlar ro'yxatning BOSHIGA sakrab chiqib ketardi.
+   */
   function seedMessages(history: readonly ChatMessage[]): void {
-    const merged = new Map<number, ChatMessage>()
-    for (const message of history) merged.set(message.id, message)
-    for (const message of messages.value) merged.set(message.id, message)
-    for (const message of pendingMessages) merged.set(message.id, message)
+    const merged = new Map<string, ChatMessage>()
+    for (const message of history) merged.set(messageKey(message), message)
+    for (const message of messages.value) merged.set(messageKey(message), message)
+    for (const message of pendingMessages) merged.set(messageKey(message), message)
     pendingMessages = []
 
-    const sorted = Array.from(merged.values()).sort((a, b) => a.id - b.id)
+    const sorted = Array.from(merged.values()).sort(
+      (a, b) => Date.parse(a.sentAt) - Date.parse(b.sentAt),
+    )
     messages.value =
       sorted.length > MAX_RENDERED_MESSAGES
         ? sorted.slice(sorted.length - MAX_RENDERED_MESSAGES)
         : sorted
 
-    seenIds = new Set(messages.value.map((message) => message.id))
+    seenKeys = new Set(messages.value.map((message) => messageKey(message)))
   }
 
   /* ------------------------------- presence -------------------------------- */
@@ -503,22 +530,39 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
   }
 
   /**
-   * SPEC 6.2 — server 2 sekundda 1 ta xabarga ruxsat beradi. Klientda ham xuddi
-   * shu chegarani qo'yamiz: foydalanuvchi serverdan "rad javob" olib, xabarini
-   * yo'qotmaydi va serverga keraksiz yuk tushmaydi.
+   * SPEC 6.2 — server oyna bo'yicha chegaralaydi (10 soniyada 5 ta). Klient
+   * AYNAN shu qoidani takrorlaydi: foydalanuvchi serverdan "rad javob" olib
+   * xabarini yo'qotmaydi va serverga keraksiz yuk tushmaydi.
+   *
+   * ★ ILGARI "2 soniyada 1 ta" edi va HAR xabardan keyin yuborish tugmasi
+   * 2 soniyaga o'chib qolardi. Odam ikkinchi qatorini yozib Enter bosganda
+   * hech narsa bo'lmasdi — bu foydalanuvchi shikoyat qilgan "kechikish"
+   * hissiyotining bir qismi edi.
    */
-  function startCooldown(): void {
-    lastSentAt = Date.now()
-    cooldownRemainingMs.value = SEND_COOLDOWN_MS
-    clearCooldownTimer()
+  function pruneSendWindow(now: number): void {
+    sentAtTimes = sentAtTimes.filter((at) => now - at < CHAT_RATE_WINDOW_MS)
+  }
+
+  /** Yana qancha kutish kerak (0 — hozir yuborsa bo'ladi). */
+  function remainingCooldown(now: number): number {
+    pruneSendWindow(now)
+    if (sentAtTimes.length < CHAT_RATE_MAX_MESSAGES) return 0
+    const oldest = sentAtTimes[0] ?? now
+    return Math.max(0, CHAT_RATE_WINDOW_MS - (now - oldest))
+  }
+
+  function refreshCooldown(): void {
+    cooldownRemainingMs.value = remainingCooldown(Date.now())
+
+    if (cooldownRemainingMs.value <= 0) {
+      clearCooldownTimer()
+      return
+    }
+    if (cooldownTimer !== null) return
+
     cooldownTimer = window.setInterval(() => {
-      const remaining = SEND_COOLDOWN_MS - (Date.now() - lastSentAt)
-      if (remaining <= 0) {
-        cooldownRemainingMs.value = 0
-        clearCooldownTimer()
-      } else {
-        cooldownRemainingMs.value = remaining
-      }
+      cooldownRemainingMs.value = remainingCooldown(Date.now())
+      if (cooldownRemainingMs.value <= 0) clearCooldownTimer()
     }, 100)
   }
 
@@ -526,12 +570,22 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     () => status.value === 'connected' && cooldownRemainingMs.value <= 0 && !sessionEnded.value,
   )
 
-  async function sendMessage(rawBody: string): Promise<boolean> {
+  /**
+   * Xabar yuboradi.
+   *
+   * `clientId` — chaqiruvchi (kompozitor) yasagan BARQAROR kalit. U xabarni
+   * ekranga DARHOL chiqarib, server broadcast'i qaytganda uni AYNI kalit
+   * bo'yicha tanib, ikki marta ko'rsatmaydi. Berilmasa — shu yerda yasaladi.
+   */
+  async function sendMessage(rawBody: string, clientId?: string): Promise<boolean> {
     const body = normalizeBody(rawBody)
     if (body.length === 0) return false
 
-    if (cooldownRemainingMs.value > 0) {
-      notice.value = 'Juda tez yozyapsiz — 2 soniyada bitta xabar yuborish mumkin.'
+    if (remainingCooldown(Date.now()) > 0) {
+      // ★ JIM QAYTMAYDI: ilgari kompozitor shunchaki hech narsa qilmasdi va
+      // foydalanuvchi nima uchun xabari ketmaganini bilmasdi.
+      notice.value = 'Sekinroq yozing — 10 soniyada 5 tagacha xabar yuborish mumkin.'
+      refreshCooldown()
       return false
     }
 
@@ -544,12 +598,15 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     isSending.value = true
     try {
       // Server `SenderName` va `SentAt` ni O'ZI qo'yadi (SPEC 6).
-      await target.invoke(HubMethod.SendMessage, sessionId, body)
-      startCooldown()
+      await target.invoke(HubMethod.SendMessage, sessionId, body, clientId ?? newClientId())
+      sentAtTimes.push(Date.now())
+      refreshCooldown()
       notice.value = null
       return true
     } catch (error) {
-      notice.value = toUserMessage(error)
+      // `hubErrorText` — server matnining oldidagi inglizcha SignalR qobig'ini
+      // olib tashlaydi (dev muhitida u qo'shiladi).
+      notice.value = hubErrorText(error)
       return false
     } finally {
       isSending.value = false
@@ -612,7 +669,8 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
 
     pendingMessages = []
     presence.clear()
-    seenIds = new Set<number>()
+    seenKeys = new Set<string>()
+    sentAtTimes = []
   }
 
   onBeforeUnmount(() => {

@@ -3,8 +3,11 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { homeRouteFor } from '@/entities/user'
+import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { TelegramAuthScreen } from '@/features/telegram-auth'
 import { toUserMessage } from '@/shared/api'
+import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
 const route = useRoute()
@@ -16,6 +19,36 @@ const password = ref('')
 const showPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref<string | null>(null)
+
+/**
+ * TELEGRAM REJIMI.
+ *
+ * Ilova Telegram Mini App ichida ochilgan bo'lsa, o'quvchi email va parolni
+ * BILMAYDI — u faqat Telegram orqali kiradi. Shuning uchun forma o'rniga
+ * avtomatik kirish ekrani ko'rsatiladi.
+ *
+ * ★ SHART BIR MARTA hisoblanadi va `ref` da turadi (computed emas): 403/503
+ * holatida foydalanuvchi ATAYLAB email formasiga o'tishi mumkin, ya'ni qiymat
+ * hodisaga qarab o'zgaradi. `isTelegramMiniApp()` esa o'zgarmas bo'lgani
+ * uchun formadan Telegram ekraniga qaytish yo'li yo'q — bu to'g'ri:
+ * o'quvchi noto'g'ri ekranda "qamalib" qolmaydi, ilovani qayta ochsa bo'ldi.
+ *
+ * ★ ODDIY BRAUZERDA `false` — quyidagi forma va uning butun mantig'i
+ * O'ZGARISHSIZ ishlaydi (xodimlar oqimida regressiya bo'lmasligi uchun).
+ */
+const telegramMode = ref(isTelegramMiniApp())
+
+/** Telegram orqali kirish tugagach — rolga mos bosh sahifaga. */
+async function handleTelegramSuccess(user: User): Promise<void> {
+  /*
+    `?redirect=` ATAYLAB e'tiborga olinmaydi. Telegram ilovani `/` da,
+    `#tgWebAppData=...` fragmenti bilan ochadi va guard uni `redirect`
+    query'siga ko'chiradi — ya'ni manzil imzolangan kirish ma'lumotini
+    o'z ichiga oladi. Unga qaytib borish uni URL'da yana tarqatardi;
+    bosh sahifa esa AYNI natijani beradi (fragment `/` ga baribir kerak emas).
+  */
+  await router.replace({ name: homeRouteFor(user.role) })
+}
 
 const sessionExpired = computed(() => route.query['sabab'] === 'sessiya-tugadi')
 const canSubmit = computed(
@@ -51,7 +84,17 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10">
+  <!-- Telegram Mini App: forma o'rniga avtomatik kirish ekrani. -->
+  <TelegramAuthScreen
+    v-if="telegramMode"
+    @success="handleTelegramSuccess"
+    @email-login="telegramMode = false"
+  />
+
+  <div
+    v-else
+    class="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10"
+  >
     <!-- Fon nuri -->
     <div
       class="pointer-events-none fixed inset-0 opacity-60"

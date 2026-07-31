@@ -82,9 +82,14 @@ const ASSISTANT_NAV: NavItem[] = [
 
 /*
   TARTIB eski `academic.html` menyusidan: Guruhlar -> Foydalanuvchilar ->
-  Testlar -> To'lovlar -> Moliya -> Kurs quruvchi. "Jonli darslar" va
-  "Uy vazifalari" — v2 qo'shimchalari, ular eski bandlarning KETMA-KETLIGINI
-  buzmasligi uchun oxiriga qo'yilgan.
+  Testlar -> Dars yozuvlari -> To'lovlar -> Moliya -> Kurs quruvchi.
+  "Jonli darslar" va "Uy vazifalari" — v2 qo'shimchalari, ular eski
+  bandlarning KETMA-KETLIGINI buzmasligi uchun oxiriga qo'yilgan.
+
+  ★ "Dars yozuvlari" — eski `academic.html` menyusining 481-qatoridagi band
+  (`showPage('recordings')`, `#i-video` ikonkasi). U yerda AYNAN "Testlar" dan
+  KEYIN turgan, shu nisbiy o'rni saqlandi. Mavjud bandlarning nomi ham,
+  o'zaro tartibi ham TEGILMAGAN.
 
   "Kurs quruvchi" nomi ham eskisidan: v2 da "Kurs kontenti" deb o'zgartirilgan
   edi, lekin o'quv bo'limi xodimi menyuda o'sha eski so'zni qidiradi.
@@ -93,6 +98,13 @@ const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-groups', label: 'Guruhlar', icon: 'grid' },
   { routeName: 'manage-users', label: 'Foydalanuvchilar', icon: 'users' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
+  /*
+    Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda
+    to'rtburchak kadr, o'ngda uchburchak). `AppIcon` da u allaqachon shu nom
+    bilan mavjud, shuning uchun bir xil chiziqni ikkinchi nom ostida
+    takrorlash o'rniga mavjudi ishlatildi.
+  */
+  { routeName: 'manage-recordings', label: 'Dars yozuvlari', icon: 'camera' },
   { routeName: 'manage-payments', label: 'To\u2018lovlar', icon: 'star' },
   { routeName: 'manage-finance', label: 'Moliya', icon: 'chart' },
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },

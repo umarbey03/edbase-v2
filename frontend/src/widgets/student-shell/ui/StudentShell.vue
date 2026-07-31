@@ -4,6 +4,8 @@ import { RouterView, useRouter } from 'vue-router'
 
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { markMiniAppLogout } from '@/features/telegram-auth'
+import { closeMiniApp, isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { useNow } from '@/shared/lib/use-now'
 
 import StudentAppBar from './StudentAppBar.vue'
@@ -72,9 +74,39 @@ onBeforeUnmount(() => {
   if (meta !== null && previousThemeColor !== null) meta.content = previousThemeColor
 })
 
+/*
+  ★ MINI APP'DA "CHIQISH" NIMA DEGANI.
+
+  Brauzerda chiqish = sessiyani tozalab, kirish formasiga qaytish. Telegram
+  ichida bu MA'NOSIZ bo'lardi: o'quvchi kim ekanini Telegram akkaunti
+  belgilaydi, u email va parolni umuman bilmaydi — forma unga BOSHI BERK
+  ko'cha. Shu bilan birga tugmani butunlay olib tashlash ham to'g'ri emas:
+  telefon boshqa odam qo'lida qolishi mumkin va sessiyani tozalash kerak.
+
+  Shuning uchun Mini App'da chiqish = SESSIYANI TOZALAB, ILOVANI YOPISH.
+  Foydalanuvchi bot chatiga qaytadi; ilovani qayta ochsa, o'sha Telegram
+  akkaunti bilan yana kiradi.
+
+  ★ `close()` DAN KEYIN HAM KIRISH EKRANIGA O'TAMIZ. Telegram ilovani
+  yopganda webview butunlay yo'q qilinadi, ya'ni bu navigatsiya odatda
+  ko'rinmaydi. Lekin `close()` "sukut bilan" ishlamasligi ham mumkin (eski
+  mijoz metodni tanimaydi) — brauzerda aynan shu holat sinaldi va o'quvchi
+  o'chirilgan sessiya bilan bosh sahifada QOLIB KETGAN edi. Navigatsiya
+  har doim bajarilsa, bunday oraliq holat bo'lishi mumkin emas.
+
+  `markMiniAppLogout()` esa kirish ekraniga "bu safar avtomatik kirma" deb
+  aytadi: aks holda ekran darhol qayta kirib, chiqish hech qanday ta'sir
+  ko'rsatmagandek tuyulardi.
+*/
 async function handleLogout(): Promise<void> {
   profileOpen.value = false
   await auth.logout()
+
+  if (isTelegramMiniApp()) {
+    markMiniAppLogout()
+    closeMiniApp()
+  }
+
   await router.replace({ name: 'login' })
 }
 </script>

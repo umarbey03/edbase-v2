@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 
 import App from './App.vue'
-import { queryClient, registerSessionExpiryRedirect } from './app/providers'
+import { queryClient, registerSessionExpiryRedirect, registerTelegramShell } from './app/providers'
 import { setupSentry } from './app/providers/sentry'
 import { router } from './app/router'
 import './style.css'
@@ -26,6 +26,11 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 registerSessionExpiryRedirect(router)
+
+// Telegram Mini App karkasi (sarlavha rangi, "orqaga" tugmasi). Sentry
+// bilan bir xil qoida: oddiy brauzerda BITTA ham tashqi so'rov yubormaydi
+// va mount'ni kutib turmaydi.
+registerTelegramShell(router)
 
 // Mount'ni KUTMAYMIZ: Sentry fon rejimida yuklanadi va ilova darhol
 // ko'rinadi. Sentry'ni kutish mobil internetda oq ekranni uzaytirardi.

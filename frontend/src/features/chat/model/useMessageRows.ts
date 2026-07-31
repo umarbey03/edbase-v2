@@ -1,12 +1,20 @@
 import { computed } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
-import { isGroupedWith, startsNewDay } from '@/entities/message'
+import { isGroupedWith, messageKey, startsNewDay } from '@/entities/message'
 import type { ChatMessage } from '@/entities/message'
 import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
 
 export interface MessageRow {
-  id: number
+  /**
+   * Vue ro'yxati uchun BARQAROR kalit.
+   *
+   * ★ `id` EMAS: real vaqtda kelgan xabarda `id` DOIM 0 bo'ladi (baza raqamini
+   * fon xizmati beradi). `:key="row.id"` bo'lganida hamma yangi xabar bitta
+   * kalitni bo'lishardi va Vue ularni bir-birining o'rnini bosuvchi deb
+   * hisoblardi. Batafsil: `entities/message` -> `messageKey`.
+   */
+  key: string
   senderId: number
   senderName: string
   body: string
@@ -16,6 +24,8 @@ export interface MessageRow {
   /** Avatar + ism ko'rsatilsinmi (ketma-ket xabarlar guruhlanadi). */
   showHeader: boolean
   isOwn: boolean
+  /** Server hali tasdiqlamagan (optimistik ko'rsatilgan) xabar. */
+  isPending: boolean
 }
 
 /**
@@ -28,9 +38,11 @@ export interface MessageRow {
 export function useMessageRows(
   messages: Ref<readonly ChatMessage[]>,
   currentUserId: Ref<number | null>,
+  pendingKeys: Ref<ReadonlySet<string>>,
 ): ComputedRef<MessageRow[]> {
   return computed<MessageRow[]>(() => {
     const list = messages.value
+    const pending = pendingKeys.value
     const rows: MessageRow[] = new Array<MessageRow>(list.length)
 
     for (let index = 0; index < list.length; index += 1) {
@@ -39,8 +51,9 @@ export function useMessageRows(
       const previous = index > 0 ? list[index - 1] : undefined
 
       const newDay = startsNewDay(previous, message)
+      const key = messageKey(message)
       rows[index] = {
-        id: message.id,
+        key,
         senderId: message.senderId,
         senderName: message.senderName,
         body: message.body,
@@ -48,6 +61,7 @@ export function useMessageRows(
         dayLabel: newDay ? formatDayLabel(message.sentAt) : null,
         showHeader: newDay || !isGroupedWith(previous, message),
         isOwn: message.senderId === currentUserId.value,
+        isPending: pending.has(key),
       }
     }
 

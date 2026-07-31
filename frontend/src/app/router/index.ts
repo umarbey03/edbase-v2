@@ -126,6 +126,17 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          "Dars yozuvlari" — eski `student.html` da yozuvlar hisoblagichi
+          AYNAN "O'quv" ekranida turgan (`learn-rec-meta`), shuning uchun bu
+          yerda ham `oquv/` ostidagi ichki sahifa. Pastki 5 tabga TEGILMAGAN.
+        */
+        path: 'oquv/yozuvlar',
+        name: 'student-recordings',
+        component: () => import('@/pages/student/StudentRecordingsPage.vue'),
+        meta: { title: 'Dars yozuvlari', roles: STUDENT },
+      },
+      {
+        /*
           Test YECHISH — alohida marshrut, modal emas: test 20+ savoldan
           iborat bo'ladi va telefonda bir necha ekran egallaydi; modal ichida
           tasodifiy "tashqariga bosish" belgilangan javoblarni yo'q qilardi.
@@ -233,6 +244,21 @@ const routes: RouteRecordRaw[] = [
         name: 'manage-sessions',
         component: () => import('@/pages/manage/ManageSessionsPage.vue'),
         meta: { title: 'Jonli darslar', roles: MANAGERS },
+      },
+      {
+        /*
+          "Dars yozuvlari" — eski `academic.html` dagi `#recordings` bo'limi.
+
+          ROLLAR `MANAGERS`: `GET /api/v1/recordings` ustoz va o'quvchiga ham
+          200 qaytaradi (jonli tekshirilgan) — server ro'yxatni o'zi cheklaydi.
+          Lekin BU sahifa butun markaz kesimidagi ko'rinish va eski ilovada ham
+          faqat o'quv bo'limi menyusida bo'lgan; ustoz o'z yozuvlarini guruh
+          ichidagi "Yozuvlar" tabida, o'quvchi esa "O'quv" ostida ko'radi.
+        */
+        path: 'boshqaruv/yozuvlar',
+        name: 'manage-recordings',
+        component: () => import('@/pages/manage/ManageRecordingsPage.vue'),
+        meta: { title: 'Dars yozuvlari', roles: MANAGERS },
       },
       {
         path: 'boshqaruv/tolovlar',

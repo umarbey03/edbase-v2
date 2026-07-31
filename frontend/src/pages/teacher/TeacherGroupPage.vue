@@ -45,6 +45,7 @@ import {
   PageHeader,
   TodayPill,
 } from '@/shared/ui'
+import { RecordingBoard } from '@/widgets/recording-board'
 
 /**
  * GURUH ICHI — eski `teacher.html` dagi `#group` bo'limi.
@@ -315,7 +316,7 @@ function refreshSubmissions(): void {
 
         <UpNextBanner :group-id="groupId" />
 
-        <!-- ============================== 8 TAB ============================= -->
+        <!-- ============================== TABLAR ============================ -->
         <GroupTabs
           v-model="activeTab"
           :tabs="tabs"
@@ -363,9 +364,19 @@ function refreshSubmissions(): void {
           ikki joyda ikki xil qoida paydo bo'lardi.
         -->
         <GroupChatRoom
-          v-else
+          v-else-if="activeTab === 'chat'"
           :group-id="groupId"
           :group-name="groupDisplayName(group)"
+        />
+        <!--
+          "Yozuvlar" — eski `academic.html` dagi guruh ichidagi `#t-recordings`
+          tabi (663–674-qatorlar). Guruh OLDINDAN tanlangani uchun widget'ga
+          `fixedGroupId` beriladi va guruh tanlagichi chizilmaydi — eski
+          ilovada ham bu tabda faqat qidiruv bo'lgan.
+        -->
+        <RecordingBoard
+          v-else
+          :fixed-group-id="groupId"
         />
       </template>
     </DataStatus>

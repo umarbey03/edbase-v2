@@ -1,6 +1,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 
+import { messageKey } from '@/entities/message'
 import type { ChatMessage } from '@/entities/message'
 
 /** Pastdan shu masofa ichida bo'lsa — "pastda turibdi" deb hisoblanadi. */
@@ -34,12 +35,22 @@ export function useChatScroll(
   const isPinnedToBottom = ref(true)
   const unreadCount = ref(0)
 
-  let lastSeenId = 0
+  /**
+   * Foydalanuvchi oxirgi ko'rgan xabarning KALITI.
+   *
+   * ★ ILGARI BU `id` EDI VA BUZUQ ISHLARDI: real vaqtda kelgan xabarda `id`
+   * doim 0 bo'ladi, tarixdagi xabarlarda esa haqiqiy (masalan 4460). Ya'ni
+   * `message.id <= lastSeenId` sharti YANGI xabar uchun ham rost chiqardi va
+   * "N ta yangi xabar" tugmasi hech qachon ko'rinmasdi — tepada o'qiyotgan
+   * odam yangi xabar kelganini bilmasdi. Batafsil: `entities/message`.
+   */
+  let lastSeenKey = ''
   let measureScheduled = false
 
-  function lastMessageId(): number {
+  function lastMessageKey(): string {
     const list = messages.value
-    return list.length > 0 ? (list[list.length - 1]?.id ?? 0) : 0
+    const last = list.length > 0 ? list[list.length - 1] : undefined
+    return last === undefined ? '' : messageKey(last)
   }
 
   function distanceFromBottom(element: HTMLElement): number {
@@ -61,7 +72,7 @@ export function useChatScroll(
     isPinnedToBottom.value = pinned
     if (pinned) {
       unreadCount.value = 0
-      lastSeenId = lastMessageId()
+      lastSeenKey = lastMessageKey()
     }
   }
 
@@ -75,7 +86,7 @@ export function useChatScroll(
     scrollToBottom()
     isPinnedToBottom.value = true
     unreadCount.value = 0
-    lastSeenId = lastMessageId()
+    lastSeenKey = lastMessageKey()
   }
 
   // `flush: 'post'` — yangi xabarlar DOM'ga qo'yilgandan KEYIN o'lchaymiz.
@@ -84,18 +95,23 @@ export function useChatScroll(
     (list) => {
       if (isPinnedToBottom.value) {
         scrollToBottom()
-        lastSeenId = lastMessageId()
+        lastSeenKey = lastMessageKey()
         unreadCount.value = 0
         return
       }
-      // Faqat oxirgi ko'rilgan xabardan keyingilarini sanaymiz.
-      let unread = 0
+      // Oxirgi ko'rilgan xabardan KEYINGILARINI sanaymiz. Ro'yxat faqat
+      // oxiriga o'sadi va boshidan qirqiladi, shuning uchun indeks bo'yicha
+      // qidirish yetarli. Kalit topilmasa (eski xabar qirqilib ketgan) —
+      // hammasi o'qilmagan hisoblanadi.
+      let seenIndex = -1
       for (let index = list.length - 1; index >= 0; index -= 1) {
         const message = list[index]
-        if (message === undefined || message.id <= lastSeenId) break
-        unread += 1
+        if (message !== undefined && messageKey(message) === lastSeenKey) {
+          seenIndex = index
+          break
+        }
       }
-      unreadCount.value = unread
+      unreadCount.value = list.length - seenIndex - 1
     },
     { flush: 'post' },
   )
@@ -113,7 +129,7 @@ export function useChatScroll(
       if (element === null) return
       // `passive: true` — brauzer skrollni bloklanishini kutmaydi.
       element.addEventListener('scroll', handleScroll, { passive: true })
-      lastSeenId = lastMessageId()
+      lastSeenKey = lastMessageKey()
       scrollToBottom()
     },
     { flush: 'post' },

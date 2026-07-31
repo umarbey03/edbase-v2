@@ -1,4 +1,4 @@
-export { fetchMe, login, logout } from './api/auth-api'
+export { fetchMe, login, loginWithTelegram, logout } from './api/auth-api'
 export {
   activateUser,
   createUser,

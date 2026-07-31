@@ -15,6 +15,18 @@ interface ImportMetaEnv {
 
   readonly VITE_API_URL: string
   readonly VITE_HUB_URL: string
+
+  /**
+   * Telegram botining foydalanuvchi nomi (`@` siz). IXTIYORIY.
+   *
+   * "Telegram akkaunt bog'lanmagan" (409) ekranidagi tugma shundan
+   * `t.me/<nom>` havolasini yasaydi. Berilmasa tugma `WebApp.close()` bilan
+   * ilovani yopadi va foydalanuvchi ilova ochilgan bot chatiga qaytadi —
+   * ya'ni o'zgaruvchisiz ham oqim ishlaydi.
+   *
+   * Sabab va muqobillar: `features/telegram-auth/model/bot-link.ts`.
+   */
+  readonly VITE_TELEGRAM_BOT_USERNAME?: string
 }
 
 interface ImportMeta {

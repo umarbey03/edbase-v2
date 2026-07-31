@@ -99,9 +99,23 @@ function redactUrl(raw: string): string {
     for (const key of ['access_token', 'token', 'refresh_token', 'password', 'secret']) {
       if (url.searchParams.has(key)) url.searchParams.set(key, '[yashirildi]')
     }
+    /*
+      TELEGRAM `initData`.
+
+      Telegram Mini App'ni `#tgWebAppData=...` fragmenti bilan ochadi. Bu —
+      imzolangan SHAXSIY ma'lumot (ism, `telegram_id`, `auth_date`), ya'ni u
+      Sentry'ga tushmasligi kerak. Router `/` dan `/login` ga o'tganda uni
+      `?redirect=` query'siga ham ko'chiradi — shuning uchun ikkala joy ham
+      tozalanadi.
+    */
+    if (url.hash.includes('tgWebAppData')) url.hash = ''
+    for (const [key, value] of url.searchParams) {
+      if (value.includes('tgWebAppData')) url.searchParams.set(key, '[yashirildi]')
+    }
+
     return url.toString()
   } catch {
     // URL sifatida talqin qilinmasa — ehtiyot uchun butunlay olib tashlaymiz
-    return raw.includes('token') ? '[yashirildi]' : raw
+    return raw.includes('token') || raw.includes('tgWebAppData') ? '[yashirildi]' : raw
   }
 }

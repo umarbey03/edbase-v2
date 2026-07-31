@@ -113,3 +113,29 @@ export function toUserMessage(error: unknown): string {
   if (error instanceof Error && error.message.length > 0) return error.message
   return 'Kutilmagan xatolik yuz berdi.'
 }
+
+/**
+ * SignalR hub xatosidan FOYDALANUVCHIGA ko'rsatiladigan matnni ajratadi.
+ *
+ * NEGA KERAK: SignalR klienti server xatosini o'z qobig'iga o'raydi va
+ * `error.message` dev muhitida (`EnableDetailedErrors=true`) shunday bo'ladi —
+ * jonli sinovda AYNAN kuzatilgan:
+ *
+ *   "An unexpected error occurred invoking 'SendMessage' on the server.
+ *    HubException: Juda tez yozyapsiz — 10 soniyada 5 ta xabar. Biroz kuting."
+ *
+ * Bu matnni o'zgarishsiz ko'rsatsak, o'quvchi o'zbekcha jumla oldidan
+ * inglizcha texnik qatorni o'qirdi. Server tayyorlagan o'zbekcha qism
+ * `HubException: ` dan KEYIN turadi — faqat o'shanisi olinadi.
+ *
+ * ★ `shared` da turishi ATAYLAB: ayni ehtiyoj guruh chatida ham, jonli dars
+ * chatida ham bor. Qoida ikki feature'da qo'lda takrorlansa, biri
+ * tuzatilganda ikkinchisi eski holida qolardi.
+ */
+export function hubErrorText(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  const marker = 'HubException: '
+  const index = raw.indexOf(marker)
+  if (index >= 0) return raw.slice(index + marker.length).trim()
+  return toUserMessage(error)
+}

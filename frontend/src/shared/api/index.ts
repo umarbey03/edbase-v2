@@ -1,4 +1,4 @@
-export { ApiError, isApiError, toUserMessage } from './api-error'
+export { ApiError, hubErrorText, isApiError, toUserMessage } from './api-error'
 export { http, refreshAccessToken } from './http'
 export type { DownloadedFile, HttpMethod, QueryValue, RequestOptions } from './http'
 export {

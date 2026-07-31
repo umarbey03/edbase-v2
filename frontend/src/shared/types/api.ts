@@ -82,6 +82,15 @@ export interface ChatMessageDto {
   senderName: string
   body: string
   sentAt: string
+  /**
+   * ★ REAL VAQTDAGI xabarning BARQAROR kaliti (REST tarixida bo'lmaydi).
+   *
+   * Nima uchun kerak: hub xabarni avval tarqatadi, keyin fon navbatida
+   * bazaga yozadi — ya'ni tarqatilayotgan payt `id` HALI YO'Q va u yerda
+   * 0 turadi. Takrorlarni `id` bo'yicha filtrlash shu sababli ishlamaydi
+   * (batafsil: `entities/message/model/types.ts` -> `messageKey`).
+   */
+  clientId?: string | null
 }
 
 /* ==========================================================================
@@ -1548,4 +1557,67 @@ export interface SendGroupChatMessageRequest {
 export interface MarkGroupChatReadRequest {
   channel?: GroupChatChannelName
   upToMessageId?: number
+}
+
+/* ==========================================================================
+   DARS YOZUVLARI (`Recordings` tegi).
+
+   ★ SHAKL JONLI API'DAN OLINGAN (swagger + `curl`), matnli shartnomadan EMAS.
+   Tekshirilgan chaqiruvlar: `GET /api/v1/recordings?from&to`,
+   `GET /api/v1/live-sessions/{id}/recordings`, `GET /api/v1/recordings/{id}/link`.
+   ========================================================================== */
+
+/**
+ * Yozuv holati. Serverdagi `RecordingStatus` enum'i JSON'da SATR bo'lib keladi.
+ *
+ * ★ QIYMATLAR JONLI TEKSHIRILGAN: bazadagi `Status` ustuni 0..4 ni oladi va
+ * DTO mos ravishda `Requested`/`Starting`/`Active`/`Completed`/`Failed`
+ * qaytaradi. Noma'lum qiymat kelsa (backend yangi holat qo'shsa) DTO shunchaki
+ * raqamni satr sifatida beradi — shuning uchun `lookup()` bilan o'qiladi va
+ * hech qachon `undefined` label chiqmaydi.
+ */
+export type RecordingStatusName = 'Requested' | 'Starting' | 'Active' | 'Completed' | 'Failed'
+
+/** `RecordingDto` — swagger sxemasi bilan bir xil, nullable maydonlar `| null`. */
+export interface RecordingDto {
+  id: number
+  sessionId: number
+  /** Noma'lum holat ham kelishi mumkin, shuning uchun `string` (yuqoridagi izoh). */
+  status: string | null
+  /** FAQAT `Completed` da `true` — jonli tekshirilgan. Ko'rish tugmasi shunga bog'liq. */
+  isPlayable: boolean
+  startedAt: string | null
+  endedAt: string | null
+  durationSeconds: number | null
+  sizeBytes: number | null
+  /** Yozuvni boshlashga necha marta urinilgan (xato bo'lsa qayta urinadi). */
+  attempts: number
+  /** Oxirgi xato matni (masalan egress rad etgani). `null` — xato yo'q. */
+  error: string | null
+  createdAt: string
+}
+
+/** `GET /api/v1/recordings` qaytaradigan qator: yozuv + qaysi dars/guruh. */
+export interface RecordingListItemDto {
+  recording: RecordingDto
+  groupId: number
+  groupName: string | null
+  title: string | null
+  /** `DateOnly` — `YYYY-MM-DD` (vaqt zonasiz). */
+  localDate: string
+  scheduledStart: string
+}
+
+/**
+ * `GET /api/v1/recordings/{id}/link` javobi.
+ *
+ * ★ BU PRESIGNED (imzolangan) S3 MANZIL, API orqali oqim EMAS — jonli
+ * tekshirilgan: javobda `X-Amz-Signature` va `X-Amz-Expires=900` bor.
+ * Ya'ni manzil `Authorization` sarlavhasini TALAB QILMAYDI va uni to'g'ridan
+ * to'g'ri `<video src>` ga berish mumkin; lekin u MUDDATLI — `expiresAt`
+ * o'tgach 403 bo'lib qoladi va qaytadan so'rash kerak.
+ */
+export interface RecordingLinkDto {
+  url: string | null
+  expiresAt: string
 }

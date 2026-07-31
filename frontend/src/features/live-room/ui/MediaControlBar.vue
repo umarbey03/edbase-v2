@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from '@/shared/ui'
+import { AppIcon, BaseSpinner } from '@/shared/ui'
 
 const props = withDefaults(
   defineProps<{
@@ -9,12 +9,28 @@ const props = withDefaults(
     /** Ekran ulashish faqat host uchun (SPEC: `roomAdmin` grant'i hostda). */
     canShareScreen: boolean
     handRaised: boolean
-    isBusy?: boolean
+    /**
+     * HAR BIR TUGMA UCHUN ALOHIDA kutish holati.
+     *
+     * NIMA UCHUN ALOHIDA: ilgari bitta umumiy `isBusy` bor edi va u BARCHA
+     * tugmalarni birdan `disabled` qilardi. Foydalanuvchi mikrofonni bosganda
+     * kamera tugmasi ham o'chib qolardi — bu "tugmalar ishlamayapti" degan
+     * taassurot berardi. Endi faqat bosilgan tugma kutish ko'rsatkichini oladi.
+     */
+    micPending?: boolean
+    cameraPending?: boolean
+    screenPending?: boolean
     disabled?: boolean
     /** Mobil rejimda chat tugmasi ustidagi o'qilmagan xabarlar soni. */
     unreadCount?: number
   }>(),
-  { isBusy: false, disabled: false, unreadCount: 0 },
+  {
+    micPending: false,
+    cameraPending: false,
+    screenPending: false,
+    disabled: false,
+    unreadCount: 0,
+  },
 )
 
 const emit = defineEmits<{
@@ -26,8 +42,13 @@ const emit = defineEmits<{
   leave: []
 }>()
 
+/*
+  `active:scale-90` — bosishning DARHOL sezilishi uchun. Holat o'zgarishi
+  optimistik bo'lsa ham, barmoq/sichqoncha tekkan zahoti vizual javob bo'lishi
+  kerak: foydalanuvchi shikoyati aynan "bosilishi bilinmayapti" edi.
+*/
 const BASE =
-  'relative inline-flex size-11 items-center justify-center rounded-full transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40'
+  'relative inline-flex size-11 items-center justify-center rounded-full transition-[background-color,transform] duration-150 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40'
 
 /** Yoqilgan/o'chirilgan holat uchun uslub — takrorlanmasligi uchun bitta funksiya. */
 function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:bg-ink-700'): string {
@@ -42,24 +63,39 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
     <button
       type="button"
       :class="[BASE, toneOf(props.isMicOn)]"
-      :disabled="props.disabled || props.isBusy"
+      :disabled="props.disabled || props.micPending"
       :aria-pressed="props.isMicOn"
+      :aria-busy="props.micPending"
       :title="props.isMicOn ? 'Mikrofonni o‘chirish' : 'Mikrofonni yoqish'"
       @click="emit('toggle-mic')"
     >
       <AppIcon :name="props.isMicOn ? 'mic' : 'mic-off'" />
+      <!-- Kutish halqasi: qurilma ruxsati bir necha sekund davom etishi mumkin. -->
+      <span
+        v-if="props.micPending"
+        class="absolute inset-0 flex items-center justify-center rounded-full bg-ink-950/55"
+      >
+        <BaseSpinner size="sm" />
+      </span>
       <span class="sr-only">Mikrofon</span>
     </button>
 
     <button
       type="button"
       :class="[BASE, toneOf(props.isCameraOn)]"
-      :disabled="props.disabled || props.isBusy"
+      :disabled="props.disabled || props.cameraPending"
       :aria-pressed="props.isCameraOn"
+      :aria-busy="props.cameraPending"
       :title="props.isCameraOn ? 'Kamerani o‘chirish' : 'Kamerani yoqish'"
       @click="emit('toggle-camera')"
     >
       <AppIcon :name="props.isCameraOn ? 'camera' : 'camera-off'" />
+      <span
+        v-if="props.cameraPending"
+        class="absolute inset-0 flex items-center justify-center rounded-full bg-ink-950/55"
+      >
+        <BaseSpinner size="sm" />
+      </span>
       <span class="sr-only">Kamera</span>
     </button>
 
@@ -72,12 +108,19 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
           ? 'bg-brand-600 text-white hover:bg-brand-500'
           : 'bg-ink-750 text-slate-100 hover:bg-ink-700',
       ]"
-      :disabled="props.disabled || props.isBusy"
+      :disabled="props.disabled || props.screenPending"
       :aria-pressed="props.isScreenSharing"
+      :aria-busy="props.screenPending"
       :title="props.isScreenSharing ? 'Ekran ulashishni to‘xtatish' : 'Ekranni ulashish'"
       @click="emit('toggle-screen')"
     >
       <AppIcon name="screen-share" />
+      <span
+        v-if="props.screenPending"
+        class="absolute inset-0 flex items-center justify-center rounded-full bg-ink-950/55"
+      >
+        <BaseSpinner size="sm" />
+      </span>
       <span class="sr-only">Ekranni ulashish</span>
     </button>
 
