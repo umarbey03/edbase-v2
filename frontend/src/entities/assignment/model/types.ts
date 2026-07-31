@@ -1,5 +1,6 @@
+import { isApiError, toUserMessage } from '@/shared/api'
 import { lookup } from '@/shared/lib/lookup'
-import type { StudentAssignmentDto, SubmissionStatusName } from '@/shared/types'
+import type { StudentAssignmentDto, SubmissionFileDto, SubmissionStatusName } from '@/shared/types'
 
 export type AssignmentTone = 'accent' | 'success' | 'warning' | 'danger' | 'neutral'
 
@@ -234,4 +235,65 @@ export function validateAttachments(files: readonly File[], formats: string): st
   }
 
   return null
+}
+
+/* ==========================================================================
+   BIRIKTIRILGAN FAYLLAR — USTOZ KO'RINISHI.
+
+   `SubmissionFileDto.kind` server tomonda `[Flags]` emas, oddiy enum
+   (`Image` | `Audio` | `Document`), lekin frontend uni SATR sifatida oladi:
+   kelajakda yangi tur qo'shilsa UI qulamasin, notanish qiymat "Fayl" bo'lib
+   ko'rinsin va yuklab olish tugmasi baribir ishlasin.
+   ========================================================================== */
+
+const ATTACHMENT_KIND_LABELS: Record<string, string> = {
+  Image: 'Rasm',
+  Audio: 'Ovozli javob',
+  Document: 'Hujjat',
+}
+
+export function attachmentKindLabel(kind: string): string {
+  return lookup(ATTACHMENT_KIND_LABELS, kind, 'Fayl')
+}
+
+/**
+ * Fayllarni turi bo'yicha guruhlaydi — tartib eski ilovadagidek:
+ * OVOZ birinchi (talaffuz baholanadi, ustoz avval shuni eshitadi), keyin
+ * rasm (daftar surati), oxirida qolganlari.
+ */
+export function groupAttachments(
+  files: readonly SubmissionFileDto[],
+): ReadonlyArray<{ kind: string; label: string; items: SubmissionFileDto[] }> {
+  const order = ['Audio', 'Image']
+  const groups = new Map<string, SubmissionFileDto[]>()
+
+  for (const file of files) {
+    const existing = groups.get(file.kind)
+    if (existing === undefined) groups.set(file.kind, [file])
+    else existing.push(file)
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => {
+      // Ro'yxatda yo'q turlar oxiriga tushadi (`indexOf` -> -1 emas, katta son).
+      const leftRank = order.indexOf(left) === -1 ? order.length : order.indexOf(left)
+      const rightRank = order.indexOf(right) === -1 ? order.length : order.indexOf(right)
+      return leftRank - rightRank
+    })
+    .map(([kind, items]) => ({ kind, label: attachmentKindLabel(kind), items }))
+}
+
+/**
+ * Fayl olishdagi xatoning foydalanuvchi matni.
+ *
+ * Umumiy `toUserMessage` ishlatiladi — matn shu yerda YIG'ILMAYDI. Yagona
+ * qo'shimcha: 503 da server ba'zan bo'sh tana qaytaradi (`Content-Length: 0`),
+ * o'shanda `toUserMessage` "HTTP 503" beradi va ustoz nima bo'lganini
+ * tushunmaydi. Shu bitta holatda tushunarli zaxira matn ko'rsatiladi.
+ */
+export function submissionFileError(error: unknown): string {
+  if (isApiError(error) && error.status === 503 && (error.problem?.detail ?? '').length === 0) {
+    return 'Fayl ombori vaqtincha ishlamayapti. Birozdan so‘ng urinib ko‘ring.'
+  }
+  return toUserMessage(error)
 }

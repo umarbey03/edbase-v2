@@ -11,20 +11,57 @@ import {
   peerRoleLabel,
   sendDirectMessage,
 } from '@/entities/direct-message'
+import { GroupChatRoom, GroupChatThreadList } from '@/features/group-chat'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
-import type { ConversationDto } from '@/shared/types'
+import type { ConversationDto, GroupChatThreadDto } from '@/shared/types'
 import { AppIcon, BaseAvatar, DataStatus } from '@/shared/ui'
 
 /**
- * CHAT — eski `#chat` bo'limi ("Chatlar").
+ * ============================================================================
+ *  CHAT — eski `student.html` dagi `#chat` bo'limi
+ * ============================================================================
  *
- * Eski ilovadagi IKKI KO'RINISH saqlangan: suhbatlar ro'yxati va ochilgan
- * suhbat. Ular alohida MARSHRUT emas, bitta tab ichidagi holat — eski
- * ilovada ham shunday edi (`chat-list-view` / `chat-room-view`) va "Orqaga"
- * tugmasi brauzer tarixiga tegmasdan ro'yxatga qaytaradi.
+ * ★ GURUH CHATI VA KURATOR DM'I QANDAY BIRGA YASHAYDI:
+ *
+ * IKKALASI BITTA RO'YXATDA, lekin ATAYLAB AJRATILGAN ikki bo'limda — bu
+ * eski ilovaning yechimi va u shundayligicha ko'chirildi
+ * (`student.html`, `renderChatList()`):
+ *
+ *   1) TEPADA, "pin qilingan" — «📌 Kurator — shaxsiy chat».
+ *      Faqat o'quvchi va kurator ko'radi. Eski markupda u firuza chegara va
+ *      gradient bilan ajratilgan (`border: 1px solid rgba(34,211,238,.35)`),
+ *      chunki "faqat menga" atalgan yozishmani ADASHIB guruhga yuborish eng
+ *      qimmat xato bo'lardi.
+ *
+ *   2) PASTDA — GURUH chatlari, har guruh uchun IKKI qatorgacha:
+ *      "Ustoz chati" va "Kurator chati" (server `/threads` da aynan shunday
+ *      qaytaradi — jonli tekshirilgan). Bu yerda yozilgani guruhdagi
+ *      HAMMAGA ko'rinadi.
+ *
+ * NEGA ALOHIDA TAB YOKI ALOHIDA EKRAN EMAS:
+ *  • o'quvchi karkasidagi pastki 5 tab eski ilovadan AYNAN ko'chirilgan va
+ *    ularning tartibi/nomi o'zgartirilmaydi
+ *    (`entities/user/model/navigation.ts`) — oltinchi tab qo'shish shu
+ *    qoidani buzardi;
+ *  • o'quvchi uchun bu ikkisi bitta savolning ikki manzili: "buni hammaga
+ *    yozaymi yoki faqat kuratorgami". Ikki xil ekranga bo'lib qo'ysak, u har
+ *    safar qaysi ekranda ekanini eslab yurishi kerak bo'lardi;
+ *  • eski ilovada AYNAN shunday edi — bugungi o'quvchilar shu ro'yxatni
+ *    bilishadi va qayta o'rganishlari shart emas.
+ *
+ * XAVFSIZLIK JIHATI: ro'yxat bitta bo'lsa ham, YOZISH oqimlari hech qachon
+ * aralashmaydi — har qator o'z ekranini ochadi va guruh chatida yuqorida
+ * doim kanal nishoni turadi ("Ustoz chati" / "Kurator chati"), ya'ni o'quvchi
+ * kimga yozayotganini ko'rib turadi.
+ *
+ * Ro'yxat va ochilgan suhbat ALOHIDA MARSHRUT emas, bitta tab ichidagi holat
+ * — eski ilovadagidek (`chat-list-view` / `chat-room-view`): "Orqaga" tugmasi
+ * brauzer tarixiga tegmasdan ro'yxatga qaytaradi.
  */
 const queryClient = useQueryClient()
+
+/* ====================== 1-BO'LIM: shaxsiy (kurator DM) ===================== */
 
 const conversationsQuery = useQuery({
   queryKey: ['dm', 'conversations'],
@@ -42,7 +79,13 @@ const conversationsError = computed(() =>
 
 /* ------------------------------------------------------------ ochiq suhbat */
 
+/**
+ * BIR VAQTDA FAQAT BITTASI ochiq. Ikki `ref` ataylab bir-birini inkor
+ * qiladi: `openConversation` guruh suhbatini yopadi va aksincha — aks holda
+ * "orqaga" bosilganda ekranda ikkinchi suhbat qolib ketardi.
+ */
 const activePeer = ref<ConversationDto | null>(null)
+const activeThread = ref<GroupChatThreadDto | null>(null)
 
 const threadQuery = useQuery({
   queryKey: ['dm', 'thread', computed(() => activePeer.value?.peerId ?? null)],
@@ -124,14 +167,27 @@ function submit(): void {
 function openConversation(conversation: ConversationDto): void {
   sendError.value = null
   draft.value = ''
+  activeThread.value = null
   activePeer.value = conversation
 }
+
+function openGroupThread(thread: GroupChatThreadDto): void {
+  activePeer.value = null
+  activeThread.value = thread
+}
+
+function backToList(): void {
+  activePeer.value = null
+  activeThread.value = null
+}
+
+const showList = computed(() => activePeer.value === null && activeThread.value === null)
 </script>
 
 <template>
   <div>
-    <!-- ============================ Ro'yxat ============================= -->
-    <template v-if="activePeer === null">
+    <!-- ============================== RO'YXAT ============================== -->
+    <template v-if="showList">
       <h2
         class="mb-3 ml-1 mt-2 flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-brand-300"
       >
@@ -142,25 +198,30 @@ function openConversation(conversation: ConversationDto): void {
         Chatlar
       </h2>
 
+      <!--
+        ★ 1-BO'LIM — SHAXSIY (pin qilingan, eng tepada).
+        Eski ilovadagi firuza ajratma saqlangan: bu yozishmani guruh
+        chatlaridan KO'Z BILAN farqlash mumkin bo'lishi kerak.
+      -->
       <DataStatus
         :pending="conversationsQuery.isPending.value"
         :error="conversationsError"
-        :empty="conversations.length === 0"
+        :empty="false"
         :retrying="conversationsQuery.isFetching.value"
-        :skeleton-rows="3"
-        empty-icon="chat"
-        empty-title="Guruh yo‘q"
-        empty-text="Guruhga qo‘shilganingizdan keyin kuratoringiz bilan yozishish shu yerda ochiladi."
+        :skeleton-rows="1"
         @retry="conversationsQuery.refetch()"
       >
-        <ul class="space-y-2">
+        <ul
+          v-if="conversations.length > 0"
+          class="mb-4 space-y-2"
+        >
           <li
             v-for="conversation in conversations"
             :key="conversation.peerId"
           >
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-[14px] border border-line bg-ink-900 px-3.5 py-3 text-left transition-colors hover:bg-ink-800"
+              class="flex w-full items-center gap-3 rounded-[14px] border border-sky-400/35 bg-sky-400/[0.06] px-3.5 py-3 text-left transition-colors hover:bg-sky-400/[0.12]"
               @click="openConversation(conversation)"
             >
               <BaseAvatar
@@ -169,10 +230,10 @@ function openConversation(conversation: ConversationDto): void {
               />
               <span class="min-w-0 flex-1">
                 <span class="flex items-center gap-2">
-                  <span
-                    class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100"
-                    v-text="conversation.peerName ?? '—'"
-                  />
+                  <!-- Matn eski ilovadan: "📌 Kurator — shaxsiy chat". -->
+                  <span class="min-w-0 flex-1 truncate text-sm font-semibold text-sky-200">
+                    📌 {{ peerRoleLabel(conversation.peerRole) }} — shaxsiy chat
+                  </span>
                   <span
                     v-if="conversation.lastMessageAt !== null"
                     class="shrink-0 text-[11px] tabular-nums text-dim"
@@ -191,23 +252,81 @@ function openConversation(conversation: ConversationDto): void {
                   />
                 </span>
                 <span
-                  class="mt-0.5 block text-[10px] font-bold uppercase tracking-[1px] text-dim"
-                  v-text="peerRoleLabel(conversation.peerRole)"
+                  class="mt-0.5 block truncate text-[11px] text-dim"
+                  v-text="conversation.peerName ?? '—'"
                 />
               </span>
             </button>
           </li>
         </ul>
+
+        <!-- Kurator biriktirilmagan holat — eski ilovadagi matn. -->
+        <p
+          v-else
+          class="mb-4 rounded-[14px] border border-line bg-ink-900 px-3.5 py-3 text-xs text-slate-400"
+        >
+          Sizga hali kurator biriktirilmagan.
+        </p>
       </DataStatus>
+
+      <!--
+        ★ 2-BO'LIM — GURUH chatlari. Har guruh uchun ikki qator bo'lishi
+        MUMKIN ("Ustoz chati" / "Kurator chati") — bu server qaroriga bog'liq
+        (`availableChannels`), klient uni o'zi to'qimaydi.
+      -->
+      <GroupChatThreadList
+        empty-title="Guruh chati yo‘q"
+        empty-text="Guruhga qo‘shilganingizdan keyin guruh chatlari shu yerda ochiladi."
+        @open="openGroupThread"
+      />
     </template>
 
-    <!-- ========================== Ochiq suhbat ========================== -->
-    <template v-else>
+    <!-- ========================== GURUH SUHBATI ============================ -->
+    <template v-else-if="activeThread !== null">
       <div class="mb-3 mt-2 flex items-center gap-3">
         <button
           type="button"
           class="tap-target flex items-center gap-1.5 rounded-[10px] border border-line bg-white/[0.06] px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-white/[0.12]"
-          @click="activePeer = null"
+          @click="backToList"
+        >
+          <AppIcon
+            name="arrow-left"
+            :size="15"
+          />
+          Orqaga
+        </button>
+        <h3
+          class="min-w-0 flex-1 truncate text-base font-extrabold text-slate-100"
+          v-text="activeThread.groupName"
+        />
+      </div>
+
+      <!--
+        ★ `:key` guruh + kanal bo'yicha — boshqa suhbatga o'tilganda komponent
+        qaytadan yaratiladi (eski skroll joyi va yozilgan matn qolib ketmasin).
+
+        Balandlik o'quvchi karkasiga moslangan: eski ilovada
+        `.chat { height: calc(100vh - 220px); min-height: 280px }` edi, lekin
+        u yerda kanal tab'lari yo'q edi — v2 da ular qo'shilgani uchun ayirma
+        kattaroq. `dvh` (`vh` EMAS): telefon brauzerining manzil paneli
+        yig'ilganda `vh` "sakrab" ketadi.
+      -->
+      <GroupChatRoom
+        :key="`${activeThread.groupId}:${activeThread.channel}`"
+        :group-id="activeThread.groupId"
+        :group-name="activeThread.groupName"
+        :channel="activeThread.channel"
+        height-class="h-[calc(100dvh-340px)] min-h-[260px]"
+      />
+    </template>
+
+    <!-- ========================= SHAXSIY SUHBAT ============================ -->
+    <template v-else-if="activePeer !== null">
+      <div class="mb-3 mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          class="tap-target flex items-center gap-1.5 rounded-[10px] border border-line bg-white/[0.06] px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-white/[0.12]"
+          @click="backToList"
         >
           <AppIcon
             name="arrow-left"
@@ -222,7 +341,7 @@ function openConversation(conversation: ConversationDto): void {
           />
           <span
             class="text-[11px] text-dim"
-            v-text="peerRoleLabel(activePeer.peerRole)"
+            v-text="`${peerRoleLabel(activePeer.peerRole)} — shaxsiy chat`"
           />
         </span>
       </div>
@@ -234,8 +353,8 @@ function openConversation(conversation: ConversationDto): void {
         :retrying="threadQuery.isFetching.value"
         :skeleton-rows="3"
         empty-icon="chat"
-        empty-title="Hali xabar yo‘q"
-        empty-text="Birinchi xabarni siz yozishingiz mumkin."
+        empty-title="Hali savol yo‘q"
+        empty-text="Birinchi savolingizni yozing!"
         @retry="threadQuery.refetch()"
       >
         <div

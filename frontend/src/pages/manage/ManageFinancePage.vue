@@ -13,6 +13,7 @@ import {
   periodLabel,
 } from '@/entities/payment'
 import StudentDiscountsCard from '@/features/discount-manage/ui/StudentDiscountsCard.vue'
+import FinanceDashboard from '@/features/finance-dashboard/ui/FinanceDashboard.vue'
 import BlockSettingsCard from '@/features/finance-settings/ui/BlockSettingsCard.vue'
 import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDialog.vue'
 import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDialog.vue'
@@ -28,35 +29,42 @@ import {
   BaseButton,
   BaseCard,
   BaseSpinner,
-  PageHeader,
   PaginationBar,
 } from '@/shared/ui'
 
 /**
  * MOLIYA (eski ilovadagi "Moliya" bo'limi).
  *
- * ★ NIMA KO'CHIRILMADI VA NEGA:
+ * ★★ DASHBOARD VA SOZLAMA — BITTA SAHIFADA, ESKI TARTIBDA.
  *
- *  • "Rejadagi tushum / Yig'ilgan / Yig'ilish foizi / Umumiy qarz /
- *    Chegirmalar / Balansdagi pul" KPI kartochkalari, "Qarz yoshi"
- *    (0-30/31-60/61-90/90+ kun), "Oxirgi 12 oy" diagrammasi, "Guruhlar
- *    bo'yicha" va "To'lov usuli bo'yicha" kesimlar —
- *    BACKENDDA BUNDAY ENDPOINT YO'Q. `PaymentsController` da ~20 endpoint bor,
- *    ammo birortasi yig'ma hisobot bermaydi. Ularni mijozda chizish uchun
- *    barcha to'lov yozuvlarini (har oyda mingdan ortiq qator) sahifama-sahifa
- *    yuklab olish kerak bo'lardi — brauzer bir necha o'n MB ma'lumot
- *    yuklardi va raqamlar baribir "bir lahza oldingi" holatni ko'rsatardi.
- *    To'g'ri yechim — backendda `GET /payments/summary` ochish.
+ * Eski ilovada `#finance` bo'limi YAGONA uzun sahifa edi va shu ketma-ketlikda
+ * o'qilardi (`academic.html`, 853–933):
+ *     KPI -> Qarz yoshi -> Oxirgi 12 oy -> Guruh/usul kesimlari
+ *     -> Tariflar -> Chegirmalar -> O'zgarishlar izi.
+ * O'quv bo'limi xodimi ayni shu tartibga o'rgangan.
  *
- *  • Excel eksporti (`/api/academic/finance/export`) — YO'Q, endpoint
- *    ko'chirilmagan. `http.download` tayyor turibdi, server yo'li paydo
- *    bo'lishi bilan tugma qo'shiladi.
+ * NEGA ALOHIDA SAHIFA YOKI TAB EMAS:
+ *  • alohida marshrut yangi menyu bandini talab qilardi
+ *    (`entities/user/model/navigation.ts`), ya'ni menyu tartibi o'zgarardi —
+ *    u esa eski `academic.html` menyusidan AYNAN ko'chirilgan;
+ *  • tab eski ilovada UMUMAN bo'lmagan tushuncha: xodim bugun raqamlarni ham,
+ *    tarifni ham bitta ekranda skroll qilib ko'radi. Tab qo'shsak, "chegirma
+ *    berdim — yig'ilish foizi qanday o'zgardi?" degan oddiy ish ikki bosishga
+ *    aylanardi.
+ * Shu sababli dashboard sahifaning TEPASIGA qo'yildi, boshqaruv vositalari
+ * (sozlama, tarif, chegirma, qarzdorlar) esa ostida qoldi.
  *
- *  • "O'zgarishlar izi" (audit) — audit yoziladi (servisda ko'rinadi), lekin
- *    uni O'QIYDIGAN endpoint ochilmagan.
+ * ★ Sahifada BIZNES MANTIQ YO'Q: dashboard butunlay
+ * `features/finance-dashboard` ichida (davr filtri, so'rov, CSV eksport ham
+ * o'sha yerda), sahifa faqat bloklarni yig'adi.
  *
- * Shu sababli sahifa BOSHQARUV vositalaridan iborat: sozlama, tarif,
- * chegirma va qarzdorlar ro'yxati — hammasi mavjud endpointlarga tayangan.
+ * ★ Sahifa sarlavhasi ("Moliya" + "Tushum, qarz va chegirmalar bo'yicha
+ * umumiy manzara" — eski 857–858-qatorlar) `FinanceDashboard` ichida
+ * chiziladi: davr filtri va "Excel" tugmasi eski dizaynda h1 bilan bir
+ * qatorda turadi va ular o'sha komponentning holatiga tayanadi.
+ *
+ * ★ HALI KO'CHIRILMAGAN YAGONA BLOK — "O'zgarishlar izi" (audit): audit
+ * yoziladi, lekin uni O'QIYDIGAN endpoint hali ochilmagan.
  */
 const queryClient = useQueryClient()
 
@@ -161,12 +169,12 @@ function canWaive(payment: PaymentDto): boolean {
 
 <template>
   <div>
-    <PageHeader
-      title="Moliya"
-      subtitle="Tarif, chegirma va bloklash sozlamalari; qarzdorlar ro‘yxati."
-    />
+    <!-- Eski `#finance` bo'limining tepa qismi: KPI, Qarz yoshi,
+         Oxirgi 12 oy, guruh va usul kesimlari + davr filtri va eksport. -->
+    <FinanceDashboard />
 
-    <div class="grid gap-4 xl:grid-cols-2">
+    <!-- Ostida — eskisidagidek boshqaruv vositalari (Tariflar, Chegirmalar). -->
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
       <BlockSettingsCard />
       <TariffsCard />
       <StudentDiscountsCard class="xl:col-span-2" />

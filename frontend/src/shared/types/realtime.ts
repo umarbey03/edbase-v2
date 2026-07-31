@@ -57,3 +57,37 @@ export interface SessionEndedPayload {
 
 /** Hub ulanishining foydalanuvchiga ko'rsatiladigan holati. */
 export type HubStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+
+/* ==========================================================================
+   GURUH CHATI HUB'I — `/hubs/group-chat`.
+
+   Jonli dars hub'idan ALOHIDA ro'yxat: metod nomlari ustma-ust tushib qolsa
+   (`SendMessage` ikkalasida ham bor!) noto'g'ri hub'ga chaqirish xatosi
+   kompilyatsiyada emas, ish vaqtida chiqardi.
+   ========================================================================== */
+
+/** Klient -> Server. */
+export const GroupChatHubMethod = {
+  /** `(groupId, channel?)` -> `GroupChatAccessDto` (★ OBYEKT, massiv emas). */
+  JoinThread: 'JoinThread',
+  /** `(groupId, channel)` -> void. */
+  LeaveThread: 'LeaveThread',
+  /** `(groupId, channel?, body)` -> `GroupChatMessageDto`. */
+  SendMessage: 'SendMessage',
+} as const
+export type GroupChatHubMethodName =
+  (typeof GroupChatHubMethod)[keyof typeof GroupChatHubMethod]
+
+/**
+ * Server -> Klient. ★ Guruh chatida tinglanadigan YAGONA hodisa.
+ *
+ * ★ YUBORUVCHI O'ZI HAM SHU HODISANI OLADI (jonli tekshirildi: o'quvchi
+ * `SendMessage` chaqirgach, javobda ham, hodisada ham AYNAN bitta `id` keldi).
+ * Shu sababli xabarlar `id` bo'yicha DEDUPE qilinadi — aks holda yuboruvchi
+ * o'z xabarini ikki marta ko'rardi.
+ */
+export const GroupChatHubEvent = {
+  GroupChatMessage: 'GroupChatMessage',
+} as const
+export type GroupChatHubEventName =
+  (typeof GroupChatHubEvent)[keyof typeof GroupChatHubEvent]

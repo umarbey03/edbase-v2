@@ -90,3 +90,25 @@ export const env: AppEnv = createEnv()
 export function apiUrl(path: string): string {
   return `${env.apiUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
+
+/**
+ * Boshqa hub manzilini MAVJUD `VITE_HUB_URL` dan hosil qiladi:
+ * `http://host/hubs/live` + `group-chat` -> `http://host/hubs/group-chat`.
+ *
+ * NEGA YANGI MUHIT O'ZGARUVCHISI EMAS: hub'lar bitta serverda, bitta
+ * `/hubs/*` prefiksi ostida yashaydi va autentifikatsiya ham AYNAN o'sha
+ * prefiks uchun sozlangan (token `?access_token=` query'sida). Har hub uchun
+ * alohida o'zgaruvchi qo'shsak, ularning biri deploy'da yangilanmay qolishi
+ * mumkin edi — nosozlik esa faqat ish vaqtida, "chat ochilmayapti"
+ * ko'rinishida bilinardi. Manba bitta bo'lgani uchun bunday ajralish
+ * MUMKIN EMAS.
+ *
+ * Faqat OXIRGI segment almashtiriladi, ya'ni reverse-proxy'dagi ichki
+ * prefikslar (`/api/hubs/live`) ham saqlanadi.
+ */
+export function hubUrlFor(hubName: string): string {
+  const base = env.hubUrl
+  const lastSlash = base.lastIndexOf('/')
+  // Slash umuman bo'lmasa (kutilmagan qiymat) — asl manzilni buzmaymiz.
+  return lastSlash < 0 ? base : `${base.slice(0, lastSlash + 1)}${hubName}`
+}

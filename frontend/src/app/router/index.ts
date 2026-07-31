@@ -24,6 +24,12 @@ const STUDENT: UserRoleName[] = ['Student']
 const STAFF: UserRoleName[] = ['Teacher', 'Assistant']
 const MANAGERS: UserRoleName[] = ['Academic', 'Admin']
 const STAFF_AND_MANAGERS: UserRoleName[] = ['Teacher', 'Assistant', 'Academic', 'Admin']
+/**
+ * FAQAT admin. `MANAGERS` dan ATAYLAB alohida: barcha
+ * `/api/v1/settings/*` yo'llari serverda `[Authorize(Roles = "Admin")]`
+ * bilan yopilgan va o'quv bo'limi u yerdan 403 oladi.
+ */
+const ADMIN_ONLY: UserRoleName[] = ['Admin']
 
 const routes: RouteRecordRaw[] = [
   {
@@ -173,6 +179,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Kuratorlik', roles: STAFF },
       },
       {
+        /*
+          "Chatlar" — eski `teacher.html` dagi `#chats-hub`: barcha GURUH
+          chatlari bitta ro'yxatda.
+
+          ★ "Savollar" (`teacher-chat`) dan BOSHQA NARSA va ular ATAYLAB
+          alohida marshrut: bu yerda GURUHNING umumiy suhbati (guruhdagi
+          hamma ko'radi), u yerda esa KURATOR ↔ O'QUVCHI shaxsiy yozishmasi.
+          Ikkisini bitta sahifaga qo'shsak, xodim o'quvchining shaxsiy
+          savoliga butun guruh oldida javob yozib qo'yishi mumkin edi.
+        */
+        path: 'ustoz/chatlar',
+        name: 'teacher-group-chats',
+        component: () => import('@/pages/teacher/TeacherGroupChatsPage.vue'),
+        meta: { title: 'Chatlar', roles: STAFF },
+      },
+      {
         // Eski paneldagi "Savollar" (o'qilmagan belgisi bilan) — DM yozishmalari.
         path: 'ustoz/savollar',
         name: 'teacher-chat',
@@ -273,6 +295,20 @@ const routes: RouteRecordRaw[] = [
         name: 'manage-course',
         component: () => import('@/pages/manage/ManageCoursePage.vue'),
         meta: { title: 'Kurs kontenti', roles: MANAGERS },
+      },
+      {
+        /*
+          TIZIM SOZLAMALARI — YAGONA `roles: ADMIN_ONLY` marshrut.
+
+          Server allaqachon 403 qaytaradi, lekin guard'siz o'quv bo'limi
+          sahifani OCHIB, faqat xato ekranini ko'rardi: menyu bandi yo'q
+          bo'lsa ham manzilni qo'lda yozish yoki eski xatcho'p orqali kirish
+          mumkin. Guard uni o'z bosh sahifasiga qaytaradi.
+        */
+        path: 'boshqaruv/sozlamalar',
+        name: 'manage-settings',
+        component: () => import('@/pages/manage/ManageSettingsPage.vue'),
+        meta: { title: 'Tizim sozlamalari', roles: ADMIN_ONLY },
       },
     ],
   },

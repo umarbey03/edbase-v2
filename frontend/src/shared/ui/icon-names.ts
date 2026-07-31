@@ -68,3 +68,11 @@ export type IconName =
   | 'trophy'
   | 'user'
   | 'phone'
+  /*
+    `sliders` — tizim sozlamalari menyusi. Eski ilovada bunday bo'lim UMUMAN
+    bo'lmagan (muhit o'zgaruvchilari qo'lda tahrirlanardi), shuning uchun
+    ko'chiriladigan sprite shakli ham yo'q. Tishli g'ildirak o'rniga
+    "regulyatorlar" tanlandi: bo'lim mazmuni aynan qiymatlarni sozlash, va
+    bu shakl menyudagi mavjud `grid`/`chart` ikonkalariga o'xshab ketmaydi.
+  */
+  | 'sliders'

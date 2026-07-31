@@ -1214,3 +1214,338 @@ export interface UpdateDiscountRequest {
   groupId: number | null
   reason: string | null
 }
+
+/* ==========================================================================
+   MOLIYA DASHBOARD'I — `GET /payments/summary` (+ `/summary/export`).
+
+   ★ UCH XIL MA'NO bitta javobda. Ularni chalkashtirish hisobotni YOLG'ON
+   qiladi, shuning uchun tur darajasida ham ajratib izohlangan:
+
+     • DAVR (jurnal) — `from..to` KUNLARI orasida KASSAGA tushgan pul:
+       `collected`, `refunded`, `netCollected`, `balanceUsed`, `waived`,
+       `payingStudents`, `paymentCount`.
+     • HISOB (accrual) — `fromPeriod..toPeriod` OYLARIGA yozilgan summalar:
+       `billed`, `discounts`, `periodCollected`, `collectionRate`, `groups[]`.
+     • HOLAT — BUGUNGI kesim, davr filtriga UMUMAN bog'liq emas:
+       `outstanding`, `studentBalance`, `debtorStudents`, `aging[]`.
+
+   Kassir davrni o'zgartirganda qarz o'zgarmasligi BUG EMAS — shu sababli
+   ekranda ham bu farq yozib qo'yilgan (`FinanceDashboard.vue`).
+
+   ★ Pul maydonlarining BIRORTASI `null` EMAS — bo'sh bazada ham `0` keladi.
+   Shuning uchun bu yerda `number | null` yo'q va UI'da "NaN" chiqmaydi.
+   ========================================================================== */
+
+/** Qarz yoshi guruhlari — server DOIM shu TO'RTTASINI shu tartibda yuboradi. */
+export type PaymentAgingBucketName = '0-30' | '31-60' | '61-90' | '90+'
+
+export interface PaymentSummaryKpiDto {
+  /* --- DAVR: moliya jurnali (`from..to` kunlari) --- */
+  collected: number
+  refunded: number
+  /** `collected − refunded`. */
+  netCollected: number
+  /** Oldindan to'langan puldan yopilgan summa (yangi pul EMAS). */
+  balanceUsed: number
+  waived: number
+
+  /* --- HISOB: `fromPeriod..toPeriod` oylari --- */
+  billed: number
+  discounts: number
+  /** Shu OYLARGA tegishli to'langan summa (pul boshqa oyda kelgan bo'lishi mumkin). */
+  periodCollected: number
+  /** 0..100 oralig'idagi FOIZ (ulush emas). */
+  collectionRate: number
+
+  /* --- HOLAT: bugungi kesim, davr filtriga bog'liq EMAS --- */
+  /** `sum(aging[].amount)` bilan AYNAN teng (server kafolati). */
+  outstanding: number
+  /** O'quvchilarning oldindan to'langan qoldig'i. */
+  studentBalance: number
+
+  /* --- sanoqlar --- */
+  payingStudents: number
+  debtorStudents: number
+  paymentCount: number
+}
+
+/** Bitta qarz yoshi guruhi. `maxDays: null` — yuqori chegara yo'q (`90+`). */
+export interface PaymentAgingBucketDto {
+  bucket: PaymentAgingBucketName
+  minDays: number
+  maxDays: number | null
+  amount: number
+  students: number
+  months: number
+}
+
+/** "Oxirgi 12 oy" dinamikasining bitta oyi. */
+export interface PaymentMonthSummaryDto {
+  /** Hisob oyi, `YYYY-MM`. */
+  period: string
+  billed: number
+  /** ★ SHU hisob oyiga tegishli to'langan summa — kunlik kassa raqami EMAS. */
+  collected: number
+  outstanding: number
+  waived: number
+  discounts: number
+  collectionRate: number
+  records: number
+}
+
+/** Guruh kesimi. Server QARZI KATTASIDAN tartiblab yuboradi. */
+export interface PaymentGroupSummaryDto {
+  groupId: number
+  groupName: string
+  billed: number
+  collected: number
+  outstanding: number
+  waived: number
+  collectionRate: number
+  students: number
+}
+
+/** To'lov usuli kesimi. `method: null` — eski yozuvda usul ko'rsatilmagan. */
+export interface PaymentMethodSummaryDto {
+  method: PaymentMethodName | null
+  /** Serverning tayyor yorlig'i: `Naqd` / `Karta` / `Ko'rsatilmagan`. */
+  methodName: string
+  amount: number
+  count: number
+  /** Umumiy summadagi ulush, 0..100. */
+  share: number
+}
+
+export interface PaymentSummaryDto {
+  /** So'ralgan oraliq, MAHALLIY sana (`YYYY-MM-DD`), IKKALASI HAM kiradi. */
+  from: string
+  to: string
+  /** Hisob (accrual) oylari, `YYYY-MM`. */
+  fromPeriod: string
+  toPeriod: string
+  /** HOLAT raqamlari qaysi paytga tegishli ekani. */
+  asOf: string
+  kpi: PaymentSummaryKpiDto
+  /** DOIM 4 ta element. */
+  aging: PaymentAgingBucketDto[]
+  /** DOIM 12 ta element, ESKIDAN YANGIGA. */
+  months: PaymentMonthSummaryDto[]
+  groups: PaymentGroupSummaryDto[]
+  methods: PaymentMethodSummaryDto[]
+}
+
+/* ==========================================================================
+   TIZIM SOZLAMALARI (`/api/v1/settings`) — FAQAT `Admin`.
+
+   Turlar SWAGGER MATNIDAN EMAS, jonli javobdan yozilgan
+   (`GET /api/v1/settings`, `GET|PUT /settings/{key}`, `POST .../reset`):
+   matnli shartnoma bilan haqiqiy JSON bir-biriga mos kelmasligi mumkin, bu
+   esa `strictTemplates` ostida sahifa bo'sh chizilishiga olib borardi.
+   ========================================================================== */
+
+/**
+ * `SettingKind` — maydon QANDAY chiziladi.
+ *
+ * ★ Bu FAQAT ko'rinish haqida: qiymatning O'ZI serverda ham, so'rovda ham
+ * DOIM SATR (`"true"`, `"540000"`). `Toggle` uchun `true` mantiqiy qiymat
+ * yuborsak, server uni `string` kutib 400 qaytarardi.
+ */
+export type SettingKindName = 'Text' | 'Number' | 'Money' | 'Toggle' | 'Choice' | 'Secret'
+
+/**
+ * Qiymat AYNI PAYTDA qayerdan kelayotgani.
+ *
+ *  • `Default`     — kodagi standart (baza va muhitda yozuv yo'q);
+ *  • `Environment` — muhit o'zgaruvchisi/`appsettings` ustun keldi;
+ *  • `Database`    — paneldan yozilgan qiymat.
+ *
+ * ★ "Standartga qaytarish" FAQAT `Database` da ma'noga ega: u bazadagi
+ * yozuvni o'chiradi, natijada qiymat `Environment` yoki `Default` ga
+ * TUSHADI (jonli tekshiruvda `reset` dan keyin `origin` `Environment` bo'ldi,
+ * ya'ni "reset" == "standart qiymatni yozish" EMAS, "ustki qatlamni olib
+ * tashlash"). Boshqa manbalarda server 400 bilan rad etadi.
+ */
+export type SettingOriginName = 'Default' | 'Environment' | 'Database'
+
+/** Qo'shimcha shakl tekshiruvi (serverda bajariladi, UI faqat ishorasini beradi). */
+export type SettingFormatName = 'None' | 'Url' | 'TimeZone'
+
+/** `SettingGroup` — sozlamalar bo'limi. */
+export type SettingGroupKey =
+  | 'General'
+  | 'Finance'
+  | 'Telegram'
+  | 'LiveKit'
+  | 'Storage'
+  | 'Security'
+
+/**
+ * Chegaralar SERVER manbasi.
+ *
+ * ★ UI ularni KO'CHIRMAYDI: min/maks va tanlov ro'yxati shu yerdan olinadi.
+ * Kodda takrorlansa, server chegarasi o'zgarganda forma eskisiga qarab
+ * ishlayverar va foydalanuvchi tushunarsiz 400 olardi.
+ */
+export interface SettingConstraintsDto {
+  /** `kind: 'Choice'` da to'ldiriladi; qolganlarida bo'sh massiv (null EMAS). */
+  choices: string[]
+  minimum: number | null
+  maximum: number | null
+  maxLength: number
+  format: SettingFormatName
+}
+
+/**
+ * Bitta sozlama.
+ *
+ * ★★ SIR (`isSecret: true`): server `value` VA `defaultValue` ni DOIM `null`
+ * qilib yuboradi — faqat `maskedValue` (`••••••••cret`) va `isSet` keladi.
+ * Ya'ni mijozda sirning o'zi UMUMAN bo'lmaydi va "ko'rsatish" tugmasi
+ * texnik jihatdan ham imkonsiz: ko'rsatadigan narsa yo'q.
+ */
+export interface SettingDto {
+  key: string
+  group: SettingGroupKey
+  groupName: string
+  name: string
+  description: string
+  kind: SettingKindName
+  isSecret: boolean
+  isEditable: boolean
+  /**
+   * `isEditable: false` bo'lganda NEGA tahrirlanmasligi — foydalanuvchi uchun
+   * yozilgan matn (masalan JWT siri nega faqat muhitda qolishi). UI uni
+   * YASHIRMAYDI: aks holda o'chirilgan maydon sababsiz "buzuq" ko'rinardi.
+   */
+  readOnlyReason: string | null
+  origin: SettingOriginName
+  /** Qiymat umuman o'rnatilganmi (sirlarda `value` yo'q, faqat shu bilinadi). */
+  isSet: boolean
+  value: string | null
+  maskedValue: string | null
+  defaultValue: string | null
+  constraints: SettingConstraintsDto
+  /** ISO-8601. Faqat `origin: 'Database'` da to'ladi. */
+  updatedAt: string | null
+  updatedById: number | null
+}
+
+export interface SettingGroupDto {
+  group: SettingGroupKey
+  /** Serverning tayyor o'zbekcha nomi ("Moliya", "Ombor (fayllar)"). */
+  name: string
+  description: string
+  items: SettingDto[]
+}
+
+/** `GET /api/v1/settings` javobi. */
+export interface SettingsPageDto {
+  groups: SettingGroupDto[]
+}
+
+/** `PUT /api/v1/settings/{key}` tanasi — qiymat DOIM satr. */
+export interface UpdateSettingRequest {
+  value: string
+}
+
+/* ==========================================================================
+   GURUH CHATI (`/api/v1/group-chat`) — har guruhning DOIMIY suhbati.
+
+   ★ IKKI KANAL — bu modulning eng muhim qoidasi (eski `chat_messages.channel`
+   ustunining v2 dagi ko'rinishi). O'quvchi ustozga va kuratorga ALOHIDA
+   yozadi: ustoz kurator oqimini KO'RMAYDI va aksincha. Server izolyatsiyani
+   qat'iy ta'minlaydi — ruxsat etilmagan kanal so'ralsa jimgina almashtirmaydi,
+   403 qaytaradi (jonli tekshirildi, matni: "Bu kanalga ruxsatingiz yo'q:
+   ustoz o'quvchining kuratorga atalgan savollarini ko'rmaydi (va aksincha).").
+
+   Shuning uchun UI hech qachon kanalni "taxmin qilmaydi": qaysi kanallar
+   ochiqligini FAQAT server aytadi (`availableChannels`).
+   ========================================================================== */
+
+/** Serverda enum, simda SATR. Eski ilovadagi `"teacher"` / `"assistant"`. */
+export type GroupChatChannelName = 'Teacher' | 'Curator'
+
+/**
+ * Bitta guruh chati xabari.
+ *
+ * ★ `mine` MAYDONI YO'Q — ataylab. Obyekt SignalR xonasidagi hammaga BITTA
+ * nusxada yuboriladi, ya'ni server uni har bir qabul qiluvchi uchun alohida
+ * bo'yay olmaydi. "Bu mening xabarimmi" savoliga klient `senderId` ni joriy
+ * foydalanuvchi id'siga solishtirib javob beradi.
+ */
+export interface GroupChatMessageDto {
+  id: number
+  groupId: number
+  channel: GroupChatChannelName
+  senderId: number
+  senderName: string
+  senderRole: UserRoleName
+  body: string
+  /** ISO-8601. */
+  sentAt: string
+}
+
+/** `GET /groups/{id}/messages` javobi. */
+export interface GroupChatPageDto {
+  groupId: number
+  groupName: string
+  /** Server AYNAN qaysi kanalni berdi (so'ralmagan bo'lsa — birinchi ruxsatlisi). */
+  channel: GroupChatChannelName
+  /** UI tab'lari uchun: shu foydalanuvchiga shu guruhda ochiq kanallar. */
+  availableChannels: GroupChatChannelName[]
+  /** ★ ESKIDAN YANGIGA tartiblangan (chatda shundayligicha chiziladi). */
+  items: GroupChatMessageDto[] | null
+  hasMore: boolean
+  /** Yuqoriga scroll qilganda keyingi sahifa uchun `?beforeId=`. */
+  nextBeforeId: number | null
+  unreadCount: number
+}
+
+/**
+ * `GET /threads` elementi — "Chatlar" ro'yxatining bitta qatori.
+ *
+ * ★ Element (guruh, KANAL) juftligiga to'g'ri keladi, guruhga emas: o'quvchi
+ * ikki kanalga ham yozadigan bo'lsa, bitta guruh ro'yxatda IKKI QATOR bo'lib
+ * ko'rinadi (jonli tekshirildi). Eski o'quvchi ilovasi ham aynan shunday
+ * chizardi (`student.html` — har guruh uchun "Ustoz chati" va "Kurator chati").
+ */
+export interface GroupChatThreadDto {
+  groupId: number
+  groupName: string
+  channel: GroupChatChannelName
+  lastMessageId: number | null
+  lastMessagePreview: string | null
+  lastMessageSenderName: string | null
+  lastMessageAt: string | null
+  unreadCount: number
+}
+
+/** Hub'dagi `JoinThread` javobi. ★ OBYEKT, massiv EMAS (jonli tekshirildi). */
+export interface GroupChatAccessDto {
+  groupId: number
+  groupName: string
+  channel: GroupChatChannelName
+  availableChannels: GroupChatChannelName[]
+}
+
+/** `POST /groups/{id}/read` javobi. */
+export interface GroupChatReadResultDto {
+  groupId: number
+  channel: GroupChatChannelName
+  lastReadMessageId: number | null
+  unreadCount: number
+  /** `false` — o'qilgan chegara allaqachon shu yerda edi (takroriy so'rov). */
+  changed: boolean
+}
+
+/** `POST /groups/{id}/messages` tanasi. `channel` berilmasa server o'zi tanlaydi. */
+export interface SendGroupChatMessageRequest {
+  channel?: GroupChatChannelName
+  body: string
+}
+
+/** `POST /groups/{id}/read` tanasi. `upToMessageId` berilmasa — oxirigacha. */
+export interface MarkGroupChatReadRequest {
+  channel?: GroupChatChannelName
+  upToMessageId?: number
+}

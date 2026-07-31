@@ -248,3 +248,68 @@ export function todayIsoDate(): string {
   const day = now.getDate()
   return `${now.getFullYear()}-${month < 10 ? '0' : ''}${month}-${day < 10 ? '0' : ''}${day}`
 }
+
+/**
+ * Joriy oyning BIRINCHI kuni, `YYYY-MM-DD` (MAHALLIY vaqtda).
+ *
+ * Moliya dashboard'ining standart `from` qiymati. Server ham AYNAN shu
+ * standartni oladi ("joriy oy boshi..bugun"), lekin maydonlar baribir
+ * to'ldirib ko'rsatiladi — kassir qaysi oraliqni ko'rayotganini bilishi kerak.
+ *
+ * `toISOString()` ISHLATILMAYDI: u UTC beradi va Toshkentda (UTC+5) tunning
+ * birinchi yarmida oldingi kunni qaytarardi — 1-iyul kuni ertalab hisobot
+ * 30-iyundan boshlanib, o'tgan oy tushumi bugungi kassaga qo'shilib ketardi.
+ */
+export function monthStartIsoDate(): string {
+  const now = new Date()
+  const month = now.getMonth() + 1
+  return `${now.getFullYear()}-${month < 10 ? '0' : ''}${month}-01`
+}
+
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/**
+ * `<input type="date">` qiymati serverga yuborishga yaroqlimi.
+ *
+ * Maydonni qo'lda tozalash mumkin (bo'sh satr qoladi). Buzuq qiymat
+ * yuborilsa server 400 qaytarib, butun dashboard o'rniga xato ekrani
+ * chiqardi — shuning uchun filtr shu yerda tekshiriladi va yaroqsiz bo'lsa
+ * so'rov UMUMAN yuborilmaydi (`isValidPeriod` bilan bir xil yondashuv).
+ */
+export function isValidIsoDate(value: string): boolean {
+  const match = ISO_DATE_PATTERN.exec(value)
+  if (match === null) return false
+  const month = Number(match[2])
+  const day = Number(match[3])
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31
+}
+
+/**
+ * `2026-07` + `2026-07` -> `iyul 2026`;
+ * `2026-01` + `2026-07` -> `yanvar 2026 — iyul 2026`.
+ *
+ * Dashboard'dagi HISOB (accrual) raqamlari qaysi OYLARGA tegishli ekanini
+ * aytadi. Bu sana oralig'i (`from..to`) bilan bir xil EMAS: 15-iyuldan
+ * 20-avgustgacha tanlansa, hisob oylari iyul va avgust bo'ladi — buni
+ * yozmasak, "Rejadagi tushum" tanlangan kunlarga tegishlidek o'qilardi.
+ */
+export function periodRangeLabel(fromPeriod: string, toPeriod: string): string {
+  const from = periodLabel(fromPeriod)
+  return fromPeriod === toPeriod ? from : `${from} — ${periodLabel(toPeriod)}`
+}
+
+/**
+ * `93` -> `93%`, `93.42` -> `93,4%`.
+ *
+ * Server foizni 0..100 oralig'ida, kasr bilan yuborishi mumkin.
+ * `entities/test` dagi `percentLabel` ATAYLAB qayta ishlatilmadi: u boshqa
+ * entity'ga tegishli (FSD'da entity entity'dan import qilmaydi) va
+ * yaxlitlamaydi — `93.4200000001` kabi qiymat kartochkani cho'zib yuborardi.
+ *
+ * Kasr ajratgichi vergul — `shared/lib/money.ts` dagi summalar bilan bir xil.
+ */
+export function collectionRateLabel(rate: number): string {
+  if (!Number.isFinite(rate)) return '—'
+  const rounded = Math.round(rate * 10) / 10
+  return `${String(rounded).replace('.', ',')}%`
+}

@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
 import { gradeSubmission } from '@/entities/assignment'
+import SubmissionAttachments from '@/entities/assignment/ui/SubmissionAttachments.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { SubmissionDto } from '@/shared/types'
@@ -105,13 +106,20 @@ function handleSubmit(): void {
         Matnli javob yo‘q.
       </p>
 
-      <p
+      <div
         v-if="(props.submission.files ?? []).length > 0"
-        class="mb-4 text-xs text-slate-400"
+        class="mb-4"
       >
-        Ilova qilingan fayllar: {{ (props.submission.files ?? []).length }} ta
-        <span class="text-dim">(fayl ko‘rish hali qo‘shilmagan)</span>
-      </p>
+        <!--
+          `zoomable=false` — oyna ichida ikkinchi oyna ochilmaydi
+          (`SubmissionAttachment` izohi). To'liq ekranli tekshirish navbatida
+          rasm bosilsa kattalashadi.
+        -->
+        <SubmissionAttachments
+          :files="props.submission.files ?? []"
+          :zoomable="false"
+        />
+      </div>
 
       <form
         novalidate

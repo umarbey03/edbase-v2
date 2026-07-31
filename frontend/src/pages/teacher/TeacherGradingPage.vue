@@ -11,6 +11,7 @@ import {
   submissionStatusTone,
 } from '@/entities/assignment'
 import AssignmentFormDialog from '@/features/assignment-form/ui/AssignmentFormDialog.vue'
+import GradingQueueOverlay from '@/features/grading-queue/ui/GradingQueueOverlay.vue'
 import GradeDialog from '@/features/grading/ui/GradeDialog.vue'
 import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import { toUserMessage } from '@/shared/api'
@@ -78,6 +79,21 @@ const submissionsError = computed(() =>
 
 const grading = ref<SubmissionDto | null>(null)
 const reopening = ref<SubmissionDto | null>(null)
+
+/**
+ * Tekshirish navbati — to'liq ekranli tez baholash oqimi.
+ *
+ * Bu sahifadagi jadval "ko'rib chiqish" uchun (kim topshirdi, qaysi holatda),
+ * navbat esa ISHLASH uchun: bitta ekran, klaviatura yorliqlari, ketma-ket
+ * o'tish. Ustoz kuniga o'nlab ish tekshiradi va jadvaldan har safar
+ * "Baholash" tugmasini qidirish sezilarli sekin.
+ */
+const queueOpen = ref(false)
+
+/** Navbatga tushadigan ishlar (baholanmaganlar) — tugmadagi sanoq shuning uchun. */
+const pendingCount = computed(
+  () => submissions.value.filter((item) => item.status !== 'Graded').length,
+)
 
 function refreshSubmissions(): void {
   void queryClient.invalidateQueries({ queryKey: ['assignment-submissions'] })
@@ -185,6 +201,28 @@ function handleSaved(): void {
         :subtitle="`Maksimal ball: ${selected.maxScore} · Topshirilgan: ${selected.submissionCount} · Baholangan: ${selected.gradedCount}`"
       >
         <template #actions>
+          <!--
+            Navbat — ASOSIY harakat: ustoz odatda ro'yxatni ko'rish uchun
+            emas, ishlarni tekshirish uchun keladi. Baholanmagan ish
+            bo'lmasa tugma o'chiriladi (bo'sh navbat ochilmasin).
+          -->
+          <BaseButton
+            size="sm"
+            :disabled="pendingCount === 0"
+            @click="queueOpen = true"
+          >
+            <template #icon>
+              <AppIcon
+                name="check-square"
+                :size="13"
+              />
+            </template>
+            Tekshirish navbati
+            <span
+              v-if="pendingCount > 0"
+              class="tabular-nums"
+            >· {{ pendingCount }}</span>
+          </BaseButton>
           <BaseButton
             v-if="canEditSelected"
             size="sm"
@@ -359,6 +397,18 @@ function handleSaved(): void {
         </div>
       </BaseCard>
     </DataStatus>
+
+    <!--
+      Navbat `v-if` bilan: yopilganda komponent butunlay yo'q qilinadi va
+      uning klaviatura tinglovchisi ham `document` dan olinadi (aks holda
+      ro'yxatda raqam bosilganda ko'rinmas navbatga baho qo'yilardi).
+    -->
+    <GradingQueueOverlay
+      v-if="queueOpen && selected !== null"
+      :assignment="selected"
+      @close="queueOpen = false"
+      @changed="refreshSubmissions"
+    />
 
     <GradeDialog
       :submission="grading"

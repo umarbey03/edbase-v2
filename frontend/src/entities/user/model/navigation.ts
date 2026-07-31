@@ -37,11 +37,17 @@ const STUDENT_NAV: NavItem[] = [
   { routeName: 'student-chat', label: 'Chat', icon: 'message-circle' },
 ]
 
+/*
+  ★ "Chatlar" — eski `teacher.html` menyusidagi band (657-qator). U yerda
+  AYNAN "Tekshirish" dan KEYIN turgan, shu nisbiy o'rni saqlandi. Mavjud
+  bandlarning nomi ham, o'zaro tartibi ham TEGILMAGAN.
+*/
 const TEACHER_NAV: NavItem[] = [
   { routeName: 'teacher-home', label: 'Bosh sahifa', icon: 'graduation' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
+  { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
 ]
 
@@ -56,12 +62,21 @@ const TEACHER_NAV: NavItem[] = [
  * "Darslar" tabida edi. Menyudan OLIB TASHLANMADI, chunki u ishlaydigan
  * sahifa va uni yo'qotish funksiyani kamaytirardi; qo'shimcha band esa
  * mavjud bandlarning tartibi va nomini buzmaydi.
+ *
+ * ★ "CHATLAR" KURATORGA HAM BERILDI — eski ilovadan ATAYLAB farq.
+ * Eskisida bu band `{% if user.role != 'assistant' %}` shartida edi, ya'ni
+ * kurator guruh chatiga faqat guruh sahifasidagi "Chat" tabi orqali kirardi.
+ * v2 da esa KURATOR OQIMI (`Curator` kanali) — modelning teng huquqli yarmi:
+ * o'quvchi kuratorga alohida yozadi va u xabarlarni ustoz KO'RMAYDI. Ya'ni
+ * kuratorda "barcha chatlarim bitta joyda" ekrani ustozdagidan kam kerak
+ * emas. Server ham unga aynan shu kanal qatorlarini beradi.
  */
 const ASSISTANT_NAV: NavItem[] = [
   { routeName: 'teacher-home', label: 'Bosh sahifa', icon: 'graduation' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
   { routeName: 'teacher-curator', label: 'Kuratorlik', icon: 'user-check' },
+  { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
 ]
 
@@ -85,12 +100,32 @@ const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },
 ]
 
+/*
+  ADMIN menyusi = o'quv bo'limi menyusi + BITTA band.
+
+  ★ `MANAGE_NAV` NUSXA QILINMAYDI, ustiga qo'shiladi: eski `academic.html`
+  dan ko'chirilgan sakkiztaning TARTIBI ham, NOMI ham shu bilan o'z-o'zidan
+  saqlanadi. Ro'yxatni qo'lda qayta yozsak, kelajakda `MANAGE_NAV` ga
+  qo'shilgan band adminda paydo bo'lmay qolardi.
+
+  ★ "Tizim sozlamalari" AYNAN OXIRIDA: u kundalik ish emas (yiliga bir necha
+  marta ochiladi), va boshiga qo'yilsa o'quv bo'limi xodimi bilan bitta
+  kompyuterda ishlaydigan admin uchun menyu "siljib ketgan"dek ko'rinardi.
+
+  ★ FAQAT ADMIN: `/api/v1/settings/*` serverda `[Authorize(Roles = "Admin")]`.
+  O'quv bo'limiga ko'rsatilsa, bosgan zahoti 403 olardi.
+*/
+const ADMIN_NAV: NavItem[] = [
+  ...MANAGE_NAV,
+  { routeName: 'manage-settings', label: 'Tizim sozlamalari', icon: 'sliders' },
+]
+
 const NAV_BY_ROLE: Record<UserRoleName, NavItem[]> = {
   Student: STUDENT_NAV,
   Teacher: TEACHER_NAV,
   Assistant: ASSISTANT_NAV,
   Academic: MANAGE_NAV,
-  Admin: MANAGE_NAV,
+  Admin: ADMIN_NAV,
 }
 
 /**

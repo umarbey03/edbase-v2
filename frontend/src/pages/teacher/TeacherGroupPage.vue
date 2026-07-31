@@ -15,12 +15,12 @@ import {
 } from '@/entities/group'
 import { isManagerRole } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { GroupChatRoom } from '@/features/group-chat'
 import GradeDialog from '@/features/grading/ui/GradeDialog.vue'
 import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import {
   AttendanceTab,
   BoardTab,
-  ChatTab,
   GradesTab,
   GroupTabs,
   heldSummary,
@@ -352,7 +352,21 @@ function refreshSubmissions(): void {
           :group-id="groupId"
           :can-manage="canManage"
         />
-        <ChatTab v-else />
+        <!--
+          "Chat" tabi — guruhning DOIMIY umumiy chati. Ilgari bu yerda
+          "v2 da bunday chat yo'q" degan placeholder turardi; endi server
+          tomonida ham jadval, ham `/api/v1/group-chat` bor.
+
+          Kanal BERILMAYDI (`channel` prop'i yo'q): server xodimga qaysi oqim
+          tegishli bo'lsa o'shanisini o'zi tanlaydi — ustozga `Teacher`,
+          kuratorga `Curator`. Klient bu tanlovni TAKRORLAMAYDI, aks holda
+          ikki joyda ikki xil qoida paydo bo'lardi.
+        -->
+        <GroupChatRoom
+          v-else
+          :group-id="groupId"
+          :group-name="groupDisplayName(group)"
+        />
       </template>
     </DataStatus>
 

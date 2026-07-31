@@ -1,4 +1,5 @@
 import { http } from '@/shared/api'
+import type { DownloadedFile } from '@/shared/api'
 import type {
   CreateDiscountRequest,
   CreateTariffRequest,
@@ -11,6 +12,7 @@ import type {
   PaymentDto,
   PaymentReceiptDto,
   PaymentStatusName,
+  PaymentSummaryDto,
   PaymentTransactionDto,
   RecordPaymentRequest,
   ReversalDto,
@@ -114,6 +116,66 @@ export function fetchStudentTransactions(
   return http.get<PagedResult<PaymentTransactionDto>>(`${BASE}/students/${studentId}/transactions`, {
     query: { page: params.page, pageSize: params.pageSize },
     signal: options?.signal,
+  })
+}
+
+/* ================================================================= yig'ma === */
+
+/**
+ * Dashboard davri.
+ *
+ * ★ IKKALA CHEGARA HAM KIRADI va sanalar MAHALLIY (Asia/Tashkent).
+ * `new Date().toISOString().slice(0, 10)` bilan yasalgan qiymat YUBORILMAYDI:
+ * u UTC beradi va Toshkentda 05:00 gacha bo'lgan payt bir kun oldingi sanani
+ * ko'rsatib, oy boshidagi tushum hisobotdan tushib qolardi. Shu sababli
+ * sanalar `entities/payment` dagi mahalliy yordamchilardan olinadi.
+ *
+ * Berilmasa server o'zi "joriy oy boshi..bugun" ni oladi; UI ham AYNAN shu
+ * standartni ko'rsatadi — maydonlar bo'sh turmasin va kassir qaysi oraliqni
+ * ko'rayotganini bilsin.
+ */
+export interface PaymentSummaryParams {
+  /** `YYYY-MM-DD`. */
+  from?: string
+  to?: string
+}
+
+/**
+ * `GET /payments/summary` — moliya dashboard'ining YAGONA manbasi.
+ *
+ * NEGA BITTA SO'ROV: raqamlarni mijozda hisoblash uchun barcha to'lov
+ * qatorlarini (72 000 dan ortiq) yuklab olish kerak bo'lardi va natija
+ * baribir "bir lahza oldingi" holat bo'lardi. Server buni 21–32 ms da qiladi.
+ *
+ * ★ `from > to` bo'lsa server 400 beradi va sababni `problem.errors.from` da
+ * yozadi — `toUserMessage` uni o'zi o'qiydi, shuning uchun UI'da alohida
+ * tahlil qilinmaydi. Maksimal oraliq — 5 yil.
+ */
+export function fetchPaymentSummary(
+  params: PaymentSummaryParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<PaymentSummaryDto> {
+  return http.get<PaymentSummaryDto>(`${BASE}/summary`, {
+    query: { from: params.from, to: params.to },
+    signal: options?.signal,
+  })
+}
+
+/**
+ * `GET /payments/summary/export` — o'sha hisobotning CSV nusxasi.
+ *
+ * ★ `http.download` ATAYLAB: javob `Authorization` talab qiladi, brauzer
+ * navigatsiyasi (`window.open`, `<a href>`) esa bu sarlavhani YUBORMAYDI va
+ * fayl o'rniga 401 kelardi. Bu yo'ldan o'tganda token yangilash ham ishlaydi.
+ *
+ * CSV UTF-8 BOM va `sep=,` bilan keladi (Excel uchun) — mijoz tomonida
+ * mazmunga UMUMAN tegilmaydi, faqat saqlanadi.
+ */
+export function downloadPaymentSummaryCsv(
+  params: PaymentSummaryParams = {},
+): Promise<DownloadedFile> {
+  return http.download(`${BASE}/summary/export`, 'moliya-hisobot.csv', {
+    query: { from: params.from, to: params.to },
   })
 }
 

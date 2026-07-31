@@ -1,4 +1,5 @@
 import { http } from '@/shared/api'
+import type { DownloadedFile } from '@/shared/api'
 import type {
   AssignmentDto,
   CreateAssignmentRequest,
@@ -124,6 +125,33 @@ export function fetchSubmissions(
 ): Promise<SubmissionDto[]> {
   return http.get<SubmissionDto[]>(`${BASE}/${assignmentId}/submissions`, {
     signal: options?.signal,
+  })
+}
+
+/**
+ * `GET /api/v1/submissions/files/{fileId}` — o'quvchi biriktirgan fayl.
+ *
+ * ★ NEGA BLOB, ya'ni `<img src>` yoki `<a href>` EMAS.
+ * Endpoint `Authorization` sarlavhasini TALAB qiladi, brauzer esa rasm,
+ * audio va navigatsiya so'rovlarida bu sarlavhani YUBORMAYDI — oddiy havola
+ * doim 401 olardi. `http.download` faylni token bilan olib Blob qaytaradi,
+ * chaqiruvchi esa undan `URL.createObjectURL()` bilan ko'rinish yasaydi
+ * (va `URL.revokeObjectURL()` bilan bo'shatadi — bu MAJBURIY, aks holda
+ * uzoq tekshirish seansida o'nlab megabayt xotirada qolib ketadi).
+ *
+ * `Accept: * / *` ataylab: javob rasm, audio yoki hujjat bo'lishi mumkin, va
+ * `http.download` ning odatiy `text/csv` qiymati bu yerda noto'g'ri bo'lardi.
+ *
+ * Xatolar: 403 — ish begona o'quvchiniki; 404 — fayl yozuvi yo'q;
+ * 503 — fayl ombori sozlanmagan yoki javob bermayapti.
+ */
+export function fetchSubmissionFile(
+  fileId: number,
+  options?: { signal?: AbortSignal },
+): Promise<DownloadedFile> {
+  return http.download(`/api/v1/submissions/files/${fileId}`, `fayl-${fileId}`, {
+    signal: options?.signal,
+    headers: { Accept: '*/*' },
   })
 }
 
