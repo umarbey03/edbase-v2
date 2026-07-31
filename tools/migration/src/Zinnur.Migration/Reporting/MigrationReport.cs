@@ -1,0 +1,116 @@
+using System.Globalization;
+
+namespace Zinnur.Migration.Reporting;
+
+/// <summary>Bitta o'tkazib yuborilgan yoki tuzatilgan qator haqidagi yozuv.</summary>
+/// <param name="Table">Manba jadval nomi.</param>
+/// <param name="SourceId">Eski qator <c>id</c> si.</param>
+/// <param name="Reason">Sabab — hisobotda AYNAN shu matn guruhlanadi.</param>
+/// <param name="Detail">Qo'shimcha tafsilot (asl qiymat va h.k.).</param>
+internal sealed record RowIssue(string Table, long SourceId, string Reason, string? Detail);
+
+/// <summary>
+/// Bitta jadval bo'yicha yakuniy sanoq.
+/// <c>Source == Inserted + Skipped</c> tenglik SHART — aks holda
+/// ko'chirish "muvaffaqiyatli" hisoblanmaydi.
+/// </summary>
+internal sealed class TableTally
+{
+    public required string Name { get; init; }
+
+    public required string SourceTable { get; init; }
+
+    public required string TargetTable { get; init; }
+
+    /// <summary>Manbadagi (filtrga tushgan) qatorlar soni.</summary>
+    public long Source { get; set; }
+
+    /// <summary>Vosita yozishga bergan qatorlar soni.</summary>
+    public long Mapped { get; set; }
+
+    /// <summary>O'tkazib yuborilgan qatorlar soni.</summary>
+    public long Skipped { get; set; }
+
+    /// <summary>Maqsad bazadagi haqiqiy qatorlar soni (tekshiruv bosqichida).</summary>
+    public long Target { get; set; }
+}
+
+/// <summary>
+/// ========================================================================
+/// KO'CHIRISH HISOBOTI — VOSITANING ENG MUHIM QISMI
+/// ========================================================================
+///
+/// ★ NIMA UCHUN HISOBOT KO'CHIRISHNING O'ZIDAN MUHIMROQ: ma'lumot
+/// ko'chirishda eng qimmat xato — "hammasi o'tdi" degan yolg'on. Bir necha
+/// yuz qator jimgina tushib qolsa buni oylab hech kim sezmaydi (o'quvchi
+/// "mening to'lovim ko'rinmayapti" deb kelguncha). Shuning uchun:
+///
+///   1. HAR o'tkazib yuborilgan qator SABABI bilan yoziladi;
+///   2. Sanoqlar (manba / yozilgan / o'tkazilgan / maqsad) solishtiriladi;
+///   3. Pul yig'indilari ALOHIDA solishtiriladi;
+///   4. Mos kelmasa vosita XATO KODI bilan tugaydi.
+///
+/// Vosita "muvaffaqiyatli" deb faqat shu hisobot toza bo'lgandagina
+/// hisoblanadi.
+/// </summary>
+internal sealed class MigrationReport
+{
+    private readonly List<RowIssue> _issues = [];
+    private readonly Dictionary<string, TableTally> _tables = new(StringComparer.Ordinal);
+    private readonly List<string> _failures = [];
+    private readonly List<string> _warnings = [];
+    private readonly Dictionary<string, decimal> _money = new(StringComparer.Ordinal);
+
+    /// <summary>Hisobotda ko'rsatiladigan namunalar chegarasi (qolgani sanaladi).</summary>
+    public const int SampleLimit = 20;
+
+    public IReadOnlyList<RowIssue> Issues => _issues;
+
+    public IReadOnlyCollection<TableTally> Tables => _tables.Values;
+
+    /// <summary>Ko'chirishni MUVAFFAQIYATSIZ qiladigan holatlar.</summary>
+    public IReadOnlyList<string> Failures => _failures;
+
+    /// <summary>Diqqat talab qiladigan, lekin to'xtatmaydigan holatlar.</summary>
+    public IReadOnlyList<string> Warnings => _warnings;
+
+    public TableTally Tally(string name, string sourceTable, string targetTable)
+    {
+        if (_tables.TryGetValue(name, out var existing)) return existing;
+
+        var tally = new TableTally { Name = name, SourceTable = sourceTable, TargetTable = targetTable };
+        _tables[name] = tally;
+        return tally;
+    }
+
+    public void Skip(string table, long sourceId, string reason, string? detail = null) =>
+        _issues.Add(new RowIssue(table, sourceId, reason, detail));
+
+    public void Fail(string message) => _failures.Add(message);
+
+    public void Warn(string message) => _warnings.Add(message);
+
+    /// <summary>
+    /// Pul yig'indisini qayd qiladi. Kalit ikki tomonda BIR XIL bo'ladi
+    /// (masalan <c>"Payments.Amount"</c>), shunda solishtirish oddiy
+    /// lug'at taqqoslashiga aylanadi.
+    /// </summary>
+    public void AddMoney(string key, decimal amount) =>
+        _money[key] = _money.GetValueOrDefault(key) + amount;
+
+    public decimal Money(string key) => _money.GetValueOrDefault(key);
+
+    public IReadOnlyDictionary<string, decimal> MoneyTotals => _money;
+
+    /// <summary>Sabab bo'yicha guruhlangan o'tkazib yuborishlar (ko'pdan kamga).</summary>
+    public IEnumerable<(string Table, string Reason, int Count)> IssuesByReason() =>
+        _issues
+            .GroupBy(i => (i.Table, i.Reason))
+            .Select(g => (g.Key.Table, g.Key.Reason, g.Count()))
+            .OrderByDescending(x => x.Item3)
+            .ThenBy(x => x.Table, StringComparer.Ordinal);
+
+    /// <summary>Pulni hisobotda ko'rsatish uchun (madaniyatdan mustaqil).</summary>
+    public static string Format(decimal amount) =>
+        amount.ToString("N2", CultureInfo.InvariantCulture);
+}

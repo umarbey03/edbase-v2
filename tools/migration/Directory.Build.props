@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    KO'CHIRISH VOSITASI uchun umumiy build sozlamalari.
+
+    ATAYLAB `backend/Directory.Build.props` DAN ALOHIDA NUSXA, unga havola emas:
+    bu loyiha `backend/Zinnur.sln` dan TASHQARIDA turadi va asosiy build/CI
+    unga bog'lanmasligi kerak (vosita bir martalik ish uchun, mahsulot kodi
+    emas). Sifat mezoni esa AYNI: ogohlantirish = xato.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>
