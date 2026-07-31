@@ -80,10 +80,42 @@ services:
       LIVEKIT_RTC_USE_EXTERNAL_IP: !reset null
       LIVEKIT_RTC_ENABLE_LOOPBACK_CANDIDATE: !reset null
 
-      # Host tarmog'ida LiveKit serverning tashqi IP'sini o'zi aniqlaydi.
-      # Agar server NAT orqasida bo'lsa (bulutli provayder), oq IP'ni ANIQ
-      # ko'rsating — aks holda yana ichki IP e'lon qilinadi.
-      LIVEKIT_NODE_IP: ${SERVER_PUBLIC_IP:-}
+      # ------------------------------------------------------------------
+      # 🔴 REDIS MANZILI — `network_mode: host` NING TO'G'RIDAN-TO'G'RI OQIBATI
+      # ------------------------------------------------------------------
+      # `infra/livekit/livekit.yaml` da `address: redis:6379` yozilgan va
+      # izohida "Docker ichki DNS hal qiladi" deyilgan. Bu DEV'da to'g'ri,
+      # PROD'da esa YO'Q: yuqoridagi `network_mode: host` konteynerni bridge
+      # tarmog'idan butunlay chiqaradi, ya'ni Docker'ning ichki DNS'i
+      # (127.0.0.11) O'CHADI. Konteyner host'ning resolver'iga (127.0.0.53)
+      # murojaat qiladi, u esa `redis` degan nomni bilmaydi:
+      #     lookup redis on 127.0.0.53:53: server misbehaving
+      #     unable to connect to redis
+      # LiveKit Redis'siz ishga tushmaydi — chiqib ketadi, `restart:
+      # unless-stopped` uni qayta ko'taradi va cheksiz halqa hosil bo'ladi.
+      # 7880 hech qachon ochilmaydi, nginx esa 502 qaytaradi.
+      #
+      # NEGA AYNAN 6390: prod'da Redis host'ga `127.0.0.1:6390:6379` bo'lib
+      # chiqadi (quyidagi `redis` bloki). Host tarmog'idagi konteyner host
+      # bilan BIR XIL tarmoq fazosida bo'lgani uchun o'sha loopback portni
+      # to'g'ridan-to'g'ri ko'radi.
+      #
+      # `REDIS_HOST` — livekit-server HAQIQATAN o'qiydigan env (to'liq ro'yxat
+      # docker-compose.yml dagi LiveKit izohida). U yaml dagi `redis.address`
+      # ni bekor qiladi, shuning uchun alohida prod-yaml kerak emas.
+      REDIS_HOST: 127.0.0.1:6390
+
+      # Host tarmog'ida LiveKit serverning tashqi IP'sini o'zi aniqlaydi
+      # (`use_external_ip: true`) — odatda shu yetarli.
+      #
+      # ⚠️ Bu yerda ilgari `LIVEKIT_NODE_IP` turardi — BUNDAY ENV YO'Q,
+      # livekit-server uni JIMGINA E'TIBORSIZ QOLDIRADI. Ya'ni `SERVER_PUBLIC_IP`
+      # ni to'ldirgan odam "sozladim" deb o'ylardi, aslida hech nima
+      # o'zgarmasdi. To'g'ri nomi — `NODE_IP`.
+      #
+      # Avtomatik aniqlash xato ishlasa (bir nechta interfeys, GRE tunnel),
+      # `.env` da SERVER_PUBLIC_IP ni to'ldiring va quyidagi qatorni yoqing:
+      #   NODE_IP: ${SERVER_PUBLIC_IP:-}
 
     deploy:
       resources:

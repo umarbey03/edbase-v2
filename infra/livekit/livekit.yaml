@@ -131,6 +131,12 @@ rtc:
 #  200 foydalanuvchi uchun yuk juda kichik.
 redis:
   # `redis` — docker-compose'dagi xizmat nomi, Docker ichki DNS hal qiladi.
+  #
+  # ⚠️ BU FAQAT DEV'DA ISHLAYDI. Prod'da LiveKit `network_mode: host` bilan
+  # ketadi va Docker ichki DNS'idan uziladi — `redis` nomi hal qilinmaydi,
+  # LiveKit umuman ishga tushmaydi. Shuning uchun docker-compose.prod.yml
+  # `REDIS_HOST: 127.0.0.1:6390` env'i bilan SHU QATORNI bekor qiladi.
+  # Bu qatorni o'zgartirsangiz — o'sha env'ni ham tekshiring.
   address: redis:6379
   db: 0
   # Dev'da parol yo'q (izohni docker-compose.prod.yml da o'qing).
