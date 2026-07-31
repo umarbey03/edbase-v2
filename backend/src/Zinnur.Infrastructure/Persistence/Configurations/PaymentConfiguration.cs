@@ -196,6 +196,24 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         // bu so'rovga ishlata olmaydi.
         builder.HasIndex(p => new { p.GroupId, p.Period })
             .HasDatabaseName("IX_Payments_GroupId_Period");
+
+        // ============================================================
+        // QARZ YOSHI (moliya dashboard'i): "bugungi holatda ochiq qolgan
+        // barcha oylar" — davr filtriga bog'liq EMAS, ya'ni butun jadvalni
+        // holat bo'yicha kesadi.
+        //
+        // NIMA UCHUN ALOHIDA INDEKS: yuqoridagi `IX_Payments_StudentId_Status`
+        // `StudentId` dan boshlanadi va bitta o'quvchi uchun ishlaydi; qarz
+        // yoshi esa MARKAZ bo'yicha yig'adi, shuning uchun undan foydalana
+        // olmaydi va `Seq Scan` ga tushardi.
+        //
+        // `INCLUDE` ustunlari ATAYLAB: ular bilan so'rov `Index Only Scan`
+        // ga aylanadi (`Heap Fetches: 0`) — jadval sahifalariga umuman
+        // murojaat qilinmaydi. 72 000 qatorda o'lchangan: 4.39 ms -> 0.71 ms.
+        // ============================================================
+        builder.HasIndex(p => new { p.Status, p.Period })
+            .IncludeProperties(p => new { p.Amount, p.PaidAmount, p.StudentId })
+            .HasDatabaseName("IX_Payments_Status_Period");
     }
 
     /// <summary>

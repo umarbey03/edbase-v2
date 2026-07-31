@@ -1,55 +1,62 @@
 using System.Globalization;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Settings;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Enums;
-using Zinnur.Infrastructure.Options;
-using Zinnur.Infrastructure.Persistence;
 
 namespace Zinnur.Infrastructure.Services;
 
 /// <summary>
-/// <see cref="IFinanceSettingsStore"/> port'ining amalga oshirilishi:
-/// chegara va qamrov BAZADAN (<c>AppSettings</c>), qattiq rejim kaliti
-/// KONFIGURATSIYADAN. Sabab port izohida.
+/// <see cref="IFinanceSettingsStore"/> port'ining amalga oshirilishi.
 ///
-/// ── KALIT NOMLARI ESKI TIZIM BILAN BIR XIL ─────────────────────────────
-/// <c>payment_block_threshold</c>, <c>payment_block_scope</c> — ma'lumot
-/// ko'chirish skripti eski <c>settings</c> jadvalidan qiymatlarni AYNAN shu
-/// kalitlar bilan ko'chira oladi va qiymatni o'zgartirish shart emas
-/// (qamrov <c>"video"</c> ham, <c>"Video"</c> ham o'qiladi).
+/// ★ NIMA O'ZGARDI (UMUMLASHTIRISH): ilgari bu sinf <c>AppSettings</c>
+/// jadvaliga TO'G'RIDAN-TO'G'RI murojaat qilar, kalit nomlarini, standart
+/// qiymatni va tahlil (parse) qoidasini O'ZIDA saqlar edi. Endi u UMUMIY
+/// sozlamalar registrining ustida ishlaydi: kalitlar, standart qiymat,
+/// chegara va tahlil qoidasi <see cref="SettingsRegistry"/> da BIR MARTA
+/// e'lon qilingan.
 ///
-/// ── KESH YO'Q (ONGLI TANLOV) ───────────────────────────────────────────
-/// Bu ikki qator birlamchi kalit bo'yicha o'qiladi — Postgres uchun eng
-/// arzon so'rov, va u faqat blok tekshiruvida bajariladi. Redis keshi
-/// qo'shilsa, chegara o'zgartirilganda uni bekor qilishni UNUTISH xavfi
-/// paydo bo'lardi: xodim raqamni o'zgartirib, "nega ishlamayapti" deb
-/// qolardi. Kesh kerak bo'lsa — o'lchov bilan, TTL emas, oshkor bekor
-/// qilish bilan qo'shilsin.
+/// NIMA UCHUN: aks holda platformada IKKI parallel sozlamalar tizimi
+/// bo'lardi — biri moliya uchun, ikkinchisi qolgan hammasi uchun. Ular
+/// muqarrar ravishda bir-biridan chetga chiqardi: masalan panelda chegara
+/// yuqori chegarasi tekshirilar, moliya yo'lida esa tekshirilmasdi.
+///
+/// ★ SIRTQI XATTI-HARAKAT O'ZGARMADI (moliya testlari buni qo'riqlaydi):
+///  • kalit nomlari o'sha-o'sha (<c>payment_block_threshold</c>,
+///    <c>payment_block_scope</c>) — ko'chirish skripti uchun;
+///  • chegara va qamrov BAZADAN, qattiq rejim KONFIGURATSIYADAN;
+///  • buzuq qiymat ilovani yiqitmaydi, standartga qaytadi;
+///  • <c>SaveChanges</c> bu yerda CHAQIRILMAYDI — chaqiruvchi
+///    (<c>PaymentService</c>) sozlama va audit yozuvini BITTA
+///    tranzaksiyada saqlaydi.
+///
+/// ★ QATTIQ REJIM NIMA UCHUN HAMON MUHITDAN: staging bazasi odatda prod
+/// nusxasidan tiklanadi. Kalit bazada tursa prod'ning "qattiq rejim"
+/// qiymati staging'ga ham ko'chib o'tardi va sinov foydalanuvchilari
+/// bloklanib qolardi. Registrda u <see cref="SettingSource.Environment"/>
+/// deb belgilangan, ya'ni panel uni faqat KO'RSATADI.
 /// </summary>
-public sealed class FinanceSettingsStore(
-    ApplicationDbContext db,
-    IOptions<PaymentsOptions> options) : IFinanceSettingsStore
+public sealed class FinanceSettingsStore(ISettingsResolver resolver, ISettingsStore store)
+    : IFinanceSettingsStore
 {
     /// <summary>Eski tizim bilan bir xil kalit — ko'chirish skripti uchun.</summary>
-    public const string ThresholdKey = "payment_block_threshold";
+    public const string ThresholdKey = SettingsRegistry.FinanceKeys.Threshold;
 
     /// <summary>Eski tizim bilan bir xil kalit.</summary>
-    public const string ScopeKey = "payment_block_scope";
+    public const string ScopeKey = SettingsRegistry.FinanceKeys.Scope;
 
     public async Task<FinanceSettings> GetAsync(CancellationToken ct = default)
     {
-        var rows = await db.AppSettings.AsNoTracking()
-            .Where(s => s.Key == ThresholdKey || s.Key == ScopeKey)
-            .ToDictionaryAsync(s => s.Key, s => s.Value, StringComparer.Ordinal, ct)
+        // Uchalasi BITTA baza so'rovi bilan: bu yo'l blok tekshiruvida, ya'ni
+        // deyarli har so'rovda bajariladi.
+        var resolved = await resolver
+            .ResolveManyAsync([ThresholdSetting, ScopeSetting, EnforceSetting], ct)
             .ConfigureAwait(false);
 
-        var defaults = options.Value;
-
         return new FinanceSettings(
-            ParseThreshold(Find(rows, ThresholdKey), defaults.DefaultBlockThreshold),
-            ParseScope(Find(rows, ScopeKey), defaults.DefaultBlockScope),
-            defaults.EnforceBlock);
+            ReadThreshold(resolved[0]),
+            ReadScope(resolved[1]),
+            ReadEnforce(resolved[2]));
     }
 
     public async Task<FinanceSettings> SaveAsync(
@@ -58,73 +65,74 @@ public sealed class FinanceSettingsStore(
         long? actorId,
         CancellationToken ct = default)
     {
-        var now = DateTimeOffset.UtcNow;
-
-        await UpsertAsync(
-            ThresholdKey,
-            blockThreshold.ToString(CultureInfo.InvariantCulture),
-            actorId, now, ct).ConfigureAwait(false);
+        await store.SetAsync(
+                ThresholdSetting.StorageKey,
+                blockThreshold.ToString(CultureInfo.InvariantCulture),
+                actorId,
+                ct)
+            .ConfigureAwait(false);
 
         // Qiymat ENUM NOMI sifatida yoziladi ("Video"), raqam sifatida emas:
         // bazani qo'lda ko'rgan odam nima yozilganini tushunishi kerak, va
         // enum raqamlari kelajakda ma'no o'zgartirsa qiymat jimgina boshqa
         // qamrovga aylanardi.
-        await UpsertAsync(
-            ScopeKey,
-            blockScope.ToString(),
-            actorId, now, ct).ConfigureAwait(false);
-
-        // ★ SaveChanges CHAQIRILMAYDI: chaqiruvchi (PaymentService) audit
-        // yozuvini ham qo'shadi va HAMMASINI bitta tranzaksiyada saqlaydi.
-        // Bu yerda saqlansa, sozlama o'zgarib, audit esa yozilmay qolishi
-        // mumkin edi.
-        return new FinanceSettings(blockThreshold, blockScope, options.Value.EnforceBlock);
-    }
-
-    private async Task UpsertAsync(
-        string key, string value, long? actorId, DateTimeOffset now, CancellationToken ct)
-    {
-        var row = await db.AppSettings.FirstOrDefaultAsync(s => s.Key == key, ct)
+        await store.SetAsync(ScopeSetting.StorageKey, blockScope.ToString(), actorId, ct)
             .ConfigureAwait(false);
 
-        if (row is null)
-        {
-            db.AppSettings.Add(new AppSetting
-            {
-                Key = key,
-                Value = value,
-                UpdatedAt = now,
-                UpdatedById = actorId,
-            });
+        // Qattiq rejim YOZILMAYDI — u muhitdan. Lekin javobda joriy qiymati
+        // qaytariladi, aks holda chaqiruvchi uni alohida so'rashga majbur
+        // bo'lardi.
+        var enforce = await resolver.ResolveAsync(EnforceSetting, ct).ConfigureAwait(false);
 
-            return;
-        }
-
-        row.Value = value;
-        row.UpdatedAt = now;
-        row.UpdatedById = actorId;
+        return new FinanceSettings(blockThreshold, blockScope, ReadEnforce(enforce));
     }
 
-    private static string? Find(Dictionary<string, string> rows, string key) =>
-        rows.TryGetValue(key, out var value) ? value : null;
-
     /// <summary>
-    /// Buzuq qiymat ilovani YIQITMAYDI — standartga qaytadi. Sabab: bu qator
-    /// qo'lda ham tahrirlanishi mumkin, va "chegara satri xato" degan holat
-    /// butun platformani ishdan chiqarmasligi kerak. Xavfsiz yo'nalish —
-    /// standart qiymat (bloklash O'CHIB qolmaydi va tasodifan hamma
-    /// bloklanmaydi ham).
+    /// Buzuq qiymat ilovani YIQITMAYDI — standartga qaytadi. Registr
+    /// allaqachon manbalarni tartib bilan sinab chiqadi; bu esa oxirgi
+    /// himoya qatlami (masalan registr standarti ham buzilgan bo'lsa).
     /// </summary>
-    private static decimal ParseThreshold(string? raw, decimal fallback) =>
-        decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
-        && value >= 0
+    private static decimal ReadThreshold(ResolvedSetting resolved) =>
+        SettingValueParser.TryReadDecimal(ThresholdSetting, resolved.Value, out var value)
             ? value
-            : fallback;
+            : DefaultThreshold;
 
     /// <summary>Eski tizimdagi <c>"video"</c> kabi kichik harfli qiymat ham o'qiladi.</summary>
-    private static PaymentBlockScope ParseScope(string? raw, PaymentBlockScope fallback) =>
-        Enum.TryParse<PaymentBlockScope>(raw, ignoreCase: true, out var value)
-        && Enum.IsDefined(value)
+    private static PaymentBlockScope ReadScope(ResolvedSetting resolved) =>
+        SettingValueParser.TryReadEnum<PaymentBlockScope>(resolved.Value, out var value)
             ? value
-            : fallback;
+            : DefaultScope;
+
+    /// <summary>
+    /// Qiymat buzuq bo'lsa <c>true</c> — ya'ni QATTIQ rejim. Xavfsiz
+    /// yo'nalish ataylab shu tomonda: buzuq satr tufayli bloklash jimgina
+    /// o'chib qolsa, qarzdorlar cheksiz foydalanaverardi va buni hech kim
+    /// payqamasdi.
+    /// </summary>
+    private static bool ReadEnforce(ResolvedSetting resolved) =>
+        !SettingValueParser.TryReadBool(resolved.Value, out var value) || value;
+
+    private static readonly SettingDefinition ThresholdSetting =
+        Definition(SettingsRegistry.Keys.BlockThreshold);
+
+    private static readonly SettingDefinition ScopeSetting =
+        Definition(SettingsRegistry.Keys.BlockScope);
+
+    private static readonly SettingDefinition EnforceSetting =
+        Definition(SettingsRegistry.Keys.EnforceBlock);
+
+    private static readonly decimal DefaultThreshold =
+        decimal.Parse(ThresholdSetting.DefaultValue, CultureInfo.InvariantCulture);
+
+    private static readonly PaymentBlockScope DefaultScope =
+        Enum.Parse<PaymentBlockScope>(ScopeSetting.DefaultValue);
+
+    private static SettingDefinition Definition(string key) =>
+        SettingsRegistry.TryGet(key, out var definition)
+            ? definition
+
+            // Bu holat FAQAT registr buzilganda yuzaga keladi — ya'ni
+            // dasturchi xatosi. Jimgina standartga qaytish xatoni yashirib,
+            // bloklash sozlamasi ishlamayotganini oylab payqatmasdi.
+            : throw new InvalidOperationException($"Registrda '{key}' sozlamasi yo'q.");
 }

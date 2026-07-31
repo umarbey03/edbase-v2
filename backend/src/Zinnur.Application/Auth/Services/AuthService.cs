@@ -3,6 +3,7 @@ using Zinnur.Application.Auth.Dtos;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Domain.Entities;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Auth.Services;
 
@@ -55,6 +56,49 @@ public sealed class AuthService(
 
         if (!user.IsActive)
             throw new ForbiddenException("Profil faol emas.");
+
+        return Build(user);
+    }
+
+    /// <inheritdoc />
+    public async Task<AuthResponse> LoginWithTelegramAsync(
+        long telegramUserId, CancellationToken ct = default)
+    {
+        var user = await db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.TelegramId == telegramUserId, ct);
+
+        // 409: bu "noto'g'ri parol" emas — imzo TO'G'RI, faqat bu Telegram
+        // akkaunt hali hech kimga bog'lanmagan. Klient shu kodni ko'rib
+        // "avval botda raqamingizni ulashing" ekranini ochadi. 401 bo'lsa
+        // klient uni oddiy kirish xatosi deb ko'rsatib, o'quvchi nima
+        // qilishni bilmay qolardi.
+        if (user is null)
+        {
+            throw new ConflictException(
+                "Telegram akkauntingiz profilga bog'lanmagan. "
+                + "Avval botda telefon raqamingizni ulashing.");
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ★ TELEGRAM ORQALI FAQAT `Student` KIRADI.
+        //
+        // Eski tizimda Telegram kirishi HAR QANDAY rolni berardi va
+        // telefon tekshirilmagani uchun admin akkauntini egallash mumkin
+        // edi (audit: X-1). Endi hatto bog'lash bosqichi buzilgan
+        // taqdirda ham xodim roli Telegram orqali BERILMAYDI: bu
+        // ikkinchi, mustaqil to'siq va u aynan token beriladigan joyda
+        // turibdi — ya'ni uni chetlab o'tish uchun boshqa yo'l yo'q.
+        // ══════════════════════════════════════════════════════════════
+        if (user.Role != UserRole.Student)
+        {
+            throw new ForbiddenException(
+                "Telegram orqali faqat o'quvchilar kiradi. "
+                + "Xodimlar tizimga email va parol bilan kirishadi.");
+        }
+
+        if (!user.IsActive)
+            throw new ForbiddenException("Profil faol emas. O'quv bo'limi bilan bog'laning.");
 
         return Build(user);
     }

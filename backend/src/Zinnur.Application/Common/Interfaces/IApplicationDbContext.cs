@@ -35,6 +35,20 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<DirectMessage> DirectMessages { get; }
 
+    /// <summary>
+    /// Guruhning DOIMIY chati — dars vaqtidan TASHQARIDA ham ishlaydi.
+    /// Yuqoridagi ikkalasi bilan ARALASHTIRILMAYDI: uchalasining farqi
+    /// <see cref="GroupChatMessage"/> sinfi izohida batafsil.
+    /// </summary>
+    DbSet<GroupChatMessage> GroupChatMessages { get; }
+
+    /// <summary>
+    /// Guruh chatidagi "qayergacha o'qidim" belgilari — o'qilmaganlar
+    /// sanog'ining asosi. Har foydalanuvchi + oqim uchun BITTA qator;
+    /// nima uchun har xabarda bayroq emasligi <see cref="GroupChatRead"/> da.
+    /// </summary>
+    DbSet<GroupChatRead> GroupChatReads { get; }
+
     // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
 
     DbSet<Assignment> Assignments { get; }

@@ -4,12 +4,14 @@ using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Application.GroupChat.Services;
 using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Messaging.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Application.Tests.Services;
 using Zinnur.Application.Users.Services;
 
@@ -83,6 +85,13 @@ public static class DependencyInjection
         // kontenti) — ular butun moliya servisiga bog'lanib qolmasin.
         services.AddScoped<IPaymentBlockService, PaymentBlockService>();
 
+        // MOLIYA YIG'MA HISOBOTI — faqat O'QISH, shuning uchun pul yozadigan
+        // servisdan ALOHIDA tur. SCOPED: u ham so'rov umriga bog'langan
+        // `DbContext` ga tayanadi (singleton bo'lsa yopilgan kontekst ushlab
+        // qolinardi), va ruxsat tekshiruvi uchun `IPaymentService` ni
+        // chaqiradi — moliyada ruxsat qoidasi YAGONA bo'lib qolsin.
+        services.AddScoped<IPaymentSummaryService, PaymentSummaryService>();
+
         // ---------------------------------------------------------------- FAZA 5
         //
         // O'QUVCHI ILOVASI: reyting, davomat xulosasi va kurator yozishmasi.
@@ -99,6 +108,39 @@ public static class DependencyInjection
         // qoida bir necha joyda qo'lda takrorlangan va ba'zisida chala edi.
         services.AddScoped<ICuratorDirectory, CuratorDirectory>();
         services.AddScoped<IDirectMessageService, DirectMessageService>();
+
+        // ---------------------------------------------------------------- FAZA 6
+        //
+        // GURUH CHATI — har guruhning doimiy chati (dars vaqtidan tashqarida
+        // ham). SCOPED: so'rov umriga bog'langan `DbContext` ga tayanadi va
+        // ruxsat qoidasi uchun `ICuratorDirectory` ni chaqiradi — "kim kim
+        // bilan bog'langan" javobi butun loyihada YAGONA bo'lib qolsin.
+        //
+        // Singleton bo'lsa scoped kontekst ushlab qolinardi ("captive
+        // dependency") va ikkinchi so'rovda allaqachon yopilgan kontekst
+        // bilan xabar yozishga urinilardi.
+        services.AddScoped<IGroupChatService, GroupChatService>();
+
+        // ---------------------------------------------------------------- FAZA 5.3
+        //
+        // TIZIM SOZLAMALARI (super-admin paneli).
+        //
+        // IKKI XIZMAT, ATAYLAB AJRATILGAN:
+        //  • `ISettingsResolver` — RUXSATSIZ o'qish yo'li. Uni moliya bloki
+        //    har so'rovda chaqiradi va o'sha paytda joriy foydalanuvchi —
+        //    oddiy o'quvchi. Agar o'qishga ham admin talab qilinsa, blok
+        //    tekshiruvi umuman ishlamasdi.
+        //  • `ISettingsService` — PANEL yo'li: rol bazadan qayta o'qiladi,
+        //    faqat `Admin`, va har o'zgarish auditga tushadi.
+        //
+        // Ikkalasi ham SCOPED: `ISettingsResolver` port orqali `DbContext` ga
+        // tayanadi, `ISettingsService` esa sozlama qatorini va uning audit
+        // yozuvini AYNI ChangeTracker'da to'plab, BITTA `SaveChanges` bilan
+        // saqlaydi. Singleton bo'lsa scoped kontekst ushlab qolinardi
+        // ("captive dependency") va ikkinchi so'rovda allaqachon yopilgan
+        // kontekst bilan yozishga urinilardi.
+        services.AddScoped<ISettingsResolver, SettingsResolver>();
+        services.AddScoped<ISettingsService, SettingsService>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

@@ -166,9 +166,6 @@ public sealed record TestResultRowDto(
     DateTimeOffset? SubmittedAt,
     bool ClosedByTimeout);
 
-/// <summary>CSV eksport natijasi (controller uni fayl sifatida qaytaradi).</summary>
-public sealed record CsvExport(string FileName, string ContentType, ReadOnlyMemory<byte> Content);
-
 // ============================================================================
 // SO'ROVLAR
 // ============================================================================

@@ -173,6 +173,35 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Sentry testlarda o'chiq — tashqi tarmoqqa chiqmasin
         new("Sentry:Dsn", string.Empty),
 
+        // ★ FON REJALASHTIRUVCHISI TESTLARDA O'CHIQ (FAZA 5.5).
+        //
+        // Yoqilgan bo'lsa u har test bazasida MUSTAQIL ravishda ishlardi:
+        // joriy oyga to'lov yozuvlarini ochib qo'yardi va muddati o'tgan
+        // darslarni yakunlardi. Test esa aynan o'sha yozuvlarni sanaydi —
+        // natijada testlar tasodifiy (flaky) bo'lardi, ya'ni yashil natija
+        // hech nima isbotlamasdi.
+        //
+        // Vazifalarning O'ZI DI'da qolaveradi: `JobFactory` ularni
+        // to'g'ridan-to'g'ri chaqirib, natijani darhol tekshiradi
+        // (`Notifications:Enabled=false` bilan bir xil yondashuv).
+        new("Jobs:Enabled", "false"),
+
+        // ★ OBYEKT OMBORI — ODATDA BO'SH.
+        //
+        // `appsettings.Development.json` da dev MinIO qiymatlari turadi, test
+        // esa `UseEnvironment("Development")` bilan ishlaydi — ya'ni ular
+        // ATAYLAB bo'shatilmasa har test sinfi jonli MinIO'ga bog'lanib
+        // qolardi. Natijada ikki zarar: (1) "ombor sozlanmagan -> 503"
+        // testi umuman boshqa narsani tekshirardi, (2) MinIO o'chgan
+        // mashinada butun to'plam sababsiz qizarardi.
+        //
+        // Ombor KERAK bo'lgan testlar buni `ExtraSettings()` orqali
+        // qaytadan to'ldiradi (`StorageBackedApiFactory`).
+        new("Storage:ServiceUrl", string.Empty),
+        new("Storage:Bucket", string.Empty),
+        new("Storage:AccessKey", string.Empty),
+        new("Storage:SecretKey", string.Empty),
+
         // Rate-limit: izoh yuqorida (AuthPermitLimit).
         new("RateLimiting:Auth:PermitLimit",
             AuthPermitLimit.ToString(CultureInfo.InvariantCulture)),

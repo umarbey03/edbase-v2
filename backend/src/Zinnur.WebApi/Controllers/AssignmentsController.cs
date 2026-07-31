@@ -179,6 +179,62 @@ public sealed class AssignmentsController(IAssignmentService assignments) : Cont
         Ok(await assignments.ReopenAsync(
             id, request ?? new ReopenSubmissionRequest(), CurrentUserId, ct));
 
+    // ================================================================= fayl o'qish
+
+    /// <summary>
+    /// Ilova qilingan faylni beradi (rasm yoki ovoz).
+    ///
+    /// ========================================================================
+    /// ★ ESKI TIZIMNING X-6 KAMCHILIGI SHU YERDA YOPILGAN
+    /// ========================================================================
+    /// Eski loyihada fayllar `/media` katalogida AUTENTIFIKATSIYASIZ turardi:
+    /// havolani bilgan istalgan odam — o'quvchining o'zi tanishiga yuborsa
+    /// ham, qidiruv roboti topsa ham — begona bolaning ishini ko'ra olardi.
+    /// Bu yerda "havola" degan tushuncha YO'Q: har so'rov `Authorization`
+    /// bilan keladi va ruxsat qoidasi (`IAssignmentService`) HAR SAFAR
+    /// qaytadan tekshiriladi.
+    ///
+    /// NIMA UCHUN PRESIGNED URL EMAS — sabab <see cref="ISubmissionStorage"/>
+    /// izohida batafsil (qisqasi: presigned havola ulashilishi mumkin va uni
+    /// bekor qilib bo'lmaydi).
+    ///
+    /// ⚠️ FRONTEND UCHUN MUHIM: brauzer `&lt;img src&gt;` yoki `&lt;a href&gt;`
+    /// bilan `Authorization` sarlavhasini YUBORMAYDI. Shuning uchun bu
+    /// endpointga `http.download()` yordamchisi orqali murojaat qilinadi
+    /// (u `fetch` bilan token qo'yadi) va natijadagi `Blob` dan
+    /// `URL.createObjectURL` yasaladi.
+    /// </summary>
+    [HttpGet("~/api/v1/submissions/files/{fileId:long}")]
+    [Produces("application/octet-stream")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> DownloadFile(long fileId, CancellationToken ct)
+    {
+        var download = await assignments.OpenFileAsync(fileId, CurrentUserId, ct);
+
+        // OQIM EGALIGI: `File(...)` faqat oqimni yopadi, uning ostidagi HTTP
+        // javobini emas. Javob yopilmasa ombor bilan ulanish hovuzga
+        // qaytmaydi — sekin, ko'rinmas soket oqishi. Shuning uchun butun
+        // `StoredFile` so'rov tugagach o'chiriladigan qilib ro'yxatga olinadi.
+        Response.RegisterForDisposeAsync(download.Content);
+
+        // nosniff: brauzer turni O'ZI taxmin qilib, faylni HTML deb
+        // ko'rsatib yubormasin (saqlangan XSS'ning klassik yo'li).
+        Response.Headers.XContentTypeOptions = "nosniff";
+
+        // O'quvchining ishi — SHAXSIY ma'lumot: oraliq proksi ham, brauzer
+        // diski ham uni saqlab qolmasin. `private` yetarli emas: umumiy
+        // kompyuterda keyingi foydalanuvchi keshdan ochib olardi.
+        Response.Headers.CacheControl = "no-store";
+
+        // `enableRangeProcessing` ATAYLAB yoqilmagan: tarmoq oqimi
+        // izlanmaydi (seek), ya'ni Range so'rovini bajarish uchun fayl
+        // baribir to'liq xotiraga tushishi kerak bo'lardi.
+        return File(download.Content.Content, download.ContentType, download.FileName);
+    }
+
     // ---------------------------------------------------------------- ichki
 
     private const string StudentRole = "Student";

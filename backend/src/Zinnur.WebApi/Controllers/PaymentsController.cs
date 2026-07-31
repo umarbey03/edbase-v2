@@ -40,8 +40,60 @@ namespace Zinnur.WebApi.Controllers;
 [Produces("application/json")]
 public sealed class PaymentsController(
     IPaymentService payments,
-    IPaymentBlockService blocks) : ControllerBase
+    IPaymentBlockService blocks,
+    IPaymentSummaryService summary) : ControllerBase
 {
+    // ================================================================= yig'ma hisobot
+
+    /// <summary>
+    /// ★ MOLIYA BOSHQARUV PANELI — BITTA SO'ROVDA.
+    ///
+    /// KPI kartochkalar, qarz yoshi (0-30/31-60/61-90/90+), oxirgi 12 oy
+    /// dinamikasi hamda guruh va to'lov usuli kesimlari.
+    ///
+    /// NIMA UCHUN ALOHIDA ENDPOINT (va nega mijoz o'zi hisoblamaydi):
+    /// bu raqamlar uchun minglab to'lov qatorini brauzerga yuklash kerak
+    /// bo'lardi. Barcha yig'indi SQL tomonda bajariladi.
+    ///
+    /// <paramref name="from"/> va <paramref name="to"/> — MAHALLIY sanalar
+    /// (Asia/Tashkent), IKKALASI HAM KIRADI. Berilmasa: joriy oy boshidan
+    /// bugungacha. Qarz, balans va qarz yoshi — davrdan QAT'I NAZAR
+    /// BUGUNGI holat (qarz oraliqda sodir bo'ladigan hodisa emas).
+    /// </summary>
+    [HttpGet("summary")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<PaymentSummaryDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PaymentSummaryDto>> Summary(
+        CancellationToken ct,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null) =>
+        Ok(await summary.GetSummaryAsync(new PaymentSummaryQuery(from, to), CurrentUserId, ct));
+
+    /// <summary>
+    /// AYNI hisobotning CSV ko'rinishi (Excel uchun BOM va <c>sep=</c> bilan).
+    ///
+    /// Ma'lumot yuqoridagi endpoint bilan BITTA yo'ldan hisoblanadi —
+    /// ekrandagi raqam va fayldagi raqam hech qachon farq qilmaydi.
+    /// </summary>
+    [HttpGet("summary/export")]
+    [Authorize(Roles = ManageRoles)]
+    [Produces("text/csv")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ExportSummary(
+        CancellationToken ct,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
+    {
+        var file = await summary.ExportSummaryCsvAsync(
+            new PaymentSummaryQuery(from, to), CurrentUserId, ct);
+
+        return File(file.Content.ToArray(), file.ContentType, file.FileName);
+    }
+
     // ================================================================= oy ochish
 
     /// <summary>

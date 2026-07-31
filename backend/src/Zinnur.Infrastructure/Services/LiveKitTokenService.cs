@@ -3,7 +3,6 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Infrastructure.Options;
@@ -38,6 +37,25 @@ namespace Zinnur.Infrastructure.Services;
 ///   "video":{"roomJoin":true,"room":"&lt;RoomName&gt;","canPublish":true,
 ///            "canSubscribe":true,"canPublishData":true,"roomAdmin":false}
 /// }
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// ★★ KALIT VA SIR HAR TOKENDA QAYTA O'QILADI
+/// (<see cref="IRuntimeOptions{TOptions}"/>).
+///
+/// Ilgari sir konstruktorda bir marta baytga o'girilib, SINGLETON xizmatga
+/// qotib qolardi. LiveKit kalitlari esa AYLANTIRILADIGAN (rotate) ma'lumot:
+/// server tomonidagi `LIVEKIT_KEYS` almashtirilgach, biz ham darhol yangi
+/// juftlik bilan imzolashimiz kerak. Aks holda hamma jonli dars bir zumda
+/// uzilardi va sababi hech qayerda ko'rinmasdi (LiveKit yaroqsiz tokenni
+/// XATO BERMASDAN rad etadi).
+///
+/// ⚠️ Kesim bitta chaqiruv ichida BIR MARTA olinadi: `iss` claim'i
+/// (<c>ApiKey</c>) va imzo kaliti (<c>ApiSecret</c>) AYNI juftlikdan
+/// chiqishi SHART — aralashib ketsa token yaroqsiz bo'lardi.
+///
+/// ★ MANZILLAR (<c>Url</c>, <c>PublicUrl</c>) bazadan boshqarilmaydi —
+/// sabab <c>RuntimeLiveKitOptions</c> izohida.
+/// ══════════════════════════════════════════════════════════════════════════
 /// </summary>
 public sealed class LiveKitTokenService : ILiveKitTokenService
 {
@@ -53,15 +71,13 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
     private static readonly string EncodedHeader =
         Base64Url.EncodeToString(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"));
 
-    private readonly LiveKitOptions _options;
-    private readonly byte[] _secret;
+    private readonly IRuntimeOptions<LiveKitOptions> _options;
 
-    public LiveKitTokenService(IOptions<LiveKitOptions> options)
+    public LiveKitTokenService(IRuntimeOptions<LiveKitOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        _options = options.Value;
-        _secret = Encoding.UTF8.GetBytes(_options.ApiSecret);
+        _options = options;
     }
 
     /// <inheritdoc />
@@ -72,12 +88,15 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
     /// bloklaydi — video ochilmaydi. Ichki <c>http://livekit:7880</c> esa
     /// konteyner tarmog'idan tashqarida umuman mavjud emas.
     /// </remarks>
-    public string ServerUrl => _options.EffectivePublicUrl;
+    public string ServerUrl => _options.Current.EffectivePublicUrl;
 
     /// <inheritdoc />
     public string CreateAccessToken(LiveKitTokenRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // Kesim BIR MARTA — `iss` va imzo kaliti AYNI juftlikdan (izoh yuqorida).
+        var settings = _options.Current;
 
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.Add(request.Ttl ?? DefaultTtl);
@@ -89,7 +108,7 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
             json.WriteStartObject();
 
             // `iss` — LiveKit serveri shu kalit nomi bo'yicha sirni topadi.
-            json.WriteString("iss", _options.ApiKey);
+            json.WriteString("iss", settings.ApiKey);
 
             // `sub` — ishtirokchi identity'si. Xonada TAKRORLANMAS bo'lishi shart:
             // bir xil identity bilan ikkinchi ulanish birinchisini xonadan
@@ -118,7 +137,11 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
         var signingInput = string.Concat(EncodedHeader, ".", Base64Url.EncodeToString(payload.WrittenSpan));
 
         Span<byte> signature = stackalloc byte[HMACSHA256.HashSizeInBytes];
-        HMACSHA256.HashData(_secret, Encoding.UTF8.GetBytes(signingInput), signature);
+
+        HMACSHA256.HashData(
+            Encoding.UTF8.GetBytes(settings.ApiSecret),
+            Encoding.UTF8.GetBytes(signingInput),
+            signature);
 
         return string.Concat(signingInput, ".", Base64Url.EncodeToString(signature));
     }

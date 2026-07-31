@@ -49,4 +49,34 @@ public interface IAssignmentService
     /// <summary>Qayta topshirishga ruxsat beradi (bir marta — Domain o'zi yopadi).</summary>
     Task<SubmissionDto> ReopenAsync(
         long submissionId, ReopenSubmissionRequest request, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ilova qilingan faylni O'QISHGA ochadi (ruxsat tekshirilgach).
+    ///
+    /// Fayl ID'si bo'yicha — obyekt kaliti bo'yicha EMAS: kalitni
+    /// chaqiruvchidan qabul qilish begona obyektni so'rash imkonini berardi.
+    /// </summary>
+    /// <exception cref="Common.Exceptions.ForbiddenException">
+    /// Fayl boshqa o'quvchiniki (yoki xodimning guruhida bo'lmagan o'quvchiniki).
+    /// </exception>
+    /// <exception cref="Common.Exceptions.ServiceUnavailableException">
+    /// Ombor sozlanmagan yoki javob bermayapti.
+    /// </exception>
+    Task<SubmissionFileDownload> OpenFileAsync(
+        long fileId, long actorId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Klientga uzatishga tayyor fayl.
+///
+/// <c>Content</c> — TARMOQ OQIMI, ya'ni chaqiruvchi uni javob tugagach
+/// yopishi SHART (WebApi buni `RegisterForDisposeAsync` bilan qiladi).
+/// Baytlar API xotirasida to'planmaydi.
+/// </summary>
+/// <param name="Content">Ombordan ochilgan oqim (egalik chaqiruvchida).</param>
+/// <param name="ContentType">Yuklashda MAZMUNDAN aniqlangan MIME turi.</param>
+/// <param name="FileName">Foydalanuvchiga ko'rinadigan nom (obyekt kaliti EMAS).</param>
+public sealed record SubmissionFileDownload(
+    StoredFile Content,
+    string ContentType,
+    string FileName);

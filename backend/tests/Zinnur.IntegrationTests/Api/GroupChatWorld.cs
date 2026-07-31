@@ -1,0 +1,184 @@
+using System.Net;
+using System.Net.Http.Json;
+using Zinnur.Domain.Enums;
+
+namespace Zinnur.IntegrationTests.Api;
+
+/// <summary>
+/// Guruh chati endpointlarining test shartnomasi — HTTP javoblarining
+/// shakli va ularga murojaat qiluvchi yordamchi metodlar.
+///
+/// ★ NIMA UCHUN ALOHIDA FAYL: bu shakllardan IKKI test sinfi foydalanadi
+/// (ruxsat/oqim testlari va realtime testlari). Har sinfda qayta yozilsa,
+/// birida maydon nomi o'zgarib qolar va test "sababsiz" yiqilardi.
+///
+/// ★ ENUM MAYDONLARI ATAYLAB <c>string</c>: API enum'ni SATR ko'rinishida
+/// qaytaradi (<c>"Curator"</c>, raqam emas). Test turini <c>GroupChatChannel</c>
+/// qilib qo'ysam, System.Text.Json satrni jimgina enum'ga o'girib berardi va
+/// shartnomaning aynan shu qismi — satrmi yoki raqammi — sinovsiz qolardi.
+/// </summary>
+internal sealed record GroupChatPageResponse(
+    long GroupId,
+    string GroupName,
+    string Channel,
+    IReadOnlyList<string> AvailableChannels,
+    IReadOnlyList<GroupChatMessageResponse> Items,
+    bool HasMore,
+    long? NextBeforeId,
+    int UnreadCount);
+
+internal sealed record GroupChatMessageResponse(
+    long Id,
+    long GroupId,
+    string Channel,
+    long SenderId,
+    string SenderName,
+    string SenderRole,
+    string Body,
+    DateTimeOffset SentAt);
+
+internal sealed record GroupChatThreadResponse(
+    long GroupId,
+    string GroupName,
+    string Channel,
+    long? LastMessageId,
+    string? LastMessagePreview,
+    string? LastMessageSenderName,
+    DateTimeOffset? LastMessageAt,
+    int UnreadCount);
+
+internal sealed record GroupChatReadResponse(
+    long GroupId,
+    string Channel,
+    long LastReadMessageId,
+    int UnreadCount,
+    bool Changed);
+
+/// <summary>Endpointlarga murojaatning YAGONA joyi (URL satrlari bir marta yoziladi).</summary>
+internal static class GroupChatApi
+{
+    private const string Root = "/api/v1/group-chat";
+
+    public static Uri MessagesUrl(
+        long groupId, GroupChatChannel? channel = null, int? take = null, long? beforeId = null)
+    {
+        var url = $"{Root}/groups/{groupId}/messages";
+        var query = new List<string>(3);
+
+        if (channel is { } value) query.Add($"channel={value}");
+        if (take is { } size) query.Add($"take={size}");
+        if (beforeId is { } cursor) query.Add($"beforeId={cursor}");
+
+        if (query.Count > 0) url += "?" + string.Join('&', query);
+
+        return new Uri(url, UriKind.Relative);
+    }
+
+    public static string SendUrl(long groupId) => $"{Root}/groups/{groupId}/messages";
+
+    public static string ReadUrl(long groupId) => $"{Root}/groups/{groupId}/read";
+
+    public static async Task<GroupChatPageResponse> MessagesAsync(
+        HttpClient client,
+        long groupId,
+        GroupChatChannel? channel = null,
+        int? take = null,
+        long? beforeId = null)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        var response = await client.GetAsync(MessagesUrl(groupId, channel, take, beforeId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
+
+        return (await response.Content.ReadFromJsonAsync<GroupChatPageResponse>())!;
+    }
+
+    public static async Task<IReadOnlyList<GroupChatThreadResponse>> ThreadsAsync(
+        HttpClient client)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        var response = await client.GetAsync(new Uri($"{Root}/threads", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
+
+        return (await response.Content
+            .ReadFromJsonAsync<IReadOnlyList<GroupChatThreadResponse>>())!;
+    }
+
+    public static async Task<GroupChatMessageResponse> SendAsync(
+        HttpClient client, long groupId, string body, GroupChatChannel? channel = null)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        var response = await client.PostAsJsonAsync(
+            SendUrl(groupId),
+            new { channel = channel?.ToString(), body });
+
+        response.StatusCode.Should().Be(
+            HttpStatusCode.Created, await WorldBuilder.Body(response));
+
+        return (await response.Content.ReadFromJsonAsync<GroupChatMessageResponse>())!;
+    }
+
+    public static async Task<GroupChatReadResponse> MarkReadAsync(
+        HttpClient client,
+        long groupId,
+        GroupChatChannel? channel = null,
+        long? upToMessageId = null)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        var response = await client.PostAsJsonAsync(
+            ReadUrl(groupId),
+            new { channel = channel?.ToString(), upToMessageId });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
+
+        return (await response.Content.ReadFromJsonAsync<GroupChatReadResponse>())!;
+    }
+
+    /// <summary>
+    /// Mavjud ustoz/kuratorga YANA bitta guruh qo'shadi va o'quvchini unga
+    /// a'zo qiladi.
+    ///
+    /// ★ N+1 testi uchun MAJBURIY: bitta guruhda so'rovlar soni har qanday
+    /// amalga oshirishda bir xil bo'ladi. Farq FAQAT ikkinchi guruh
+    /// qo'shilganda ko'rinadi — naif kod u yerda so'rovlar sonini ikkiga
+    /// ko'paytiradi.
+    /// </summary>
+    public static async Task<long> AddGroupAsync(
+        Infrastructure.ZinnurApiFactory factory, StudentWorld world, string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        var response = await admin.PostAsJsonAsync("/api/v1/groups", new
+        {
+            name = $"{prefix}-{Guid.NewGuid().ToString("N")[..6]}",
+            startDate = "2026-01-05",
+            weekdays = new[] { "Tuesday", "Thursday" },
+            startTime = "17:00:00",
+            teacherId = world.Teacher.Id,
+            assistantId = world.Curator.Id,
+            courseMonths = 1,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(response));
+
+        var created = (await response.Content.ReadFromJsonAsync<CreatedGroupResponse>())!;
+
+        var member = await admin.PostAsJsonAsync(
+            $"/api/v1/groups/{created.Group.Id}/members", new { studentId = world.Student.Id });
+
+        member.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(member));
+
+        return created.Group.Id;
+    }
+
+    private sealed record CreatedGroupResponse(GroupIdBrief Group);
+
+    private sealed record GroupIdBrief(long Id);
+}

@@ -39,6 +39,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
 
+    // ---------------------------------------------------------------- FAZA 6: guruh chati
+
+    public DbSet<GroupChatMessage> GroupChatMessages => Set<GroupChatMessage>();
+
+    public DbSet<GroupChatRead> GroupChatReads => Set<GroupChatRead>();
+
     // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
 
     public DbSet<Assignment> Assignments => Set<Assignment>();
@@ -80,6 +86,32 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// (<c>IFinanceSettingsStore</c>) — sabab <see cref="AppSetting"/> da.
     /// </summary>
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
+    // ---------------------------------------------------------------- FAZA 5.2: notifikatsiya
+
+    /// <summary>
+    /// Yuborilishi kerak bo'lgan xabarlar navbati (transactional outbox).
+    ///
+    /// <c>IApplicationDbContext</c> da ATAYLAB YO'Q — <see cref="AppSetting"/>
+    /// bilan bir xil sabab: use-case'lar navbatga <c>INotificationOutbox</c>
+    /// porti orqali yozadi va jadval borligini bilmaydi. Yozuv esa AYNI
+    /// kuzatuvchida to'planadi, ya'ni biznes o'zgarishi bilan BITTA
+    /// tranzaksiyada saqlanadi (commit-then-send).
+    /// </summary>
+    public DbSet<MessageOutbox> MessageOutbox => Set<MessageOutbox>();
+
+    // ---------------------------------------------------------------- FAZA 5.1: Telegram
+
+    /// <summary>
+    /// Ishlangan Telegram yangilanishlari (takrorga qarshi jurnal).
+    ///
+    /// <c>IApplicationDbContext</c> da ATAYLAB YO'Q — <see cref="MessageOutbox"/>
+    /// bilan bir xil sabab: bu biznes ma'lumoti emas, yetkazib berish
+    /// mexanizmi. Use-case'lar unga <c>ITelegramUpdateLog</c> porti orqali
+    /// tegadi, yozuv esa AYNI kuzatuvchida to'planib, bog'lash va javob
+    /// xabari bilan BITTA tranzaksiyada saqlanadi.
+    /// </summary>
+    public DbSet<TelegramUpdate> TelegramUpdates => Set<TelegramUpdate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

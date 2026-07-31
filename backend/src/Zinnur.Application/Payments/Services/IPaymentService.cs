@@ -63,6 +63,19 @@ public interface IPaymentService
     Task EnsureCanViewStudentAsync(
         long studentId, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// "Moliya bo'limiga kira oladimi" (<c>Academic</c> yoki <c>Admin</c>) —
+    /// YENGIL tekshiruv, ma'lumot yuklamaydi. Ruxsati yo'q bo'lsa 403.
+    ///
+    /// NIMA UCHUN INTERFEYSDA: yig'ma hisobot ALOHIDA servisda
+    /// (<see cref="IPaymentSummaryService"/>), lekin ruxsat qoidasi
+    /// MOLIYADA BITTA bo'lishi kerak. Hisobot o'z tekshiruvini yozsa, ikki
+    /// nusxa paydo bo'lardi va vaqt o'tib ular ajralib ketardi — masalan
+    /// kurator moliyaga qo'shilganda biri yangilanib, ikkinchisi qolardi.
+    /// Bu <see cref="EnsureCanViewStudentAsync"/> bilan AYNI naqsh.
+    /// </summary>
+    Task EnsureCanManageFinanceAsync(long actorId, CancellationToken ct = default);
+
     /// <summary>To'lovlar jurnali (sahifalangan).</summary>
     Task<PagedResult<PaymentTransactionDto>> ListTransactionsAsync(
         long studentId, int page, int pageSize, long actorId, CancellationToken ct = default);

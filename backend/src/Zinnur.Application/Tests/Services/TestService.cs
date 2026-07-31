@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
+using Zinnur.Application.Common.Export;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.Gating.Services;
@@ -309,35 +310,32 @@ public sealed class TestService(
         var rows = await LoadResultsAsync(id, ct);
         var zone = timeZone.TimeZone;
 
-        var csv = new StringBuilder(rows.Count * 64 + 128);
+        // ★ BOM, yacheykani qalqonlash va son formati YAGONA yozuvchida
+        // (`CsvBuilder`) — sabab uning izohida. Bu yerda faqat USTUNLAR.
+        //
+        // `sep=` direktivasi bu faylga ATAYLAB qo'yilmaydi (moliya
+        // hisobotidan farqi shu): natijalar jadvali ko'pincha Google Sheets
+        // yoki skriptga tushadi — u yerda qo'shimcha qator ortiqcha
+        // ma'lumot qatori bo'lib ko'rinardi.
+        var csv = new CsvBuilder((rows.Count * 64) + 128);
 
-        // BOM: Excel BOM'siz UTF-8 ni ANSI deb o'qiydi va o'zbek harflari
-        // (ʻ, ʼ) buziladi. Kodda KO'RINMAS belgi qoldirmaslik uchun oshkor
-        // `\uFEFF` yoziladi.
-        csv.Append('\uFEFF');
-        csv.AppendLine("F.I.Sh.,Guruh,Ball,Maksimal ball,Foiz,Topshirilgan,Vaqti tugagan");
+        csv.Row("F.I.Sh.", "Guruh", "Ball", "Maksimal ball", "Foiz", "Topshirilgan", "Vaqti tugagan");
 
         foreach (var row in rows)
         {
-            // Mahalliy vaqt (Asia/Tashkent): hisobotni o'qiydigan odam
-            // devor-soatiga qaraydi, UTC'ga emas.
-            var submitted = row.SubmittedAt is { } at
-                ? TimeZoneInfo.ConvertTime(at, zone).ToString("yyyy-MM-dd HH:mm", Invariant)
-                : string.Empty;
-
-            csv.Append(Csv(row.StudentName)).Append(',')
-               .Append(Csv(row.GroupNames)).Append(',')
-               .Append(Number(row.Score)).Append(',')
-               .Append(Number(row.MaxScore)).Append(',')
-               .Append(Number(row.Percent)).Append(',')
-               .Append(Csv(submitted)).Append(',')
-               .Append(row.ClosedByTimeout ? "ha" : "yo'q")
-               .Append('\n');
+            csv.Row(
+                row.StudentName,
+                row.GroupNames,
+                Number(row.Score),
+                Number(row.MaxScore),
+                Number(row.Percent),
+                // Mahalliy vaqt (Asia/Tashkent): hisobotni o'qiydigan odam
+                // devor-soatiga qaraydi, UTC'ga emas.
+                CsvBuilder.LocalTime(row.SubmittedAt, zone),
+                row.ClosedByTimeout ? "ha" : "yo'q");
         }
 
-        var fileName = string.Create(Invariant, $"test-{test.Id}-natijalar.csv");
-
-        return new CsvExport(fileName, "text/csv; charset=utf-8", Encoding.UTF8.GetBytes(csv.ToString()));
+        return csv.ToExport(string.Create(Invariant, $"test-{test.Id}-natijalar.csv"));
     }
 
     /// <summary>
@@ -898,16 +896,6 @@ public sealed class TestService(
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    /// <summary>CSV yacheykasi: vergul, qo'shtirnoq va qator ko'chirishni zararsizlantiradi.</summary>
-    private static string Csv(string? value)
-    {
-        var text = value ?? string.Empty;
-
-        return text.AsSpan().IndexOfAny(',', '"', '\n') >= 0
-            ? "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
-            : text;
-    }
 
     private static string Number(decimal? value) =>
         value?.ToString("0.##", Invariant) ?? string.Empty;

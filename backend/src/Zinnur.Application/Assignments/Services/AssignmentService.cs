@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Assignments.Dtos;
 using Zinnur.Application.Common.Exceptions;
@@ -393,6 +394,84 @@ public sealed class AssignmentService(
         return MapStudent(await LoadSubmissionRowAsync(submission.Id, ct));
     }
 
+    // ================================================================= fayl o'qish
+
+    /// <summary>
+    /// Javobga ilova qilingan faylni O'QISHGA ochadi.
+    ///
+    /// ★ SO'ROV OBYEKT KALITI bilan EMAS, FAYL ID'si bilan keladi. Bu ataylab:
+    /// kalit chaqiruvchidan qabul qilinsa, u istalgan yo'lni
+    /// (<c>../boshqa-bucket/...</c>, begona o'quvchining kaliti) yozib
+    /// yuborardi va ruxsat tekshiruvi ma'nosini yo'qotardi. ID esa bazadagi
+    /// yozuvga olib boradi va kalit FAQAT bazadan olinadi.
+    /// </summary>
+    public async Task<SubmissionFileDownload> OpenFileAsync(
+        long fileId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        // Faylning O'ZI emas, uning EGASI kerak — shuning uchun javob orqali
+        // o'quvchiga chiqiladi (bitta so'rov, JOIN bazada).
+        var file = await db.SubmissionFiles
+            .AsNoTracking()
+            .Where(f => f.Id == fileId)
+            .Select(f => new
+            {
+                f.Id,
+                f.SubmissionId,
+                f.ObjectKey,
+                f.Kind,
+                f.ContentType,
+                OwnerId = f.Submission!.StudentId,
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(SubmissionFile), fileId);
+
+        // RUXSAT — OMBORGA MUROJAATDAN OLDIN. Aks holda begona odam
+        // "javob qancha kutdi" yoki "503 keldi" kabi belgilardan faylning
+        // bor-yo'qligini payqardi.
+        await EnsureCanReadStudentWorkAsync(actor, file.OwnerId, ct);
+
+        if (!storage.IsConfigured)
+        {
+            throw new ServiceUnavailableException(
+                "Fayl ombori (R2/S3) sozlanmagan — faylni ochib bo'lmaydi. "
+                + "Administrator uchun: `Storage:ServiceUrl`, `Storage:Bucket`, "
+                + "`Storage:AccessKey`, `Storage:SecretKey` to'ldirilishi kerak.");
+        }
+
+        var stored = await storage.OpenReadAsync(file.ObjectKey, ct)
+            ?? throw new NotFoundException(nameof(SubmissionFile), fileId);
+
+        // TUR BAZADAN ustun: yuklashda u MAZMUNDAN aniqlangan edi, ombor esa
+        // faqat biz yozgan sarlavhani qaytaradi (va u yo'qolgan bo'lishi ham
+        // mumkin). Ikkalasi ham bo'lmasa — "noma'lum ikkilik".
+        var contentType = Normalize(file.ContentType) ?? stored.ContentType;
+
+        return new SubmissionFileDownload(
+            stored,
+            contentType,
+            SuggestFileName(file.SubmissionId, file.Id, file.ObjectKey, file.Kind));
+    }
+
+    /// <summary>
+    /// Yuklab olinadigan fayl nomi.
+    ///
+    /// OBYEKT KALITI NOM SIFATIDA BERILMAYDI: unda ichki tuzilma va
+    /// o'quvchi ID'si bor, bu esa foydalanuvchiga keraksiz va omborimiz
+    /// tuzilishini oshkor qiladi. Kengaytma esa kalitdan olinadi — u
+    /// yuklashda mazmundan aniqlangan.
+    /// </summary>
+    private static string SuggestFileName(
+        long submissionId, long fileId, string objectKey, AttachmentKind kind)
+    {
+        var extension = Path.GetExtension(objectKey.AsSpan());
+        var prefix = kind == AttachmentKind.Audio ? "ovoz" : "rasm";
+
+        return string.Create(
+            CultureInfo.InvariantCulture, $"{prefix}-{submissionId}-{fileId}{extension}");
+    }
+
     // ================================================================= baholash (xodim)
 
     public async Task<IReadOnlyList<SubmissionDto>> ListSubmissionsAsync(
@@ -573,12 +652,55 @@ public sealed class AssignmentService(
         if (!IsStaff(actor))
             throw new ForbiddenException("Baholashga ruxsatingiz yo'q.");
 
-        var mine = await StudentIdsOfStaff(actor.Id).ContainsAsync(submission.StudentId, ct);
-
-        return mine
+        return await IsMyStudentAsync(actor.Id, submission.StudentId, ct)
             ? (submission, assignment)
             : throw new ForbiddenException("Bu o'quvchi sizning guruhingizda emas.");
     }
+
+    /// <summary>
+    /// O'QUVCHINING ISHIGA (javob va uning fayllariga) kirish huquqi.
+    ///
+    /// | Kim              | Nimani ko'radi                    |
+    /// |------------------|-----------------------------------|
+    /// | O'quvchi         | FAQAT o'zinikini                  |
+    /// | Ustoz/kurator    | O'z guruhidagi o'quvchinikini     |
+    /// | Academic/Admin   | Hammasini                         |
+    ///
+    /// "Ustoz o'z guruhida" sharti <see cref="StudentIdsOfStaff"/> dan —
+    /// baholash tekshiruvi bilan AYNI IFODA. Bu ataylab: qoida nusxalansa,
+    /// masalan kurator havolasi baholashda hisobga olinib, faylda unutilsa,
+    /// kurator o'z o'quvchisining rasmini ocholmay qolardi (yoki aksincha —
+    /// jimgina teshik ochilardi).
+    /// </summary>
+    private async Task EnsureCanReadStudentWorkAsync(
+        User actor, long ownerStudentId, CancellationToken ct)
+    {
+        if (actor.Role == UserRole.Student)
+        {
+            // BOSHQA o'quvchining ishi — hech qanday shartsiz TAQIQ.
+            // Eski tizimda fayl `/media` da autentifikatsiyasiz turardi va
+            // havolani bilgan har kim ochardi (audit X-6).
+            if (ownerStudentId != actor.Id)
+                throw new ForbiddenException("Bu fayl sizga tegishli emas.");
+
+            return;
+        }
+
+        if (CanManageEverything(actor)) return;
+
+        if (!IsStaff(actor))
+            throw new ForbiddenException("Bu faylga ruxsatingiz yo'q.");
+
+        if (!await IsMyStudentAsync(actor.Id, ownerStudentId, ct))
+            throw new ForbiddenException("Bu o'quvchi sizning guruhingizda emas.");
+    }
+
+    /// <summary>
+    /// Xodim SHU o'quvchiga mas'ulmi — <see cref="StudentIdsOfStaff"/> ustidan
+    /// YAGONA tekshiruv. Baholash ham, fayl o'qish ham shu yerdan o'tadi.
+    /// </summary>
+    private async Task<bool> IsMyStudentAsync(long staffId, long studentId, CancellationToken ct) =>
+        await StudentIdsOfStaff(staffId).ContainsAsync(studentId, ct);
 
     /// <summary>
     /// Xodim (ustoz/kurator) mas'ul bo'lgan o'quvchilar — BITTA ifoda, ikki

@@ -580,6 +580,15 @@ public sealed class PaymentService(
         EnsureCanViewStudent(actor, studentId);
     }
 
+    /// <summary>
+    /// Moliya boshqaruvi ruxsati — YAGONA qoidaning tashqi eshigi.
+    /// Yig'ma hisobot servisi shu metodni chaqiradi, o'z tekshiruvini
+    /// yozmaydi (sabab interfeys izohida).
+    /// </summary>
+    public async Task EnsureCanManageFinanceAsync(
+        long actorId, CancellationToken ct = default) =>
+        EnsureCanManage(await LoadActorAsync(actorId, ct));
+
     public async Task<PagedResult<PaymentTransactionDto>> ListTransactionsAsync(
         long studentId, int page, int pageSize, long actorId, CancellationToken ct = default)
     {

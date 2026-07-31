@@ -97,6 +97,15 @@ public sealed class ExceptionHandlingMiddleware(
         context.Response.StatusCode = status;
         context.Response.ContentType = "application/problem+json";
 
+        // `Retry-After` — HTTP standartidagi yagona to'g'ri joy. Uni tanaga
+        // qo'shish yetarli emas: klient kutubxonalari (va brauzerlar) aynan
+        // shu sarlavhani o'qiydi.
+        if (ex is TooManyRequestsException throttled)
+        {
+            context.Response.Headers.RetryAfter = throttled.RetryAfterSeconds
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         await context.Response
             .WriteAsync(JsonSerializer.Serialize(problem, JsonOptions))
             .ConfigureAwait(false);
@@ -119,6 +128,13 @@ public sealed class ExceptionHandlingMiddleware(
 
         ValidationException =>
             (StatusCodes.Status400BadRequest, "Ma'lumot noto'g'ri", ex.Message),
+
+        // Use-case ichidagi tezlik chegarasi (foydalanuvchi bo'yicha).
+        // `Retry-After` sarlavhasi javob yozilishidan oldin qo'yiladi —
+        // foydalanuvchi QANCHA kutishini bilsin, aks holda qayta bosaverib
+        // oynani uzaytiradi (aynan shu muammo kirish endpointida bo'lgan).
+        TooManyRequestsException =>
+            (StatusCodes.Status429TooManyRequests, "Juda ko'p so'rov", ex.Message),
 
         // Sozlanmagan yoki javob bermayotgan tashqi xizmat (masalan fayl
         // ombori). 500 EMAS: bu bizning bug'imiz emas va xato xabari

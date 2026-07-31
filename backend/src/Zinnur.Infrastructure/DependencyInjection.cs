@@ -2,12 +2,15 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Settings;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Infrastructure.Options;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.Infrastructure.Services;
@@ -38,6 +41,7 @@ public static class DependencyInjection
         AddOptions(services, configuration);
         AddPersistence(services, configuration);
         AddRedis(services, configuration);
+        AddRuntimeSettings(services, configuration);
         AddStorage(services);
 
         // Token va parol xizmatlari holatsiz (stateless) — Singleton.
@@ -51,12 +55,79 @@ public static class DependencyInjection
         // ilova umri davomida keshda qoladi.
         services.AddSingleton<IScheduleTimeZoneProvider, ConfiguredScheduleTimeZone>();
 
-        // Moliya sozlamalari — SCOPED: u `ApplicationDbContext` ga tayanadi
-        // va o'zgarishlarni AYNI so'rovning ChangeTracker'iga qo'shadi
-        // (sozlama va uning audit izi bitta tranzaksiyada saqlanishi uchun).
+        // ---------------------------------------------------------------- sozlamalar
+        //
+        // SOZLAMA QATORLARI (`AppSettings` jadvali) — SCOPED: xizmat
+        // `ApplicationDbContext` ga tayanadi va o'zgarishlarni AYNI so'rovning
+        // ChangeTracker'iga qo'shadi (sozlama va uning audit izi bitta
+        // tranzaksiyada saqlanishi uchun).
+        services.AddScoped<ISettingsStore, AppSettingsStore>();
+
+        // KONFIGURATSIYA O'QUVCHISI — SINGLETON va holatsiz: `IConfiguration`
+        // ning o'zi singleton, o'qish esa lug'atdan olish bilan barobar.
+        services.AddSingleton<ISettingsEnvironment, ConfigurationSettingsEnvironment>();
+
+        // Moliya sozlamalari endi UMUMIY registr ustida ishlaydi (kalitlar,
+        // standart qiymat va tekshiruv qoidasi `SettingsRegistry` da) —
+        // ikkita parallel sozlamalar tizimi bo'lmasligi uchun.
+        // SCOPED, chunki `ISettingsStore` scoped.
         services.AddScoped<IFinanceSettingsStore, FinanceSettingsStore>();
 
         return services;
+    }
+
+    /// <summary>
+    /// ========================================================================
+    /// ISH JARAYONIDA O'QILADIGAN SOZLAMALAR
+    /// ========================================================================
+    ///
+    /// ★ NIMA UCHUN BU BLOK BOR: <c>IOptions&lt;T&gt;</c> qiymatni ilova
+    /// ISHGA TUSHGANDA bir marta o'qiydi va singleton xizmatga qotirib
+    /// qo'yadi. Bazadan o'zgartirilsa panel "saqlandi" derdi-yu, tizim eski
+    /// qiymat bilan ishlayverardi — eng yomon turdagi xato: JIMGINA YOLG'ON.
+    ///
+    /// Endi zanjir shunday:
+    ///   AppSettings (baza) -> ISettingsResolver -> IRuntimeSettings (kesh)
+    ///                      -> IRuntimeOptions&lt;T&gt; -> iste'molchi.
+    ///
+    /// Kesh yangilanishi va uning KAFOLATLANGAN KECHIKISHI (10 s) haqida
+    /// batafsil: <see cref="RuntimeSettings"/>.
+    /// </summary>
+    private static void AddRuntimeSettings(IServiceCollection services, IConfiguration configuration)
+    {
+        // Kalit MAKONI — Redis kanali uchun (izoh: `AddRedis`). Bitta Redis'ni
+        // dev/staging va integratsiya testlari baham ko'radi; makonsiz kanalda
+        // ular bir-birining keshini bekordan qayta o'qishga majbur qilardi.
+        var keyPrefix = configuration["Redis:KeyPrefix"];
+
+        // BITTA instansiya UCHTA rolda: kesh (`IRuntimeSettings`), fon
+        // yangilovchisi (`IHostedService`) va Redis obunachisi. Ular AYNI
+        // obyekt bo'lishi SHART — aks holda fon xizmati bir keshni
+        // yangilardi, iste'molchilar esa boshqasini o'qirdi va o'zgarish
+        // hech qachon ko'rinmasdi (`ChatMessageWriter` bilan bir xil naqsh).
+        services.AddSingleton(sp => new RuntimeSettings(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<IConnectionMultiplexer>(),
+            sp.GetRequiredService<ILogger<RuntimeSettings>>(),
+            keyPrefix));
+
+        services.AddSingleton<IRuntimeSettings>(sp => sp.GetRequiredService<RuntimeSettings>());
+        services.AddHostedService(sp => sp.GetRequiredService<RuntimeSettings>());
+
+        // ── TAYYORLANGAN SOZLAMA OBYEKTLARI ──────────────────────────────
+        //
+        // Har biri SINGLETON: ular kesim RAQAMI bo'yicha tayyorlangan
+        // obyektni keshlaydi (`RuntimeOptions<T>`), ya'ni kesim o'zgarmasa
+        // yangi obyekt umuman yasalmaydi. Scoped bo'lsa bu kesh har so'rovda
+        // yo'qolardi va `IsConfigured` ning har chaqirig'i yangi obyekt
+        // yasashga olib kelardi.
+        //
+        // ⚠️ `IOptions<T>` ro'yxatdan OLIB TASHLANMAYDI: u endi BOSHLANG'ICH
+        // qiymat (seed) manbai va registrda umuman yo'q maydonlar
+        // (`TimeoutSeconds`, `KeyPrefix`) uchun yagona manba bo'lib qoladi.
+        services.AddSingleton<IRuntimeOptions<StorageOptions>, RuntimeStorageOptions>();
+        services.AddSingleton<IRuntimeOptions<TelegramOptions>, RuntimeTelegramOptions>();
+        services.AddSingleton<IRuntimeOptions<LiveKitOptions>, RuntimeLiveKitOptions>();
     }
 
     private static void AddOptions(IServiceCollection services, IConfiguration configuration)
@@ -84,6 +155,19 @@ public static class DependencyInjection
                 + $"(masalan '{AppOptions.DefaultTimeZone}'), va konteynerda `tzdata` bo'lishi shart.")
             .ValidateOnStart();
 
+        // LIVEKIT — bu yerda tekshiruv ATAYLAB QOLDIRILDI.
+        //
+        // ★ NIMA UCHUN `Storage`/`Telegram` dan farqli: LiveKit IXTIYORIY
+        //   emas. `LiveKit:Url` — tarmoq topologiyasi, u faqat muhitdan
+        //   keladi (sabab: `RuntimeLiveKitOptions`), ya'ni LiveKit baribir
+        //   deploy bilan sozlanadi. Kalit va sir esa bazadan USTUN o'qiladi
+        //   — panel ularni AYLANTIRISH (rotate) uchun.
+        //
+        // ⚠️ QABUL QILINGAN CHEKLOV: `LiveKit:ApiKey`/`ApiSecret` muhitda
+        //   BO'LISHI SHART (bo'sh bo'lsa ilova ko'tarilmaydi), garchi amalda
+        //   bazadagi qiymat ustun bo'lsa ham. Buni yumshatish bo'sh kalit
+        //   bilan ko'tarilishga yo'l ochardi — u holda token XATO BERMASDAN
+        //   rad etilardi va buni faqat birinchi dars boshlanganda bilardik.
         services.AddOptions<LiveKitOptions>()
             .Bind(configuration.GetSection(LiveKitOptions.SectionName))
             .ValidateDataAnnotations()
@@ -104,23 +188,71 @@ public static class DependencyInjection
                 + "HTTPS sahifadan `ws://` ga ulanishni brauzer bloklaydi.")
             .ValidateOnStart();
 
-        // OBYEKT OMBORI (R2/S3) — IXTIYORIY, lekin YARIM sozlash TAQIQ.
+        // ══════════════════════════════════════════════════════════════════
+        // ★★ «TO'LIQ YOKI BO'SH» HIMOYASI BU YERDAN KO'CHIRILDI
+        //
+        // Ilgari `Storage:*` va `Telegram:*` yarim to'ldirilgan bo'lsa ilova
+        // UMUMAN ko'tarilmasdi. Endi bu kalitlar BAZADAN keladi, ya'ni ishga
+        // tushish paytida ular hali O'QILGAN ham bo'lmaydi — tekshiruv
+        // muhitdagi (boshlang'ich) qiymatlarni ko'rib, YOLG'ON xulosa
+        // chiqarardi: baza to'liq sozlangan bo'lsa ham "yarim" deb ilovani
+        // yiqitardi, yoki teskarisi.
+        //
+        // ★ HIMOYA OLIB TASHLANMADI, KO'CHIRILDI — yozish yo'liga:
+        //   `SettingCoupling` + `SettingsService.EnsureSetNotBrokenAsync`.
+        //   Panel orqali ISHLAB TURGAN to'plamni yarim holatga tushirib
+        //   bo'lmaydi (batafsil sabab va assimetriya: `SettingCoupling`).
+        //
+        // ★ QOLGAN XAVF VA U NIMA UCHUN QABUL QILINDI: kimdir `.env` da
+        //   yarim to'ldirilgan to'plam qoldirsa, ilova endi ko'tariladi va
+        //   integratsiya jimgina O'CHIQ bo'ladi. Bu XAVFSIZ, chunki
+        //   `IsConfigured` BARCHA a'zoni talab qiladi: yarim `Storage:*` —
+        //   fayl yuklash 503 (sozlanmagan bilan bir xil), yarim
+        //   `Telegram:*` — webhook 404. `ValidateOnStart` qo'riqlagan ENG
+        //   XAVFLI holat ("token bor, sir yo'q => webhook OCHIQ") bu kodda
+        //   YUZAGA KELMAYDI: controller endpointni to'plam TO'LIQ
+        //   bo'lmaguncha 404 qiladi.
+        // ══════════════════════════════════════════════════════════════════
+
+        // OBYEKT OMBORI (R2/S3) — IXTIYORIY.
         //
         // Bo'sh bo'lsa ilova ko'tariladi va fayl yuklash 503 qaytaradi
-        // (o'quvchi matnli javob topshira oladi). Yarim to'ldirilgan bo'lsa
-        // esa ilova UMUMAN ko'tarilmaydi: aks holda xato faqat birinchi
-        // yuklashda — haqiqiy o'quvchi javob topshirayotganda — ko'rinardi.
+        // (o'quvchi matnli javob topshira oladi). SHAKL tekshiruvi qoladi:
+        // u bitta qiymatga tegishli (to'plamga emas) va `.env` dagi xato
+        // yozilgan manzilni ishga tushishda, sababi ko'rinib turganda tutadi.
         services.AddOptions<StorageOptions>()
             .Bind(configuration.GetSection(StorageOptions.SectionName))
             .ValidateDataAnnotations()
             .Validate(
-                o => !o.IsPartiallyConfigured,
-                "Storage:* yarim to'ldirilgan. TO'RTTASI ham kerak: "
-                + "ServiceUrl, Bucket, AccessKey, SecretKey (yoki hech qaysisi).")
-            .Validate(
                 o => o.HasValidServiceUrl,
                 "Storage:ServiceUrl absolyut http(s) manzil bo'lishi kerak "
                 + "(masalan `https://<account>.r2.cloudflarestorage.com`).")
+            .ValidateOnStart();
+
+        // TELEGRAM (FAZA 5.1) — IXTIYORIY.
+        //
+        // Bo'sh bo'lsa ilova ko'tariladi va Telegram funksiyalari o'chiq
+        // bo'ladi: webhook 404, Mini App kirishi 503, xabarlar esa
+        // vaqtinchalik log-yuboruvchiga tushadi. Dev mashinasida bot tokeni
+        // yo'q va bu butun platformani to'xtatib qo'ymasligi kerak.
+        services.AddOptions<TelegramOptions>()
+            .Bind(configuration.GetSection(TelegramOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                o => o.HasValidBotToken,
+                "Telegram:BotToken shakli noto'g'ri (kutilgan `123456:AA...`, bo'shliqsiz).")
+            .Validate(
+                o => o.HasValidWebhookSecret,
+                "Telegram:WebhookSecret faqat A-Z a-z 0-9 _ - belgilaridan iborat bo'lishi va "
+                + "256 belgidan oshmasligi kerak (Telegram talabi).")
+            .Validate(
+                o => o.HasValidMiniAppUrl,
+                "Telegram:MiniAppUrl absolyut `https://` manzil bo'lishi kerak — "
+                + "Telegram `web_app` tugmasi uchun HTTPS majburiy.")
+            .Validate(
+                o => o.HasValidApiBaseUrl,
+                "Telegram:ApiBaseUrl absolyut http(s) manzil bo'lishi kerak "
+                + "(standart `https://api.telegram.org`).")
             .ValidateOnStart();
 
         // MOLIYA. Bu yerda `ValidateOnStart` KERAK EMAS: barcha maydonlar

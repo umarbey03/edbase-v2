@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Zinnur.Application;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.GroupChat.Services;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.WebApi;
@@ -18,6 +19,8 @@ using Zinnur.WebApi.Hubs;
 using Zinnur.WebApi.Middleware;
 using Zinnur.WebApi.Observability;
 using Zinnur.WebApi.Services;
+using Zinnur.WebApi.Telegram;
+using Zinnur.WebApi.Workers;
 
 // ============================================================================
 // ZIN-NUR API — kompozitsiya ildizi (composition root).
@@ -54,6 +57,31 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatMessageWriter>
 // uchun port shu yerda — WebApi tomonida — ulanadi. `IHubContext` singleton,
 // lekin ro'yxat scoped: uni ishlatadigan `LiveSessionService` ham scoped.
 builder.Services.AddScoped<ILiveSessionNotifier, LiveSessionNotifier>();
+
+// Guruh chati xabarnomasi (FAZA 6) — o'sha naqsh: port `Application` da,
+// SignalR amalga oshirilishi shu yerda. SCOPED, chunki uni chaqiradigan
+// `GroupChatService` ham scoped (`DbContext` ga bog'langan).
+builder.Services.AddScoped<IGroupChatNotifier, GroupChatNotifier>();
+
+// Notifikatsiya navbati (FAZA 5.2): outbox yozuvchisi, tezlik chegarasi va
+// fon worker'i. Xabar biznes tranzaksiyasi bilan BIRGA yoziladi, yuborish
+// esa kommitdan KEYIN fon xizmatida bo'ladi — izoh: Workers/NotificationsSetup.cs.
+builder.Services.AddZinnurNotifications(builder.Configuration);
+
+// Telegram bot va Mini App (FAZA 5.1) — o'quvchilar uchun YAGONA kirish yo'li.
+//
+// ★ TARTIB MUHIM: `AddZinnurNotifications` DAN KEYIN turishi SHART.
+//   `OutboxDispatcher` bir kanalga ikkita yuboruvchi bo'lsa OXIRGISINI
+//   tanlaydi; notifikatsiya moduli esa vaqtinchalik log-yuboruvchini
+//   ro'yxatdan o'tkazadi. Bu qatorni yuqoriga ko'chirsak, xabarlar
+//   Telegram'ga emas, LOGGA ketardi va buni hech kim sezmasdi.
+builder.Services.AddZinnurTelegram(builder.Configuration);
+
+// Fon vazifalari (FAZA 5.5): muddati o'tgan darslarni avto-yakunlash va
+// oylik to'lov yozuvlarini ochish. Rejalashtiruvchi HAR konteynerda
+// ko'tariladi, lekin har vazifa Postgres advisory lock ostida yuradi —
+// ya'ni ish AYNAN BIR MARTA bajariladi (izoh: Workers/JobsSetup.cs).
+builder.Services.AddZinnurJobs(builder.Configuration);
 
 // ---------------------------------------------------------------- auth
 var jwtSecret = builder.Configuration["Jwt:Secret"]
@@ -208,6 +236,23 @@ var signalR = builder.Services.AddSignalR(options =>
     // Bitta xabar hajmi chegarasi (chat uchun 32 KB dan ortiq kerak emas)
     options.MaximumReceiveMessageSize = 32 * 1024;
 });
+
+// ★ ENUM'LAR HUB XABARLARIDA HAM SATR — REST bilan BIR XIL.
+//
+// `AddJsonOptions` (yuqorida, MVC uchun) SignalR'ga UMUMAN tegmaydi: hub
+// o'z `JsonHubProtocolOptions` ini ishlatadi va u standart holatda enum'ni
+// RAQAM qilib yuboradi.
+//
+// Bunsiz bitta va AYNI DTO ikki xil ko'rinishda ketardi: `GroupChatMessageDto`
+// REST javobida `"channel": "Curator"`, hub hodisasida esa `"channel": 1`.
+// Frontend bitta turdagi obyektni ikki xil tahlil qilishga majbur bo'lardi va
+// enum tartibi o'zgargan kunda hub yo'li JIMGINA noto'g'ri kanalni ko'rsatardi.
+//
+// Mavjud `LiveClassHub` ga ta'sir qilmaydi: uning hodisalarida enum YO'Q
+// (`LiveSessionDto.Status`/`Type` va `PresenceDelta.Role` — ataylab `string`).
+signalR.AddJsonProtocol(options =>
+    options.PayloadSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
 // Redis backplane: bir necha API instance bo'lganda xabar HAMMA instance'dagi
 // klientlarga yetib borishi uchun. Bittada ham zarar qilmaydi.
@@ -387,6 +432,14 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<LiveClassHub>("/hubs/live");
+
+// Guruh chati ALOHIDA hub'da — nima uchun `LiveClassHub` kengaytirilmagani
+// `GroupChatHub` sinfi izohida batafsil (qisqasi: dars hub'ining uzilish
+// yo'li DAVOMAT yozadi va unga tegilmadi).
+//
+// Auth uchun qo'shimcha kod KERAK EMAS: yuqoridagi `OnMessageReceived`
+// `/hubs` bilan boshlanadigan HAR yo'l uchun query'dagi tokenni qabul qiladi.
+app.MapHub<GroupChatHub>("/hubs/group-chat");
 
 // Sog'liq tekshiruvi: /health — tirikmi, /health/ready — xizmat ko'rsatishga tayyormi
 app.MapHealthChecks("/health", new HealthCheckOptions

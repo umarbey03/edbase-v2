@@ -440,6 +440,93 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("Groups", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.GroupChatMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("GroupId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SenderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SenderName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SenderRole")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId", "Channel", "Id")
+                        .HasDatabaseName("IX_GroupChatMessages_Group_Channel_Id");
+
+                    b.HasIndex("GroupId", "Channel", "SenderId", "Id")
+                        .HasDatabaseName("IX_GroupChatMessages_Unread");
+
+                    b.ToTable("GroupChatMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.GroupChatRead", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("GroupId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("LastReadMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("UserId", "GroupId", "Channel")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroupChatReads_User_Group_Channel");
+
+                    b.ToTable("GroupChatReads", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.GroupMember", b =>
                 {
                     b.Property<long>("Id")
@@ -710,6 +797,11 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("GroupId", "Period")
                         .HasDatabaseName("IX_Payments_GroupId_Period");
+
+                    b.HasIndex("Status", "Period")
+                        .HasDatabaseName("IX_Payments_Status_Period");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "Period"), new[] { "Amount", "PaidAmount", "StudentId" });
 
                     b.HasIndex("StudentId", "Status")
                         .HasDatabaseName("IX_Payments_StudentId_Status");
@@ -1451,6 +1543,93 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("AppSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Infrastructure.Persistence.MessageOutbox", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("RecipientAddress")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long?>("RecipientUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TemplateKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_MessageOutbox_IdempotencyKey");
+
+                    b.HasIndex("NextAttemptAt", "Id")
+                        .HasDatabaseName("IX_MessageOutbox_Pending")
+                        .HasFilter(" \"Status\" = 0 ");
+
+                    b.HasIndex("RecipientUserId", "CreatedAt")
+                        .HasDatabaseName("IX_MessageOutbox_Recipient_CreatedAt");
+
+                    b.ToTable("MessageOutbox", (string)null);
+                });
+
+            modelBuilder.Entity("Zinnur.Infrastructure.Persistence.TelegramUpdate", b =>
+                {
+                    b.Property<long>("UpdateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("UpdateId");
+
+                    b.HasIndex("ReceivedAt")
+                        .HasDatabaseName("IX_TelegramUpdates_ReceivedAt");
+
+                    b.ToTable("TelegramUpdates", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Assignment", b =>
                 {
                     b.HasOne("Zinnur.Domain.Entities.User", null)
@@ -1596,6 +1775,36 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Course");
 
                     b.Navigation("CuratorGroup");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.GroupChatMessage", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.Group", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.GroupChatRead", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.Group", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.GroupMember", b =>
@@ -1897,6 +2106,14 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.HasOne("Zinnur.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UpdatedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Zinnur.Infrastructure.Persistence.MessageOutbox", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
