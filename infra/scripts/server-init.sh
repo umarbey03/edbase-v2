@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  ZIN-NUR v2 — SERVERNI NOLDAN TAYYORLASH VA BIRINCHI DEPLOY
+#
+#  Ishga tushirish (loyiha ildizidan):
+#      ./infra/scripts/server-init.sh
+#      ./infra/scripts/server-init.sh zinnur.uz        # o'z domeningiz bilan
+#
+#  Uzilishga chidamli qilib (TAVSIYA ETILADI):
+#      nohup ./infra/scripts/server-init.sh > ~/init.log 2>&1 &
+#      tail -f ~/init.log
+#
+#  Nima qiladi (har bosqich IDEMPOTENT — bajarilganini o'tkazib yuboradi):
+#      1. Docker      5. TLS sertifikat (Let's Encrypt)
+#      2. Swap        6. nginx konfiguratsiyasi
+#      3. .env        7. Deploy
+#      4. Firewall
+#
+#  ★ NEGA ALOHIDA SKRIPT: bu buyruqlarni terminalga qo'lda tashlash ishonchsiz —
+#  DigitalOcean web konsoli uzilib qoladi va blok yarim yo'lda to'xtaydi
+#  (amalda bir necha marta shunday bo'ldi). Skript `nohup` bilan seansdan
+#  ajraladi va uzilishdan omon qoladi.
+#
+#  ⚠️ Domen berilmasa `sslip.io` ishlatiladi — serverning IP siga avtomatik
+#  yechiladigan TEKIN domen, DNS sozlash kerak emas. Bu SINOV uchun; haqiqiy
+#  foydalanuvchilarga chiqarganda o'z domeningizni bering.
+# =============================================================================
+
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+ok()   { printf '\033[1;32m  ✓ %s\033[0m\n' "$*"; }
+warn() { printf '\033[1;33m  ! %s\033[0m\n' "$*"; }
+fail() { printf '\033[1;31m  ✗ %s\033[0m\n' "$*" >&2; }
+
+trap 'fail "TO'\''XTADI (satr $LINENO). Yuqoridagi xatoni o'\''qing."' ERR
+
+# ---------------------------------------------------------------- 0. Domen
+IP="$(curl -fsS --max-time 10 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
+[[ -n "$IP" ]] || { fail "Server IP aniqlanmadi."; exit 1; }
+
+if [[ $# -ge 1 && -n "${1:-}" ]]; then
+    DOMEN="$1"
+    LKDOMEN="livekit.$1"
+else
+    # sslip.io: 1.2.3.4 -> 1-2-3-4.sslip.io (DNS sozlash KERAK EMAS)
+    DOMEN="$(echo "$IP" | tr '.' '-').sslip.io"
+    LKDOMEN="livekit.$DOMEN"
+fi
+
+log "Server: $IP  |  Domen: $DOMEN  |  LiveKit: $LKDOMEN"
+
+# ---------------------------------------------------------------- 1. Docker
+log "1/7 Docker"
+if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
+    ok "allaqachon o'rnatilgan ($(docker --version | cut -d, -f1))"
+else
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq ca-certificates curl gnupg
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+        > /etc/apt/sources.list.d/docker.list
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io \
+        docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
+    ok "o'rnatildi"
+fi
+
+# ---------------------------------------------------------------- 2. Swap
+log "2/7 Swap"
+if [[ "$(swapon --show | wc -l)" -gt 0 ]]; then
+    ok "allaqachon bor ($(free -h | awk '/Swap/{print $2}'))"
+else
+    fallocate -l 4G /swapfile && chmod 600 /swapfile
+    mkswap -q /swapfile && swapon /swapfile
+    grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    ok "4G qo'shildi"
+fi
+free -h | head -2 | sed 's/^/     /'
+
+# ---------------------------------------------------------------- 3. .env
+log "3/7 .env"
+[[ -f .env ]] || cp .env.example .env
+
+# Sirlar FAQAT hali almashtirilmagan bo'lsa generatsiya qilinadi — qayta
+# yurgizishda mavjud parollar SAQLANADI (aks holda baza ochilmay qolardi:
+# postgres volume eski parol bilan initsializatsiya qilingan bo'ladi).
+if grep -qE '^(JWT_SECRET|POSTGRES_PASSWORD|LIVEKIT_API_SECRET)=.*(change_me|dev_only)' .env; then
+    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')|" .env
+    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -base64 48 | tr -d '/+=')|" .env
+    sed -i "s|^LIVEKIT_API_SECRET=.*|LIVEKIT_API_SECRET=$(openssl rand -hex 32)|" .env
+    sed -i "s|^LIVEKIT_API_KEY=.*|LIVEKIT_API_KEY=zinnur-prod|" .env
+    ok "sirlar generatsiya qilindi"
+else
+    ok "sirlar allaqachon o'rnatilgan (saqlab qolindi)"
+fi
+
+sed -i "s|^ASPNETCORE_ENVIRONMENT=.*|ASPNETCORE_ENVIRONMENT=Production|" .env
+sed -i "s|^DOMAIN=.*|DOMAIN=$DOMEN|" .env
+sed -i "s|^LIVEKIT_DOMAIN=.*|LIVEKIT_DOMAIN=$LKDOMEN|" .env
+sed -i "s|^SERVER_PUBLIC_IP=.*|SERVER_PUBLIC_IP=$IP|" .env
+sed -i "s|^LIVEKIT_PUBLIC_URL=.*|LIVEKIT_PUBLIC_URL=wss://$LKDOMEN|" .env
+sed -i "s|^VITE_API_URL=.*|VITE_API_URL=https://$DOMEN|" .env
+sed -i "s|^VITE_HUB_URL=.*|VITE_HUB_URL=https://$DOMEN/hubs/live|" .env
+
+if grep -qE 'change_me|dev_only' .env; then
+    fail ".env da hali dev qiymatlari bor"; exit 1
+fi
+ok "domen va manzillar yozildi"
+
+# ---------------------------------------------------------------- 4. Firewall
+log "4/7 Firewall"
+if command -v ufw >/dev/null; then
+    ufw allow 22/tcp   >/dev/null
+    ufw allow 80/tcp   >/dev/null
+    ufw allow 443/tcp  >/dev/null
+    # ⚠️ UDP SIZ MEDIA UMUMAN ISHLAMAYDI — deploy'dagi eng ko'p uchraydigan xato
+    ufw allow 7882/udp >/dev/null
+    ufw allow 3478/udp >/dev/null
+    ufw --force enable >/dev/null
+    ok "22/80/443 tcp + 7882/3478 udp ochildi"
+else
+    warn "ufw yo'q — firewall qo'lda sozlansin"
+fi
+
+# ---------------------------------------------------------------- 5. Sertifikat
+log "5/7 TLS sertifikat"
+if [[ -d "/etc/letsencrypt/live/$DOMEN" ]]; then
+    ok "allaqachon bor"
+else
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y -qq nginx certbot
+    mkdir -p /var/www/certbot
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/zinnur.conf
+
+    # Vaqtinchalik konfiguratsiya — FAQAT ACME tekshiruvi uchun.
+    # Loyihaning asosiy konfigi sertifikat FAYLLARIGA murojaat qiladi, ular esa
+    # hali yo'q — shuning uchun avval shu minimal blok qo'yiladi, aks holda
+    # nginx `cannot load certificate` bilan umuman ishga tushmaydi.
+    cat > /etc/nginx/sites-available/acme.conf <<EOF
+server {
+    listen 80 default_server;
+    server_name $DOMEN $LKDOMEN;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 200 'ok'; add_header Content-Type text/plain; }
+}
+EOF
+    ln -sf /etc/nginx/sites-available/acme.conf /etc/nginx/sites-enabled/acme.conf
+    nginx -t && systemctl restart nginx
+
+    # Certbot'ni chaqirishdan OLDIN webroot haqiqatan ishlashini tekshiramiz —
+    # aks holda Let's Encrypt urinishlari bekorga sarflanadi (soatlik limit bor
+    # va unga yetsangiz bir necha soat kutishga to'g'ri keladi).
+    echo probe > /var/www/certbot/probe
+    if curl -fsS --max-time 15 "http://$DOMEN/.well-known/acme-challenge/probe" >/dev/null; then
+        ok "webroot tekshiruvdan o'tdi"
+    else
+        fail "webroot internetdan ochilmadi:"
+        fail "  http://$DOMEN/.well-known/acme-challenge/probe"
+        fail "Sabab: DNS yechilmayapti yoki 80-port yopiq."
+        exit 1
+    fi
+
+    certbot certonly --webroot -w /var/www/certbot --non-interactive --agree-tos \
+        --register-unsafely-without-email -d "$DOMEN" -d "$LKDOMEN"
+    ok "sertifikat olindi"
+fi
+
+# ---------------------------------------------------------------- 6. nginx
+log "6/7 nginx konfiguratsiyasi"
+rm -f /etc/nginx/sites-enabled/acme.conf
+# Almashtirish TARTIBI muhim: `livekit.zinnur.uz` ichida `zinnur.uz` bor,
+# shuning uchun eng uzun nomdan boshlanadi.
+sed -e "s|livekit\.zinnur\.uz|$LKDOMEN|g" \
+    -e "s|www\.zinnur\.uz|$DOMEN|g" \
+    -e "s|zinnur\.uz|$DOMEN|g" \
+    infra/nginx/zinnur.conf > /etc/nginx/sites-available/zinnur.conf
+ln -sf /etc/nginx/sites-available/zinnur.conf /etc/nginx/sites-enabled/zinnur.conf
+nginx -t && systemctl reload nginx
+ok "nginx tayyor"
+
+# ---------------------------------------------------------------- 7. Deploy
+log "7/7 Deploy (build 5-15 daqiqa olishi mumkin)"
+./infra/scripts/deploy.sh
+
+printf '\n\033[1;32m════════════════════════════════════════════\033[0m\n'
+printf '\033[1;32m  TAYYOR:  https://%s\033[0m\n' "$DOMEN"
+printf '\033[1;32m  Admin :  admin@zinnur.uz\033[0m\n'
+printf '\033[1;32m════════════════════════════════════════════\033[0m\n\n'
