@@ -43,35 +43,45 @@ trap 'fail "TO'\''XTADI (satr $LINENO). Yuqoridagi xatoni o'\''qing."' ERR
 # uchun nom buzilib ketadi (IPv6 da nuqta emas, ikki nuqta ishlatiladi —
 # `2a03:b0c0:...sslip.io` degan yaroqsiz nom hosil bo'ladi va curl uni
 # "Port number was not a decimal number" deb rad etadi).
+ARG_DOMEN="${1:-}"
+
+IPV4_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
 IP=""
-for src in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com"; do
-    IP="$(curl -4 -fsS --max-time 10 "$src" 2>/dev/null | tr -d '[:space:]')" || IP=""
-    [[ "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && break
-    IP=""
+
+for src in https://api.ipify.org https://ifconfig.me https://icanhazip.com; do
+    candidate="$(curl -4 -fsS --max-time 10 "$src" 2>/dev/null | tr -d '[:space:]' || true)"
+    if [[ "$candidate" =~ $IPV4_RE ]]; then IP="$candidate"; break; fi
 done
 
-# Zaxira: mahalliy interfeysdagi birinchi IPv4 (NAT ortidagi serverda oq IP
-# bermaydi, lekin hech yo'qdan yaxshi — foydalanuvchi domenni qo'lda beradi).
+# Zaxira: mahalliy interfeysdagi birinchi IPv4.
 if [[ -z "$IP" ]]; then
-    IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1)"
+    IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E "$IPV4_RE" | head -1 || true)"
 fi
 
-if [[ ! "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    fail "Serverning IPv4 manzili aniqlanmadi (topilgani: '${IP:-bo'sh}')."
-    fail "Domenni qo'lda bering:  ./infra/scripts/server-init.sh sizning-domeningiz.uz"
+# ★ DOMEN va LKDOMEN SHU YERDA, har qanday sharoitda o'rnatiladi.
+# Ilgari ular `if/else` ichida edi va `set -u` bilan birga "unbound variable"
+# xatosiga olib keldi: IP aniqlanmagan tarmoqda tarmoq blokidan chiqib
+# ketilganda o'zgaruvchilar umuman yaratilmasdi.
+if [[ -n "$ARG_DOMEN" ]]; then
+    DOMEN="$ARG_DOMEN"
+elif [[ "$IP" =~ $IPV4_RE ]]; then
+    # sslip.io: 1.2.3.4 -> 1-2-3-4.sslip.io (DNS sozlash KERAK EMAS)
+    DOMEN="${IP//./-}.sslip.io"
+else
+    fail "Serverning IPv4 manzili aniqlanmadi."
+    fail "Domenni qo'lda bering:"
+    fail "    ./infra/scripts/server-init.sh 134-122-66-200.sslip.io"
     exit 1
 fi
+LKDOMEN="livekit.$DOMEN"
 
-if [[ $# -ge 1 && -n "${1:-}" ]]; then
-    DOMEN="$1"
-    LKDOMEN="livekit.$1"
-else
-    # sslip.io: 1.2.3.4 -> 1-2-3-4.sslip.io (DNS sozlash KERAK EMAS)
-    DOMEN="$(echo "$IP" | tr '.' '-').sslip.io"
-    LKDOMEN="livekit.$DOMEN"
+# Domen berilgan, lekin IP topilmagan bo'lsa — `SERVER_PUBLIC_IP` uchun kerak.
+if [[ ! "$IP" =~ $IPV4_RE ]]; then
+    warn "IPv4 aniqlanmadi; SERVER_PUBLIC_IP bo'sh qoladi (LiveKit o'zi aniqlaydi)."
+    IP=""
 fi
 
-log "Server: $IP  |  Domen: $DOMEN  |  LiveKit: $LKDOMEN"
+log "Server: ${IP:-aniqlanmadi}  |  Domen: $DOMEN  |  LiveKit: $LKDOMEN"
 
 # ---------------------------------------------------------------- 1. Docker
 log "1/7 Docker"
@@ -97,13 +107,26 @@ fi
 
 # ---------------------------------------------------------------- 2. Swap
 log "2/7 Swap"
-if [[ "$(swapon --show | wc -l)" -gt 0 ]]; then
+# ⚠️ Swap MAVJUDLIGI `free` dan o'qiladi, `swapon --show` dan EMAS: oxirgisi
+# ba'zi muhitlarda (konteyner, cheklangan tty) bo'sh qaytaradi va skript
+# mavjud swap ustiga yana yozishga urinib "Text file busy" bilan yiqilardi.
+SWAP_KB="$(awk '/^SwapTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+if [[ "${SWAP_KB:-0}" -gt 0 ]]; then
     ok "allaqachon bor ($(free -h | awk '/Swap/{print $2}'))"
+elif [[ -e /swapfile ]]; then
+    warn "/swapfile bor, lekin yoqilmagan — yoqilmoqda"
+    swapon /swapfile 2>/dev/null && ok "yoqildi" || warn "yoqib bo'lmadi, davom etamiz"
 else
-    fallocate -l 4G /swapfile && chmod 600 /swapfile
-    mkswap -q /swapfile && swapon /swapfile
-    grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    ok "4G qo'shildi"
+    # Swap MAJBURIY emas: 4 GB RAM da usiz ham build o'tadi. Shuning uchun
+    # bu blok yiqilsa butun deploy to'xtamasin.
+    if fallocate -l 4G /swapfile 2>/dev/null && chmod 600 /swapfile \
+       && mkswap -q /swapfile 2>/dev/null && swapon /swapfile 2>/dev/null; then
+        grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        ok "4G qo'shildi"
+    else
+        warn "swap qo'shilmadi — RAM yetarli bo'lsa muammo emas"
+        rm -f /swapfile 2>/dev/null || true
+    fi
 fi
 free -h | head -2 | sed 's/^/     /'
 
