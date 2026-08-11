@@ -64,6 +64,40 @@ public interface IAssignmentService
     /// </exception>
     Task<SubmissionFileDownload> OpenFileAsync(
         long fileId, long actorId, CancellationToken ct = default);
+
+    // ================================================================= WAVE 1
+    //
+    // ★ RUXSAT QOIDASINI QAYTA ISHLATISH UCHUN IKKI DARVOZA.
+    //
+    // NIMA UCHUN OSHKOR QILINDI: vazifa SHARTINING biriktirmalari
+    // (`IAssignmentAttachmentService`) AYNI qoidaga bo'ysunishi kerak —
+    // "kim vazifani ko'radi" va "kim uni tahrirlaydi". Qoida esa juda
+    // nozik: kurs vazifasini HAR ustoz ko'radi (baholash uchun), lekin
+    // faqat o'quv bo'limi tahrirlaydi; guruh vazifasini esa o'sha
+    // guruhning ustozi/kuratori ham tahrirlaydi; o'quvchi faqat o'ziga
+    // TEGISHLI vazifani ko'radi va kurs vazifasida gating ham qatnashadi.
+    //
+    // Bu qoidani ikkinchi servisda qayta yozish — kafolatlangan xato:
+    // nusxalardan biri "kurs vazifasi" holatini o'tkazib yuborardi va
+    // ustoz butun platforma vazifalarining shartini tahrirlay olardi.
+
+    /// <summary>
+    /// Vazifani KO'RISH huquqini tekshiradi (rolga va nishoniga qarab).
+    /// O'quvchi uchun "menga tegishlimi" tekshiruvi ham shu yerda.
+    /// </summary>
+    /// <exception cref="Common.Exceptions.NotFoundException">Vazifa yo'q.</exception>
+    /// <exception cref="Common.Exceptions.ForbiddenException">Ruxsat yo'q.</exception>
+    Task EnsureCanReadAssignmentAsync(
+        long assignmentId, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Vazifani TAHRIRLASH huquqini tekshiradi — o'qishdan qat'iyroq.
+    /// O'quvchi hech qachon o'tmaydi.
+    /// </summary>
+    /// <exception cref="Common.Exceptions.NotFoundException">Vazifa yo'q.</exception>
+    /// <exception cref="Common.Exceptions.ForbiddenException">Ruxsat yo'q.</exception>
+    Task EnsureCanWriteAssignmentAsync(
+        long assignmentId, long actorId, CancellationToken ct = default);
 }
 
 /// <summary>

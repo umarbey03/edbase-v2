@@ -380,6 +380,10 @@ public sealed class CourseService(
             Name = RequireName(request.Name, "Dars nomi"),
             Description = RequireDescription(request.Description),
             DurationMin = RequireDuration(request.DurationMin),
+
+            // Yangi darsda media hali yo'q, ya'ni istalgan tur ruxsat etilgan
+            // (`ChangeKind` ning 409 to'sig'i faqat MAVJUD media uchun).
+            Kind = RequireKind(request.Kind),
             Position = await NextPositionAsync(
                 db.ModuleLessons.AsNoTracking().Where(l => l.ModuleId == moduleId).Select(l => l.Position), ct),
         };
@@ -404,6 +408,29 @@ public sealed class CourseService(
         lesson.Name = RequireName(request.Name, "Dars nomi");
         lesson.Description = RequireDescription(request.Description);
         lesson.DurationMin = RequireDuration(request.DurationMin);
+
+        // ★★ TURNI ALMASHTIRISH — 409 AGAR MOS KELMAYDIGAN MEDIA BO'LSA.
+        //
+        // 🔴 JIMGINA O'CHIRISH YO'Q: odatiy darsni imtihonga aylantirish
+        //    "videolarni avtomatik o'chirish" degani bo'lardi va bir soatlik
+        //    video bitta tugma bilan, ogohlantirishsiz yo'qolib ketardi.
+        //    Foydalanuvchiga NECHTA fayl qo'lda o'chirilishi kerakligi
+        //    aytiladi (qoida `ModuleLesson.ChangeKind` da).
+        //
+        // Sanoq FAQAT tur haqiqatan o'zgarganda olinadi — oddiy nom
+        // tahririda keraksiz `COUNT` so'rovi ketmasin.
+        var requestedKind = RequireKind(request.Kind);
+
+        if (requestedKind != lesson.Kind)
+        {
+            // Yangi turga MOS KELMAYDIGAN media soni. Bu — dars hozirgi turi
+            // bo'yicha ruxsat etilgan media, ya'ni foydalanuvchi ekranda
+            // ko'rib turgan ro'yxatning O'ZI.
+            var mismatched = await db.LessonAssets.AsNoTracking()
+                .CountAsync(a => a.LessonId == lessonId && a.Kind == lesson.AllowedAssetKind, ct);
+
+            lesson.ChangeKind(requestedKind, mismatched);
+        }
 
         await SaveWithGuardAsync(ct);
 
@@ -569,97 +596,30 @@ public sealed class CourseService(
 
     // ================================================================= TARTIB
 
-    /// <summary>
-    /// Ro'yxatni 0,1,2... qilib ZICH qayta raqamlaydi va yangi raqamlarni
-    /// qaytaradi.
-    ///
-    /// Kirish ro'yxati ALLAQACHON kerakli tartibda bo'lishi kerak — bu metod
-    /// tartiblamaydi, faqat RAQAMLAYDI. Uchala tur (kurs, modul, dars) uchun
-    /// bitta ishlanma: raqamlash mantiqi uch joyda takrorlansa, ular vaqt
-    /// o'tib bir-biridan ajralib ketardi.
-    /// </summary>
+    // ⚠️ `Reindex`, `ArrangeByRequest` va `NextPositionAsync` BU YERDAN
+    //    OLIB TASHLANDI -> `PositionOrdering` (izohlar ham u yerda).
+    //
+    // ★ NIMA UCHUN: AYNI qoidani endi dars mediasi (`LessonAssetService`) va
+    //   vazifa sharti biriktirmalari ham ishlatadi. Nusxalansa, bir kuni
+    //   ulardan birida "TO'LIQ ro'yxat" tekshiruvi bo'shashib YARIM tartib
+    //   yozilib qolardi — gating esa aynan shu tartibga tayanadi.
+    //
+    // Quyidagi uch o'ram (wrapper) ATAYLAB qoldirildi: chaqiruv joylari
+    // (uchta reorder, uchta create, uchta delete) o'zgarmasin va diff
+    // o'qiladigan bo'lsin.
+
     private static List<PositionDto> Reindex<T>(
-        IReadOnlyList<T> ordered, Func<T, long> id, Action<T, int> setPosition)
-    {
-        var result = new List<PositionDto>(ordered.Count);
+        IReadOnlyList<T> ordered, Func<T, long> id, Action<T, int> setPosition) =>
+        PositionOrdering.Reindex(ordered, id, setPosition);
 
-        for (var index = 0; index < ordered.Count; index++)
-        {
-            setPosition(ordered[index], index);
-            result.Add(new PositionDto(id(ordered[index]), index));
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// So'ralgan Id ketma-ketligi bo'yicha qatorlarni saflaydi.
-    ///
-    /// ★ TO'LIQLIK QAT'IY TEKSHIRILADI: takror Id, yetishmayotgan element
-    /// yoki begona Id bo'lsa — 400 va HECH NARSA yozilmaydi.
-    ///
-    /// NIMA UCHUN SHUNCHALIK QAT'IY: yarim ro'yxat qabul qilinsa, yuborilmagan
-    /// elementlarni qayerga qo'yish kerakligi noaniq bo'lardi (boshigami,
-    /// oxirigami?) va ikki kurator bir vaqtda tartiblaganda natija
-    /// aytib bo'lmaydigan bo'lardi. Gating esa aynan shu tartibga tayanadi.
-    /// </summary>
     private static List<T> ArrangeByRequest<T>(
         List<T> rows, ReorderRequest request, Func<T, long> id, string what)
-        where T : class
-    {
-        ArgumentNullException.ThrowIfNull(request);
+        where T : class =>
+        PositionOrdering.ArrangeByRequest(rows, request, id, what);
 
-        var requested = request.OrderedIds;
-
-        if (requested is null || requested.Count == 0)
-            throw Invalid(OrderedIdsField, what + " tartibi uchun ro'yxat bo'sh bo'lmasligi kerak.");
-
-        var seen = new HashSet<long>(requested.Count);
-
-        foreach (var value in requested)
-        {
-            if (!seen.Add(value))
-            {
-                throw Invalid(OrderedIdsField,
-                    "Ro'yxatda takrorlangan Id bor: " + value.ToString(CultureInfo.InvariantCulture));
-            }
-        }
-
-        if (requested.Count != rows.Count)
-        {
-            var mismatch = string.Create(
-                CultureInfo.InvariantCulture,
-                $"Ro'yxat to'liq emas: {rows.Count} ta element kutilgan edi, {requested.Count} ta keldi.");
-
-            throw Invalid(OrderedIdsField,
-                mismatch + " Tartiblashda BARCHA elementlar yuborilishi shart.");
-        }
-
-        var arranged = new List<T>(rows.Count);
-
-        foreach (var value in requested)
-        {
-            var row = rows.Find(candidate => id(candidate) == value)
-                ?? throw Invalid(OrderedIdsField,
-                    what + " ro'yxatiga tegishli bo'lmagan Id: "
-                    + value.ToString(CultureInfo.InvariantCulture));
-
-            arranged.Add(row);
-        }
-
-        return arranged;
-    }
-
-    /// <summary>
-    /// Yangi element uchun tartib raqami — MAVJUD maksimumdan keyingisi.
-    ///
-    /// `Count` EMAS: eski ma'lumotda tartib zich bo'lmasligi mumkin (seed
-    /// `Position = 1` dan boshlaydi), o'shanda `Count` mavjud raqamga
-    /// tushib qolardi va ikki element bir xil o'ringa da'vo qilardi.
-    /// </summary>
-    private static async Task<int> NextPositionAsync(
+    private static Task<int> NextPositionAsync(
         IQueryable<int> positions, CancellationToken ct) =>
-        (await positions.MaxAsync(position => (int?)position, ct) ?? -1) + 1;
+        PositionOrdering.NextPositionAsync(positions, ct);
 
     // ================================================================= proyeksiya
 
@@ -715,6 +675,29 @@ public sealed class CourseService(
                     l.Description,
                     l.Position,
                     l.DurationMin,
+                    l.Kind,
+
+                    // ★ MEDIA AYNI SO'ROVDA (correlated projection) — dars
+                    //   boshiga alohida so'rov YO'Q. 🔴 `ObjectKey` bu
+                    //   proyeksiyaga UMUMAN kirmaydi: u DTO'ga tasodifan
+                    //   ham tushib qolmasligi kerak (16-tuzoq).
+                    l.Assets
+                        .OrderBy(a => a.Position)
+                        .ThenBy(a => a.Id)
+                        .Select(a => new LessonAssetDto(
+                            a.Id,
+                            a.LessonId,
+                            a.Kind,
+                            a.Position,
+                            a.Title,
+                            a.ContentType,
+                            a.SizeBytes,
+                            a.DurationSec,
+                            a.Width,
+                            a.Height,
+                            a.CreatedAt))
+                        .ToList(),
+
                     db.Assignments.Any(a => a.ModuleLessonId == l.Id),
 
                     // Faqat E'LON QILINGAN test — `GatingService` ham
@@ -750,6 +733,7 @@ public sealed class CourseService(
         {
             return new CourseLessonDto(
                 row.Id, row.ModuleId, row.Name, row.Description, row.Position, row.DurationMin,
+                row.Kind, row.Assets,
                 Unlocked: true, LockReason: null, Completed: false, row.HasAssignment, row.HasTest);
         }
 
@@ -770,6 +754,19 @@ public sealed class CourseService(
             unlocked ? row.Description : null,
             row.Position,
             row.DurationMin,
+
+            // Dars TURI qulflangan darsda ham ko'rinadi: o'quvchi oldinda
+            // imtihon turganini bilishi kerak (bu MAZMUN emas, YO'L
+            // xaritasi).
+            row.Kind,
+
+            // 🔴 MEDIA RO'YXATI QULFLANGAN DARSDA BO'SH — `Description`
+            //    bilan AYNI qoida. Aks holda o'quvchi qulflangan darsning
+            //    video qismlarini (nomlari va davomiyligi bilan) ko'rardi
+            //    va gating yarim ma'noga aylanardi. Fayl OQIMI baribir
+            //    to'silgan (`LessonAssetService.EnsureCanReadAsync`), ya'ni
+            //    bu ikkinchi qatlam — "UI'da yashirish" EMAS.
+            unlocked ? row.Assets : [],
             unlocked,
             reason,
 
@@ -871,6 +868,23 @@ public sealed class CourseService(
                 l.Description,
                 l.Position,
                 l.DurationMin,
+                l.Kind,
+                l.Assets
+                    .OrderBy(a => a.Position)
+                    .ThenBy(a => a.Id)
+                    .Select(a => new LessonAssetDto(
+                        a.Id,
+                        a.LessonId,
+                        a.Kind,
+                        a.Position,
+                        a.Title,
+                        a.ContentType,
+                        a.SizeBytes,
+                        a.DurationSec,
+                        a.Width,
+                        a.Height,
+                        a.CreatedAt))
+                    .ToList(),
                 db.Assignments.Any(a => a.ModuleLessonId == l.Id),
                 db.Tests.Any(t => t.ModuleLessonId == l.Id && t.IsPublished)))
             .FirstOrDefaultAsync(ct)
@@ -947,6 +961,29 @@ public sealed class CourseService(
         return value;
     }
 
+    /// <summary>
+    /// Dars turi ENUM'da mavjudmi.
+    ///
+    /// ★ NIMA UCHUN KERAK: `JsonStringEnumConverter` noma'lum SATRni
+    /// (`"Imtihon"`) 400 bilan rad etadi, lekin klient RAQAM ham yuborishi
+    /// mumkin (`"kind": 7`) — u holda konverter uni jimgina qabul qiladi va
+    /// bazaga ma'nosi yo'q qiymat tushardi. `AllowedAssetKind` esa o'shanda
+    /// `DomainException` (409) berardi — foydalanuvchi uchun tushunarsiz.
+    /// Shu yerdagi tekshiruv aniq 400 va aniq sabab beradi.
+    /// </summary>
+    private static LessonKind RequireKind(LessonKind kind)
+    {
+        if (!Enum.IsDefined(kind))
+        {
+            throw Invalid(
+                "kind",
+                "Dars turi noma'lum. Ruxsat etilgan qiymatlar: "
+                + string.Join(", ", Enum.GetNames<LessonKind>()) + ".");
+        }
+
+        return kind;
+    }
+
     private static int? RequireDuration(int? durationMin)
     {
         if (durationMin is null) return null;
@@ -992,7 +1029,9 @@ public sealed class CourseService(
     /// <summary>10 soat — bu chegara xatoni ushlash uchun, real dars uchun emas.</summary>
     private const int MaxDurationMin = 600;
 
-    private const string OrderedIdsField = "orderedIds";
+    // `orderedIds` maydon nomi endi `PositionOrdering.OrderedIdsField` da —
+    // 400 javobidagi `problem.errors` kaliti hamma reorder yo'lida BIR XIL
+    // bo'lishi kerak (frontend aynan shu kalitni o'qiydi).
 
     private sealed record CourseHead(
         long Id,
@@ -1017,6 +1056,8 @@ public sealed class CourseService(
         string? Description,
         int Position,
         int? DurationMin,
+        LessonKind Kind,
+        List<LessonAssetDto> Assets,
         bool HasAssignment,
         bool HasTest);
 }

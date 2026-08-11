@@ -73,6 +73,7 @@ public static class SettingsRegistry
         SettingGroup.LiveKit => "LiveKit (jonli dars)",
         SettingGroup.Storage => "Ombor (fayllar)",
         SettingGroup.Security => "Xavfsizlik",
+        SettingGroup.Content => "O'quv kontenti",
         _ => group.ToString(),
     };
 
@@ -85,6 +86,7 @@ public static class SettingsRegistry
         SettingGroup.LiveKit => "Jonli dars serveri bilan bog'lanish parametrlari.",
         SettingGroup.Storage => "Uy vazifasi fayllari saqlanadigan obyekt ombori.",
         SettingGroup.Security => "Sessiya, token va ulanish sirlari.",
+        SettingGroup.Content => "Dars videosi va rasmlari uchun hajm chegaralari.",
         _ => string.Empty,
     };
 
@@ -473,6 +475,60 @@ public static class SettingsRegistry
                 + "o'qiladi. " + StartupBoundReason,
         },
 
+        // ================================================================ O'QUV KONTENTI
+
+        new()
+        {
+            Key = "lesson.video_max_mb",
+            Group = SettingGroup.Content,
+            DisplayName = "Dars videosi hajmi (MB)",
+            Description =
+                "Bitta video QISMI shu hajmdan oshmasligi kerak. Dars bir necha qismga "
+                + "bo'linadi, ya'ni chegara BUTUN darsga emas, har faylga tegishli. "
+                + "Oshsa server 413 qaytaradi. "
+                + "⚠️ Qiymatni oshirishdan oldin nginx'dagi `client_max_body_size` ni "
+                + "tekshiring — u kichik bo'lsa so'rov API'ga umuman yetib bormaydi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Lessons:VideoMaxMb",
+            DefaultValue = "1024",
+
+            // Pastki chegara 1 MB: nol yoki manfiy qiymat yuklashni butunlay
+            // o'chirib qo'yardi va sabab UI'da "413" dan boshqa hech narsa
+            // bo'lmasdi.
+            Minimum = 1m,
+
+            // ★ YUQORI CHEGARA — SHUNCHAKI "aql bovar qilmaydigan qiymat"
+            //   FILTRI EMAS. So'rov tanasining QAT'IY yuqori chegarasi
+            //   (`LessonAssetsController.MaxUploadBytes`) AYNAN shu raqamdan
+            //   kelib chiqadi: ASP.NET multipart faylni MODEL BOG'LASHDA,
+            //   ya'ni bizning kodimizdan OLDIN vaqtinchalik diskka
+            //   buferlaydi. Ya'ni administrator qo'yadigan eng katta qiymat
+            //   = eng yomon holatdagi disk sarfi. 2048 MB — bir dars qismi
+            //   uchun yetarlicha ko'p va disk uchun hamon xavfsiz.
+            Maximum = 2048m,
+        },
+
+        new()
+        {
+            Key = "lesson.image_max_mb",
+            Group = SettingGroup.Content,
+            DisplayName = "Imtihon rasmi hajmi (MB)",
+            Description =
+                "Imtihon darsiga yuklanadigan bitta rasm shu hajmdan oshmasligi kerak. "
+                + "Skaner qilingan A4 varaq odatda 1-3 MB. Oshsa server 413 qaytaradi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Lessons:ImageMaxMb",
+            DefaultValue = "10",
+            Minimum = 1m,
+
+            // 100 MB — rasm uchun aniq xato belgisi (bunday "rasm" amalda
+            // yo'q). Chegarani ochiq qoldirish imtihon rasmi yo'lini video
+            // yuklash yo'liga aylantirib qo'yardi.
+            Maximum = 100m,
+        },
+
         // ================================================================ XAVFSIZLIK
 
         new()
@@ -637,6 +693,10 @@ public static class SettingsRegistry
         public const string StorageAccessKey = "storage.access_key";
         public const string StorageSecretKey = "storage.secret_key";
         public const string StorageRegion = "storage.region";
+
+        // ---------------------------------------------------------------- WAVE 1
+        public const string LessonVideoMaxMb = "lesson.video_max_mb";
+        public const string LessonImageMaxMb = "lesson.image_max_mb";
     }
 
     /// <summary>

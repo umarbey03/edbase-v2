@@ -150,7 +150,32 @@ public sealed class RuntimeSettings : IRuntimeSettings, IHostedService, IDisposa
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        await _stopping.CancelAsync().ConfigureAwait(false);
+        // ════════════════════════════════════════════════════════════════
+        // ★ `Dispose()` ALLAQACHON O'TGAN BO'LISHI MUMKIN — bu XATO EMAS.
+        //
+        // Ishlab chiqarishda tartib to'g'ri: `IHost.StopAsync()`, keyin
+        // `Dispose()`. Lekin `WebApplicationFactory` (integratsiya
+        // testlari) host'ni boshqacha yopadi va `StopAsync` allaqachon
+        // yopilgan CTS ustida chaqirilishi mumkin. O'shanda
+        // `CancelAsync()` `ObjectDisposedException` tashlaydi, u host'ning
+        // `AggregateException` iga qo'shiladi va BUTUN test sinfi
+        // "Cleanup Failure" bilan QIZIL bo'lardi — testlar muvaffaqiyatli
+        // o'tgan bo'lsa ham. Nosozlik SUZUVCHI (flaky): u qaysi host
+        // birinchi yopilishiga bog'liq.
+        //
+        // Bu test uchun yumshatish EMAS: "to'xtatishni ikki marta
+        // chaqirish xavfsiz" — `IHostedService` uchun to'g'ri shartnoma va
+        // u yopilish yo'lini kutilmagan tartibda ham barqaror qiladi.
+        // ════════════════════════════════════════════════════════════════
+        try
+        {
+            await _stopping.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Allaqachon yopilgan — qiladigan ish qolmadi.
+            return;
+        }
 
         if (_loop is { } loop)
         {

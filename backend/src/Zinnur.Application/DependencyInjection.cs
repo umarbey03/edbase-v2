@@ -90,6 +90,26 @@ public static class DependencyInjection
         // darslari ko'rinardi.
         services.AddScoped<ICourseService, CourseService>();
 
+        // ---------------------------------------------------------------- WAVE 1
+        //
+        // DARS MEDIASI (video qismlari / imtihon rasmlari) va UY VAZIFASI
+        // SHARTINING biriktirmalari.
+        //
+        // SCOPED va `ICourseService` DAN ALOHIDA:
+        //  • SCOPED, chunki `IGatingService` (so'rov ichida keshlanadigan
+        //    snapshot) va `IPaymentBlockService` ga bog'liq. Singleton bo'lsa
+        //    scoped bog'liqlik ushlab qolinib "captive dependency" hosil
+        //    bo'lardi: BIRINCHI so'rovning gating snapshot'i butun ilova
+        //    umriga qotib qolardi va hamma o'quvchiga o'sha bitta
+        //    o'quvchining ochiq darslari ko'rinardi.
+        //  • ALOHIDA interfeys, chunki media yo'li OQIM bilan ishlaydi
+        //    (`IMediaStorage`). Uni kurs daraxti CRUD'iga qo'shish
+        //    `ICourseService` ni omborga bog'lab qo'yardi — hozir u faqat
+        //    bazani biladi va shu tufayli ombor sozlanmagan muhitda ham
+        //    to'liq ishlaydi.
+        services.AddScoped<ILessonAssetService, LessonAssetService>();
+        services.AddScoped<IAssignmentAttachmentService, AssignmentAttachmentService>();
+
         // ---------------------------------------------------------------- FAZA 4.3
         //
         // MOLIYA. SCOPED — servis `DbContext` ning ChangeTracker'iga tayanadi:

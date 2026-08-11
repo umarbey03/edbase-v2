@@ -71,6 +71,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
 
+    // ---------------------------------------------------------------- WAVE 1: dars mediasi
+
+    public DbSet<LessonAsset> LessonAssets => Set<LessonAsset>();
+
+    public DbSet<AssignmentAttachment> AssignmentAttachments => Set<AssignmentAttachment>();
+
     // ---------------------------------------------------------------- FAZA 4: moliya
 
     public DbSet<Payment> Payments => Set<Payment>();

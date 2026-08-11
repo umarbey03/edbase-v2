@@ -120,6 +120,11 @@ public sealed class AssignmentService(
             .AsNoTracking()
             .Include(a => a.Group)
             .Include(a => a.ModuleLesson)
+
+            // WAVE 1: SHART biriktirmalari — o'quvchi shartni to'liq ko'rishi
+            // kerak (audio namuna, varaq rasmi). `Include` bitta so'rovda
+            // keladi, ya'ni vazifa boshiga alohida so'rov YO'Q.
+            .Include(a => a.Attachments)
             .Where(a => (a.GroupId != null && groupIds.Contains(a.GroupId.Value))
                      || (a.ModuleLessonId != null && courseLessonIds.Contains(a.ModuleLessonId.Value)))
             .OrderBy(a => a.DueAt == null)
@@ -162,6 +167,14 @@ public sealed class AssignmentService(
                 a.DueAt,
                 a.AllowedFormats,
                 a.ImageKey,
+
+                // 🔴 QULFLANGAN DARSNING vazifasida shart biriktirmalari
+                //    BERILMAYDI: `Description` ochiq qolayotgani mavjud
+                //    xatti-harakat (uni o'zgartirish qamrovdan tashqarida),
+                //    lekin YANGI maydonni ochib qo'yish gating teshigini
+                //    KENGAYTIRISH bo'lardi. Fayl oqimi baribir to'silgan
+                //    (`AssignmentAttachmentService`), bu — ikkinchi qatlam.
+                unlocked ? MapAttachments(a.Attachments) : [],
                 a.IsOverdue(now),
                 unlocked,
                 canSubmit,
@@ -185,6 +198,8 @@ public sealed class AssignmentService(
         //   • GURUH vazifasi — o'z guruhiga ustoz/kurator ham beradi.
         await EnsureCanCreateAsync(actor, request.GroupId, request.ModuleLessonId, ct);
         await EnsureTargetExistsAsync(request.GroupId, request.ModuleLessonId, ct);
+
+        RequireAnswerFormats(request.AllowedFormats);
 
         var assignment = new Assignment
         {
@@ -221,6 +236,8 @@ public sealed class AssignmentService(
             ?? throw new NotFoundException(nameof(Assignment), id);
 
         await EnsureCanWriteAsync(actor, assignment, ct);
+
+        RequireAnswerFormats(request.AllowedFormats);
 
         // NISHON (guruh / dars) O'ZGARTIRILMAYDI: topshirilgan javoblar
         // begona vazifaga tegib qolardi va baholar aralashardi. Boshqa nishon
@@ -592,6 +609,42 @@ public sealed class AssignmentService(
             throw new ForbiddenException("Faqat o'z guruhingizga vazifa bera olasiz.");
     }
 
+    /// <summary>
+    /// WAVE 1: O'QISH darvozasi — OSHKOR yo'l (shart biriktirmalari uchun).
+    ///
+    /// Ichida `GetAsync` bilan AYNI ikki tarmoq: o'quvchi -> "menga
+    /// tegishlimi", xodim -> rol va nishon qoidasi. Qoida TAKRORLANMAYDI.
+    /// </summary>
+    public async Task EnsureCanReadAssignmentAsync(
+        long assignmentId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        var assignment = await db.Assignments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assignmentId, ct)
+            ?? throw new NotFoundException(nameof(Assignment), assignmentId);
+
+        if (actor.Role == UserRole.Student)
+            await EnsureVisibleToStudentAsync(assignment, actor.Id, ct);
+        else
+            await EnsureCanReadAsync(actor, assignment, ct);
+    }
+
+    /// <summary>
+    /// WAVE 1: YOZISH darvozasi — OSHKOR yo'l (shart biriktirmalari uchun).
+    /// </summary>
+    public async Task EnsureCanWriteAssignmentAsync(
+        long assignmentId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        var assignment = await db.Assignments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assignmentId, ct)
+            ?? throw new NotFoundException(nameof(Assignment), assignmentId);
+
+        await EnsureCanWriteAsync(actor, assignment, ct);
+    }
+
     /// <summary>O'QISH ruxsati (vazifa kartochkasi, javoblar ro'yxati).</summary>
     private async Task EnsureCanReadAsync(User actor, Assignment assignment, CancellationToken ct)
     {
@@ -884,6 +937,48 @@ public sealed class AssignmentService(
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
 
+    /// <summary>
+    /// ★★ KAMIDA BITTA JAVOB FORMATI TANLANISHI SHART — 400.
+    ///
+    /// 🔴 NIMA UCHUN ALOHIDA TEKSHIRUV, `Assignment.Validate()` YETARLI
+    /// EMAS: Domain bu holatni allaqachon ushlaydi, lekin
+    /// `DomainException` -> HTTP **409**. 409 esa "holat ziddiyati"
+    /// degani va frontend uni `problem.detail` orqali umumiy xato deb
+    /// ko'rsatardi — ya'ni foydalanuvchi QAYSI MAYDON xato ekanini
+    /// bilmasdi. Bu esa AYNAN maydon validatsiyasi: shu yerda 400 va
+    /// `problem.errors["allowedFormats"]` beriladi, ya'ni forma xatoni
+    /// to'g'ri katakcha ostida ko'rsatadi.
+    ///
+    /// ★★ NIMA UCHUN BU UMUMAN JIMGINA TUZOQ: `AllowedFormats = None`
+    /// bo'lgan vazifa MUVAFFAQIYATLI yaratilardi va o'quvchi uni ko'rardi,
+    /// lekin HAR QANDAY javob `EnsureFormatAllowed` da rad etilardi. Ya'ni
+    /// vazifa mavjud, muddati ketmoqda, topshirish esa TEXNIK JIHATDAN
+    /// imkonsiz — va sabab faqat bazadagi bitta nolda ko'rinardi.
+    /// </summary>
+    private static void RequireAnswerFormats(AnswerFormats formats)
+    {
+        if (formats == AnswerFormats.None)
+        {
+            throw Invalid(
+                "allowedFormats",
+                "Kamida bitta javob formati tanlanishi shart (matn, rasm yoki audio). "
+                + "Aks holda o'quvchi bu vazifaga javob berolmaydi.");
+        }
+
+        // Enumda mavjud bo'lmagan bayroq (masalan 64) — klient xatosi.
+        // `[Flags]` uchun `Enum.IsDefined` ISHLAMAYDI (u faqat aniq
+        // qiymatlarni biladi), shuning uchun MA'LUM bayroqlar maskasi
+        // bilan solishtiriladi.
+        const AnswerFormats Known = AnswerFormats.Text | AnswerFormats.Image | AnswerFormats.Audio;
+
+        if ((formats & ~Known) != AnswerFormats.None)
+        {
+            throw Invalid(
+                "allowedFormats",
+                "Javob formati noma'lum. Ruxsat etilganlar: Text, Image, Audio.");
+        }
+    }
+
     // ---------------------------------------------------------------- proyeksiya
 
     /// <summary>
@@ -903,11 +998,48 @@ public sealed class AssignmentService(
             a.DueAt,
             a.AllowedFormats,
             a.ImageKey,
+
+            // WAVE 1: shart biriktirmalari AYNI so'rovda (correlated
+            // projection) — vazifa boshiga alohida so'rov YO'Q.
+            // 🔴 `ObjectKey` bu proyeksiyaga UMUMAN kirmaydi (16-tuzoq).
+            a.Attachments
+                .OrderBy(x => x.Position)
+                .ThenBy(x => x.Id)
+                .Select(x => new AssignmentAttachmentDto(
+                    x.Id,
+                    x.AssignmentId,
+                    x.Kind,
+                    x.Position,
+                    x.ContentType,
+                    x.SizeBytes,
+                    x.DurationSec,
+                    x.CreatedAt))
+                .ToList(),
             a.CreatedById,
             db.Submissions.Count(s => s.AssignmentId == a.Id),
             db.Submissions.Count(s => s.AssignmentId == a.Id && s.Status == SubmissionStatus.Graded),
             a.CreatedAt,
             a.UpdatedAt));
+
+    /// <summary>
+    /// Entity kolleksiyasidan DTO ro'yxati (o'quvchi yo'li `Include` bilan
+    /// ishlaydi, ya'ni bu yerda IFODA DARAXTI emas, oddiy o'girish).
+    /// </summary>
+    private static List<AssignmentAttachmentDto> MapAttachments(
+        IEnumerable<AssignmentAttachment> attachments) =>
+        attachments
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.Id)
+            .Select(x => new AssignmentAttachmentDto(
+                x.Id,
+                x.AssignmentId,
+                x.Kind,
+                x.Position,
+                x.ContentType,
+                x.SizeBytes,
+                x.DurationSec,
+                x.CreatedAt))
+            .ToList();
 
     private static IQueryable<SubmissionRow> ProjectSubmissions(IQueryable<Submission> rows) =>
         rows.Select(s => new SubmissionRow(

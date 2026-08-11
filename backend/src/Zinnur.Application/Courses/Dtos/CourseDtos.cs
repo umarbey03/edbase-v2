@@ -1,4 +1,5 @@
 using Zinnur.Application.Gating.Dtos;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Courses.Dtos;
 
@@ -114,6 +115,19 @@ public sealed record CourseModuleDto(
 /// joyda boshqa-boshqa ta'rif bo'lsa "test bor, lekin ochilmaydi" degan
 /// ziddiyat chiqardi.
 /// </param>
+/// <param name="Kind">
+/// Dars turi: <c>"Normal"</c> (video) yoki <c>"Exam"</c> (rasm). JSON'da
+/// SATR — `Program.cs` dagi `JsonStringEnumConverter` shunday chiqaradi.
+/// </param>
+/// <param name="Assets">
+/// Dars mediasi: video qismlari (odatiy dars) yoki rasmlar (imtihon), TARTIB
+/// bo'yicha.
+///
+/// ★ QULFLANGAN DARSDA BO'SH ro'yxat — <paramref name="Description"/> bilan
+/// AYNI qoida: sarlavha ko'rinadi, MAZMUN yo'q. Aks holda o'quvchi
+/// qulflangan darsning video ro'yxatini (nomlari va davomiyligi bilan)
+/// ko'rardi va gating yarim ma'noga aylanardi.
+/// </param>
 public sealed record CourseLessonDto(
     long Id,
     long ModuleId,
@@ -121,11 +135,53 @@ public sealed record CourseLessonDto(
     string? Description,
     int Position,
     int? DurationMin,
+    LessonKind Kind,
+    IReadOnlyList<LessonAssetDto> Assets,
     bool Unlocked,
     LessonLockReason? LockReason,
     bool Completed,
     bool HasAssignment,
     bool HasTest);
+
+/// <summary>
+/// Darsga biriktirilgan bitta media (video qismi yoki imtihon rasmi).
+///
+/// 🔴 `objectKey` BU YERDA YO'Q VA HECH QACHON QO'SHILMAYDI
+/// (`DAVOM_ETTIRISH.md` 6-bo'lim, 16-tuzoq). Ombor kaliti — ICHKI
+/// joylashuv ma'lumoti: uni javobga solish ombor tuzilishini oshkor qiladi
+/// va klient uni to'g'ridan-to'g'ri so'rovda ishlatishga urinadi, o'shanda
+/// esa ruxsat tekshiruvi ma'nosini yo'qotadi. Fayl DOIM
+/// <c>GET /api/v1/lessons/assets/{assetId}</c> orqali, har so'rovda
+/// tekshiriladigan ruxsat bilan o'qiladi.
+/// </summary>
+/// <param name="Kind">`"Video"` yoki `"Image"` (JSON'da SATR).</param>
+/// <param name="Title">
+/// Ko'rinadigan nom ("1-qism"). <c>null</c> bo'lishi mumkin — UI o'shanda
+/// tartib raqamidan nom yasaydi.
+/// </param>
+/// <param name="DurationSec">
+/// Davomiylik (sekund). <c>null</c> — noma'lum.
+///
+/// ⚠️ QIYMAT KLIENTDAN KELADI (brauzer `&lt;video&gt;.duration` dan o'qiydi):
+/// serverda media dekoder YO'Q. Ya'ni bu maydon FAQAT KO'RSATISH uchun va
+/// unga biror QAROR bog'lash mumkin emas — masalan "video ko'rildi"
+/// mezoni sifatida ishlatilsa, klient qiymatni o'zgartirib progressni
+/// qalbakilashtira olardi.
+/// </param>
+/// <param name="Width">Piksel kengligi (rasm galereyasi joy hisoblashi uchun).</param>
+/// <param name="Height">Piksel balandligi.</param>
+public sealed record LessonAssetDto(
+    long Id,
+    long LessonId,
+    LessonAssetKind Kind,
+    int Position,
+    string? Title,
+    string ContentType,
+    long SizeBytes,
+    int? DurationSec,
+    int? Width,
+    int? Height,
+    DateTimeOffset CreatedAt);
 
 /// <summary>Ro'yxat filtri. Barcha maydonlar ixtiyoriy.</summary>
 /// <param name="Search">Kurs nomi bo'yicha qism-satr (kamida 2 belgi).</param>
@@ -161,15 +217,33 @@ public sealed record CreateModuleRequest(string Name);
 
 public sealed record UpdateModuleRequest(string Name);
 
+/// <param name="Kind">
+/// Dars turi. Berilmasa <c>Normal</c> — mavjud klientlar buzilmasin
+/// (ular bu maydonni umuman yubormaydi).
+/// </param>
 public sealed record CreateLessonRequest(
     string Name,
     string? Description = null,
-    int? DurationMin = null);
+    int? DurationMin = null,
+    LessonKind Kind = LessonKind.Normal);
 
+/// <summary>
+/// Darsni tahrirlash — TO'LIQ shakl (PUT semantikasi).
+/// </summary>
+/// <param name="Kind">
+/// 🔴 TURNI ALMASHTIRISH mos kelmaydigan media bo'lsa **409** qaytaradi
+/// (jimgina o'chirish YO'Q — bir soatlik video shunday yo'qolib ketmasligi
+/// kerak). Qoida <c>ModuleLesson.ChangeKind</c> da.
+///
+/// ⚠️ `PUT` = TO'LIQ ALMASHTIRISH: bu maydon yuborilmasa dars `Normal`
+/// bo'lib qoladi. Tahrirlash formasi joriy qiymatni QAYTARIB yuborishi
+/// shart (`DAVOM_ETTIRISH.md` 6-bo'lim, 1-tuzoq).
+/// </param>
 public sealed record UpdateLessonRequest(
     string Name,
     string? Description = null,
-    int? DurationMin = null);
+    int? DurationMin = null,
+    LessonKind Kind = LessonKind.Normal);
 
 /// <summary>
 /// Tartibni o'zgartirish so'rovi.

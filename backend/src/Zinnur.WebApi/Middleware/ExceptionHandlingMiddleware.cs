@@ -106,6 +106,17 @@ public sealed class ExceptionHandlingMiddleware(
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        // 416 da `Content-Range: bytes */<hajm>` MAJBURIY (HTTP standarti):
+        // klient shu qiymatdan faylning haqiqiy hajmini bilib, to'g'ri
+        // oraliq bilan qayta so'raydi. Busiz ba'zi video pleyerlar bir xil
+        // yaroqsiz oraliqni cheksiz qayta yuboraverardi.
+        if (ex is RangeNotSatisfiableException unsatisfiable)
+        {
+            context.Response.Headers.ContentRange = string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"bytes */{unsatisfiable.TotalLength}");
+        }
+
         await context.Response
             .WriteAsync(JsonSerializer.Serialize(problem, JsonOptions))
             .ConfigureAwait(false);
@@ -128,6 +139,17 @@ public sealed class ExceptionHandlingMiddleware(
 
         ValidationException =>
             (StatusCodes.Status400BadRequest, "Ma'lumot noto'g'ri", ex.Message),
+
+        // Fayl juda katta. 400 EMAS: AYNI shartni Kestrel ham tekshiradi va
+        // u 413 qaytaradi — ikki xil kod bo'lsa frontend ikki tarmoqli
+        // mantiq yozardi (batafsil: `PayloadTooLargeException` izohi).
+        PayloadTooLargeException =>
+            (StatusCodes.Status413PayloadTooLarge, "Fayl juda katta", ex.Message),
+
+        // `Range` so'rovi fayl chegarasidan tashqarida. `Content-Range`
+        // sarlavhasi pastda, javob yozilishidan OLDIN qo'yiladi.
+        RangeNotSatisfiableException =>
+            (StatusCodes.Status416RangeNotSatisfiable, "Oraliq yaroqsiz", ex.Message),
 
         // Use-case ichidagi tezlik chegarasi (foydalanuvchi bo'yicha).
         // `Retry-After` sarlavhasi javob yozilishidan oldin qo'yiladi —
