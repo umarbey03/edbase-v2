@@ -284,6 +284,202 @@ public class LessonGateTests
         dto.UnlockedOverride.Should().BeFalse();
     }
 
+    // ============================================ ★ GURUH BOSHLANISH NUQTASI
+    //
+    // Guruh kursning O'RTASIDAN boshlagan holat (`Group.VideoStartLessonId`).
+    // Bu bo'lim ikkita HAQIQIY nosozlikni qo'riqlaydi:
+    //   1) zanjir 0-darsdan yuritilsa, o'quvchi hech qachon o'tmagan 20 ta
+    //      darsni "tugatmagan" bo'lib turadi va BUTUN kurs qulflanadi;
+    //   2) ustoz sur'ati MUTLAQ taqqoslansa (`index > taughtLessonCount`),
+    //      20-darsdan boshlagan guruh abadiy `TeacherPace` da qoladi —
+    //      sur'at hech qachon 20 ga yetmaydi, chunki hisob guruh ochilgan
+    //      kundan boshlanadi.
+
+    /// <summary>★ Boshlanish nuqtasidan OLDINGI dars — alohida sabab bilan yopiq.</summary>
+    [Fact]
+    public void Evaluate_BeforeGroupStart_IsLockedWithItsOwnReason()
+    {
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 1, Empty(2), Empty(1), taughtLessonCount: 50, startIndex: 5);
+
+        unlocked.Should().BeFalse();
+        reason.Should().Be(LessonLockReason.BeforeGroupStart,
+            "o'quvchiga \"oldingi darsni tugat\" deyish ma'nosiz — u bu darsni "
+            + "hech qachon o'tmaydi");
+    }
+
+    /// <summary>
+    /// ★★ GURUH UCHUN BIRINCHI dars DOIM ochiq — sur'at 0 bo'lsa ham va
+    /// oldingi dars tugatilmagan bo'lsa ham. Aks holda kursning o'rtasidan
+    /// boshlagan guruh uni umuman boshlay olmasdi.
+    /// </summary>
+    [Fact]
+    public void Evaluate_AtGroupStart_IsAlwaysUnlocked()
+    {
+        var previous = Empty(20) with { HasAssignment = true, AssignmentSubmitted = false };
+
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 20, Empty(21), previous, taughtLessonCount: 0, startIndex: 20);
+
+        unlocked.Should().BeTrue();
+        reason.Should().BeNull();
+    }
+
+    /// <summary>
+    /// ★ USTOZ SUR'ATI NISBIY: guruh 2 ta dars o'tgan bo'lsa, u
+    /// 20- va 21-darslarni o'tgan, ya'ni 22-dars ham ochiladi.
+    /// </summary>
+    [Fact]
+    public void Evaluate_MeasuresTeacherPaceRelativeToGroupStart()
+    {
+        var atPace = LessonGate.Evaluate(
+            index: 22, Empty(23), Empty(22), taughtLessonCount: 2, startIndex: 20);
+
+        atPace.Unlocked.Should().BeTrue("22 − 20 = 2, ya'ni sur'at bilan barobar");
+
+        var beyondPace = LessonGate.Evaluate(
+            index: 22, Empty(23), Empty(22), taughtLessonCount: 1, startIndex: 20);
+
+        beyondPace.Unlocked.Should().BeFalse();
+        beyondPace.Reason.Should().Be(LessonLockReason.TeacherPace);
+    }
+
+    /// <summary>
+    /// ★ QO'LDA OCHISH boshlanish nuqtasidan ham USTUN: o'tib ketilgan
+    /// qismni o'zlashtirmoqchi bo'lgan o'quvchiga o'quv bo'limi darsni
+    /// ocha oladi.
+    /// </summary>
+    [Fact]
+    public void Evaluate_WithOverride_UnlocksEvenBeforeGroupStart()
+    {
+        var current = Empty(3) with { UnlockedOverride = true };
+
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 2, current, Empty(2), taughtLessonCount: 0, startIndex: 10);
+
+        unlocked.Should().BeTrue();
+        reason.Should().BeNull();
+    }
+
+    /// <summary>
+    /// ★★ ENG MUHIM TEKSHIRUV: zanjir boshlanish nuqtasidan yuritiladi.
+    ///
+    /// 0- va 1-darslarda TOPSHIRILMAGAN vazifa bor, ya'ni ular
+    /// "tugatilmagan". Eski qoida bilan bu 2-darsni `PreviousIncomplete`
+    /// bilan yopib, butun kursni qulflab qo'yardi. Boshlanish nuqtasi 2 da
+    /// bo'lganda esa 2-dars OCHIQ: o'tib ketilgan darslar zanjirga umuman
+    /// kirmaydi.
+    /// </summary>
+    [Fact]
+    public void EvaluateAll_StartsTheChainAtGroupStart_IgnoringSkippedLessons()
+    {
+        static LessonFacts Incomplete(long id) =>
+            Empty(id) with { HasAssignment = true, AssignmentSubmitted = false };
+
+        var lessons = new List<LessonFacts>
+        {
+            Incomplete(1),      // o'tib ketilgan, tugatilmagan
+            Incomplete(2),      // o'tib ketilgan, tugatilmagan
+            Empty(3),           // ★ guruh SHU YERDAN boshlaydi
+            Empty(4),
+        };
+
+        var result = LessonGate.EvaluateAll(lessons, taughtLessonCount: 1, startIndex: 2);
+
+        result[0].Unlocked.Should().BeFalse();
+        result[0].LockReason.Should().Be(LessonLockReason.BeforeGroupStart);
+
+        result[1].Unlocked.Should().BeFalse();
+        result[1].LockReason.Should().Be(LessonLockReason.BeforeGroupStart);
+
+        result[2].Unlocked.Should().BeTrue(
+            "guruh uchun birinchi dars — tugatilmagan 2-dars uni QULFLAMASLIGI kerak");
+        result[2].LockReason.Should().BeNull();
+
+        result[3].Unlocked.Should().BeTrue(
+            "3-dars talabsiz (tugatilgan) va sur'at bitta darsga yetadi");
+    }
+
+    /// <summary>
+    /// ★★ PROGRESS MAXRAJI. Guruh o'tmaydigan darslar hisobga kirmasligi
+    /// kerak — aks holda progress abadiy pastda qotib qolardi.
+    ///
+    /// Backend maxrajni O'ZI hisoblamaydi (frontend uni kurs daraxtidan
+    /// yig'adi), lekin ajratish MEZONI aynan shu yerda tug'iladi. Test
+    /// shartnomani qo'riqlaydi: "maxraj = <c>BeforeGroupStart</c> bo'lmagan
+    /// darslar soni" va u <c>jami − startIndex</c> ga TENG bo'lishi shart.
+    /// </summary>
+    [Fact]
+    public void EvaluateAll_ProgressDenominatorExcludesLessonsBeforeGroupStart()
+    {
+        var lessons = new List<LessonFacts>
+        {
+            Empty(1), Empty(2), Empty(3), Empty(4), Empty(5),
+        };
+
+        const int startIndex = 3;
+
+        var result = LessonGate.EvaluateAll(lessons, taughtLessonCount: 10, startIndex);
+
+        var denominator = result.Count(l => l.LockReason != LessonLockReason.BeforeGroupStart);
+
+        denominator.Should().Be(lessons.Count - startIndex,
+            "guruh 5 ta darsdan faqat 2 tasini o'tadi — maxraj ham 2 bo'lishi kerak");
+
+        // Surat ham AYNI to'plamdan olinadi: o'tilmaydigan dars "tugatilgan"
+        // deb sanalmaydi, chunki u ochiq ham emas.
+        result.Count(l => l.Unlocked && l.Completed).Should().Be(2,
+            "ikkala o'tiladigan dars talabsiz -> ochiq va tugatilgan");
+    }
+
+    /// <summary>
+    /// ★★ REGRESSIYA QULFI: <c>startIndex = 0</c> da natija boshlanish
+    /// nuqtasi TUSHUNCHASI UMUMAN YO'Q holat bilan bit-to-bit bir xil.
+    ///
+    /// Bu test yangi maydonni sozlamagan MAVJUD guruhlarni qo'riqlaydi —
+    /// ular uchun hech narsa o'zgarmasligi kerak.
+    /// </summary>
+    [Fact]
+    public void EvaluateAll_WithZeroStartIndex_MatchesTheLegacyBehaviourExactly()
+    {
+        var lessons = new List<LessonFacts>
+        {
+            Empty(1),
+            Empty(2) with { HasAssignment = true, AssignmentSubmitted = false },
+            Empty(3),
+            Empty(4) with { UnlockedOverride = true },
+            Empty(5),
+        };
+
+        foreach (var pace in new[] { 0, 1, 3, 99 })
+        {
+            var legacy = LessonGate.EvaluateAll(lessons, pace);
+            var explicitZero = LessonGate.EvaluateAll(lessons, pace, startIndex: 0);
+
+            explicitZero.Should().BeEquivalentTo(legacy,
+                "boshlanish nuqtasi qo'yilmagan guruhda gating O'ZGARMASLIGI kerak");
+
+            legacy.Should().NotContain(l => l.LockReason == LessonLockReason.BeforeGroupStart,
+                "cheklovsiz kursda bu sabab hech qachon paydo bo'lmaydi");
+        }
+    }
+
+    /// <summary>
+    /// Boshlanish nuqtasi kursning OXIRGI darsida: faqat u ochiq bo'ladi,
+    /// qolgani `BeforeGroupStart` (chegara holati).
+    /// </summary>
+    [Fact]
+    public void EvaluateAll_WithStartIndexOnTheLastLesson_UnlocksOnlyThatLesson()
+    {
+        var lessons = new List<LessonFacts> { Empty(1), Empty(2), Empty(3) };
+
+        var result = LessonGate.EvaluateAll(lessons, taughtLessonCount: 0, startIndex: 2);
+
+        result.Select(l => l.Unlocked).Should().Equal(false, false, true);
+        result[0].LockReason.Should().Be(LessonLockReason.BeforeGroupStart);
+        result[1].LockReason.Should().Be(LessonLockReason.BeforeGroupStart);
+    }
+
     // ================================================================== himoya
 
     [Fact]

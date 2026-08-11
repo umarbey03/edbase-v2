@@ -94,12 +94,14 @@ public sealed class GroupService(
 
         await EnsureCourseExistsAsync(request.CourseId, ct);
         await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
+        await EnsureVideoStartLessonAsync(request.CourseId, request.VideoStartLessonId, ct);
 
         var group = new Group
         {
             Name = name,
             Type = request.Type,
             CourseId = request.CourseId,
+            VideoStartLessonId = request.VideoStartLessonId,
             TeacherId = request.TeacherId,
             AssistantId = request.AssistantId,
             CuratorGroupId = request.CuratorGroupId,
@@ -177,6 +179,26 @@ public sealed class GroupService(
         await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
         await EnsureCuratorLinkAsync(group, request.CuratorGroupId, ct);
 
+        // ★★ VIDEO BOSHLANISH NUQTASI **YANGI** KURSGA QARAB TEKSHIRILADI.
+        //
+        // 🔴 KURS ALMASHGANDA MAYDON ESKI QIYMATDA QOLIB KETMASLIGI kerak:
+        // begona kursning darsi guruhda qolsa gating uni umuman topa olmasdi
+        // ("dars kursga tegishli emas") va o'quvchi uchun butun kurs
+        // tushunarsiz qulflanib qolardi.
+        //
+        // BU YERDA U O'ZI-O'ZIDAN HAL BO'LADI, chunki `PUT` = TO'LIQ
+        // ALMASHTIRISH: yuborilmagan maydon `null` ga tushadi, ya'ni kursni
+        // almashtirgan klient boshlanish nuqtasini yubormasa u TOZALANADI.
+        // Yuborsa esa tekshiruv `request.CourseId` (YANGI kurs) bo'yicha
+        // ketadi — eski kursning darsi 400 bo'lib qaytadi va bazaga HECH
+        // NARSA yozilmaydi. Ya'ni "eski kursning darsi qolib ketishi"
+        // holati mumkin emas: u yoki tozalanadi, yoki 400 bo'ladi.
+        //
+        // Jimgina tozalash (400 o'rniga) ATAYLAB TANLANMADI: klient aniq
+        // yuborgan qiymatni indamay tashlab yuborish UI xatosini yashirardi
+        // va o'quv bo'limi xodimi sozlama saqlanmaganini sezmasdi.
+        await EnsureVideoStartLessonAsync(request.CourseId, request.VideoStartLessonId, ct);
+
         // ---- QAROR: taqqoslash O'ZGARTIRISHDAN OLDIN bajariladi ----
         var scheduleChanged = group.ScheduleRuleDiffersFrom(
             request.StartDate,
@@ -195,6 +217,7 @@ public sealed class GroupService(
         group.Name = name;
         group.Type = request.Type;
         group.CourseId = request.CourseId;
+        group.VideoStartLessonId = request.VideoStartLessonId;
         group.TeacherId = request.TeacherId;
         group.AssistantId = request.AssistantId;
         group.CuratorGroupId = request.CuratorGroupId;
@@ -779,6 +802,51 @@ public sealed class GroupService(
     }
 
     /// <summary>
+    /// ========================================================================
+    /// ★ VIDEO BOSHLANISH DARSI GURUHNING KURSIGA TEGISHLIMI
+    /// ========================================================================
+    ///
+    /// Bu tekshiruv Domain'da BO'LMAYDI: "dars qaysi kursning modulida"
+    /// degan faktni faqat baza biladi (dars -> modul -> kurs zanjiri).
+    /// Domain esa kurssiz guruhda boshlanish nuqtasi bo'lmasligini
+    /// o'zi qo'riqlaydi (<c>Group.ValidateScheduleRule</c>).
+    ///
+    /// XATO TURI — <see cref="ValidationException"/> (HTTP 400), 409 emas:
+    /// bu murojaat TANASIDAGI yaroqsiz qiymat, mavjud ma'lumot bilan
+    /// to'qnashuv emas. Sabab `problem.errors["videoStartLessonId"]` da
+    /// tushunarli o'zbekcha matn bo'lib qaytadi.
+    ///
+    /// MAVJUD BO'LMAGAN dars ham 404 emas, AYNI 400 ni oladi: tashqi
+    /// kuzatuvchi uchun "yo'q dars" va "begona kursning darsi" bir xil
+    /// javob berishi kerak — aks holda javob kodi boshqa kurslarda qanday
+    /// dars Id'lari borligini oshkor qilardi.
+    /// </summary>
+    private async Task EnsureVideoStartLessonAsync(
+        long? courseId, long? videoStartLessonId, CancellationToken ct)
+    {
+        if (videoStartLessonId is not { } lessonId) return;
+
+        if (courseId is null)
+        {
+            throw Invalid(VideoStartLessonField,
+                "Guruhga kurs biriktirilmagan. Video darslar boshlanish nuqtasini "
+                + "tanlash uchun avval guruhga kurs biriktiring.");
+        }
+
+        var belongs = await db.ModuleLessons.AsNoTracking()
+            .AnyAsync(l => l.Id == lessonId && l.Module!.CourseId == courseId, ct);
+
+        if (!belongs)
+        {
+            throw Invalid(VideoStartLessonField,
+                "Tanlangan dars guruhning kursiga tegishli emas. Video darslar "
+                + "boshlanish nuqtasi FAQAT shu guruhga biriktirilgan kursning "
+                + "darslaridan tanlanadi. Kursni almashtirgan bo'lsangiz, "
+                + "boshlanish darsini ham yangi kursdan qaytadan tanlang.");
+        }
+    }
+
+    /// <summary>
     /// Ustoz va kurator MAVJUD va O'QUVCHI EMAS ekanini tekshiradi
     /// (bitta so'rovda — ikki alohida so'rov shart emas).
     /// </summary>
@@ -886,6 +954,17 @@ public sealed class GroupService(
             g.Type,
             g.CourseId,
             g.Course == null ? null : g.Course.Name,
+
+            // VIDEO BOSHLANISH NUQTASI. Nomlar ichki `SELECT` bilan olinadi —
+            // navigatsiya property'si ataylab yo'q (sabab: `GroupConfiguration`).
+            // UI ikkisini "3-modul · 2-dars" ko'rinishida birga ko'rsatadi,
+            // shuning uchun modul nomi ham AYNI so'rovda keladi (N+1 yo'q).
+            g.VideoStartLessonId,
+            db.ModuleLessons.Where(l => l.Id == g.VideoStartLessonId)
+                .Select(l => l.Name).FirstOrDefault(),
+            db.ModuleLessons.Where(l => l.Id == g.VideoStartLessonId)
+                .Select(l => l.Module!.Name).FirstOrDefault(),
+
             g.TeacherId,
             db.Users.Where(u => u.Id == g.TeacherId).Select(u => u.FullName).FirstOrDefault(),
             g.AssistantId,
@@ -917,6 +996,9 @@ public sealed class GroupService(
         p.Type,
         p.CourseId,
         p.CourseName,
+        p.VideoStartLessonId,
+        p.VideoStartLessonName,
+        p.VideoStartModuleName,
         p.TeacherId,
         p.TeacherName,
         p.AssistantId,
@@ -947,6 +1029,12 @@ public sealed class GroupService(
     private const int MinSearchLength = 2;
     private const int MaxNameLength = 150;
 
+    /// <summary>
+    /// `problem.errors` kaliti — JSON maydon nomi bilan AYNAN bir xil
+    /// (camelCase), aks holda frontend xatoni maydon yoniga qo'ya olmasdi.
+    /// </summary>
+    private const string VideoStartLessonField = "videoStartLessonId";
+
     private const string InPlaceReason =
         "Jadval qoidasi o'zgarmadi — mavjud darslar O'RNIDA tahrirlandi. "
         + "Dars Id'lari, LiveKit xona nomlari, davomat va chat saqlandi.";
@@ -964,6 +1052,9 @@ public sealed class GroupService(
         GroupType Type,
         long? CourseId,
         string? CourseName,
+        long? VideoStartLessonId,
+        string? VideoStartLessonName,
+        string? VideoStartModuleName,
         long? TeacherId,
         string? TeacherName,
         long? AssistantId,
