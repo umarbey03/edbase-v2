@@ -1812,6 +1812,55 @@ Bu fayllar boshqa agentda. Quyidagilar — bu qo'llanma ishlashi uchun
 - [ ] Sertifikat yo'llari `/etc/letsencrypt/live/<domen>/` (symlink) orqali.
 - [ ] `http` → `https` 301 redirect.
 
+#### 9.2.1. Fayl yuklash va video oqimi chegaralari
+
+Dars videosi (2 GB gacha), vazifa sharti biriktirmasi va o'quvchi javobi
+API orqali yuklanadi/oqim qilinadi. nginx bu yo'llarni **standart
+sozlamalarda to'sib qo'yadi**, shuning uchun ular `zinnur.conf` da
+**alohida `location` bloklarida** turadi (5.2-bo'lim).
+
+| Yo'l | `client_max_body_size` | Nega aynan shuncha |
+|---|---|---|
+| `POST /api/v1/lessons/{id}/assets` | `2049m` | Kestrel `MaxUploadBytes` = 2048 MiB + 1 MiB (multipart o'rami fayldan katta). `2048m` qo'yilsa maksimal hajmli video nginx'ning 413 si bilan qaytardi |
+| `POST /api/v1/assignments/{id}/attachments` | `101m` | `lesson.image_max_mb` sozlamasining **maksimumi** (100 MB) + 1 MiB. Haqiqiy chegara sozlamadan keladi (standart 10 MB) va uni backend qo'llaydi |
+| `POST /api/v1/assignments/{id}/submit` | `51m` | 5 fayl × 10 MB + 1 MiB (`Submission.MaxAttachments`). ⚠️ Bu yo'l **ilgari ham buzilgan edi**: backend 51 MB kutardi, nginx 10m da 413 berardi |
+| **qolgan hamma joy** | **`10m`** (server darajasi) | 🔴 **O'ZGARTIRILMAYDI.** Server darajasida `2049m` qo'yish — xavfsizlik regressiyasi: u holda autentifikatsiyasiz endpointlar ham (masalan `/api/v1/auth/login`) 2 GB tana qabul qilardi |
+
+Yuklash bloklarida majburiy:
+
+```nginx
+proxy_request_buffering off;   # 2 GB DISKKA buferlanmasin (2x I/O, disk to'ladi)
+client_body_timeout 300s;      # bo'laklar ORASIDAGI tanaffus (umumiy vaqt EMAS)
+proxy_send_timeout 3600s;      # 2 GB ni 10 Mbit/s da yuklash ~28 daqiqa
+proxy_read_timeout 3600s;      # /api/ dagi 60s yuklashni o'rtasida uzardi (504)
+```
+
+Oqim (GET) bloklarida majburiy — `Range`/`206` (videoda oldinga o'tish)
+buzilmasligi uchun:
+
+```nginx
+proxy_buffering off;           # javob temp faylga spool bo'lmasin, seek tez bo'lsin
+proxy_max_temp_file_size 0;    # ikkinchi qulf
+gzip off;                      # gzip `Content-Length` ni buzadi, bayt oraliqlari mos kelmaydi
+```
+
+🔴 **Nginx `location` larni MEROS QILMAYDI** — bu yerda eng ko'p xato qiladi:
+
+- [ ] `limit_req` — `/api/` blokidagi cheklov yangi bloklarga **o'tmaydi**.
+      Yuklash uchun alohida zona bor (`zinnur_upload`, `1r/s` + `burst=30`);
+      u bo'lmasa yuklash endpointlari **umuman cheklovsiz** qolardi.
+- [ ] `proxy_set_header` — blokda bittasi yozilsa tashqi darajadagi **butun
+      to'plam** bekor bo'ladi, shuning uchun beshtasi ham takrorlanadi.
+- [ ] `add_header` — yuklash/oqim bloklarida **ataylab yozilmagan**. Bitta
+      `add_header` qo'shilsa, server darajasidagi **beshta xavfsizlik
+      sarlavhasi** (HSTS, nosniff, X-Frame-Options, Referrer-Policy,
+      Permissions-Policy) o'sha yo'llarda **jimgina yo'qoladi**.
+- [ ] `location` **ustuvorligi tartibga bog'liq emas**: regex (`~`) oddiy
+      prefiksdan (`/api/`) har qanday holatda ustun keladi; `= /aniq/yo'l`
+      esa regexdan ham ustun.
+- [ ] Deploy'dan keyingi tekshiruv buyruqlari — `infra/nginx/zinnur.conf`,
+      7.5-bo'lim (413 sinovi + `Range` → 206 sinovi).
+
 ### 9.3. `infra/livekit/livekit.yaml` — 🔴 eng muhim tuzoq
 
 **LiveKit ICE nomzodlarida serverning OMMAVIY IP'sini e'lon qilishi shart.**
@@ -1896,6 +1945,49 @@ o'zgarmaydi:
 ```bash
 docker compose restart livekit
 ```
+
+### "Video yuklanmayapman deydi" / `413 Request Entity Too Large`
+
+Bu deyarli har doim **nginx**, backend emas. Ajratish oson: nginx 413 si —
+`Server: nginx` bilan **HTML** sahifa, backend 413 si — **JSON**
+(`ProblemDetails`).
+
+```bash
+# 1) Xato nginx logida bormi?
+sudo grep -i 'client intended to send too large body' /var/log/nginx/zinnur.error.log
+
+# 2) Yuklash bloklari serverda MAVJUDMI (deploy eski konfig bilan ketmadimi)?
+sudo grep -n 'client_max_body_size' /etc/nginx/sites-available/zinnur.conf
+#    Kutilgan: 10m (server), 2049m, 101m, 51m (location bloklari) — 9.2.1
+
+# 3) Konfig yangilanganidan keyin reload qilinganmi?
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+`504 Gateway Time-out` yuklash **o'rtasida** chiqsa — so'rov yuklash blokiga
+tushmayapti (`location` regexi yo'lga mos kelmayapti) va `/api/` dagi `60s`
+ishlayapti. Yo'lni tekshiring: `/api/v1/lessons/<ID>/assets` da `<ID>`
+**faqat raqam** bo'lishi kerak (regex `[0-9]+`).
+
+### "Videoda oldinga o'ta olmayman (seek ishlamaydi)"
+
+`Range` so'rovi `206` qaytarmayapti degani:
+
+```bash
+curl -s -D - -o /dev/null -H "Authorization: Bearer $TOKEN" \
+     -H 'Range: bytes=100-199' https://<domen>/api/v1/lessons/assets/1 | head -20
+```
+
+Kutilgan: `HTTP/1.1 206`, `Content-Range: bytes 100-199/<TOTAL>`,
+`Accept-Ranges: bytes` va **`Content-Encoding` BO'LMASLIGI**.
+
+* `200` kelsa (206 emas) — so'rov `/api/` blokida qolgan yoki `Range`
+  sarlavhasi backendga yetmagan (`proxy_set_header` to'plami buzilgan).
+* `Content-Encoding: gzip` ko'rinsa — kimdir `gzip_types` ga
+  `application/octet-stream` yoki `video/*` qo'shgan: **darhol olib
+  tashlansin**, gzip bayt oraliqlarini buzadi (9.2.1).
+* Video sekin boshlansa/seek qotib qolsa — `proxy_buffering off` oqim
+  blokidan tushib qolgan (javob temp faylga spool bo'lyapti).
 
 ### "SSH kira olmayapman"
 
