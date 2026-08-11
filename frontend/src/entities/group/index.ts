@@ -24,6 +24,7 @@ export {
   groupTypeTone,
   memberStatusLabel,
   memberStatusTone,
+  videoStartLabel,
   weekdayLabel,
 } from './model/types'
 export type { GroupTone } from './model/types'

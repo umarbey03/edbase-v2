@@ -1,4 +1,4 @@
-export { GROUP_TABS, visibleGroupTabs } from './model/tabs'
+export { defaultGroupTab, GROUP_TABS, visibleGroupTabs } from './model/tabs'
 export type { GroupTabDef, GroupTabKey } from './model/tabs'
 export { heldSummary } from './model/calendar'
 export { default as AttendanceTab } from './ui/AttendanceTab.vue'

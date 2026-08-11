@@ -138,6 +138,20 @@ export interface GroupDto {
   type: GroupTypeName
   courseId: number | null
   courseName: string | null
+  /* ===== WAVE 2 · GURUH (wave2/groups) ===== */
+  /**
+   * Video darslar QAYSI kurs darsidan boshlanadi. `null` — guruh kursni
+   * BOSHIDAN boshlaydi (eng ko'p uchraydigan holat).
+   *
+   * ★ Uchala maydon BIRGA `null` yoki BIRGA to'ldirilgan (server kafolati):
+   * nomlar bazada ichki `SELECT` bilan olinadi, ya'ni ro'yxat uchun
+   * qo'shimcha so'rov ketmaydi. Shuning uchun UI nomni ko'rsatish uchun
+   * kurs daraxtini yuklashi SHART EMAS.
+   */
+  videoStartLessonId: number | null
+  videoStartLessonName: string | null
+  videoStartModuleName: string | null
+  /* ===== /WAVE 2 · GURUH ===== */
   teacherId: number | null
   teacherName: string | null
   assistantId: number | null
@@ -621,6 +635,16 @@ export interface UpdateUserRequest {
   role: UserRoleName
 }
 
+/**
+ * `POST /groups` va `PUT /groups/{id}` uchun YAGONA shakl.
+ *
+ * ★ NEGA BITTA TUR, backendda ikkitasi bo'lsa ham (`CreateGroupRequest` va
+ * `UpdateGroupRequest`): ikkala record MAYDON-MAYDON AYNAN bir xil
+ * (`GroupDtos.cs`, 2026-08-11 holati). Ikki nusxa tur yozilsa yangi maydon
+ * bittasiga qo'shilib ikkinchisida unutilardi — bu esa `PUT` to'liq
+ * almashtirish semantikasida maydonni jimgina `null` ga tushirardi.
+ * Shakllar ajralib ketsa AYNI SHU joyda ikkiga bo'linadi.
+ */
 export interface GroupWriteRequest {
   name: string
   /** `YYYY-MM-DD` */
@@ -632,6 +656,21 @@ export interface GroupWriteRequest {
   durationMinutes: number
   courseMonths: number
   courseId?: number | null
+  /* ===== WAVE 2 · GURUH (wave2/groups) ===== */
+  /**
+   * Video darslar boshlanish nuqtasi (kurs darsining Id'si).
+   *
+   * 🔴 `PUT` = TO'LIQ ALMASHTIRISH: yuborilmasa yoki `null` yuborilsa guruh
+   * kursni boshidan boshlaydigan holatga QAYTADI. Tahrirlash formasi joriy
+   * qiymatni yuklab, qaytarib yuborishi shart.
+   *
+   * 🔴 Kurs almashtirilganda BU MAYDON YUBORILMAYDI (yoki yangi kursning
+   * darsi yuboriladi): eski kursning darsi 400 bilan rad etiladi
+   * (`problem.errors.videoStartLessonId`). Kurssiz guruhda dars yuborilsa
+   * ham 400.
+   */
+  videoStartLessonId?: number | null
+  /* ===== /WAVE 2 · GURUH ===== */
   teacherId?: number | null
   assistantId?: number | null
   curatorGroupId?: number | null

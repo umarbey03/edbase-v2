@@ -1,3 +1,4 @@
+import { isManagerRole } from '@/entities/user'
 import type { IconName } from '@/shared/ui'
 
 /**
@@ -61,7 +62,51 @@ export const GROUP_TABS: readonly GroupTabDef[] = [
  */
 const CURATOR_HIDDEN_TABS: readonly GroupTabKey[] = ['tests', 'board']
 
-export function visibleGroupTabs(isCurator: boolean): GroupTabDef[] {
-  if (!isCurator) return [...GROUP_TABS]
-  return GROUP_TABS.filter((tab) => !CURATOR_HIDDEN_TABS.includes(tab.key))
+/**
+ * ★ O'QUV BO'LIMI/ADMIN UCHUN BIRINCHI TAB — o'quvchilar ro'yxati.
+ *
+ * Talab (loyiha egasi): *"guruh ichiga kirilganda o'quvchilar ro'yxati
+ * birinchi o'rinda"*. Bu `DIZAYN_KOCHIRISH_REJASI.md` ning "tartib aynan"
+ * mezoniga ATAYLAB qilingan chekinish.
+ *
+ * 🔴 QAMROV FAQAT `Academic`/`Admin`: ular guruhga ro'yxat bilan ishlash
+ * uchun kiradi. USTOZ VA KURATORDA TARTIB TEGILMAYDI — ular kunda darsga
+ * kiradi va birinchi tab o'zgarsa har kunlik ish oqimi buzilardi.
+ *
+ * ★ IKKI NUSXA RO'YXAT YASALMADI: bitta `GROUP_TABS` + rolga qarab
+ * tartiblash. Ikki nusxada yangi tab bittasiga qo'shilib ikkinchisida
+ * unutilardi.
+ */
+const MANAGER_FIRST_TAB: GroupTabKey = 'students'
+
+/**
+ * Rolga mos KO'RINADIGAN tablar, TO'G'RI TARTIBDA.
+ *
+ * `role` — `useAuthStore().role` (`null` bo'lsa eng cheklangan variant:
+ * standart tartib, hech narsa yashirilmaydi).
+ */
+export function visibleGroupTabs(role: string | null): GroupTabDef[] {
+  const visible =
+    role === 'Assistant'
+      ? GROUP_TABS.filter((tab) => !CURATOR_HIDDEN_TABS.includes(tab.key))
+      : [...GROUP_TABS]
+
+  if (role === null || !isManagerRole(role)) return visible
+
+  return [
+    ...visible.filter((tab) => tab.key === MANAGER_FIRST_TAB),
+    ...visible.filter((tab) => tab.key !== MANAGER_FIRST_TAB),
+  ]
+}
+
+/**
+ * Sahifa ochilganda qaysi tab faol bo'lishi.
+ *
+ * ★ ATAYLAB "ko'rinadigan tablarning BIRINCHISI": standart tab qattiq
+ * yozilsa (masalan `'att'`) u rolda YASHIRILGAN bo'lib qolishi mumkin edi
+ * (kuratorda `tests`) va sahifa bo'sh ochilardi. Shu bilan birga bu qoida
+ * "o'quvchilar birinchi" talabini o'z-o'zidan bajaradi.
+ */
+export function defaultGroupTab(role: string | null): GroupTabKey {
+  return visibleGroupTabs(role)[0]?.key ?? 'att'
 }
