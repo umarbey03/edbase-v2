@@ -12,6 +12,7 @@ import {
   groupTypeLabel,
   regenerateSchedule,
   restoreGroup,
+  videoStartLabel,
 } from '@/entities/group'
 import { isManagerRole } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
@@ -21,6 +22,7 @@ import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import {
   AttendanceTab,
   BoardTab,
+  defaultGroupTab,
   GradesTab,
   GroupTabs,
   heldSummary,
@@ -98,11 +100,20 @@ const schedule = computed(() => scheduleQuery.data.value ?? [])
 const auth = useAuthStore()
 const canManage = computed(() => auth.role !== null && isManagerRole(auth.role))
 
-/** ★ Eski `isCurator` sharti: kurator uchun Testlar va Reyting tablari yo'q. */
-const isCurator = computed(() => auth.role === 'Assistant')
-const tabs = computed(() => visibleGroupTabs(isCurator.value))
+/*
+  TABLAR ROLGA QARAB: kuratorda Testlar/Reyting yo'q (eski qoida), o'quv
+  bo'limi/adminda esa "O'quvchilar" BIRINCHI (yangi talab, `tabs.ts` izohi).
+  Ustoz/kuratorda tartib TEGILMAGAN.
+*/
+const tabs = computed(() => visibleGroupTabs(auth.role))
 
-const activeTab = ref<GroupTabKey>('att')
+/*
+  Standart tab ham rolga mos: `defaultGroupTab` ko'rinadigan tablarning
+  birinchisini beradi, ya'ni o'quv bo'limi guruhga kirganda darhol o'quvchilar
+  ro'yxatini ko'radi. Rol router guard'ida (`auth.bootstrap()`) allaqachon
+  aniqlangan bo'ladi, shuning uchun boshlang'ich qiymat to'g'ri chiqadi.
+*/
+const activeTab = ref<GroupTabKey>(defaultGroupTab(auth.role))
 
 const groupError = computed(() =>
   groupQuery.error.value !== null ? toUserMessage(groupQuery.error.value) : null,
@@ -155,6 +166,33 @@ const regenerateMutation = useMutation({
     regenerateError.value = toUserMessage(error)
   },
 })
+
+/* ------------------------------------- o'quvchi profili va to'lov holati */
+
+/**
+ * ⚠️ VAQTINCHALIK ISHLOVCHILAR — `GroupMembersPanel` dagi `user` va `wallet`
+ * ikonkalari uchun.
+ *
+ * `features/student-profile` (o'ngdan chiquvchi profil paneli, ichida to'lov
+ * bo'limi ham bor) AYNI PAYTDA qardosh branch'da yozilmoqda. Uni bu yerdan
+ * import qilish ikki branch'ni bir-biriga bog'lab, merge'ni to'sib qo'yardi.
+ * Shuning uchun panel faqat HODISA chiqaradi, sahifa esa hozircha nima
+ * bo'layotganini AYTADI — jimgina hech narsa qilmaydigan tugma
+ * "ilova buzuq" degan xulosaga olib boradi.
+ *
+ * // TODO(wave2/users): profil drawer'i ulanadi — `studentProfileId` ref'i
+ * // `<StudentProfileDrawer :student-id="...">` ga beriladi, `pendingNote`
+ * // butunlay olib tashlanadi (bu izoh ham).
+ */
+const pendingNote = ref<string | null>(null)
+
+function openStudentProfile(studentId: number): void {
+  pendingNote.value = `O‘quvchi profili paneli (#${studentId}) 2-to‘lqinning foydalanuvchilar bosqichida ulanadi.`
+}
+
+function openStudentWallet(studentId: number): void {
+  pendingNote.value = `To‘lov holati paneli (#${studentId}) profil paneli bilan birga ulanadi. Hozircha "Oylik to‘lovlar" bo‘limidan ko‘rish mumkin.`
+}
 
 /* -------------------------------------------------- baholash oynalari */
 
@@ -255,6 +293,24 @@ function refreshSubmissions(): void {
           class="mb-4 rounded-lg border border-brand-500/30 bg-brand-500/10 p-3.5 text-sm text-brand-200"
           v-text="actionNote"
         />
+        <!-- Hali ulanmagan panel haqida ochiq xabar (yuqoridagi TODO). -->
+        <div
+          v-if="pendingNote !== null"
+          class="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200"
+          role="status"
+        >
+          <span
+            class="min-w-0 flex-1"
+            v-text="pendingNote"
+          />
+          <BaseButton
+            size="sm"
+            variant="secondary"
+            @click="pendingNote = null"
+          >
+            Yopish
+          </BaseButton>
+        </div>
         <div
           v-if="actionError !== null"
           class="mb-4 rounded-lg border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200"
@@ -284,6 +340,21 @@ function refreshSubmissions(): void {
               <dd class="mt-0.5 font-medium tabular-nums text-slate-200">
                 {{ group.courseMonths }} oy
               </dd>
+            </div>
+            <!--
+              Video darslar QAYSI qismdan boshlanishi — guruh-daraja sozlama
+              (bir kurs, ko'p guruh: yarim yildan qo'shilgan guruh 1-moduldan
+              boshlamaydi). Kurssiz guruhda ma'nosi yo'q, shuning uchun
+              chiziqcha ko'rsatiladi.
+            -->
+            <div class="col-span-2">
+              <dt class="text-dim">
+                Video darslar boshlanishi
+              </dt>
+              <dd
+                class="mt-0.5 truncate font-medium text-slate-200"
+                v-text="group.courseId === null ? '—' : videoStartLabel(group)"
+              />
             </div>
             <div class="col-span-2">
               <dt class="text-dim">
@@ -352,6 +423,8 @@ function refreshSubmissions(): void {
           v-else-if="activeTab === 'students'"
           :group-id="groupId"
           :can-manage="canManage"
+          @open-profile="openStudentProfile"
+          @open-wallet="openStudentWallet"
         />
         <!--
           "Chat" tabi — guruhning DOIMIY umumiy chati. Ilgari bu yerda
