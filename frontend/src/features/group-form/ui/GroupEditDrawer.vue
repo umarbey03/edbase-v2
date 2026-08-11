@@ -329,10 +329,37 @@ function onCourseChange(event: Event): void {
 
 /* --------------------------------------------------------- saqlash oqimi */
 
+/*
+  🔴 INTEGRATSIYADA TOPILDI (brauzerda o'lchangan): serverning UCHTA yo'li bor,
+  bu funksiya esa faqat IKKITASINI ajratardi.
+
+  Faqat guruh NOMINI o'zgartirib saqlashda server quyidagini qaytaradi:
+      scheduleTouched: true, regenerated: false,
+      created: 0, deleted: 0, preserved: 0, titlesUpdated: 50
+  ya'ni darslar O'RNIDA tahrirlangan (Id, xona nomi, davomat, chat SAQLANGAN).
+  Eski matn esa aynan shu holatda «Jadval yangilandi: +0 / −0, saqlab qolindi 0»
+  deb yozardi — bu HAQIQATNING TESKARISI: xodim 50 ta dars o'chib ketgan va
+  hech nima saqlanmagan deb o'ylardi.
+
+  `created`/`deleted`/`preserved` FAQAT `regenerated: true` da ma'noga ega;
+  o'rnida tahrirlash `hostsUpdated`/`titlesUpdated` bilan o'lchanadi.
+*/
 function scheduleSummaryNote(summary: ScheduleChangeSummary): string {
-  return summary.scheduleTouched
-    ? `Saqlandi. Jadval yangilandi: +${summary.created} / −${summary.deleted}, saqlab qolindi ${summary.preserved}.`
-    : 'Saqlandi. Dars jadvaliga tegilmadi.'
+  if (!summary.scheduleTouched) return 'Saqlandi. Dars jadvaliga tegilmadi.'
+
+  if (summary.regenerated) {
+    return (
+      `Saqlandi. Jadval qayta tuzildi: +${summary.created} / −${summary.deleted}, ` +
+      `saqlab qolindi ${summary.preserved}.`
+    )
+  }
+
+  // O'rnida tahrirlash: dars o'chirilmadi, faqat nom/host yangilandi.
+  const parts: string[] = []
+  if (summary.titlesUpdated > 0) parts.push(`${summary.titlesUpdated} ta dars nomi`)
+  if (summary.hostsUpdated > 0) parts.push(`${summary.hostsUpdated} ta dars hosti`)
+  const what = parts.length > 0 ? parts.join(' va ') : 'mavjud darslar'
+  return `Saqlandi. Darslar o‘chirilmadi — ${what} o‘rnida yangilandi.`
 }
 
 const saveMutation = useMutation({

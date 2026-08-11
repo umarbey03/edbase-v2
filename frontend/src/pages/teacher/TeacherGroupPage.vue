@@ -34,6 +34,7 @@ import {
 } from '@/features/group-tabs'
 import type { GroupTabKey } from '@/features/group-tabs'
 import GroupMembersPanel from '@/features/group-members/ui/GroupMembersPanel.vue'
+import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import type { SubmissionDto } from '@/shared/types'
@@ -170,29 +171,34 @@ const regenerateMutation = useMutation({
 /* ------------------------------------- o'quvchi profili va to'lov holati */
 
 /**
- * ⚠️ VAQTINCHALIK ISHLOVCHILAR — `GroupMembersPanel` dagi `user` va `wallet`
- * ikonkalari uchun.
+ * ★ INTEGRATSIYADA ULANDI (`wave2/groups` qoldirgan `TODO(wave2/users)`).
  *
- * `features/student-profile` (o'ngdan chiquvchi profil paneli, ichida to'lov
- * bo'limi ham bor) AYNI PAYTDA qardosh branch'da yozilmoqda. Uni bu yerdan
- * import qilish ikki branch'ni bir-biriga bog'lab, merge'ni to'sib qo'yardi.
- * Shuning uchun panel faqat HODISA chiqaradi, sahifa esa hozircha nima
- * bo'layotganini AYTADI — jimgina hech narsa qilmaydigan tugma
- * "ilova buzuq" degan xulosaga olib boradi.
+ * Ilgari bu ikki ishlovchi faqat "keyinchalik ulanadi" degan izoh chiqarardi:
+ * `features/student-profile` qardosh branch'da yozilayotgan edi va uni bu
+ * yerdan import qilish ikki branch'ni bir-biriga bog'lab merge'ni to'sardi.
+ * Ikkala branch ham merge qilingandan keyin bu bog'liqlik yo'q — panel
+ * ULANDI, aks holda beshta ikonkadan IKKITASI hech narsa qilmasdi.
  *
- * // TODO(wave2/users): profil drawer'i ulanadi — `studentProfileId` ref'i
- * // `<StudentProfileDrawer :student-id="...">` ga beriladi, `pendingNote`
- * // butunlay olib tashlanadi (bu izoh ham).
+ * 🔴 IKKI IKONKA BITTA PANELNI ochadi (profil ichida to'lov bo'limi ham bor).
+ * Ular ATAYLAB birlashtirilmadi: "To'lov holati" xodimning odatiy yo'li va
+ * eski ilovada alohida tugma bo'lgan. To'lov bo'limining KO'RINISHI rolga
+ * bog'liq va u SERVERDA kesiladi (`finance === null` -> bo'lim umuman
+ * render qilinmaydi), ya'ni ustoz "To'lov holati" ni bossa ham moliyani
+ * ko'rmaydi — panel shunchaki profilni ko'rsatadi.
  */
-const pendingNote = ref<string | null>(null)
+const studentProfileId = ref<number | null>(null)
+const studentProfileOpen = ref(false)
 
 function openStudentProfile(studentId: number): void {
-  pendingNote.value = `O‘quvchi profili paneli (#${studentId}) 2-to‘lqinning foydalanuvchilar bosqichida ulanadi.`
+  studentProfileId.value = studentId
+  studentProfileOpen.value = true
 }
 
-function openStudentWallet(studentId: number): void {
-  pendingNote.value = `To‘lov holati paneli (#${studentId}) profil paneli bilan birga ulanadi. Hozircha "Oylik to‘lovlar" bo‘limidan ko‘rish mumkin.`
-}
+/*
+  "To'lov holati" ikonkasi ayni panelni ochadi — to'lov bo'limi shu panelning
+  ichida. Alohida oyna yasash ma'lumotni ikki joyda ko'rsatardi.
+*/
+const openStudentWallet = openStudentProfile
 
 /* -------------------------------------------------- baholash oynalari */
 
@@ -293,24 +299,6 @@ function refreshSubmissions(): void {
           class="mb-4 rounded-lg border border-brand-500/30 bg-brand-500/10 p-3.5 text-sm text-brand-200"
           v-text="actionNote"
         />
-        <!-- Hali ulanmagan panel haqida ochiq xabar (yuqoridagi TODO). -->
-        <div
-          v-if="pendingNote !== null"
-          class="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200"
-          role="status"
-        >
-          <span
-            class="min-w-0 flex-1"
-            v-text="pendingNote"
-          />
-          <BaseButton
-            size="sm"
-            variant="secondary"
-            @click="pendingNote = null"
-          >
-            Yopish
-          </BaseButton>
-        </div>
         <div
           v-if="actionError !== null"
           class="mb-4 rounded-lg border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200"
@@ -486,6 +474,24 @@ function refreshSubmissions(): void {
       :error="regenerateError"
       @close="regenerateOpen = false"
       @confirm="regenerateMutation.mutate()"
+    />
+
+    <!--
+      O'QUVCHI PROFILI PANELI — ENG OXIRIDA e'lon qilinadi.
+
+      🔴 TARTIB MUHIM: teleport langarlari komponentlar E'LON QILINGAN
+      tartibda yaratiladi va hammasi `z-50` da turadi. Panel ekranning 85% ini
+      egallaydi, ya'ni u yuqoridagi tasdiq oynalarining ORTIDA qolmasligi
+      kerak (`ManageUsersPage` da ayni sabab bilan ayni tartib).
+
+      `@changed` — Telegram uzilganda a'zolar ro'yxatidagi ma'lumot ham
+      eskiradi, shuning uchun ro'yxat qaytadan so'raladi.
+    -->
+    <StudentProfileDrawer
+      :open="studentProfileOpen"
+      :user-id="studentProfileId"
+      @close="studentProfileOpen = false"
+      @changed="refreshGroup"
     />
   </div>
 </template>
