@@ -32,10 +32,23 @@ public sealed record LessonFacts(
 /// (agar kurs vazifasi bor) **VA** test yechilgan (agar dars testi bor).
 /// Ya'ni mavjud bo'lmagan shart TALAB QILINMAYDI.
 ///
+/// ★ GURUH BOSHLANISH NUQTASI (<c>startIndex</c>): guruh kursning
+/// O'RTASIDAN boshlagan bo'lsa (<c>Group.VideoStartLessonId</c>) zanjir
+/// 0-darsdan emas, SHU NUQTADAN yuritiladi. Undan oldingi darslar
+/// <see cref="LessonLockReason.BeforeGroupStart"/> bilan yopiq bo'ladi va
+/// zanjirga UMUMAN kirmaydi — ular hech qachon o'tilmaydi, shuning uchun
+/// "tugatilmagan" bo'lib butun kursni qulflab qo'yishga haqqi yo'q.
+/// Ustoz sur'ati ham NISBIY o'lchanadi (<c>index − startIndex</c>): guruh
+/// 3 ta dars o'tgan bo'lsa, u 20-, 21-, 22-darslarni o'tgan.
+/// <c>startIndex = 0</c> — bugungi xatti-harakat, bit-to-bit o'zgarmaydi.
+///
 /// Istisnolar (tartib bo'yicha):
 ///   1) <c>UnlockedOverride</c> — o'quv bo'limi qo'lda ochgan: DOIM ochiq.
-///      (Kasallik, kursga kech qo'shilish.)
-///   2) BIRINCHI dars (indeks 0) — DOIM ochiq, aks holda kurs boshlanmasdi.
+///      (Kasallik, kursga kech qo'shilish.) Bu boshlanish nuqtasidan
+///      OLDINGI darsga ham tegishli: o'tib ketilgan qismni o'zlashtirmoqchi
+///      bo'lgan o'quvchiga o'quv bo'limi uni ocha oladi.
+///   2) GURUH uchun BIRINCHI dars (<c>index == startIndex</c>) — DOIM
+///      ochiq, aks holda kurs boshlanmasdi.
 ///
 /// NIMA UCHUN ALOHIDA, HOLATSIZ SINF: qoida bazadan, keshdan va HTTP'dan
 /// mustaqil. Shu tufayli u bitta joyda yozilgan (DRY) va bazasiz test
@@ -69,31 +82,59 @@ public static class LessonGate
     /// <param name="facts">Shu darsning faktlari.</param>
     /// <param name="previous">Oldingi dars faktlari; birinchi darsda <c>null</c>.</param>
     /// <param name="taughtLessonCount">Ustoz sur'ati (yakunlangan ustoz darslari soni).</param>
+    /// <param name="startIndex">
+    /// ★ Guruh kursni QAYSI global indeksdan boshlaydi
+    /// (<c>Group.VideoStartLessonId</c> ning tartib raqami). Standart 0 —
+    /// kurs boshidan, ya'ni bugungi xatti-harakat AYNAN saqlanadi.
+    /// </param>
     public static (bool Unlocked, LessonLockReason? Reason) Evaluate(
         int index,
         LessonFacts facts,
         LessonFacts? previous,
-        int taughtLessonCount)
+        int taughtLessonCount,
+        int startIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(facts);
 
         // 1) Qo'lda ochilgan — boshqa hech qanday shart tekshirilmaydi.
+        //    Boshlanish nuqtasidan OLDIN ham ustun turadi: o'quv bo'limi
+        //    o'tib ketilgan qismni ataylab ocha oladi.
         if (facts.UnlockedOverride)
             return (true, null);
 
-        // 2) Birinchi dars doim ochiq: aks holda o'quvchi kursni umuman
-        //    boshlay olmasdi (ustoz hali hech qanday dars o'tmagan bo'lishi mumkin).
-        if (index <= 0 || previous is null)
+        // 2) ★ GURUH BOSHLANISH NUQTASIDAN OLDINGI DARS.
+        //
+        //    Guruh kursning o'rtasidan boshlagan: bu dars uning o'quv
+        //    rejasiga umuman kirmaydi. Sabab ALOHIDA, chunki o'quvchiga
+        //    "oldingi darsni tugat" deyish ma'nosiz bo'lardi — u darsni
+        //    hech qachon o'tmaydi.
+        if (index < startIndex)
+            return (false, LessonLockReason.BeforeGroupStart);
+
+        // 3) GURUH uchun BIRINCHI dars doim ochiq: aks holda o'quvchi kursni
+        //    umuman boshlay olmasdi (ustoz hali hech qanday dars o'tmagan
+        //    bo'lishi mumkin). `startIndex = 0` da bu AYNAN eski shart
+        //    (`index <= 0`).
+        if (index <= startIndex || previous is null)
             return (true, null);
 
-        // 3) USTOZ SUR'ATI. `taughtLessonCount` — yakunlangan ustoz darslari
-        //    soni. Ustoz N ta dars o'tgan bo'lsa u 0..N−1 indeksli darslarni
-        //    o'tgan, ya'ni o'quvchiga KEYINGI (N-indeksli) dars ham ochiladi.
-        //    Shuning uchun shart `index <= taughtLessonCount`.
-        if (index > taughtLessonCount)
+        // 4) USTOZ SUR'ATI — NISBIY. `taughtLessonCount` guruhda YAKUNLANGAN
+        //    ustoz darslari soni: guruh N ta dars o'tgan bo'lsa u
+        //    `startIndex .. startIndex + N − 1` darslarni o'tgan, ya'ni
+        //    KEYINGI (`startIndex + N`) dars ham ochiladi.
+        //
+        //    ★ NIMA UCHUN AYNAN NISBIY: mutlaq taqqoslash (`index >
+        //    taughtLessonCount`) 20-darsdan boshlagan guruhda BUTUN kursni
+        //    abadiy `TeacherPace` bilan yopib qo'yardi — sur'at hech qachon
+        //    20 ga yetmasdi (guruh 8 oyda ~70 dars o'tadi, lekin hisob
+        //    guruh ochilgan kundan, ya'ni noldan boshlanadi).
+        if (index - startIndex > taughtLessonCount)
             return (false, LessonLockReason.TeacherPace);
 
-        // 4) Oldingi dars tugatilgan bo'lishi shart.
+        // 5) Oldingi dars tugatilgan bo'lishi shart. `previous` bu yerda
+        //    DOIM `startIndex` yoki undan keyingi dars (3-qadam oldin
+        //    qaytgani uchun), ya'ni zanjir boshlanish nuqtasidan orqaga
+        //    hech qachon o'tmaydi.
         return IsComplete(previous)
             ? (true, null)
             : (false, LessonLockReason.PreviousIncomplete);
@@ -103,9 +144,14 @@ public static class LessonGate
     /// Butun kursni BITTA o'tishda baholaydi (O(n), hech qanday ichma-ich sikl yo'q).
     /// Darslar KURS TARTIBIDA (modul tartibi, keyin dars tartibi) berilishi shart.
     /// </summary>
+    /// <param name="startIndex">
+    /// ★ Guruh boshlanish nuqtasi (batafsil: <see cref="Evaluate"/>).
+    /// Standart 0 — kurs boshidan.
+    /// </param>
     public static IReadOnlyList<LessonGateDto> EvaluateAll(
         IReadOnlyList<LessonFacts> orderedLessons,
-        int taughtLessonCount)
+        int taughtLessonCount,
+        int startIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(orderedLessons);
 
@@ -115,9 +161,14 @@ public static class LessonGate
         for (var index = 0; index < orderedLessons.Count; index++)
         {
             var facts = orderedLessons[index];
-            var (unlocked, reason) = Evaluate(index, facts, previous, taughtLessonCount);
+            var (unlocked, reason) = Evaluate(index, facts, previous, taughtLessonCount, startIndex);
 
             result.Add(Describe(index, facts, unlocked, reason));
+
+            // `previous` SHARTSIZ yangilanadi — boshlanish nuqtasidan
+            // oldingi darslar ham shu yerda o'tadi, lekin ular hech qachon
+            // zanjirga TA'SIR QILMAYDI: `Evaluate` `index <= startIndex`
+            // holatida `previous` ni umuman o'qimaydi.
             previous = facts;
         }
 

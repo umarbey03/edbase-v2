@@ -1,6 +1,8 @@
 export type {
   AddMemberRequest,
   AnswerFormatsValue,
+  AssignmentAttachmentDto,
+  AssignmentAttachmentKindName,
   AssignmentDto,
   AttemptStatusName,
   AttendanceBucketDto,
@@ -41,6 +43,10 @@ export type {
   GroupTypeName,
   GroupWriteRequest,
   LeaderboardRowDto,
+  LessonAssetDto,
+  LessonAssetKindName,
+  LessonAssetUploadFields,
+  LessonKindName,
   LessonLockReasonName,
   LessonWriteRequest,
   LiveKitJoinDto,
@@ -134,6 +140,31 @@ export type {
   UserRoleName,
   WaiveRequest,
 } from './api'
+
+/* ===== WAVE 2 · FOYDALANUVCHI (wave2/users) =====
+
+   ★ NEGA ALOHIDA BLOK, nega yuqoridagi alifbo ro'yxatiga QO'SHILMADI:
+   bu faylga ikki tarmoq (`wave2/users` va `wave2/groups`) AYNI VAQTDA
+   qo'shadi. Alifbo bo'yicha aralashtirilgan 15 ta qo'shimcha qator merge
+   paytida to'qnashuv beradi; bitta uzluksiz blok esa hech qachon. Tartib
+   blok ICHIDA alifbo bo'yicha saqlanadi.                                */
+export type {
+  CreateStudentNoteRequest,
+  ProfileAssignmentDto,
+  ProfileAttendanceDto,
+  ProfileFinanceDto,
+  ProfileGroupDto,
+  ProfilePeriodDto,
+  ProfileStudyDto,
+  ProfileTelegramDto,
+  ProfileTestDto,
+  StudentNoteDto,
+  TelegramUnlinkRequest,
+  TelegramUnlinkResponse,
+  UpdateStudentNoteRequest,
+  UserProfileDto,
+} from './api'
+/* ===== /WAVE 2 · FOYDALANUVCHI ===== */
 
 export { GroupChatHubEvent, GroupChatHubMethod, HubEvent, HubMethod } from './realtime'
 export type {

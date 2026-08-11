@@ -107,6 +107,54 @@ public enum AttachmentKind
     Document = 2,
 }
 
+/// <summary>
+/// Kurs darsining TURI.
+/// </summary>
+/// <remarks>
+/// Tartib MUHIM: qiymatlar bazaga <c>int</c> sifatida yoziladi. Yangi qiymat
+/// FAQAT oxiriga qo'shiladi.
+///
+/// ★ NIMA UCHUN BAYROQ (<c>bool IsExam</c>) EMAS: bugun ikki tur bor, lekin
+/// "takrorlash", "loyiha ishi" kabi turlar qo'shilishi ehtimoli yuqori.
+/// <c>bool</c> bo'lganda uchinchi tur ikkinchi <c>bool</c> ni talab qilardi
+/// va (false,false)/(true,true) kabi MA'NOSIZ kombinatsiyalar paydo bo'lardi.
+///
+/// ★ TUR ASSET TURINI BELGILAYDI (<see cref="LessonAssetKind"/>):
+/// <c>Normal</c> darsda faqat video, <c>Exam</c> darsda faqat rasm bo'ladi.
+/// Invariant <see cref="Zinnur.Domain.Entities.ModuleLesson"/> da.
+/// </remarks>
+public enum LessonKind
+{
+    /// <summary>Odatiy video dars (bir yoki bir nechta video qism).</summary>
+    Normal = 0,
+
+    /// <summary>Imtihon darsi — video o'rniga rasm(lar) beriladi.</summary>
+    Exam = 1,
+}
+
+/// <summary>
+/// Darsga biriktirilgan media faylning turi.
+/// </summary>
+/// <remarks>
+/// Tartib MUHIM: qiymatlar bazaga <c>int</c> sifatida yoziladi. Yangi qiymat
+/// FAQAT oxiriga qo'shiladi.
+///
+/// ★ NIMA UCHUN <see cref="AttachmentKind"/> QAYTA ISHLATILMADI: u o'quvchi
+/// YUBORADIGAN javob faylini tasvirlaydi (rasm/ovoz/hujjat) va unda
+/// <c>Video</c> qiymati YO'Q — dars kontenti uchun esa video ASOSIY tur.
+/// Mavjud enumga <c>Video</c> qo'shilsa, u o'quvchi javobida ham
+/// "ruxsat etilgan" ko'rinib qolardi va har tekshiruv joyida qo'lda
+/// istisno yozish kerak bo'lardi.
+/// </remarks>
+public enum LessonAssetKind
+{
+    /// <summary>Video qism (odatiy dars).</summary>
+    Video = 0,
+
+    /// <summary>Rasm (imtihon darsi topshiriqlari).</summary>
+    Image = 1,
+}
+
 // ============================================================================
 // MOLIYA (FAZA 4)
 // ============================================================================

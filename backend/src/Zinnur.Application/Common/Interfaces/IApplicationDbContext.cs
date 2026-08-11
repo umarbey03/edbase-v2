@@ -11,6 +11,19 @@ namespace Zinnur.Application.Common.Interfaces;
 public interface IApplicationDbContext
 {
     DbSet<User> Users { get; }
+
+    /// <summary>
+    /// Xodimlarning o'quvchi haqidagi ICHKI izohlari. O'quvchining O'ZI
+    /// ularni ko'rmaydi — sabab <see cref="StudentNote"/> sinfi izohida.
+    /// </summary>
+    DbSet<StudentNote> StudentNotes { get; }
+
+    /// <summary>
+    /// Telegram bog'lanishini uzish izi. Faqat QO'SHILADI va O'QILADI:
+    /// yozuv yaratilgandan keyin yangilanmaydi va o'chirilmaydi.
+    /// </summary>
+    DbSet<TelegramUnlinkAudit> TelegramUnlinkAudits { get; }
+
     DbSet<Course> Courses { get; }
     DbSet<CourseModule> Modules { get; }
     DbSet<ModuleLesson> ModuleLessons { get; }
@@ -60,6 +73,20 @@ public interface IApplicationDbContext
     DbSet<TestAttempt> TestAttempts { get; }
     DbSet<TestAnswer> TestAnswers { get; }
     DbSet<LessonProgress> LessonProgress { get; }
+
+    // ---------------------------------------------------------------- WAVE 1: dars mediasi
+
+    /// <summary>
+    /// Dars mediasi: odatiy darsda VIDEO qismlari, imtihon darsida RASMLAR.
+    /// Ikkalasi BITTA jadvalda — sabab <see cref="LessonAsset"/> izohida.
+    /// </summary>
+    DbSet<LessonAsset> LessonAssets { get; }
+
+    /// <summary>
+    /// Uy vazifasi SHARTIGA biriktirilgan fayllar (rasm/audio/hujjat).
+    /// O'quvchining JAVOB fayllari bu yerda EMAS — <see cref="SubmissionFiles"/>.
+    /// </summary>
+    DbSet<AssignmentAttachment> AssignmentAttachments { get; }
 
     // ---------------------------------------------------------------- FAZA 4: moliya
 

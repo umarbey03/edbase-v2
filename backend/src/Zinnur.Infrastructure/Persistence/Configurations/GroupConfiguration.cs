@@ -64,6 +64,55 @@ public sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
             .HasForeignKey(g => g.CourseId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // ============================================================
+        // VIDEO DARSLAR BOSHLANISH NUQTASI -> ModuleLessons(Id)
+        // ============================================================
+        //
+        // NAVIGATSIYA PROPERTY'SI ATAYLAB YO'Q (`TeacherId` bilan bir xil
+        // naqsh). Navigatsiya yuklangan holda FK'ni o'zgartirsak, EF
+        // navigatsiya bilan FK orasidagi ziddiyatni o'zi "hal qilishga"
+        // urinadi va bog'lanishni kutilmaganda tiklab yoki bo'shatib qo'yishi
+        // mumkin (`GroupService.LoadForManageAsync` izohida ayni sabab).
+        // DTO uchun kerak bo'lgan nomlar so'rovda ichki `SELECT` bilan
+        // olinadi — navigatsiyaga ehtiyoj yo'q.
+        //
+        // ★ SetNull MAJBURIY: dars o'chirilsa GURUH o'chib ketmasligi kerak.
+        //   • Cascade bo'lsa bitta kurs darsini o'chirish shu darsdan
+        //     boshlanadigan BARCHA guruhlarni, ular bilan birga jadval,
+        //     davomat, to'lov va chat tarixini olib ketardi;
+        //   • Restrict ham yaramaydi — u kurs kontentini tahrirlashni
+        //     bloklardi ("darsni o'chirib bo'lmaydi") va o'quv bo'limi
+        //     sababini topa olmasdi.
+        // SetNull esa aynan kerakli xatti-harakat: cheklov yo'qoladi,
+        // guruh kursni boshidan boshlaydigan holatga qaytadi.
+        builder.HasOne<ModuleLesson>()
+            .WithMany()
+            .HasForeignKey(g => g.VideoStartLessonId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // ★ INDEKS — QARORI VA SABABI.
+        //
+        // SO'ROVLAR UCHUN INDEKS KERAK EMAS: gating DOIM guruhdan darsga
+        // qaraydi ("shu guruh qaysi darsdan boshlaydi") va bu yo'l guruh
+        // qatorini o'qish bilan tugaydi. TESKARI yo'nalishdagi ("qaysi
+        // guruhlar shu darsdan boshlaydi") so'rov kod bazasida BIRORTA ham
+        // yo'q. Bu bilan `CuratorGroupId` FARQ QILADI — u aynan teskari
+        // yo'nalishda, a'zolar/davomat/jadval so'rovlarida HAR SAFAR o'qiladi.
+        //
+        // LEKIN INDEKS BARIBIR BOR va u ATAYLAB QOLDIRILGAN: EF Core FK
+        // ustuniga indeksni KONVENSIYA bilan o'zi qo'shadi, va bu holda u
+        // FOYDALI — `ON DELETE SET NULL` da Postgres o'chirilayotgan har
+        // dars uchun ishora qiluvchi qatorlarni izlaydi. Konvensiyani
+        // buzish uchun maxsus model konvensiyasi yozish kerak bo'lardi:
+        // arzon indeksdan qutulish uchun bu juda qimmat narx.
+        //
+        // Nomi shu yerda OSHKOR yozilgan (fayl uslubi: `TeacherId`,
+        // `CuratorGroupId` ham shunday) — aks holda o'quvchi indeks
+        // borligini konfiguratsiyadan bilmasdi va migratsiyani ochib
+        // ko'rishga majbur bo'lardi.
+        builder.HasIndex(g => g.VideoStartLessonId)
+            .HasDatabaseName("IX_Groups_VideoStartLessonId");
+
         // USTOZ / KURATOR — navigatsiya property'si yo'q, shuning uchun
         // munosabat QO'LDA e'lon qilinadi (aks holda EF hech qanday FK yaratmaydi
         // va bazada "yo'q ustoz" ga ishora qoladi).

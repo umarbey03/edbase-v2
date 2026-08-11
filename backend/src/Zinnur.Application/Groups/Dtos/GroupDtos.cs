@@ -27,12 +27,32 @@ namespace Zinnur.Application.Groups.Dtos;
 /// <c>CuratorGroupId</c> orqali bog'langan ustoz guruhlaridan sanaladi.
 /// </param>
 /// <param name="SessionCount">Bekor qilinmagan darslar soni (jadval hajmi).</param>
+/// <param name="VideoStartLessonId">
+/// Video darslar QAYSI kurs darsidan boshlanadi. <c>null</c> — guruh kursni
+/// BOSHIDAN boshlaydi (eng ko'p uchraydigan holat va bugungi xatti-harakat).
+///
+/// Sabab: bitta kursga ko'p guruh biriktiriladi va keyin ochilgan guruh
+/// kursning O'RTASIDAN boshlaydi — batafsil
+/// <see cref="Zinnur.Domain.Entities.Group.VideoStartLessonId"/>.
+/// </param>
+/// <param name="VideoStartLessonName">
+/// Boshlanish darsining nomi. <paramref name="VideoStartLessonId"/>
+/// <c>null</c> bo'lsa bu ham <c>null</c>.
+/// </param>
+/// <param name="VideoStartModuleName">
+/// Boshlanish darsi QAYSI modulda. UI ikkisini birga ko'rsatadi:
+/// "3-modul · 2-dars". Nomlar bazada ichki <c>SELECT</c> bilan olinadi —
+/// kartochka uchun qo'shimcha so'rov ketmaydi (N+1 yo'q).
+/// </param>
 public sealed record GroupDto(
     long Id,
     string Name,
     GroupType Type,
     long? CourseId,
     string? CourseName,
+    long? VideoStartLessonId,
+    string? VideoStartLessonName,
+    string? VideoStartModuleName,
     long? TeacherId,
     string? TeacherName,
     long? AssistantId,
@@ -82,7 +102,8 @@ public sealed record CreateGroupRequest(
     long? AssistantId = null,
     long? CuratorGroupId = null,
     bool RecordEnabled = false,
-    bool IsActive = true);
+    bool IsActive = true,
+    long? VideoStartLessonId = null);
 
 /// <summary>
 /// Guruhni tahrirlash. TO'LIQ shakl (PUT semantikasi): yuborilmagan maydon
@@ -92,6 +113,12 @@ public sealed record CreateGroupRequest(
 /// ⚠️ Jadvalga ta'siri: <see cref="Zinnur.Domain.Entities.Group.ScheduleRuleDiffersFrom"/>
 /// qaysi maydon o'zgarganini aniqlaydi va faqat SHU asosda jadval qayta
 /// tuziladi (batafsil: <c>GroupService.UpdateAsync</c> izohi).
+///
+/// 🔴 <c>VideoStartLessonId</c> ham AYNI qoidaga bo'ysunadi: yuborilmasa
+/// <c>null</c> ga tushadi, ya'ni guruh kursni boshidan boshlaydigan holatga
+/// qaytadi. Tahrirlash formasi joriy qiymatni YUKLAB, qaytarib yuborishi
+/// shart. Kursni almashtirganda esa uni yuborMASLIK (yoki <c>null</c>
+/// yuborish) kerak — begona kursning darsi 400 bilan rad etiladi.
 /// </summary>
 public sealed record UpdateGroupRequest(
     string Name,
@@ -106,7 +133,8 @@ public sealed record UpdateGroupRequest(
     long? AssistantId = null,
     long? CuratorGroupId = null,
     bool RecordEnabled = false,
-    bool IsActive = true);
+    bool IsActive = true,
+    long? VideoStartLessonId = null);
 
 /// <summary>Yaratilgan guruh + generatsiya qilingan darslar soni.</summary>
 public sealed record CreateGroupResponse(

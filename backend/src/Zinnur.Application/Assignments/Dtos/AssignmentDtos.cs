@@ -13,6 +13,22 @@ namespace Zinnur.Application.Assignments.Dtos;
 /// </param>
 /// <param name="SubmissionCount">Topshirilgan javoblar soni.</param>
 /// <param name="GradedCount">Ulardan baholanganlari.</param>
+/// <param name="ImageKey">
+/// ⚠️ ESKIRGAN (deprecated) — o'rniga <paramref name="Attachments"/>.
+///
+/// Maydon FAQAT mavjud klientlar buzilmasligi uchun qoldirildi. Migratsiya
+/// eski qiymatlarni <c>AssignmentAttachment</c> ga KO'CHIRDI (backfill),
+/// ya'ni AYNI rasm endi <paramref name="Attachments"/> da ham bor. YANGI
+/// UI bu maydonni o'qimasin va yubormasin.
+///
+/// 🔴 Bu maydonning O'ZI ombor kaliti, ya'ni 16-tuzoqning buzilishi. Uni
+/// javobdan olib tashlash kerak, lekin bu mavjud frontendni buzadi —
+/// shuning uchun alohida ish sifatida hisobotda qayd etilgan.
+/// </param>
+/// <param name="Attachments">
+/// Vazifa SHARTIGA biriktirilgan fayllar (rasm/audio/hujjat), TARTIB
+/// bo'yicha. 🔴 `objectKey` YO'Q.
+/// </param>
 public sealed record AssignmentDto(
     long Id,
     long? GroupId,
@@ -25,11 +41,35 @@ public sealed record AssignmentDto(
     DateTimeOffset? DueAt,
     AnswerFormats AllowedFormats,
     string? ImageKey,
+    IReadOnlyList<AssignmentAttachmentDto> Attachments,
     long? CreatedById,
     int SubmissionCount,
     int GradedCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
+
+/// <summary>
+/// Vazifa SHARTIGA biriktirilgan bitta fayl.
+///
+/// 🔴 `objectKey` BU YERDA YO'Q VA QO'SHILMAYDI (`DAVOM_ETTIRISH.md`
+/// 6-bo'lim, 16-tuzoq). Fayl DOIM
+/// <c>GET /api/v1/assignments/attachments/{id}</c> orqali, har so'rovda
+/// tekshiriladigan ruxsat bilan o'qiladi.
+/// </summary>
+/// <param name="Kind">`"Image"`, `"Audio"` yoki `"Document"` (JSON'da SATR).</param>
+/// <param name="DurationSec">
+/// Audio davomiyligi (sekund). ⚠️ Qiymat KLIENTDAN keladi — serverda media
+/// dekoder yo'q, ya'ni u faqat KO'RSATISH uchun.
+/// </param>
+public sealed record AssignmentAttachmentDto(
+    long Id,
+    long AssignmentId,
+    AttachmentKind Kind,
+    int Position,
+    string ContentType,
+    long SizeBytes,
+    int? DurationSec,
+    DateTimeOffset CreatedAt);
 
 /// <summary>
 /// O'quvchi ko'rinishi: vazifa + O'ZINING javobi holati.
@@ -53,6 +93,12 @@ public sealed record StudentAssignmentDto(
     DateTimeOffset? DueAt,
     AnswerFormats AllowedFormats,
     string? ImageKey,
+
+    /// <summary>
+    /// Shart biriktirmalari. QULFLANGAN darsning vazifasida BO'SH
+    /// (`objectKey` esa hech qachon yo'q).
+    /// </summary>
+    IReadOnlyList<AssignmentAttachmentDto> Attachments,
     bool IsOverdue,
     bool LessonUnlocked,
     bool CanSubmit,

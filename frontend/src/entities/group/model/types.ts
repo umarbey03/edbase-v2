@@ -73,3 +73,20 @@ export function groupScheduleSummary(group: GroupDto): string {
 export function groupDisplayName(group: GroupDto): string {
   return group.name ?? `Guruh #${group.id}`
 }
+
+/**
+ * "Harf moduli · Harflar 2" — video darslar QAYSI qismdan boshlanishi.
+ *
+ * `null` bo'lsa guruh kursni boshidan boshlaydi va shu matn qaytadi:
+ * bo'sh joy yoki chiziqcha "sozlanmagan" degan noaniqlikni qoldirardi,
+ * holbuki `null` ANIQ ma'noga ega (boshidan).
+ *
+ * ★ Nomlar `GroupDto` ning O'ZIDA keladi (server ichki `SELECT` bilan
+ * qo'shadi), ya'ni bu yorliq uchun kurs daraxtini yuklash kerak emas.
+ */
+export function videoStartLabel(group: GroupDto): string {
+  if (group.videoStartLessonId === null) return 'Kurs boshidan'
+  const lesson = group.videoStartLessonName ?? `Dars #${group.videoStartLessonId}`
+  const module = group.videoStartModuleName
+  return module === null ? lesson : `${module} · ${lesson}`
+}

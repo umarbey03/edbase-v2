@@ -138,6 +138,20 @@ export interface GroupDto {
   type: GroupTypeName
   courseId: number | null
   courseName: string | null
+  /* ===== WAVE 2 · GURUH (wave2/groups) ===== */
+  /**
+   * Video darslar QAYSI kurs darsidan boshlanadi. `null` — guruh kursni
+   * BOSHIDAN boshlaydi (eng ko'p uchraydigan holat).
+   *
+   * ★ Uchala maydon BIRGA `null` yoki BIRGA to'ldirilgan (server kafolati):
+   * nomlar bazada ichki `SELECT` bilan olinadi, ya'ni ro'yxat uchun
+   * qo'shimcha so'rov ketmaydi. Shuning uchun UI nomni ko'rsatish uchun
+   * kurs daraxtini yuklashi SHART EMAS.
+   */
+  videoStartLessonId: number | null
+  videoStartLessonName: string | null
+  videoStartModuleName: string | null
+  /* ===== /WAVE 2 · GURUH ===== */
   teacherId: number | null
   teacherName: string | null
   assistantId: number | null
@@ -206,7 +220,10 @@ export interface AssignmentDto {
   maxScore: number
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
+  /** ⚠️ WAVE 2 dan ESKIRGAN (deprecated) — o'rniga `attachments`. */
   imageKey: string | null
+  /** WAVE 2 · vazifa SHARTIGA biriktirilgan fayllar (tartib bo'yicha). */
+  attachments: AssignmentAttachmentDto[] | null
   createdById: number | null
   submissionCount: number
   gradedCount: number
@@ -254,7 +271,10 @@ export interface StudentAssignmentDto {
   maxScore: number
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
+  /** ⚠️ WAVE 2 dan ESKIRGAN (deprecated) — o'rniga `attachments`. */
   imageKey: string | null
+  /** WAVE 2 · shart biriktirmalari. Qulflangan darsning vazifasida BO'SH. */
+  attachments: AssignmentAttachmentDto[] | null
   isOverdue: boolean
   lessonUnlocked: boolean
   canSubmit: boolean
@@ -592,6 +612,14 @@ export interface UserDetailsDto {
   email: string | null
   phone: string | null
   telegramId: number | null
+  /**
+   * WAVE 2 (`wave2/users`): Telegram `from.username`, `@` BELGISIZ.
+   *
+   * 🔴 IDENTIFIKATOR SIFATIDA ISHLATILMAYDI — bo'shatilgan nom boshqa odamga
+   * o'tadi (shu sababli backendda unikal indeks ATAYLAB yo'q). Faqat
+   * `t.me/<username>` havolasi uchun; shaxs `telegramId` bo'yicha aniqlanadi.
+   */
+  telegramUsername: string | null
   role: string | null
   isActive: boolean
   createdAt: string
@@ -621,6 +649,16 @@ export interface UpdateUserRequest {
   role: UserRoleName
 }
 
+/**
+ * `POST /groups` va `PUT /groups/{id}` uchun YAGONA shakl.
+ *
+ * ★ NEGA BITTA TUR, backendda ikkitasi bo'lsa ham (`CreateGroupRequest` va
+ * `UpdateGroupRequest`): ikkala record MAYDON-MAYDON AYNAN bir xil
+ * (`GroupDtos.cs`, 2026-08-11 holati). Ikki nusxa tur yozilsa yangi maydon
+ * bittasiga qo'shilib ikkinchisida unutilardi — bu esa `PUT` to'liq
+ * almashtirish semantikasida maydonni jimgina `null` ga tushirardi.
+ * Shakllar ajralib ketsa AYNI SHU joyda ikkiga bo'linadi.
+ */
 export interface GroupWriteRequest {
   name: string
   /** `YYYY-MM-DD` */
@@ -632,6 +670,21 @@ export interface GroupWriteRequest {
   durationMinutes: number
   courseMonths: number
   courseId?: number | null
+  /* ===== WAVE 2 · GURUH (wave2/groups) ===== */
+  /**
+   * Video darslar boshlanish nuqtasi (kurs darsining Id'si).
+   *
+   * 🔴 `PUT` = TO'LIQ ALMASHTIRISH: yuborilmasa yoki `null` yuborilsa guruh
+   * kursni boshidan boshlaydigan holatga QAYTADI. Tahrirlash formasi joriy
+   * qiymatni yuklab, qaytarib yuborishi shart.
+   *
+   * 🔴 Kurs almashtirilganda BU MAYDON YUBORILMAYDI (yoki yangi kursning
+   * darsi yuboriladi): eski kursning darsi 400 bilan rad etiladi
+   * (`problem.errors.videoStartLessonId`). Kurssiz guruhda dars yuborilsa
+   * ham 400.
+   */
+  videoStartLessonId?: number | null
+  /* ===== /WAVE 2 · GURUH ===== */
   teacherId?: number | null
   assistantId?: number | null
   curatorGroupId?: number | null
@@ -702,8 +755,20 @@ export interface CuratorCandidateDto {
    Kurs kontenti (kurs -> modul -> dars).
    ========================================================================== */
 
-/** `LessonLockReason` enum — dars nima uchun yopiq. */
-export type LessonLockReasonName = 'PreviousIncomplete' | 'TeacherPace' | 'NotInCourse'
+/**
+ * `LessonLockReason` enum — dars nima uchun yopiq.
+ *
+ * ⚠️ `BeforeGroupStart` — WAVE 1 da qo'shilgan to'rtinchi qiymat
+ * (`Group.VideoStartLessonId`): dars guruh boshlagan qismdan OLDINDA va
+ * o'quvchining o'quv rejasiga UMUMAN kirmaydi. Tur uchta qiymatda qolib
+ * ketgan edi, ya'ni server bergan sabab UI'da umumiy "Yopiq" bo'lib
+ * ko'rinardi.
+ */
+export type LessonLockReasonName =
+  | 'PreviousIncomplete'
+  | 'TeacherPace'
+  | 'NotInCourse'
+  | 'BeforeGroupStart'
 
 /**
  * `GET /api/v1/courses` qatori — daraxtsiz, yengil.
@@ -735,6 +800,14 @@ export interface CourseLessonDto {
   description: string | null
   position: number
   durationMin: number | null
+  /** WAVE 2 · dars turi: `Normal` — video, `Exam` — rasm. */
+  kind: LessonKindName
+  /**
+   * WAVE 2 · dars mediasi TARTIB bo'yicha (video qismlari yoki imtihon
+   * rasmlari). 🔴 QULFLANGAN darsda BO'SH massiv — `description` bilan ayni
+   * qoida (sarlavha ko'rinadi, mazmun yo'q), lekin `kind` baribir keladi.
+   */
+  assets: LessonAssetDto[] | null
   unlocked: boolean
   lockReason: LessonLockReasonName | null
   hasAssignment: boolean
@@ -784,6 +857,15 @@ export interface LessonWriteRequest {
   name: string
   description?: string | null
   durationMin?: number | null
+  /**
+   * WAVE 2 · dars turi.
+   *
+   * 🔴 ATAYLAB `?` YO'Q, garchi serverda standart qiymati (`Normal`) bo'lsa
+   * ham: `PUT` — TO'LIQ ALMASHTIRISH (`DAVOM_ETTIRISH.md` 6-bo'lim, 1-tuzoq),
+   * ya'ni maydonni yubormaslik imtihon darsini jimgina `Normal` ga
+   * qaytarardi. Majburiy qilinganda bu xato `npm run typecheck` da ushlanadi.
+   */
+  kind: LessonKindName
 }
 
 /**
@@ -1621,3 +1703,317 @@ export interface RecordingLinkDto {
   url: string | null
   expiresAt: string
 }
+
+/* ===== WAVE 2 · FOYDALANUVCHI (wave2/users) =====
+
+   O'quvchi profili drawer'i (`GET /users/{id}/profile`), Telegram
+   bog'lanishini uzish va ichki izohlar CRUD'i.
+
+   ★ SHAKL BACKEND RECORD'LARIDAN AYNAN ko'chirilgan
+   (`Application/Users/Dtos/UserProfileDtos.cs`,
+   `Application/StudentNotes/Dtos/StudentNoteDtos.cs`,
+   `Application/Users/Dtos/UserDtos.cs`). C# `long` -> `number`,
+   `DateTimeOffset` -> ISO satr, `DateOnly` -> `YYYY-MM-DD`, enum -> SATR.
+
+   🔴 NULL'LARNING MA'NOSI RUXSATGA BOG'LIQ va serverda KESILADI:
+     • `finance === null`   -> so'rovchi USTOZ/KURATOR (moliya javobda YO'Q);
+     • `notes === null`     -> so'rovchi o'quvchining O'ZI (ichki eslatma);
+     • `finance.transactions === null` -> yana o'quvchining o'zi.
+   Ya'ni bu maydonlarni frontendda "yashirish" emas, YO'QLIGINI hurmat qilish
+   kerak — bo'lim UMUMAN render qilinmaydi.
+   ========================================================================== */
+
+/** Profil drawer'ining butun mazmuni — BITTA so'rovda (7 ta emas). */
+export interface UserProfileDto {
+  /** ★ Ro'yxatdagi bilan AYNI tur — ikkinchi "profil foydalanuvchisi" shakli YO'Q. */
+  user: UserDetailsDto
+  telegram: ProfileTelegramDto
+  groups: ProfileGroupDto[]
+  /** 🔴 `null` — ustoz/kurator so'ragan (bo'lim render QILINMAYDI). */
+  finance: ProfileFinanceDto | null
+  study: ProfileStudyDto
+  /** 🔴 `null` — o'quvchining o'zi so'ragan (bo'lim render QILINMAYDI). */
+  notes: StudentNoteDto[] | null
+}
+
+/** Telegram ulanish holati + OXIRGI uzishning izi. */
+export interface ProfileTelegramDto {
+  /** Hosila: `telegramId !== null`. */
+  linked: boolean
+  telegramId: number | null
+  /** `@` BELGISIZ (`UserDetailsDto.telegramUsername` dagi ogohlantirish o'sha). */
+  username: string | null
+  linkedAt: string | null
+  /**
+   * Oxirgi uzish izi. Uchalasi ham `Student` rolida DOIM `null`: "sizni
+   * Aziz Karimov uzgan" degan matn ichki ish tartibini oshkor qilardi.
+   * Bog'lanish HOZIR mavjud bo'lsa ham to'lishi mumkin ("uzilgan, keyin
+   * qaytadan bog'langan" tarixi).
+   */
+  unlinkedAt: string | null
+  unlinkedByName: string | null
+  unlinkReason: string | null
+}
+
+/** O'quvchining bitta guruhdagi a'zoligi (hamma holat bilan). */
+export interface ProfileGroupDto {
+  groupId: number
+  groupName: string
+  teacherName: string | null
+  status: MemberStatusName
+  joinedAt: string
+  /**
+   * ⚠️ TAXMINIY: a'zolik qatorining `updatedAt` qiymati va faqat
+   * `Stopped`/`Moved` holatida keladi. "Qachon chiqdi" ustuni modelda YO'Q,
+   * `updatedAt` esa pauza/tiklashda ham yangilanadi — shuning uchun UI'da
+   * "chiqqan sana" deb DA'VO QILINMAYDI, "oxirgi o'zgarish" deb yoziladi.
+   */
+  leftAt: string | null
+  /**
+   * ⚠️ HOZIR DOIM `null` — `GroupMember` ko'chirish havolasini SAQLAMAYDI
+   * (`MovedToGroupId` ustuni yo'q, alohida vazifada qo'shiladi). Shu sababli
+   * "→ qayerga" chipi FAQAT `movedToGroupId !== null` shartida chiziladi.
+   */
+  movedToGroupId: number | null
+  movedToGroupName: string | null
+  /** `YYYY-MM-DD`, faqat `Paused` holatida. */
+  pausedUntil: string | null
+}
+
+/** O'quvchining moliya kesimi. */
+export interface ProfileFinanceDto {
+  /** Ortiqcha to'langan va hali sarflanmagan pul. */
+  balance: number
+  totalPaid: number
+  /**
+   * Ochiq oylarning QOLGAN qismi (`amount − paidAmount`) yig'indisi.
+   * Formula moliya moduli bilan AYNI: qisman to'langan oy to'liq qarz
+   * deb sanalmaydi, kechirilgan oy esa umuman qarz emas.
+   */
+  totalDue: number
+  /** AMALDAGI bloklash qamrovi (sozlamadagi emas) — `None` = bloklanmagan. */
+  blockScope: PaymentBlockScopeName
+  periods: ProfilePeriodDto[]
+  /** 🔴 `null` — o'quvchining o'zi so'ragan. Aks holda OXIRGI 50 ta. */
+  transactions: PaymentTransactionDto[] | null
+  /** 50 tadan ko'p yozuv bormi — "Hammasini ko'rish" tugmasi shunga bog'liq. */
+  hasMoreTransactions: boolean
+}
+
+/** Bitta hisob oyi (o'quvchi × guruh × oy). */
+export interface ProfilePeriodDto {
+  /** Hisob oyi, `YYYY-MM`. */
+  month: string
+  groupId: number
+  groupName: string
+  amount: number
+  paidAmount: number
+  outstanding: number
+  status: PaymentStatusName
+  /**
+   * SHU oyda SHU guruhda O'TKAZILGAN darslar soni.
+   * To'lov modeli OYLIK — "qaysi dars uchun" kesimi modelda yo'q; xodim
+   * "540 000 so'm / 8 dars" deb tushuntira olishi uchun shu son beriladi.
+   */
+  sessionCount: number
+}
+
+/** O'quv natijalari: uy vazifalari, testlar, davomat. */
+export interface ProfileStudyDto {
+  assignments: ProfileAssignmentDto[]
+  /** 50 tadan ko'p javob bormi (to'liq ro'yxat uchun alohida endpoint kerak). */
+  hasMoreAssignments: boolean
+  tests: ProfileTestDto[]
+  hasMoreTests: boolean
+  attendance: ProfileAttendanceDto
+}
+
+/** Uy vazifasiga topshirilgan javob va bahosi. */
+export interface ProfileAssignmentDto {
+  submissionId: number
+  assignmentId: number
+  title: string
+  /** Guruh vazifasi bo'lsa guruh nomi, KURS vazifasida `null`. */
+  groupName: string | null
+  /** Kurs vazifasi bo'lsa dars nomi, aks holda `null`. */
+  lessonName: string | null
+  score: number | null
+  maxScore: number
+  status: SubmissionStatusName
+  submittedAt: string
+  isLate: boolean
+  /** 🔴 Faqat SON: havola ham, `objectKey` ham ATAYLAB yo'q (16-tuzoq). */
+  fileCount: number
+}
+
+/** Test urinishi natijasi. */
+export interface ProfileTestDto {
+  attemptId: number
+  testId: number
+  title: string
+  kind: TestKindName
+  /**
+   * Olingan BALL (to'g'ri javoblar soni EMAS): har savolning o'z `points` i
+   * bor, shuning uchun "N/M to'g'ri" deb yozish MUMKIN EMAS.
+   */
+  score: number | null
+  maxScore: number | null
+  /** Foiz (0..100), bir xona aniqlikda. */
+  scorePercent: number | null
+  closedByTimeout: boolean
+  /** Tugatilmagan urinishda `null`. */
+  finishedAt: string | null
+}
+
+/**
+ * Davomat: maxraj — FAOL guruhlardagi YAKUNLANGAN darslar, "kelgan" esa
+ * `Absent` dan boshqa har qanday holat (kechikkan ham kelgan hisoblanadi).
+ * Formula platformadagi bilan AYNI — ikkinchisi yozilsa profil va o'quvchi
+ * ilovasi turli foiz ko'rsatardi.
+ */
+export interface ProfileAttendanceDto {
+  total: number
+  present: number
+  missed: number
+  percent: number
+}
+
+/**
+ * Xodimning o'quvchi haqidagi ICHKI izohi.
+ *
+ * 🔴 O'QUVCHIGA HECH QACHON KO'RSATILMAYDI: `Student` roli izohlar
+ * endpointidan 403 oladi va agregatda `notes` bloki `null` bo'ladi.
+ */
+export interface StudentNoteDto {
+  id: number
+  studentId: number
+  body: string
+  authorId: number
+  authorName: string
+  groupId: number | null
+  groupName: string | null
+  createdAt: string
+  updatedAt: string | null
+  /**
+   * So'rovchi shu izohni tahrirlay/o'chira oladimi.
+   * ★ FAQAT KO'RINISH uchun — server har `PUT`/`DELETE` da qaytadan tekshiradi.
+   */
+  canEdit: boolean
+}
+
+/** `POST /users/{id}/notes` tanasi. Bo'sh yoki 2000+ matn -> 409. */
+export interface CreateStudentNoteRequest {
+  body: string
+  /**
+   * Ixtiyoriy kontekst: "qaysi guruhdagi xatti-harakati haqida".
+   * Begona guruh -> 400 (`problem.errors.groupId[0]`).
+   */
+  groupId?: number | null
+}
+
+/** `PUT /users/{id}/notes/{noteId}` tanasi — faqat MATN o'zgaradi. */
+export interface UpdateStudentNoteRequest {
+  body: string
+}
+
+/** `POST /users/{id}/telegram/unlink` tanasi — butunlay ixtiyoriy. */
+export interface TelegramUnlinkRequest {
+  /** Audit iziga yoziladi (maks 500 belgi; server ortig'ini qirqadi). */
+  reason?: string | null
+}
+
+/**
+ * Uzishdan keyingi holat. Ikkala maydon ham DOIM `null` — shakl profil
+ * javobidagi `telegram` bloki bilan bir xil bo'lsin.
+ */
+export interface TelegramUnlinkResponse {
+  telegramId: number | null
+  telegramUsername: string | null
+}
+
+/* ===== /WAVE 2 · FOYDALANUVCHI ===== */
+
+/* ===== WAVE 2 · KURS/DARS (wave2/course) ===== */
+
+/**
+ * `LessonKind` enum — dars turi (JSON'da SATR).
+ *
+ * 🔴 DOMAIN INVARIANTI: `Normal` darsda faqat `Video`, `Exam` darsda faqat
+ * `Image` asset bo'ladi. Turni almashtirishda mos kelmagan fayl BOR bo'lsa
+ * server **409** qaytaradi va jimgina O'CHIRMAYDI (bir soatlik video shunday
+ * yo'qolmasligi kerak) — UI 409 matnini ko'rsatib, avval fayllarni o'chirishga
+ * yo'naltiradi.
+ */
+export type LessonKindName = 'Normal' | 'Exam'
+
+/** `LessonAssetKind` enum — dars mediasining turi (JSON'da SATR). */
+export type LessonAssetKindName = 'Video' | 'Image'
+
+/**
+ * Darsga biriktirilgan bitta media: video QISMI yoki imtihon rasmi.
+ *
+ * 🔴 `objectKey` BU YERDA YO'Q va qo'shilmaydi (`DAVOM_ETTIRISH.md`
+ * 6-bo'lim, 16-tuzoq) — ombor kaliti ichki joylashuv ma'lumoti. Fayl DOIM
+ * `GET /api/v1/lessons/assets/{assetId}` orqali, har so'rovda tekshiriladigan
+ * ruxsat bilan o'qiladi.
+ */
+export interface LessonAssetDto {
+  id: number
+  lessonId: number
+  kind: LessonAssetKindName
+  /** 0 dan boshlanadigan zich tartib — `reorder` shu qiymatni qayta yozadi. */
+  position: number
+  /** Ko'rinadigan nom ("1-qism", "Nazariya"). `null` — UI tartibdan nom yasaydi. */
+  title: string | null
+  contentType: string
+  sizeBytes: number
+  /**
+   * ⚠️ Davomiylik KLIENTDAN keladi (serverda media dekoder yo'q) — FAQAT
+   * ko'rsatish uchun, unga hech qanday qaror bog'lanmaydi (13-bo'lim, 47-tuzoq).
+   */
+  durationSec: number | null
+  width: number | null
+  height: number | null
+  createdAt: string
+}
+
+/** `AttachmentKind` enum — vazifa shartiga biriktirilgan fayl turi. */
+export type AssignmentAttachmentKindName = 'Image' | 'Audio' | 'Document'
+
+/**
+ * Vazifa SHARTIGA biriktirilgan bitta fayl.
+ *
+ * 🔴 `objectKey` YO'Q. Fayl `GET /api/v1/assignments/attachments/{id}` orqali
+ * o'qiladi.
+ *
+ * ⚠️ `kind` MAZMUNDAN aniqlanadi, kengaytmadan emas: `ftyp` konteyneri
+ * (mp4/m4a) shu yo'lda AUDIO deb qabul qilinadi (13-bo'lim, 46-tuzoq).
+ */
+export interface AssignmentAttachmentDto {
+  id: number
+  assignmentId: number
+  kind: AssignmentAttachmentKindName
+  position: number
+  contentType: string
+  sizeBytes: number
+  /** ⚠️ Klientdan keladi — faqat ko'rsatish uchun. */
+  durationSec: number | null
+  createdAt: string
+}
+
+/**
+ * `POST /api/v1/lessons/{lessonId}/assets` ning `multipart` maydonlari
+ * (`file` dan tashqari hammasi ixtiyoriy).
+ *
+ * ⚠️ `kind` YUBORILMAYDI — u DARS TURIDAN kelib chiqadi. Klientdan qabul
+ * qilinsa invariantni buzadigan yozuv yasash mumkin bo'lardi.
+ */
+export interface LessonAssetUploadFields {
+  /** Video qismining nomi ("1-qism"). */
+  title?: string | null
+  durationSec?: number | null
+  width?: number | null
+  height?: number | null
+}
+
+/* ===== /WAVE 2 · KURS/DARS ===== */

@@ -22,6 +22,15 @@ public class Assignment : BaseEntity
     public const int MaxTitleLength = 200;
     public const int MaxDescriptionLength = 4000;
 
+    /// <summary>
+    /// Shartga biriktiriladigan fayllar soni chegarasi.
+    ///
+    /// 10 — ataylab <see cref="Submission.MaxAttachments"/> (5) dan katta:
+    /// shartni O'QUV BO'LIMI tuzadi (ishonchli tomon) va u bir necha varaq
+    /// skanerini qo'yishi normal, javobni esa o'quvchi yuboradi.
+    /// </summary>
+    public const int MaxAttachments = 10;
+
     /// <summary>Guruh vazifasi bo'lsa — guruh; kurs vazifasida <c>null</c>.</summary>
     public long? GroupId { get; set; }
 
@@ -54,10 +63,25 @@ public class Assignment : BaseEntity
     /// </summary>
     public AnswerFormats AllowedFormats { get; set; } = AnswerFormats.Text | AnswerFormats.Image;
 
-    /// <summary>Vazifa shartlari rasmi (obyekt kaliti).</summary>
+    /// <summary>
+    /// Vazifa shartlari rasmi (obyekt kaliti).
+    ///
+    /// ⚠️ ESKIRGAN (deprecated) — o'rniga <see cref="Attachments"/>. Ustun
+    /// ATAYLAB saqlanadi: mavjud vazifalarning rasmi yo'qolmasin va
+    /// migratsiya uni <see cref="AssignmentAttachment"/> ga ko'chira olsin.
+    /// Yangi kod bu maydonga YOZMAYDI.
+    /// </summary>
     public string? ImageKey { get; set; }
 
     public long? CreatedById { get; set; }
+
+    /// <summary>
+    /// Vazifa SHARTIGA biriktirilgan fayllar (rasm/audio/hujjat, bir nechta).
+    /// O'quvchining JAVOB fayllari bu yerda EMAS — ular
+    /// <see cref="Submission.Files"/> da (sabab: <see cref="AssignmentAttachment"/>).
+    /// </summary>
+    public ICollection<AssignmentAttachment> Attachments { get; set; } =
+        new List<AssignmentAttachment>();
 
     public ICollection<Submission> Submissions { get; set; } = new List<Submission>();
 

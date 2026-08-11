@@ -72,10 +72,9 @@ public sealed class GatingService(
 
         var cached = await cache.GetAsync<CourseGateDto>(key, ct);
 
-        // Keshdagi snapshot faqat SUR'AT o'zgarmagan bo'lsa haqiqiy.
-        if (cached is not null
-            && cached.CourseId == pace.CourseId
-            && cached.TaughtLessonCount == pace.TaughtLessonCount)
+        // Keshdagi snapshot faqat SUR'AT va GURUH BOSHLANISH NUQTASI
+        // o'zgarmagan bo'lsa haqiqiy.
+        if (cached is not null && IsFresh(cached, pace))
         {
             _snapshot = cached;
             return cached;
@@ -107,9 +106,7 @@ public sealed class GatingService(
 
         var cached = await cache.GetAsync<CourseGateDto>(CacheKey(studentId), ct);
 
-        if (cached is not null
-            && cached.CourseId == pace.CourseId
-            && cached.TaughtLessonCount == pace.TaughtLessonCount)
+        if (cached is not null && IsFresh(cached, pace))
         {
             _snapshot = cached;
             return Find(cached, moduleLessonId);
@@ -130,6 +127,16 @@ public sealed class GatingService(
         if (index < 0)
             return Locked(moduleLessonId, index: 0, LessonLockReason.NotInCourse);
 
+        // ★ GURUH BOSHLANISH NUQTASI — ayni shu ro'yxatdan topiladi, ya'ni
+        //   qo'shimcha so'rov YO'Q (ro'yxat baribir tortilgan).
+        //
+        //   ⚠️ BU YERDA "index < startIndex bo'lsa darhol qaytish" QILINMAYDI,
+        //   garchi u bitta so'rovni tejaydigan ko'rinsa ham: o'sha holatda
+        //   `UnlockedOverride` (o'quv bo'limi qo'lda ochgan dars) tekshirilmay
+        //   qolardi va ARZON yo'l bilan DARAXT yo'li boshqa-boshqa javob
+        //   berardi. Qoida BITTA joyda — `LessonGate.Evaluate` da.
+        var startIndex = StartIndexOf(lessonIds, pace.VideoStartLessonId);
+
         var previousId = index > 0 ? lessonIds[index - 1] : (long?)null;
 
         var wanted = previousId is { } prev
@@ -146,7 +153,7 @@ public sealed class GatingService(
         var previous = previousId is { } id ? facts.Find(f => f.LessonId == id) : null;
 
         var (unlocked, reason) = LessonGate.Evaluate(
-            index, current, previous, pace.TaughtLessonCount);
+            index, current, previous, pace.TaughtLessonCount, startIndex);
 
         return LessonGate.Describe(index, current, unlocked, reason);
     }
@@ -165,6 +172,13 @@ public sealed class GatingService(
 
             LessonLockReason.PreviousIncomplete =>
                 "Avval oldingi darsni tugating (video, vazifa va test).",
+
+            // ★ Sabab ALOHIDA: bu darsni o'quvchi hech qachon o'tmaydi, ya'ni
+            //   "oldingi darsni tugat" degan maslahat uni faqat chalg'itardi.
+            LessonLockReason.BeforeGroupStart =>
+                "Guruhingiz kursni bu qismdan boshlamagan — dars sizning o'quv "
+                + "rejangizga kirmaydi. Kerak bo'lsa o'quv bo'limi uni alohida "
+                + "ochib berishi mumkin.",
 
             _ => "Bu dars sizning kursingizga tegishli emas.",
         });
@@ -220,15 +234,21 @@ public sealed class GatingService(
         long studentId, PaceSnapshot pace, CancellationToken ct)
     {
         if (pace.CourseId is not { } courseId)
-            return new CourseGateDto(null, 0, []);
+            return new CourseGateDto(null, 0, null, 0, []);
 
         // BITTA so'rov: barcha darslar + har birining faktlari.
         var facts = await LessonFactsQuery(studentId, OrderedLessons(courseId)).ToListAsync(ct);
 
+        // ★ Boshlanish nuqtasi ALLAQACHON tortilgan ro'yxatdan topiladi —
+        //   qo'shimcha so'rov yo'q (O(n) bitta o'tish).
+        var startIndex = StartIndexOf(facts, pace.VideoStartLessonId);
+
         return new CourseGateDto(
             courseId,
             pace.TaughtLessonCount,
-            LessonGate.EvaluateAll(facts, pace.TaughtLessonCount));
+            pace.VideoStartLessonId,
+            startIndex,
+            LessonGate.EvaluateAll(facts, pace.TaughtLessonCount, startIndex));
     }
 
     /// <summary>
@@ -315,19 +335,40 @@ public sealed class GatingService(
                      && m.Status == MemberStatus.Active
                      && m.Group!.IsActive
                      && m.Group.CourseId != null)
-            .Select(m => new { m.GroupId, CourseId = m.Group!.CourseId!.Value })
+            .Select(m => new
+            {
+                m.GroupId,
+                CourseId = m.Group!.CourseId!.Value,
+                m.Group.VideoStartLessonId,
+            })
             .OrderBy(x => x.GroupId)
             .ToListAsync(ct);
 
         if (memberships.Count == 0)
-            return new PaceSnapshot(null, 0);
+            return new PaceSnapshot(null, 0, null);
 
         var courseId = memberships[0].CourseId;
 
-        var groupIds = memberships
-            .Where(m => m.CourseId == courseId)
-            .Select(m => m.GroupId)
-            .ToList();
+        var sameCourse = memberships.FindAll(m => m.CourseId == courseId);
+
+        var groupIds = sameCourse.ConvertAll(m => m.GroupId);
+
+        // ★ VIDEO BOSHLANISH NUQTASI — ENG KENG (eng kam cheklovchi) qiymat.
+        //
+        // O'quvchi bitta kursning ikki guruhida bo'lishi mumkin. Agar
+        // ULARDAN BIRORTASIDA cheklov yo'q bo'lsa (`null` = kurs boshidan),
+        // umumiy natija ham `null` — ya'ni cheklov qo'yilmaydi. Aks holda
+        // birlamchi guruhning (`GroupId` bo'yicha eng kichigi — kurs ham AYNI
+        // shu qoida bilan tanlangan) qiymati olinadi.
+        //
+        // Bu SUR'AT bilan bir falsafada: sur'at MAKSIMUM olinadi, boshlanish
+        // nuqtasi esa eng ERKIN olinadi — o'quvchini qulflab qo'ymaslik
+        // muhimroq. Kurs va boshlanish nuqtasi bitta guruhdan kelishi ham
+        // shart: aks holda "A guruhining kursi, B guruhining boshlanishi"
+        // degan mavjud bo'lmagan holat hosil bo'lardi.
+        var videoStartLessonId = sameCourse.Exists(m => m.VideoStartLessonId is null)
+            ? null
+            : sameCourse[0].VideoStartLessonId;
 
         // Guruh bo'yicha ALOHIDA sanaladi va MAKSIMUMI olinadi. Bitta
         // `COUNT(*)` bo'lsa ikki guruhdagi o'quvchi uchun sur'at ikki
@@ -341,8 +382,52 @@ public sealed class GatingService(
             .Select(g => g.Count())
             .ToListAsync(ct);
 
-        return new PaceSnapshot(courseId, perGroup.Count == 0 ? 0 : perGroup.Max());
+        return new PaceSnapshot(
+            courseId,
+            perGroup.Count == 0 ? 0 : perGroup.Max(),
+            videoStartLessonId);
     }
+
+    /// <summary>
+    /// ★ BOSHLANISH DARSINING GLOBAL TARTIB RAQAMI.
+    ///
+    /// Cheklov yo'q bo'lsa (yoki dars kursda topilmasa) 0 qaytadi, ya'ni
+    /// "kurs boshidan" — bugungi xatti-harakat.
+    ///
+    /// NIMA UCHUN TOPILMASA 0, XATO EMAS: FK <c>ON DELETE SET NULL</c> bo'lgani
+    /// uchun bu holat amalda yuz bermaydi, lekin agar yuz bersa (masalan
+    /// dars boshqa kursga ko'chirilsa) o'quvchi uchun BUTUN kurs qulflanib
+    /// qolmasligi kerak. Xato tomonini tanlaganda "cheklovsiz" tanlanadi —
+    /// qulflab qo'yish ancha qimmat nosozlik.
+    /// </summary>
+    private static int StartIndexOf(List<long> orderedLessonIds, long? videoStartLessonId) =>
+        videoStartLessonId is { } startId
+            ? NormalizeStartIndex(orderedLessonIds.IndexOf(startId))
+            : 0;
+
+    /// <inheritdoc cref="StartIndexOf(List{long}, long?)"/>
+    private static int StartIndexOf(List<LessonFacts> orderedLessons, long? videoStartLessonId) =>
+        videoStartLessonId is { } startId
+            ? NormalizeStartIndex(orderedLessons.FindIndex(f => f.LessonId == startId))
+            : 0;
+
+    /// <summary>Topilmagan dars (−1) "cheklov yo'q" ga aylanadi — sabab yuqorida.</summary>
+    private static int NormalizeStartIndex(int index) => index < 0 ? 0 : index;
+
+    /// <summary>
+    /// Keshdagi snapshot HALI HAQIQIYMI.
+    ///
+    /// Uch fakt taqqoslanadi: kurs, ustoz sur'ati va guruh boshlanish
+    /// nuqtasi. Uchalasi ham <see cref="ResolvePaceAsync"/> dagi ARZON
+    /// indeksli so'rovdan keladi, ya'ni tekshiruv daraxtni qayta qurishdan
+    /// ~10 barobar arzon. Boshlanish nuqtasi shu ro'yxatga QO'SHILDI: aks
+    /// holda o'quv bo'limi uni o'zgartirganda o'quvchi TTL tugaguncha
+    /// (60 s) eski qulflar bilan qolardi.
+    /// </summary>
+    private static bool IsFresh(CourseGateDto cached, PaceSnapshot pace) =>
+        cached.CourseId == pace.CourseId
+        && cached.TaughtLessonCount == pace.TaughtLessonCount
+        && cached.VideoStartLessonId == pace.VideoStartLessonId;
 
     // ================================================================= ichki yordamchi
 
@@ -402,5 +487,12 @@ public sealed class GatingService(
     private const bool VideoContentModelled = false;
 
     /// <param name="TaughtLessonCount">Yakunlangan ustoz darslari soni (sur'at).</param>
-    private sealed record PaceSnapshot(long? CourseId, int TaughtLessonCount);
+    /// <param name="VideoStartLessonId">
+    /// Guruh video darslarni qaysi darsdan boshlaydi. <c>null</c> — kurs
+    /// boshidan (batafsil: <see cref="ResolvePaceAsync"/>).
+    /// </param>
+    private sealed record PaceSnapshot(
+        long? CourseId,
+        int TaughtLessonCount,
+        long? VideoStartLessonId);
 }

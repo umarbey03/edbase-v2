@@ -161,10 +161,22 @@ public sealed class TelegramUpdateHandler(
         if (!string.IsNullOrEmpty(payload))
             TelegramBotLog.StartPayload(logger, updateId, Shorten(payload));
 
+        // ★ `AsTracking()` — ATAYLAB (avval `AsNoTracking()` edi): quyida
+        //   username yangilanadi. Telegram username'ni foydalanuvchi istalgan
+        //   payt o'zgartiradi, shuning uchun u HAR muloqotda qayta yozib
+        //   boriladi — aks holda xodim profilda eskirgan nomni ko'rib, BOSHQA
+        //   odamga yozib qo'yishi mumkin (bo'shatilgan username Telegram'da
+        //   qayta band qilinadi).
         var linked = await db.Users
-            .AsNoTracking()
+            .AsTracking()
             .FirstOrDefaultAsync(u => u.TelegramId == sender.Id, ct)
             .ConfigureAwait(false);
+
+        // Natija ATAYLAB e'tiborsiz qoldiriladi: metod o'zi "haqiqatan
+        // o'zgardimi" ni hisoblaydi va o'zgarmasa hech nima qilmaydi (har
+        // `/start` bekorga `UPDATE` yozmasin). Saqlash `HandleAsync` dagi
+        // YAGONA `SaveChangesAsync` da — bitta tranzaksiya qoidasi buzilmaydi.
+        _ = linked?.RefreshTelegramUsername(sender.Username);
 
         if (linked is { Role: UserRole.Student, IsActive: true })
         {
@@ -223,8 +235,14 @@ public sealed class TelegramUpdateHandler(
         }
 
         // Bu Telegram akkaunt allaqachon kimgadir bog'langanmi.
+        //
+        // ★ `AsTracking()` — ATAYLAB (avval `AsNoTracking()` edi): pastdagi
+        //   idempotent shoxda (ayni profil qayta kontakt yubordi) username
+        //   yangilanadi. Bu `candidate` bilan AYNI qatorga tushishi mumkin —
+        //   EF identifikatorlar bo'yicha bitta obyekt qaytaradi, ya'ni ikki
+        //   nusxa va qarama-qarshi o'zgarish holati yuzaga kelmaydi.
         var alreadyLinked = await db.Users
-            .AsNoTracking()
+            .AsTracking()
             .FirstOrDefaultAsync(u => u.TelegramId == sender.Id, ct)
             .ConfigureAwait(false);
 
@@ -236,9 +254,12 @@ public sealed class TelegramUpdateHandler(
 
         if (alreadyLinked is not null)
         {
-            // Ayni profil — hech narsa o'zgarmaydi (idempotent).
+            // Ayni profil — bog'lanish o'zgarmaydi (idempotent), faqat
+            // username yangilanib qo'yiladi.
             if (candidate is not null && candidate.Id == alreadyLinked.Id)
             {
+                _ = alreadyLinked.RefreshTelegramUsername(sender.Username);
+
                 await ReplyAsync(updateId, chatId, alreadyLinked.Id,
                     TelegramTemplates.ContactLinked,
                     TelegramTemplates.ContactLinkedText(alreadyLinked.FullName), ct).ConfigureAwait(false);
@@ -318,8 +339,11 @@ public sealed class TelegramUpdateHandler(
             return TelegramUpdateOutcome.ProfileTaken;
         }
 
-        candidate.TelegramId = sender.Id;
-        candidate.UpdatedAt = DateTimeOffset.UtcNow;
+        // Bog'lanish — Domain metodi orqali: `TelegramId`, `TelegramUsername`
+        // va `TelegramLinkedAt` uchligi BIRGA yoziladi. Qo'lda yozilsa
+        // ulardan bittasi unutilib, "bog'langan, lekin sanasi yo'q" holati
+        // paydo bo'lardi.
+        candidate.LinkTelegram(sender.Id, sender.Username, DateTimeOffset.UtcNow);
 
         TelegramBotLog.Linked(logger, updateId, candidate.Id);
 

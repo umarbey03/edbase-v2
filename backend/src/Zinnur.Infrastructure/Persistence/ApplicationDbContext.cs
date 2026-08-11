@@ -19,6 +19,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<User> Users => Set<User>();
 
+    // ---------------------------------------------------------------- WAVE 1: o'quvchi profili
+
+    public DbSet<StudentNote> StudentNotes => Set<StudentNote>();
+
+    public DbSet<TelegramUnlinkAudit> TelegramUnlinkAudits => Set<TelegramUnlinkAudit>();
+
     public DbSet<Course> Courses => Set<Course>();
 
     public DbSet<CourseModule> Modules => Set<CourseModule>();
@@ -64,6 +70,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<TestAnswer> TestAnswers => Set<TestAnswer>();
 
     public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
+
+    // ---------------------------------------------------------------- WAVE 1: dars mediasi
+
+    public DbSet<LessonAsset> LessonAssets => Set<LessonAsset>();
+
+    public DbSet<AssignmentAttachment> AssignmentAttachments => Set<AssignmentAttachment>();
 
     // ---------------------------------------------------------------- FAZA 4: moliya
 

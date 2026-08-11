@@ -5,7 +5,9 @@ import { computed, ref, watch } from 'vue'
 import {
   deleteLesson,
   deleteModule,
+  lessonAssetSummary,
   lessonDurationLabel,
+  lessonKindLabel,
   moduleLessonSummary,
   reorderLessons,
   reorderModules,
@@ -14,7 +16,7 @@ import { toUserMessage } from '@/shared/api'
 import type { CourseLessonDto, CourseModuleDto, CourseTreeDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, ConfirmDeleteDialog, EmptyState } from '@/shared/ui'
 
-import LessonFormDialog from './LessonFormDialog.vue'
+import LessonEditDrawer from './LessonEditDrawer.vue'
 import ModuleFormDialog from './ModuleFormDialog.vue'
 
 /**
@@ -126,20 +128,45 @@ function openModuleEdit(module: CourseModuleDto): void {
   moduleDialogOpen.value = true
 }
 
-const lessonDialogOpen = ref(false)
+const lessonDrawerOpen = ref(false)
 const lessonModuleId = ref<number>(0)
-const editingLesson = ref<CourseLessonDto | null>(null)
+
+/**
+ * Tahrirlanayotgan dars — OB'EKT emas, ID.
+ *
+ * 🔴 SABAB: drawer ochiq turganda daraxt QAYTA SO'RALADI (fayl yuklandi,
+ * vazifa saqlandi...) va `useQuery` yangi ob'ektlar qaytaradi. Agar bu yerda
+ * darsning O'ZI saqlansa, u ESKI daraxtdagi surat bo'lib qolardi va drawer
+ * yangilangan fayllar ro'yxatini KO'RMASDI. ID bo'yicha izlash esa har
+ * render'da joriy ma'lumotni beradi.
+ */
+const editingLessonId = ref<number | null>(null)
+
+const editingLesson = computed<CourseLessonDto | null>(() => {
+  const id = editingLessonId.value
+  if (id === null) return null
+  for (const module of modules.value) {
+    const found = (module.lessons ?? []).find((lesson) => lesson.id === id)
+    if (found !== undefined) return found
+  }
+  return null
+})
+
+/** Drawer sarlavhasi ostidagi qator — xodim qaysi modulda ishlayotganini bilsin. */
+const editingModuleName = computed<string>(
+  () => modules.value.find((module) => module.id === lessonModuleId.value)?.name ?? '',
+)
 
 function openLessonCreate(module: CourseModuleDto): void {
   lessonModuleId.value = module.id
-  editingLesson.value = null
-  lessonDialogOpen.value = true
+  editingLessonId.value = null
+  lessonDrawerOpen.value = true
 }
 
 function openLessonEdit(module: CourseModuleDto, lesson: CourseLessonDto): void {
   lessonModuleId.value = module.id
-  editingLesson.value = lesson
-  lessonDialogOpen.value = true
+  editingLessonId.value = lesson.id
+  lessonDrawerOpen.value = true
 }
 
 /* ------------------------------------------------------------------ o'chirish */
@@ -213,7 +240,8 @@ watch(
   () => props.course.id,
   () => {
     moduleDialogOpen.value = false
-    lessonDialogOpen.value = false
+    lessonDrawerOpen.value = false
+    editingLessonId.value = null
     deleteTarget.value = null
     actionError.value = null
     collapsed.value = new Set<number>()
@@ -372,6 +400,23 @@ watch(
                     class="text-[11px] tabular-nums text-dim"
                     v-text="lessonDurationLabel(lesson)"
                   />
+                  <!--
+                    Dars TURI faqat imtihonda ko'rsatiladi: "Odatiy" nishoni
+                    har qatorda takrorlanib, ro'yxatni shovqinga to'ldirardi
+                    (odatiy dars — standart holat).
+                  -->
+                  <BaseBadge
+                    v-if="lesson.kind === 'Exam'"
+                    tone="warning"
+                  >
+                    {{ lessonKindLabel(lesson.kind) }}
+                  </BaseBadge>
+                  <BaseBadge
+                    v-if="lessonAssetSummary(lesson) !== null"
+                    tone="neutral"
+                  >
+                    {{ lessonAssetSummary(lesson) }}
+                  </BaseBadge>
                   <BaseBadge
                     v-if="lesson.hasAssignment"
                     tone="accent"
@@ -478,12 +523,17 @@ watch(
       @saved="emit('changed')"
     />
 
-    <LessonFormDialog
-      :open="lessonDialogOpen"
+    <!--
+      Dars DRAWER'da tahrirlanadi (o'ngdan 85%): ichida to'rt bo'lim bor —
+      ma'lumotlar, tur, media (video qismlari / rasmlar) va uy vazifasi.
+    -->
+    <LessonEditDrawer
+      :open="lessonDrawerOpen"
       :course-id="props.course.id"
       :module-id="lessonModuleId"
       :lesson="editingLesson"
-      @close="lessonDialogOpen = false"
+      :module-name="editingModuleName"
+      @close="lessonDrawerOpen = false"
       @saved="emit('changed')"
     />
 

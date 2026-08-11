@@ -11,15 +11,9 @@ import {
 } from '@/entities/group'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime, formatDateWithYear } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { GroupMemberDto } from '@/shared/types'
-import {
-  AppIcon,
-  BaseBadge,
-  BaseButton,
-  BaseCard,
-  ConfirmDeleteDialog,
-  DataStatus,
-} from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, IconButton } from '@/shared/ui'
 
 import AddMemberDialog from './AddMemberDialog.vue'
 import MoveMemberDialog from './MoveMemberDialog.vue'
@@ -32,13 +26,55 @@ import PauseMemberDialog from './PauseMemberDialog.vue'
  * `[Authorize(Roles = "Academic,Admin")]` bilan qulflagan). `canManage`
  * tugmalarni YASHIRADI, lekin qoidani TAKRORLAMAYDI — haqiqiy tekshiruv
  * serverda; ustoz sahifani ochsa ro'yxatni ko'radi, o'zgartira olmaydi.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ *  AMALLAR IKONKA KO'RINISHIDA (talab: *"har bir o'quvchi bo'yicha actions
+ *  buttonlar icon ko'rinishida bo'lgani ma'qul"*)
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ *  | ikonka             | amal                  | tasdiq              |
+ *  |--------------------|-----------------------|---------------------|
+ *  | `user`             | profilni ochish       | — (o'zgarish yo'q)  |
+ *  | `pause` / `play`   | pauza / tiklash       | dialog / `warning`  |
+ *  | `arrow-right-left` | boshqa guruhga ko'chirish | dialog          |
+ *  | `user-x`           | guruhdan chiqarish    | `danger`            |
+ *  | `wallet`           | to'lov holati         | — (o'qish)          |
+ *
+ * ★ TASDIQ QAYERDA VA NEGA (reja B2 jadvali bo'yicha qabul qilingan qaror):
+ *
+ *  • "Chiqarish" — dialogsiz, bir bosishda bajariladigan QAYTARIB
+ *    BO'LMAYDIGAN amal, shuning uchun `danger` tasdiq SHART.
+ *  • "Tiklash" (`play`) — ham bir bosishli, `warning` tasdiq bilan:
+ *    o'quvchi darsga qaytadi va davomat/to'lov hisobi yana yuritiladi.
+ *  • "Pauza" va "Ko'chirish" — mavjud DIALOGLARNI ochadi
+ *    (`PauseMemberDialog` sanani, `MoveMemberDialog` nishon guruhni
+ *    so'raydi). Ular oldidan qo'shimcha tasdiq QO'YILMADI: dialogning o'zi
+ *    tasdiq rolini o'ynaydi ("Bekor qilish" tugmasi bilan) va ikki ketma-ket
+ *    oyna foydalanuvchini "nima uchun ikki marta so'raladi?" degan holatga
+ *    tushirardi (reja B2: har checkbox uchun oyna interfeysni
+ *    foydalanishga yaramas qiladi).
+ *  • Profil va to'lov — O'QISH amallari, tasdiq talab qilmaydi.
+ *
+ * ★ `ConfirmDeleteDialog` ORNIGA `useConfirm`: u faqat server sababini
+ * oynada USHLAB TURISH kerak bo'lganda afzal. `DELETE .../members/{id}`
+ * esa idempotent va 409 qaytarmaydi (`GroupService.RemoveMemberAsync`),
+ * ya'ni ushlab turadigan sabab yo'q; xato ro'yxat ustidagi bannerda
+ * ko'rsatiladi va qator joyida qoladi.
  */
 const props = defineProps<{
   groupId: number
   canManage: boolean
 }>()
 
+const emit = defineEmits<{
+  /** O'quvchi profilini ochish (sahifa hal qiladi — drawer boshqa feature'da). */
+  'open-profile': [studentId: number]
+  /** O'quvchining to'lov holatini ochish. */
+  'open-wallet': [studentId: number]
+}>()
+
 const queryClient = useQueryClient()
+const confirm = useConfirm()
 
 const membersQuery = useQuery({
   queryKey: ['group', props.groupId, 'members'],
@@ -68,37 +104,82 @@ const addOpen = ref(false)
 const pauseTarget = ref<GroupMemberDto | null>(null)
 const moveTarget = ref<GroupMemberDto | null>(null)
 
+/**
+ * 🔴 QAYSI QATOR ISHLAYAPTI. `useMutation` ning `isPending` i BUTUN
+ * mutatsiyaga tegishli, ya'ni u to'g'ridan-to'g'ri qatorga bog'lansa 30
+ * o'quvchining HAMMASIDA spinner aylanardi. Amal boshlangan o'quvchining
+ * Id'si shu yerda saqlanadi.
+ */
+const busyStudentId = ref<number | null>(null)
+
 const resumeMutation = useMutation({
   mutationFn: (studentId: number) => resumeMember(props.groupId, studentId),
   onSuccess: refresh,
   onError: (error: Error) => {
     actionError.value = toUserMessage(error)
   },
+  onSettled: () => {
+    busyStudentId.value = null
+  },
 })
-
-const removeTarget = ref<GroupMemberDto | null>(null)
-const removeError = ref<string | null>(null)
 
 const removeMutation = useMutation({
   mutationFn: (studentId: number) => removeMember(props.groupId, studentId),
-  onSuccess: () => {
-    removeTarget.value = null
-    refresh()
-  },
+  onSuccess: refresh,
   onError: (error: Error) => {
-    removeError.value = toUserMessage(error)
+    actionError.value = toUserMessage(error)
+  },
+  onSettled: () => {
+    busyStudentId.value = null
   },
 })
 
-function askRemove(member: GroupMemberDto): void {
-  removeError.value = null
-  removeTarget.value = member
+function isBusy(member: GroupMemberDto, kind: 'resume' | 'remove'): boolean {
+  if (busyStudentId.value !== member.studentId) return false
+  return kind === 'resume' ? resumeMutation.isPending.value : removeMutation.isPending.value
 }
 
-function confirmRemove(): void {
-  const member = removeTarget.value
-  if (member === null) return
-  removeError.value = null
+/** Bitta o'quvchi ustida ikki amal bir vaqtda ishga tushmasin. */
+function isRowLocked(member: GroupMemberDto): boolean {
+  return busyStudentId.value === member.studentId
+}
+
+function memberName(member: GroupMemberDto): string {
+  return member.fullName ?? 'O‘quvchi'
+}
+
+async function askResume(member: GroupMemberDto): Promise<void> {
+  actionError.value = null
+  const ok = await confirm({
+    title: 'Pauzadan chiqarish',
+    message: `${memberName(member)} guruhga qaytariladi.`,
+    confirmLabel: 'Tiklash',
+    tone: 'warning',
+    details: [
+      'O‘quvchi keyingi darslarga qaytadi.',
+      'Davomat va to‘lov hisobi shu paytdan yana yuritiladi.',
+    ],
+  })
+  if (!ok) return
+  busyStudentId.value = member.studentId
+  resumeMutation.mutate(member.studentId)
+}
+
+async function askRemove(member: GroupMemberDto): Promise<void> {
+  actionError.value = null
+  const ok = await confirm({
+    title: 'Guruhdan chiqarish',
+    message: `${memberName(member)} guruhdan chiqariladi.`,
+    confirmLabel: 'Chiqarish',
+    tone: 'danger',
+    details: [
+      'Yozuv o‘chirilmaydi — holati “Chiqarilgan” bo‘ladi.',
+      'Davomat va to‘lov tarixi saqlanadi.',
+      'Qaytarish uchun o‘quvchini guruhga qaytadan qo‘shish kerak bo‘ladi.',
+    ],
+  })
+  if (!ok) return
+  busyStudentId.value = member.studentId
   removeMutation.mutate(member.studentId)
 }
 
@@ -188,41 +269,67 @@ function isHistorical(member: GroupMemberDto): boolean {
               {{ formatDateWithYear(member.pausedUntil) }} gacha pauzada
             </p>
 
+            <!--
+              🔴 `gap-3` (12px) — `IconButton` ning `tap-expand` maydonlari
+              ustma-ust tushmasligi uchun MINIMAL oraliq (13.1/24-tuzoq).
+              Kichraytirilsa chetga bosilgan barmoq qo'shni tugmani ishga
+              solardi ("Pauza" o'rniga "Chiqarish").
+
+              ★ TELEFONDA HAM BESHTASI QATORDA QOLADI, "..." menyusiga
+              yig'ilmaydi. O'lchov: 5 × 36px + 4 × 12px = 228px, 320px
+              ekranda kartochka ichida ~260px joy bor. Amallar ALOHIDA
+              qatorda (ism/email tepada) — ya'ni jadval katagidagi siqiq
+              holat bu yerda yo'q. Yashirin menyu qo'shilsa u ochilganda
+              kartochkadan tashqariga chiqib qirqilardi va yana bitta
+              fokus-tuzoq mantig'i paydo bo'lardi.
+            -->
             <div
-              v-if="props.canManage && !isHistorical(member)"
-              class="mt-2.5 flex flex-wrap items-center gap-2"
+              v-if="props.canManage"
+              class="mt-2.5 flex flex-wrap items-center gap-3"
             >
-              <BaseButton
-                v-if="isPaused(member)"
-                size="sm"
-                variant="secondary"
-                :loading="resumeMutation.isPending.value"
-                @click="resumeMutation.mutate(member.studentId)"
-              >
-                Davom ettirish
-              </BaseButton>
-              <BaseButton
-                v-else
-                size="sm"
-                variant="secondary"
-                @click="pauseTarget = member"
-              >
-                Pauza
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="secondary"
-                @click="moveTarget = member"
-              >
-                Ko‘chirish
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="danger"
-                @click="askRemove(member)"
-              >
-                Chiqarish
-              </BaseButton>
+              <IconButton
+                icon="user"
+                label="Profilni ochish"
+                @click="emit('open-profile', member.studentId)"
+              />
+              <IconButton
+                icon="wallet"
+                label="To‘lov holati"
+                @click="emit('open-wallet', member.studentId)"
+              />
+              <template v-if="!isHistorical(member)">
+                <IconButton
+                  v-if="isPaused(member)"
+                  icon="play"
+                  label="Pauzadan chiqarish"
+                  tone="success"
+                  :loading="isBusy(member, 'resume')"
+                  :disabled="isRowLocked(member)"
+                  @click="askResume(member)"
+                />
+                <IconButton
+                  v-else
+                  icon="pause"
+                  label="Pauza qilish"
+                  tone="warning"
+                  :disabled="isRowLocked(member)"
+                  @click="pauseTarget = member"
+                />
+                <IconButton
+                  icon="arrow-right-left"
+                  label="Boshqa guruhga ko‘chirish"
+                  :disabled="isRowLocked(member)"
+                  @click="moveTarget = member"
+                />
+                <IconButton
+                  icon="user-x"
+                  label="Guruhdan chiqarish"
+                  tone="danger"
+                  :loading="isBusy(member, 'remove')"
+                  :disabled="isRowLocked(member)"
+                  @click="askRemove(member)"
+                />
+              </template>
             </div>
           </li>
         </ul>
@@ -237,7 +344,9 @@ function isHistorical(member: GroupMemberDto): boolean {
                 <th>Telefon</th>
                 <th>Holat</th>
                 <th>Qo‘shilgan</th>
-                <th v-if="props.canManage" />
+                <th v-if="props.canManage">
+                  <span class="sr-only">Amallar</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -273,41 +382,50 @@ function isHistorical(member: GroupMemberDto): boolean {
                   v-text="formatDateTime(member.joinedAt)"
                 />
                 <td v-if="props.canManage">
-                  <div
-                    v-if="!isHistorical(member)"
-                    class="flex items-center justify-end gap-1.5"
-                  >
-                    <BaseButton
-                      v-if="isPaused(member)"
-                      size="sm"
-                      variant="secondary"
-                      :loading="resumeMutation.isPending.value"
-                      @click="resumeMutation.mutate(member.studentId)"
-                    >
-                      Davom ettirish
-                    </BaseButton>
-                    <BaseButton
-                      v-else
-                      size="sm"
-                      variant="secondary"
-                      @click="pauseTarget = member"
-                    >
-                      Pauza
-                    </BaseButton>
-                    <BaseButton
-                      size="sm"
-                      variant="secondary"
-                      @click="moveTarget = member"
-                    >
-                      Ko‘chirish
-                    </BaseButton>
-                    <BaseButton
-                      size="sm"
-                      variant="danger"
-                      @click="askRemove(member)"
-                    >
-                      Chiqarish
-                    </BaseButton>
+                  <div class="flex items-center justify-end gap-3">
+                    <IconButton
+                      icon="user"
+                      label="Profilni ochish"
+                      @click="emit('open-profile', member.studentId)"
+                    />
+                    <IconButton
+                      icon="wallet"
+                      label="To‘lov holati"
+                      @click="emit('open-wallet', member.studentId)"
+                    />
+                    <template v-if="!isHistorical(member)">
+                      <IconButton
+                        v-if="isPaused(member)"
+                        icon="play"
+                        label="Pauzadan chiqarish"
+                        tone="success"
+                        :loading="isBusy(member, 'resume')"
+                        :disabled="isRowLocked(member)"
+                        @click="askResume(member)"
+                      />
+                      <IconButton
+                        v-else
+                        icon="pause"
+                        label="Pauza qilish"
+                        tone="warning"
+                        :disabled="isRowLocked(member)"
+                        @click="pauseTarget = member"
+                      />
+                      <IconButton
+                        icon="arrow-right-left"
+                        label="Boshqa guruhga ko‘chirish"
+                        :disabled="isRowLocked(member)"
+                        @click="moveTarget = member"
+                      />
+                      <IconButton
+                        icon="user-x"
+                        label="Guruhdan chiqarish"
+                        tone="danger"
+                        :loading="isBusy(member, 'remove')"
+                        :disabled="isRowLocked(member)"
+                        @click="askRemove(member)"
+                      />
+                    </template>
                   </div>
                 </td>
               </tr>
@@ -339,17 +457,6 @@ function isHistorical(member: GroupMemberDto): boolean {
       :member="moveTarget"
       @close="moveTarget = null"
       @saved="refresh"
-    />
-
-    <ConfirmDeleteDialog
-      :open="removeTarget !== null"
-      title="Guruhdan chiqarish"
-      :message="`${removeTarget?.fullName ?? 'O‘quvchi'} guruhdan chiqariladi. Yozuv o‘chirilmaydi — holati “Chiqarilgan” bo‘ladi va davomat/to‘lov tarixi saqlanadi.`"
-      confirm-label="Chiqarish"
-      :pending="removeMutation.isPending.value"
-      :error="removeError"
-      @close="removeTarget = null"
-      @confirm="confirmRemove"
     />
   </BaseCard>
 </template>

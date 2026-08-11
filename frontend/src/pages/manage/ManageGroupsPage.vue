@@ -11,7 +11,7 @@ import {
   groupTypeLabel,
   groupTypeTone,
 } from '@/entities/group'
-import GroupFormDialog from '@/features/group-form/ui/GroupFormDialog.vue'
+import { GroupEditDrawer } from '@/features/group-form'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import { useDebounced } from '@/shared/lib/debounce'
@@ -79,21 +79,37 @@ const errorMessage = computed(() =>
   groupsQuery.error.value !== null ? toUserMessage(groupsQuery.error.value) : null,
 )
 
-const dialogOpen = ref(false)
-const editing = ref<GroupDto | null>(null)
+/*
+  ★ PANELGA FAQAT `id` BERILADI, butun `GroupDto` EMAS.
+
+  🔴 Sabab: `GroupEditDrawer` ochilganda `GET /groups/{id}` bilan YANGI
+  ma'lumot oladi. Ro'yxatdagi obyekt keshdan kelgan bo'lishi mumkin va
+  `PUT` = TO'LIQ ALMASHTIRISH bo'lgani uchun eskirgan qiymatlar payloadga
+  tushib, boshqa xodimning o'zgarishini bekor qilardi. Prop sifatida DTO
+  berilsa, "keshdan foydalanmang" qoidasi qog'ozda qolib, amalda buzilardi.
+*/
+const drawerOpen = ref(false)
+const editingId = ref<number | null>(null)
 
 function openCreate(): void {
-  editing.value = null
-  dialogOpen.value = true
+  editingId.value = null
+  drawerOpen.value = true
 }
 
 function openEdit(group: GroupDto): void {
-  editing.value = group
-  dialogOpen.value = true
+  editingId.value = group.id
+  drawerOpen.value = true
 }
 
 function refresh(): void {
   void queryClient.invalidateQueries({ queryKey: ['groups'] })
+  /*
+    ★ Guruh TAFSILOTI keshi ham eskiradi: `['group', id]` (guruh sahifasi,
+    jadval, a'zolar) — bu boshqa kalit, ya'ni `['groups']` uni QAMRAMAYDI.
+    Bo'lim saqlanganidan keyin guruh sahifasiga o'tilsa eski kurs/jadval
+    ko'rinib turardi.
+  */
+  void queryClient.invalidateQueries({ queryKey: ['group'] })
 }
 
 function openDetail(groupId: number): void {
@@ -324,10 +340,10 @@ function openDetail(groupId: number): void {
       </BaseCard>
     </DataStatus>
 
-    <GroupFormDialog
-      :open="dialogOpen"
-      :group="editing"
-      @close="dialogOpen = false"
+    <GroupEditDrawer
+      :open="drawerOpen"
+      :group-id="editingId"
+      @close="drawerOpen = false"
       @saved="refresh"
     />
   </div>

@@ -12,6 +12,7 @@ import {
   groupTypeLabel,
   regenerateSchedule,
   restoreGroup,
+  videoStartLabel,
 } from '@/entities/group'
 import { isManagerRole } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
@@ -21,6 +22,7 @@ import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import {
   AttendanceTab,
   BoardTab,
+  defaultGroupTab,
   GradesTab,
   GroupTabs,
   heldSummary,
@@ -32,6 +34,7 @@ import {
 } from '@/features/group-tabs'
 import type { GroupTabKey } from '@/features/group-tabs'
 import GroupMembersPanel from '@/features/group-members/ui/GroupMembersPanel.vue'
+import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import type { SubmissionDto } from '@/shared/types'
@@ -98,11 +101,20 @@ const schedule = computed(() => scheduleQuery.data.value ?? [])
 const auth = useAuthStore()
 const canManage = computed(() => auth.role !== null && isManagerRole(auth.role))
 
-/** ★ Eski `isCurator` sharti: kurator uchun Testlar va Reyting tablari yo'q. */
-const isCurator = computed(() => auth.role === 'Assistant')
-const tabs = computed(() => visibleGroupTabs(isCurator.value))
+/*
+  TABLAR ROLGA QARAB: kuratorda Testlar/Reyting yo'q (eski qoida), o'quv
+  bo'limi/adminda esa "O'quvchilar" BIRINCHI (yangi talab, `tabs.ts` izohi).
+  Ustoz/kuratorda tartib TEGILMAGAN.
+*/
+const tabs = computed(() => visibleGroupTabs(auth.role))
 
-const activeTab = ref<GroupTabKey>('att')
+/*
+  Standart tab ham rolga mos: `defaultGroupTab` ko'rinadigan tablarning
+  birinchisini beradi, ya'ni o'quv bo'limi guruhga kirganda darhol o'quvchilar
+  ro'yxatini ko'radi. Rol router guard'ida (`auth.bootstrap()`) allaqachon
+  aniqlangan bo'ladi, shuning uchun boshlang'ich qiymat to'g'ri chiqadi.
+*/
+const activeTab = ref<GroupTabKey>(defaultGroupTab(auth.role))
 
 const groupError = computed(() =>
   groupQuery.error.value !== null ? toUserMessage(groupQuery.error.value) : null,
@@ -155,6 +167,38 @@ const regenerateMutation = useMutation({
     regenerateError.value = toUserMessage(error)
   },
 })
+
+/* ------------------------------------- o'quvchi profili va to'lov holati */
+
+/**
+ * ★ INTEGRATSIYADA ULANDI (`wave2/groups` qoldirgan `TODO(wave2/users)`).
+ *
+ * Ilgari bu ikki ishlovchi faqat "keyinchalik ulanadi" degan izoh chiqarardi:
+ * `features/student-profile` qardosh branch'da yozilayotgan edi va uni bu
+ * yerdan import qilish ikki branch'ni bir-biriga bog'lab merge'ni to'sardi.
+ * Ikkala branch ham merge qilingandan keyin bu bog'liqlik yo'q — panel
+ * ULANDI, aks holda beshta ikonkadan IKKITASI hech narsa qilmasdi.
+ *
+ * 🔴 IKKI IKONKA BITTA PANELNI ochadi (profil ichida to'lov bo'limi ham bor).
+ * Ular ATAYLAB birlashtirilmadi: "To'lov holati" xodimning odatiy yo'li va
+ * eski ilovada alohida tugma bo'lgan. To'lov bo'limining KO'RINISHI rolga
+ * bog'liq va u SERVERDA kesiladi (`finance === null` -> bo'lim umuman
+ * render qilinmaydi), ya'ni ustoz "To'lov holati" ni bossa ham moliyani
+ * ko'rmaydi — panel shunchaki profilni ko'rsatadi.
+ */
+const studentProfileId = ref<number | null>(null)
+const studentProfileOpen = ref(false)
+
+function openStudentProfile(studentId: number): void {
+  studentProfileId.value = studentId
+  studentProfileOpen.value = true
+}
+
+/*
+  "To'lov holati" ikonkasi ayni panelni ochadi — to'lov bo'limi shu panelning
+  ichida. Alohida oyna yasash ma'lumotni ikki joyda ko'rsatardi.
+*/
+const openStudentWallet = openStudentProfile
 
 /* -------------------------------------------------- baholash oynalari */
 
@@ -285,6 +329,21 @@ function refreshSubmissions(): void {
                 {{ group.courseMonths }} oy
               </dd>
             </div>
+            <!--
+              Video darslar QAYSI qismdan boshlanishi — guruh-daraja sozlama
+              (bir kurs, ko'p guruh: yarim yildan qo'shilgan guruh 1-moduldan
+              boshlamaydi). Kurssiz guruhda ma'nosi yo'q, shuning uchun
+              chiziqcha ko'rsatiladi.
+            -->
+            <div class="col-span-2">
+              <dt class="text-dim">
+                Video darslar boshlanishi
+              </dt>
+              <dd
+                class="mt-0.5 truncate font-medium text-slate-200"
+                v-text="group.courseId === null ? '—' : videoStartLabel(group)"
+              />
+            </div>
             <div class="col-span-2">
               <dt class="text-dim">
                 Muddat
@@ -352,6 +411,8 @@ function refreshSubmissions(): void {
           v-else-if="activeTab === 'students'"
           :group-id="groupId"
           :can-manage="canManage"
+          @open-profile="openStudentProfile"
+          @open-wallet="openStudentWallet"
         />
         <!--
           "Chat" tabi — guruhning DOIMIY umumiy chati. Ilgari bu yerda
@@ -413,6 +474,24 @@ function refreshSubmissions(): void {
       :error="regenerateError"
       @close="regenerateOpen = false"
       @confirm="regenerateMutation.mutate()"
+    />
+
+    <!--
+      O'QUVCHI PROFILI PANELI — ENG OXIRIDA e'lon qilinadi.
+
+      🔴 TARTIB MUHIM: teleport langarlari komponentlar E'LON QILINGAN
+      tartibda yaratiladi va hammasi `z-50` da turadi. Panel ekranning 85% ini
+      egallaydi, ya'ni u yuqoridagi tasdiq oynalarining ORTIDA qolmasligi
+      kerak (`ManageUsersPage` da ayni sabab bilan ayni tartib).
+
+      `@changed` — Telegram uzilganda a'zolar ro'yxatidagi ma'lumot ham
+      eskiradi, shuning uchun ro'yxat qaytadan so'raladi.
+    -->
+    <StudentProfileDrawer
+      :open="studentProfileOpen"
+      :user-id="studentProfileId"
+      @close="studentProfileOpen = false"
+      @changed="refreshGroup"
     />
   </div>
 </template>

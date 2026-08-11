@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
+import { fetchGroups, GROUP_SEARCH_MIN, groupDisplayName } from '@/entities/group'
 import {
   activateUser,
   deactivateUser,
@@ -9,12 +10,17 @@ import {
   ROLE_OPTIONS,
   roleLabel,
   roleTone,
+  TELEGRAM_FILTER_OPTIONS,
+  telegramFilterToParam,
   USER_SEARCH_MIN,
 } from '@/entities/user'
+import type { TelegramFilterValue } from '@/entities/user'
+import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import UserFormDialog from '@/features/user-form/ui/UserFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { UserDetailsDto, UserRoleName } from '@/shared/types'
 import {
   AppIcon,
@@ -22,6 +28,7 @@ import {
   BaseButton,
   BaseCard,
   DataStatus,
+  IconButton,
   PageHeader,
   PaginationBar,
 } from '@/shared/ui'
@@ -31,13 +38,24 @@ import {
  *
  * Bazada 1500+ foydalanuvchi bor — shuning uchun qidiruv SERVERDA, sahifalash
  * ham serverda. Qidiruv kechiktiriladi (har harfda so'rov yuborilmasin).
+ *
+ * ★ QATORGA BOSILSA PROFIL PANELI ochiladi (talab: *"har bir o'quvchi ustiga
+ * bosilganda"*). Qator klaviatura bilan ham ishlaydi (`role="button"`,
+ * `tabindex="0"`, Enter/Space) — aks holda amal faqat sichqonchaga bog'lanib,
+ * klaviatura foydalanuvchisi profilga UMUMAN kira olmasdi.
+ *
+ * 🔴 Qator ichidagi amal tugmalarida `@click.stop` MAJBURIY: aks holda
+ * "Tahrirlash" bosilganda hodisa qatorga ko'tarilib, forma bilan BIRGA profil
+ * paneli ham ochilardi (ikki qatlam, foydalanuvchi yo'qoladi).
  */
 const queryClient = useQueryClient()
+const confirm = useConfirm()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
 const roleFilter = ref<UserRoleName | ''>('')
 const activeFilter = ref<'' | 'true' | 'false'>('')
+const telegramFilter = ref<TelegramFilterValue>('')
 const page = ref(1)
 
 const PAGE_SIZE = 20
@@ -58,19 +76,95 @@ const effectiveSearch = computed(() =>
   searchTerm.value.length >= USER_SEARCH_MIN ? searchTerm.value : undefined,
 )
 
+/* ------------------------------------------------ guruh bo'yicha filtr --- */
+
+/*
+  GURUH TANLAGICHI: qidiruv maydoni + `select`.
+
+  ★ TO'LIQ RO'YXAT YUKLANMAYDI: guruhlar ko'p va ularni bitta `select` ga
+  solish telefonda ochilmaydigan ro'yxat berardi. Server qidiruvi ishlatiladi
+  (minimal 2 belgi — `GroupService.MinSearchLength`, foydalanuvchi qidiruvidan
+  BOSHQA), qidiruvsiz holatda esa faqat birinchi 25 faol guruh ko'rinadi.
+  Ayni naqsh `features/assignment-form/ui/AssignmentTargetPicker.vue` da.
+*/
+const groupSearch = ref('')
+const debouncedGroupSearch = useDebounced(groupSearch)
+
+const groupTerm = computed(() => debouncedGroupSearch.value.trim())
+const groupSearchTooShort = computed(
+  () => groupTerm.value.length > 0 && groupTerm.value.length < GROUP_SEARCH_MIN,
+)
+const effectiveGroupSearch = computed(() =>
+  groupTerm.value.length >= GROUP_SEARCH_MIN ? groupTerm.value : undefined,
+)
+
+const groupsQuery = useQuery({
+  queryKey: ['groups', 'user-filter', effectiveGroupSearch],
+  queryFn: ({ signal }) =>
+    fetchGroups({ search: effectiveGroupSearch.value, isActive: true, pageSize: 25 }, { signal }),
+})
+
+/**
+ * Tanlangan guruh — Id VA nomi bilan saqlanadi.
+ *
+ * ★ NEGA NOM HAM: xodim guruhni tanlab, keyin qidiruvni o'zgartirsa tanlangan
+ * guruh natijalar ro'yxatidan chiqib ketadi. Faqat Id saqlansak `select` bo'sh
+ * ko'rinardi, filtr esa AMALDA ishlab turardi — "ro'yxat nega qisqa?" degan
+ * chalkashlik. Nom saqlangani uchun tanlov ro'yxatga qaytariladi (pastda).
+ */
+const groupFilter = ref<{ id: number; name: string } | null>(null)
+
+const groupOptions = computed(() => {
+  const list = (groupsQuery.data.value?.items ?? []).map((group) => ({
+    id: group.id,
+    name: groupDisplayName(group),
+  }))
+  const picked = groupFilter.value
+  if (picked !== null && !list.some((option) => option.id === picked.id)) {
+    return [picked, ...list]
+  }
+  return list
+})
+
+function onGroupFilterChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value
+  if (value.length === 0) {
+    groupFilter.value = null
+    return
+  }
+  const id = Number(value)
+  groupFilter.value = groupOptions.value.find((option) => option.id === id) ?? {
+    id,
+    name: `Guruh #${id}`,
+  }
+}
+
+/* --------------------------------------------------------------- ro'yxat -- */
+
 // Filtr o'zgarsa 1-sahifaga qaytamiz, aks holda "10-sahifada natija yo'q" holati chiqadi.
-watch([effectiveSearch, roleFilter, activeFilter], () => {
+watch([effectiveSearch, roleFilter, activeFilter, groupFilter, telegramFilter], () => {
   page.value = 1
 })
 
 const usersQuery = useQuery({
-  queryKey: ['users', effectiveSearch, roleFilter, activeFilter, page],
+  queryKey: [
+    'users',
+    'list',
+    effectiveSearch,
+    roleFilter,
+    activeFilter,
+    groupFilter,
+    telegramFilter,
+    page,
+  ],
   queryFn: ({ signal }) =>
     fetchUsers(
       {
         search: effectiveSearch.value,
         role: roleFilter.value === '' ? undefined : roleFilter.value,
         isActive: activeFilter.value === '' ? undefined : activeFilter.value === 'true',
+        groupId: groupFilter.value?.id,
+        telegramLinked: telegramFilterToParam(telegramFilter.value),
         page: page.value,
         pageSize: PAGE_SIZE,
       },
@@ -105,11 +199,73 @@ function refresh(): void {
   void queryClient.invalidateQueries({ queryKey: ['users'] })
 }
 
+/* ------------------------------------------------------------- profil --- */
+
+const profileOpen = ref(false)
+const profileUserId = ref<number | null>(null)
+const profileName = ref('')
+
+function openProfile(user: UserDetailsDto): void {
+  profileUserId.value = user.id
+  profileName.value = user.fullName ?? ''
+  profileOpen.value = true
+}
+
+/* ----------------------------------------------------- bloklash/tiklash --- */
+
+/**
+ * Qaysi qator kutayotgani.
+ *
+ * ★ NEGA ALOHIDA REF: `toggleMutation.isPending` BITTA mutatsiya uchun
+ * umumiy — ilgari u har qatordagi tugmani birdan yuklanish holatiga
+ * o'tkazardi ("hammasi bosildi" degan taassurot). Endi loader FAQAT bosilgan
+ * qatorda ko'rinadi.
+ */
+const togglingId = ref<number | null>(null)
+
 const toggleMutation = useMutation({
   mutationFn: (user: UserDetailsDto) =>
     user.isActive ? deactivateUser(user.id) : activateUser(user.id),
   onSuccess: refresh,
+  onSettled: () => {
+    togglingId.value = null
+  },
 })
+
+/**
+ * Bloklash — QAYTARILADIGAN, lekin foydalanuvchini tizimdan CHIQARADIGAN amal
+ * (`danger` tasdiq, B2 jadvali). Faollashtirish ham ma'lumotni almashtiradi,
+ * shuning uchun u ham tasdiqlanadi — lekin `primary` tonda.
+ */
+async function toggleActive(user: UserDetailsDto): Promise<void> {
+  if (toggleMutation.isPending.value) return
+
+  const name = user.fullName ?? 'Foydalanuvchi'
+  const ok = user.isActive
+    ? await confirm({
+      title: 'Hisobni bloklash',
+      message: `${name} platformaga kira olmaydi. Ma'lumotlari va tarixi saqlanadi.`,
+      confirmLabel: 'Bloklash',
+      tone: 'danger',
+      details: ['Mavjud sessiyalari bekor qilinadi.'],
+    })
+    : await confirm({
+      title: 'Hisobni faollashtirish',
+      message: `${name} yana platformaga kira oladi.`,
+      confirmLabel: 'Faollashtirish',
+      tone: 'primary',
+    })
+  if (!ok) return
+
+  togglingId.value = user.id
+  toggleMutation.mutate(user)
+}
+
+/** Telegram ustuni: nom bo'lmasa ham ulanish holati ko'rinishi kerak. */
+function telegramText(user: UserDetailsDto): string {
+  if (user.telegramId === null) return '—'
+  return user.telegramUsername === null ? 'Ulangan' : `@${user.telegramUsername}`
+}
 </script>
 
 <template>
@@ -183,6 +339,71 @@ const toggleMutation = useMutation({
           Bloklangan
         </option>
       </select>
+
+      <!-- Guruh qidiruvi (BLOK F) -->
+      <div>
+        <input
+          v-model="groupSearch"
+          class="zn-input"
+          placeholder="Guruhni qidirish"
+          aria-label="Guruhni qidirish"
+        >
+        <p
+          v-if="groupSearchTooShort"
+          class="mt-1 text-[11px] text-dim"
+        >
+          Kamida {{ GROUP_SEARCH_MIN }} belgi kiriting.
+        </p>
+      </div>
+
+      <!-- Guruh bo'yicha filtr -->
+      <div>
+        <select
+          class="zn-input"
+          aria-label="Guruh bo‘yicha filtr"
+          :value="groupFilter?.id ?? ''"
+          @change="onGroupFilterChange"
+        >
+          <option value="">
+            Barcha guruhlar
+          </option>
+          <option
+            v-for="option in groupOptions"
+            :key="option.id"
+            :value="option.id"
+          >
+            {{ option.name }}
+          </option>
+        </select>
+        <!--
+          ⚠️ SHART AYTILISHI KERAK: server guruh bo'yicha faqat `Active`
+          a'zolarni qaytaradi. Aks holda xodim chiqarilgan yoki pauzadagi
+          o'quvchini "yo'qolgan" deb o'ylardi va uni qaytadan qo'shishga
+          urinardi.
+        -->
+        <p
+          v-if="groupFilter !== null"
+          class="mt-1 text-[11px] text-dim"
+        >
+          Faqat FAOL a‘zolar ko‘rsatiladi (chiqarilgan, pauzadagi va
+          ko‘chirilganlar kirmaydi).
+        </p>
+      </div>
+
+      <!-- Telegram bo'yicha filtr (uch holat) -->
+      <select
+        v-model="telegramFilter"
+        class="zn-input"
+        aria-label="Telegram bo‘yicha filtr"
+      >
+        <option
+          v-for="option in TELEGRAM_FILTER_OPTIONS"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
     </div>
 
     <DataStatus
@@ -202,7 +423,13 @@ const toggleMutation = useMutation({
           <li
             v-for="user in users"
             :key="user.id"
-            class="p-3.5"
+            class="cursor-pointer p-3.5 transition-colors hover:bg-ink-800"
+            role="button"
+            tabindex="0"
+            :aria-label="`${user.fullName ?? 'Foydalanuvchi'} profilini ochish`"
+            @click="openProfile(user)"
+            @keydown.enter.prevent="openProfile(user)"
+            @keydown.space.prevent="openProfile(user)"
           >
             <div class="flex items-start justify-between gap-2">
               <p
@@ -226,28 +453,31 @@ const toggleMutation = useMutation({
               <BaseBadge :tone="user.isActive ? 'success' : 'danger'">
                 {{ user.isActive ? 'Faol' : 'Bloklangan' }}
               </BaseBadge>
+              <BaseBadge :tone="user.telegramId === null ? 'neutral' : 'accent'">
+                {{ user.telegramId === null ? 'Telegram yo‘q' : 'Telegram' }}
+              </BaseBadge>
               <span class="flex-1" />
-              <BaseButton
-                size="sm"
-                variant="secondary"
-                @click="openEdit(user)"
-              >
-                <template #icon>
-                  <AppIcon
-                    name="edit"
-                    :size="13"
-                  />
-                </template>
-                Tahrirlash
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                :variant="user.isActive ? 'danger' : 'success'"
-                :loading="toggleMutation.isPending.value"
-                @click="toggleMutation.mutate(user)"
-              >
-                {{ user.isActive ? 'Bloklash' : 'Faollashtirish' }}
-              </BaseButton>
+              <!--
+                🔴 `gap-3` — `IconButton` ning ko'rinmas teginish maydoni har
+                tomondan 6px kengayadi (24-tuzoq): kichikroq oraliqda barmoq
+                yonidagi tugmani bosardi.
+                🔴 `@click.stop` — qatorning profil ochish hodisasi ishga
+                tushmasin.
+              -->
+              <div class="flex items-center gap-3">
+                <IconButton
+                  icon="edit"
+                  label="Tahrirlash"
+                  @click.stop="openEdit(user)"
+                />
+                <IconButton
+                  :icon="user.isActive ? 'lock' : 'user-check'"
+                  :label="user.isActive ? 'Bloklash' : 'Faollashtirish'"
+                  :tone="user.isActive ? 'danger' : 'success'"
+                  :loading="toggleMutation.isPending.value && togglingId === user.id"
+                  @click.stop="toggleActive(user)"
+                />
+              </div>
             </div>
           </li>
         </ul>
@@ -260,6 +490,7 @@ const toggleMutation = useMutation({
                 <th>Ism</th>
                 <th>Email</th>
                 <th>Telefon</th>
+                <th>Telegram</th>
                 <th>Rol</th>
                 <th>Holat</th>
                 <th>Qo‘shilgan</th>
@@ -270,6 +501,13 @@ const toggleMutation = useMutation({
               <tr
                 v-for="user in users"
                 :key="user.id"
+                class="cursor-pointer"
+                role="button"
+                tabindex="0"
+                :aria-label="`${user.fullName ?? 'Foydalanuvchi'} profilini ochish`"
+                @click="openProfile(user)"
+                @keydown.enter.prevent="openProfile(user)"
+                @keydown.space.prevent="openProfile(user)"
               >
                 <td
                   class="font-medium text-slate-100"
@@ -282,6 +520,15 @@ const toggleMutation = useMutation({
                 <td
                   class="text-slate-400"
                   v-text="user.phone ?? '—'"
+                />
+                <!--
+                  🔴 Telegram nomi FAQAT ko'rsatish uchun: bo'shatilgan nom
+                  boshqa odamga o'tadi, ya'ni u shaxsni ANIQLAMAYDI (profil
+                  panelida `telegramId` ham beriladi).
+                -->
+                <td
+                  class="text-slate-400"
+                  v-text="telegramText(user)"
                 />
                 <td>
                   <BaseBadge :tone="roleTone(user.role ?? '')">
@@ -298,28 +545,21 @@ const toggleMutation = useMutation({
                   v-text="formatDateTime(user.createdAt)"
                 />
                 <td>
-                  <div class="flex items-center justify-end gap-2">
-                    <BaseButton
+                  <div class="flex items-center justify-end gap-3">
+                    <IconButton
+                      icon="edit"
+                      label="Tahrirlash"
                       size="sm"
-                      variant="secondary"
-                      @click="openEdit(user)"
-                    >
-                      <template #icon>
-                        <AppIcon
-                          name="edit"
-                          :size="13"
-                        />
-                      </template>
-                      Tahrirlash
-                    </BaseButton>
-                    <BaseButton
+                      @click.stop="openEdit(user)"
+                    />
+                    <IconButton
+                      :icon="user.isActive ? 'lock' : 'user-check'"
+                      :label="user.isActive ? 'Bloklash' : 'Faollashtirish'"
+                      :tone="user.isActive ? 'danger' : 'success'"
                       size="sm"
-                      :variant="user.isActive ? 'danger' : 'success'"
-                      :loading="toggleMutation.isPending.value"
-                      @click="toggleMutation.mutate(user)"
-                    >
-                      {{ user.isActive ? 'Bloklash' : 'Faollashtirish' }}
-                    </BaseButton>
+                      :loading="toggleMutation.isPending.value && togglingId === user.id"
+                      @click.stop="toggleActive(user)"
+                    />
                   </div>
                 </td>
               </tr>
@@ -341,6 +581,22 @@ const toggleMutation = useMutation({
       :user="editing"
       @close="dialogOpen = false"
       @saved="refresh"
+    />
+
+    <!--
+      ★ PROFIL PANELI FORMADAN KEYIN e'lon qilinadi: `Teleport to="body"`
+      langarlari komponentlar E'LON QILINGAN tartibda yaratiladi va hammasi
+      `z-50` da turadi, ya'ni keyingisi ustiga chiqadi. Ikkisi bir vaqtda
+      ochilmaydi (forma qator tugmasidan, panel qatorning o'zidan), lekin
+      tartib ATAYLAB shunday — panel ekranning 85% ini egallaydi va u ostda
+      qolib qolmasligi kerak.
+    -->
+    <StudentProfileDrawer
+      :open="profileOpen"
+      :user-id="profileUserId"
+      :fallback-name="profileName"
+      @close="profileOpen = false"
+      @changed="refresh"
     />
   </div>
 </template>

@@ -2,35 +2,45 @@
 import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
-import {
-  ANSWER_FORMAT_OPTIONS,
-  createAssignment,
-  parseAnswerFormats,
-  serializeAnswerFormats,
-  updateAssignment,
-} from '@/entities/assignment'
-import type { AnswerFormatName } from '@/entities/assignment'
+import { createAssignment, updateAssignment } from '@/entities/assignment'
 import { toUserMessage } from '@/shared/api'
-import { fromDateTimeLocalInput, toDateTimeLocalInput } from '@/shared/lib/datetime'
-import type { AssignmentDto, CreateAssignmentRequest, UpdateAssignmentRequest } from '@/shared/types'
-import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
+import { useConfirm } from '@/shared/lib/useConfirm'
+import type { AssignmentAttachmentDto, AssignmentDto } from '@/shared/types'
+import { BaseButton, BaseModal } from '@/shared/ui'
 
+import {
+  buildCreateRequest,
+  buildUpdateRequest,
+  changedAssignmentFields,
+  createAssignmentFormState,
+  isAssignmentFormValid,
+  validateAssignmentForm,
+} from '../model/assignment-form'
+import type { AssignmentFormState } from '../model/assignment-form'
 import { emptyTarget, isTargetChosen, targetLabel } from '../model/target'
 import type { AssignmentTarget } from '../model/target'
+import AssignmentAttachmentsSection from './AssignmentAttachmentsSection.vue'
+import AssignmentFormFields from './AssignmentFormFields.vue'
 import AssignmentTargetPicker from './AssignmentTargetPicker.vue'
 
 /**
- * Uy vazifasini yaratish/tahrirlash.
+ * Uy vazifasini yaratish/tahrirlash — VAZIFALAR SAHIFASI va USTOZNING
+ * BAHOLASH sahifasi uchun.
  *
- * ★★ TAHRIRLASH — TO'LIQ ALMASHTIRISH ★★
- * `PUT /assignments/{id}` C# DTO'sida ixtiyoriy maydonlar `= null` standart
- * qiymatga ega va servis ularni to'g'ridan-to'g'ri yozadi. Ya'ni FORMADA
- * KO'RSATILMAGAN maydon serverda JIMGINA o'chadi. Shuning uchun:
- *   • forma ochilganda MAVJUD qiymatlar to'liq yuklanadi;
- *   • saqlashda HAMMASI qaytariladi, jumladan UI'da tahrirlanmaydigan
- *     `imageKey` ham (uni yuborishni unutsak, vazifaning shart rasmi
- *     bir marta tahrirlashdan keyin yo'qolardi).
- * Aynan shu tuzoq bugun guruh formasida kursni o'chirib yuborgan edi.
+ * ★★ TASHQI API O'ZGARMADI (`open`, `assignment`, `allowCourseTarget`,
+ * `close`, `saved`): komponentni `ManageAssignmentsPage` va
+ * `TeacherGradingPage` ishlatadi, ikkinchisi bu ishning qamrovidan
+ * tashqarida. Bu FAQAT ichki refaktor.
+ *
+ * ★ MAYDONLAR VA TEKSHIRUV endi `AssignmentFormFields` +
+ * `model/assignment-form.ts` da: AYNI forma dars drawer'ining "Uy vazifasi"
+ * bo'limida ham ochiladi (`LessonAssignmentSection`) va ikki nusxa
+ * saqlanmaydi — aks holda "kamida bitta javob formati" kabi qoida bir joyda
+ * tuzatilib, ikkinchisida eski holida qolardi.
+ *
+ * ★★ TAHRIRLASH — TO'LIQ ALMASHTIRISH (`PUT`): forma HAMMA maydonni
+ * qaytaradi, jumladan UI'da tahrirlanmaydigan `imageKey` ni ham
+ * (`buildUpdateRequest` izohi).
  *
  * NISHON (guruh/dars) faqat YARATISHDA tanlanadi — server uni tahrirlashda
  * o'zgartirmaydi (mavjud javoblar begona vazifaga tegib qolardi).
@@ -45,78 +55,44 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: []; saved: [] }>()
 
+const confirm = useConfirm()
+
 const isEdit = computed(() => props.assignment !== null)
 
-const title = ref('')
-const description = ref('')
-const maxScoreText = ref('5')
-const dueLocal = ref('')
-const formats = ref<AnswerFormatName[]>(['Text', 'Image'])
+const form = ref<AssignmentFormState>(createAssignmentFormState(null))
 const target = ref<AssignmentTarget>(emptyTarget())
+const attachments = ref<AssignmentAttachmentDto[]>([])
 const errorMessage = ref<string | null>(null)
-
-/**
- * Vazifa shartlari rasmining ombor kaliti. UI'da TAHRIRLANMAYDI (rasm yuklash
- * endpointi hali yo'q), lekin `PUT` da qaytarilishi SHART — aks holda
- * `curl` bilan biriktirilgan rasm birinchi tahrirlashdayoq yo'qolardi.
- */
-const imageKey = ref<string | null>(null)
+const submitted = ref(false)
 
 function resetForm(): void {
-  const assignment = props.assignment
-  title.value = assignment?.title ?? ''
-  description.value = assignment?.description ?? ''
-  maxScoreText.value = assignment !== null ? String(assignment.maxScore) : '5'
-  dueLocal.value = toDateTimeLocalInput(assignment?.dueAt ?? null)
-  formats.value =
-    assignment !== null ? parseAnswerFormats(assignment.allowedFormats) : ['Text', 'Image']
-  imageKey.value = assignment?.imageKey ?? null
+  form.value = createAssignmentFormState(props.assignment)
   target.value = emptyTarget()
+  /*
+    Biriktirmalar LOKAL holatda: ular alohida endpointlar bilan boshqariladi
+    (yuklash/o'chirish DARHOL saqlanadi, `PUT` bilan emas). Ota komponent esa
+    `assignment` prop'ini yangilamaydi — u ro'yxatdagi SURATNI uzatadi.
+  */
+  attachments.value = [...(props.assignment?.attachments ?? [])]
   errorMessage.value = null
+  submitted.value = false
 }
 
 watch(() => [props.open, props.assignment], resetForm, { immediate: true })
 
-function toggleFormat(value: AnswerFormatName): void {
-  formats.value = formats.value.includes(value)
-    ? formats.value.filter((item) => item !== value)
-    : [...formats.value, value]
+const errors = computed(() => validateAssignmentForm(form.value))
+
+/**
+ * Biriktirma yuklandi yoki o'chirildi.
+ *
+ * `saved` DARHOL emit qilinadi (formani saqlashni kutmasdan): fayl serverda
+ * ALLAQACHON o'zgardi va ro'yxatdagi kartochka eskirdi. Oyna esa OCHIQ
+ * qoladi — foydalanuvchi yana fayl qo'shishi mumkin.
+ */
+function onAttachmentsChanged(next: AssignmentAttachmentDto[]): void {
+  attachments.value = next
+  emit('saved')
 }
-
-/* ---------------------------------------------------------- tekshiruvlar */
-
-/** Server: `Assignment.MaxTitleLength`. */
-const MAX_TITLE = 200
-/** Server: `Assignment.MaxDescriptionLength`. */
-const MAX_DESCRIPTION = 4000
-
-const trimmedTitle = computed(() => title.value.trim())
-
-const titleError = computed<string | null>(() => {
-  if (trimmedTitle.value.length > MAX_TITLE) return `Sarlavha ${MAX_TITLE} belgidan oshmasin.`
-  return null
-})
-
-const descriptionError = computed<string | null>(() =>
-  description.value.trim().length > MAX_DESCRIPTION
-    ? `Tavsif ${MAX_DESCRIPTION} belgidan oshmasin.`
-    : null,
-)
-
-// Vergul bilan yozilgan ball ("4,5") ham qabul qilinsin — o'zbek
-// klaviaturasida odatiy (`GradeDialog` da ham shunday).
-const parsedMaxScore = computed(() => Number(maxScoreText.value.replace(',', '.')))
-
-const maxScoreError = computed<string | null>(() => {
-  if (maxScoreText.value.trim().length === 0) return 'Maksimal ball kiritilishi kerak.'
-  if (!Number.isFinite(parsedMaxScore.value)) return 'Ball raqam bo‘lishi kerak.'
-  if (parsedMaxScore.value <= 0) return 'Ball noldan katta bo‘lishi kerak.'
-  return null
-})
-
-const formatError = computed<string | null>(() =>
-  formats.value.length === 0 ? 'Kamida bitta javob formati tanlanishi kerak.' : null,
-)
 
 const targetError = computed<string | null>(() => {
   if (isEdit.value) return null
@@ -126,45 +102,30 @@ const targetError = computed<string | null>(() => {
 
 /* ------------------------------------------------------------- saqlash */
 
-function commonFields(): UpdateAssignmentRequest {
-  const text = description.value.trim()
-  return {
-    title: trimmedTitle.value,
-    // Bo'sh matn `null` sifatida ketadi — bazada bo'sh satr saqlanmasin.
-    description: text.length > 0 ? text : null,
-    maxScore: parsedMaxScore.value,
-    dueAt: fromDateTimeLocalInput(dueLocal.value),
-    allowedFormats: serializeAnswerFormats(formats.value),
-    // ★ Tahrirlanmaydigan, lekin QAYTARILADIGAN maydon (yuqoridagi izoh).
-    imageKey: imageKey.value,
-  }
-}
-
-function buildCreatePayload(): CreateAssignmentRequest {
-  const chosen = target.value
-  return {
-    ...commonFields(),
-    // Server "YOKI guruh, YOKI dars" ni talab qiladi — ikkinchisi doim `null`.
-    groupId: chosen.kind === 'group' ? chosen.groupId : null,
-    moduleLessonId: chosen.kind === 'lesson' ? chosen.lessonId : null,
-  }
-}
-
 const createMutation = useMutation({
-  mutationFn: () => createAssignment(buildCreatePayload()),
+  mutationFn: () => {
+    const chosen = target.value
+    return createAssignment(
+      buildCreateRequest(form.value, {
+        // Server "YOKI guruh, YOKI dars" ni talab qiladi — ikkinchisi doim `null`.
+        groupId: chosen.kind === 'group' ? chosen.groupId : null,
+        moduleLessonId: chosen.kind === 'lesson' ? chosen.lessonId : null,
+      }),
+    )
+  },
   onSuccess: () => {
     emit('saved')
     emit('close')
   },
   onError: (error: Error) => {
     // 403 — begona guruh yoki ustozning kurs vazifasiga urinishi;
-    // 409 — Domain qoidasi (sarlavha, ball, format, nishon).
+    // 400/409 — validatsiya va Domain qoidalari.
     errorMessage.value = toUserMessage(error)
   },
 })
 
 const updateMutation = useMutation({
-  mutationFn: (id: number) => updateAssignment(id, commonFields()),
+  mutationFn: (id: number) => updateAssignment(id, buildUpdateRequest(form.value)),
   onSuccess: () => {
     emit('saved')
     emit('close')
@@ -177,22 +138,45 @@ const updateMutation = useMutation({
 const isPending = computed(() => createMutation.isPending.value || updateMutation.isPending.value)
 
 const canSubmit = computed(
-  () =>
-    trimmedTitle.value.length > 0 &&
-    titleError.value === null &&
-    descriptionError.value === null &&
-    maxScoreError.value === null &&
-    formatError.value === null &&
-    targetError.value === null &&
-    !isPending.value,
+  () => isAssignmentFormValid(errors.value) && targetError.value === null && !isPending.value,
 )
 
-function handleSubmit(): void {
+/**
+ * Saqlash.
+ *
+ * TASDIQ FAQAT TAHRIRLASHDA (B2 jadvali: "ma'lumotni ALMASHTIRUVCHI
+ * saqlash → HAR DOIM, `primary`, o'zgargan maydonlar ro'yxati bilan").
+ * Yaratishda tasdiq so'ralmaydi: yangi yozuv hech narsani almashtirmaydi va
+ * xato bo'lsa uni o'chirish mumkin — har "Yaratish" tugmasiga oyna qo'yish
+ * esa formani ikki qadamli qilib yuborardi.
+ */
+async function handleSubmit(): Promise<void> {
+  submitted.value = true
   if (!canSubmit.value) return
-  errorMessage.value = null
+
   const assignment = props.assignment
-  if (assignment !== null) updateMutation.mutate(assignment.id)
-  else createMutation.mutate()
+  if (assignment === null) {
+    errorMessage.value = null
+    createMutation.mutate()
+    return
+  }
+
+  const changes = changedAssignmentFields(assignment, form.value)
+  if (changes.length > 0) {
+    const ok = await confirm({
+      title: 'Vazifani saqlash',
+      message:
+        'Vazifa ma’lumotlari ALMASHTIRILADI. O‘quvchilar darhol yangi shartni '
+        + 'ko‘radi (topshirilgan javoblar va baholar saqlanadi).',
+      confirmLabel: 'Saqlash',
+      tone: 'primary',
+      details: changes,
+    })
+    if (!ok) return
+  }
+
+  errorMessage.value = null
+  updateMutation.mutate(assignment.id)
 }
 </script>
 
@@ -214,7 +198,7 @@ function handleSubmit(): void {
           :enabled="props.open"
         />
         <p
-          v-if="targetError !== null"
+          v-if="targetError !== null && submitted"
           class="mt-1 text-[11px] text-rose-400"
           v-text="targetError"
         />
@@ -235,94 +219,31 @@ function handleSubmit(): void {
         </p>
       </div>
 
-      <BaseField
-        label="Sarlavha"
-        :error="titleError"
-      >
-        <input
-          v-model="title"
-          class="zn-input"
-          required
-          placeholder="Masalan: 3-dars uy vazifasi"
-        >
-      </BaseField>
+      <AssignmentFormFields
+        v-model="form"
+        :submitted="submitted"
+        :disabled="isPending"
+      />
 
-      <div class="mt-3">
-        <BaseField
-          label="Shart (tavsif)"
-          hint="Ixtiyoriy. O‘quvchi vazifa kartochkasida ko‘radi."
-          :error="descriptionError"
-        >
-          <textarea
-            v-model="description"
-            class="zn-input min-h-24 resize-y"
-            rows="3"
-          />
-        </BaseField>
-      </div>
+      <!--
+        BIRIKTIRMALAR faqat MAVJUD vazifada: yuklash uchun `assignmentId`
+        kerak, u esa yaratilgandan keyin paydo bo'ladi. Yangi vazifada
+        maslahat ko'rsatiladi — "nega bu yerda yo'q?" degan savol qolmasin.
+      -->
+      <hr class="my-4 border-line">
 
-      <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        <BaseField
-          label="Maksimal ball"
-          :error="maxScoreError"
-        >
-          <input
-            v-model="maxScoreText"
-            class="zn-input"
-            inputmode="decimal"
-            placeholder="5"
-          >
-        </BaseField>
-
-        <BaseField
-          label="Topshirish muddati"
-          hint="Bo‘sh bo‘lsa — muddatsiz."
-        >
-          <input
-            v-model="dueLocal"
-            class="zn-input"
-            type="datetime-local"
-          >
-        </BaseField>
-      </div>
-
-      <p class="mt-1 text-[11px] leading-relaxed text-dim">
-        Muddat o‘tgach javob RAD ETILMAYDI — u “kechikkan” deb belgilanadi va baholashda
-        ko‘rinadi.
-      </p>
-
-      <div class="mt-3">
-        <BaseField
-          label="Qanday javob qabul qilinadi"
-          :error="formatError"
-        >
-          <div class="mt-0.5 space-y-1.5">
-            <label
-              v-for="option in ANSWER_FORMAT_OPTIONS"
-              :key="option.value"
-              class="flex min-h-11 items-center gap-2.5 rounded-lg border border-line bg-ink-950 px-3 text-sm text-slate-200"
-            >
-              <input
-                type="checkbox"
-                class="size-4 accent-brand-500"
-                :checked="formats.includes(option.value)"
-                @change="toggleFormat(option.value)"
-              >
-              <span v-text="option.label" />
-              <span
-                class="text-[11px] text-dim"
-                v-text="option.hint"
-              />
-            </label>
-          </div>
-        </BaseField>
-      </div>
-
+      <AssignmentAttachmentsSection
+        v-if="props.assignment !== null"
+        :assignment-id="props.assignment.id"
+        :attachments="attachments"
+        @update:attachments="onAttachmentsChanged"
+      />
       <p
-        v-if="imageKey !== null"
-        class="mt-3 text-[11px] text-dim"
+        v-else
+        class="text-[11px] leading-relaxed text-dim"
       >
-        Vazifaga shart rasmi biriktirilgan — u saqlashda o‘zgarishsiz qoladi.
+        Shart biriktirmalarini (rasm, ovozli izoh, PDF) vazifa yaratilgandan keyin
+        qo‘shish mumkin — fayl mavjud vazifaga bog‘lanadi.
       </p>
 
       <p
@@ -336,12 +257,13 @@ function handleSubmit(): void {
     <template #footer>
       <BaseButton
         variant="secondary"
+        :disabled="isPending"
         @click="emit('close')"
       >
         Bekor qilish
       </BaseButton>
       <BaseButton
-        :disabled="!canSubmit"
+        :disabled="isPending"
         :loading="isPending"
         @click="handleSubmit"
       >

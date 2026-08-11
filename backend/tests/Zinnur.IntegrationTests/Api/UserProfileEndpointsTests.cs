@@ -1,0 +1,296 @@
+using System.Net;
+using System.Net.Http.Json;
+using Zinnur.Domain.Enums;
+using Zinnur.IntegrationTests.Infrastructure;
+
+namespace Zinnur.IntegrationTests.Api;
+
+/// <summary>
+/// ========================================================================
+/// O'QUVCHI PROFILI AGREGATI — <c>GET /api/v1/users/{id}/profile</c>
+/// ========================================================================
+///
+/// NIMA UCHUN AYNAN BU TESTLAR: bu endpoint bitta javobda o'quvchining
+/// shaxsiy ma'lumoti, PULI, o'quv natijalari va xodimlarning ICHKI
+/// izohlarini birlashtiradi. Ya'ni ruxsatdagi bitta xato darhol eng nozik
+/// ma'lumotni oshkor qiladi:
+///
+///   • ustoz o'quvchining qarzini ko'rib qolsa — talab BUZILADI
+///     ("ustoz o'quvchining qarzini bilishi kerak emas");
+///   • o'quvchi o'zi haqidagi ichki izohni ("otasi bilan gaplashildi")
+///     ko'rsa — xodimlar bunday yozuvni umuman yozmay qo'yadi;
+///   • begona guruh ustozi profilni ochsa — butun markazning ma'lumoti
+///     har bir ustozga ochiq bo'lardi.
+///
+/// Shu sababli tekshiruvlar JONLI JAVOB ustida: kod o'qib "shunday
+/// yozilgan" deb ishonish yetarli emas.
+/// </summary>
+public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
+    : IClassFixture<ZinnurApiFactory>
+{
+    // ================================================================= 1) MAZMUN
+
+    /// <summary>
+    /// O'quv bo'limi HAMMA blokni ko'radi va raqamlar moliya moduli bilan
+    /// mos keladi (qisman to'langan oy — qolgan qismi bo'yicha qarz).
+    /// </summary>
+    [Fact]
+    public async Task Profile_ForAcademic_ReturnsEveryBlock()
+    {
+        var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-full");
+        await ProfileWorldBuilder.AddTwoEndedSessionsAsync(factory, world.GroupId, world.Student.Id);
+        await ProfileWorldBuilder.AddSubmissionWithFileAsync(factory, world.GroupId, world.Student.Id);
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(admin, world.Student.Id);
+
+        // --- shaxsiy
+        profile.User.Id.Should().Be(world.Student.Id);
+        profile.User.Role.Should().Be(nameof(UserRole.Student));
+        profile.Telegram.Linked.Should().BeFalse();
+
+        // --- guruhlar
+        profile.Groups.Should().HaveCount(1);
+        profile.Groups[0].GroupId.Should().Be(world.GroupId);
+        profile.Groups[0].Status.Should().Be(nameof(MemberStatus.Active));
+        profile.Groups[0].TeacherName.Should().NotBeNullOrEmpty("ustoz ismi bitta so'rovda olinadi");
+        profile.Groups[0].LeftAt.Should().BeNull("faol a'zolikda chiqish vaqti bo'lmaydi");
+
+        // --- moliya
+        profile.Finance.Should().NotBeNull();
+        profile.Finance!.TotalPaid.Should().Be(200_000m);
+        profile.Finance.TotalDue.Should().Be(ProfileWorldBuilder.MonthlyPrice - 200_000m);
+        profile.Finance.Balance.Should().Be(0m);
+
+        var period = profile.Finance.Periods.Should().ContainSingle().Subject;
+        period.Month.Should().Be(ProfileWorldBuilder.Period);
+        period.Status.Should().Be(nameof(PaymentStatus.Partial));
+        period.Outstanding.Should().Be(ProfileWorldBuilder.MonthlyPrice - 200_000m);
+
+        // ★ "Qaysi dars uchun" talabining o'rnini bosadigan son: o'sha oyda
+        //   o'tkazilgan darslar soni (per-lesson billing modelda yo'q).
+        period.SessionCount.Should().Be(2, "yanvarda ikkita dars YAKUNLANGAN");
+
+        var transaction = profile.Finance.Transactions.Should().ContainSingle().Subject;
+        transaction.Kind.Should().Be(nameof(PaymentTransactionKind.Payment));
+        transaction.Amount.Should().Be(200_000m);
+        profile.Finance.HasMoreTransactions.Should().BeFalse();
+
+        // --- o'quv natijalari
+        profile.Study.Assignments.Should().ContainSingle();
+        profile.Study.Assignments[0].Score.Should().Be(8m);
+        profile.Study.Assignments[0].MaxScore.Should().Be(10m);
+        profile.Study.Assignments[0].IsLate.Should().BeTrue();
+        profile.Study.Assignments[0].FileCount.Should().Be(1);
+
+        profile.Study.Attendance.Total.Should().Be(2);
+        profile.Study.Attendance.Present.Should().Be(1);
+        profile.Study.Attendance.Percent.Should().Be(50m);
+
+        // --- izohlar (hozircha bo'sh, lekin `null` EMAS)
+        profile.Notes.Should().NotBeNull().And.BeEmpty();
+    }
+
+    /// <summary>
+    /// A'zolik holatlari javobda ko'rinadi: chiqarilgan va pauzadagi
+    /// a'zolik ham qaytadi (talab: "qaysilaridan chiqarib yuborilgan").
+    /// </summary>
+    [Fact]
+    public async Task Profile_ShowsStoppedAndPausedMemberships()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "prof-holat");
+        var second = await WorldBuilder.CreateAsync(factory, "prof-ikki");
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        // O'quvchini ikkinchi guruhga ham qo'shib, keyin chiqaramiz.
+        var add = await admin.PostAsJsonAsync(
+            $"/api/v1/groups/{second.GroupId}/members", new { studentId = world.Student.Id });
+        add.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(add));
+
+        var remove = await admin.DeleteAsync(new Uri(
+            $"/api/v1/groups/{second.GroupId}/members/{world.Student.Id}", UriKind.Relative));
+        remove.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(remove));
+
+        // Birinchi guruhda pauza (muddat bilan).
+        var pause = await admin.PostAsJsonAsync(
+            $"/api/v1/groups/{world.GroupId}/members/{world.Student.Id}/pause",
+            new { pausedUntil = "2030-01-01" });
+        pause.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(pause));
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(admin, world.Student.Id);
+
+        profile.Groups.Should().HaveCount(2);
+
+        var paused = profile.Groups.Find(g => g.GroupId == world.GroupId)!;
+        paused.Status.Should().Be(nameof(MemberStatus.Paused));
+        paused.PausedUntil.Should().Be(new DateOnly(2030, 1, 1),
+            "pauza muddati SOYA ustundan o'qiladi");
+
+        var stopped = profile.Groups.Find(g => g.GroupId == second.GroupId)!;
+        stopped.Status.Should().Be(nameof(MemberStatus.Stopped));
+        stopped.LeftAt.Should().NotBeNull("chiqarilgan a'zolikda taxminiy chiqish vaqti bo'ladi");
+    }
+
+    // ================================================================= 2) RUXSAT MATRITSASI
+
+    /// <summary>
+    /// 🔴 ENG MUHIM TEKSHIRUV: USTOZ JAVOBIDA MOLIYA BLOKI <c>null</c>.
+    ///
+    /// Tekshiruv IKKI qatlamli — tiplangan javobda ham, XOM JSON'da ham:
+    /// maydon "bor, lekin bo'sh" bo'lib qolsa (masalan kelajakda kimdir
+    /// bo'sh obyekt qaytarsa) tiplangan tekshiruv o'tib ketishi mumkin,
+    /// lekin qarz summasi baribir simdan o'tgan bo'lardi.
+    /// </summary>
+    [Fact]
+    public async Task Profile_ForOwnTeacher_HidesFinanceCompletely()
+    {
+        var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-ustoz");
+
+        using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(teacher, world.Student.Id);
+
+        status.Should().Be(HttpStatusCode.OK, json);
+
+        json.Should().Contain("\"finance\":null",
+            "moliya bloki javobdan UMUMAN chiqmasligi kerak");
+
+        json.Should().NotContain("540000",
+            "oylik summa ustoz javobiga tushmasligi kerak");
+
+        json.Should().NotContain("totalDue",
+            "qarz maydoni ustoz javobida bo'lmasligi kerak");
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(teacher, world.Student.Id);
+
+        profile.Finance.Should().BeNull();
+
+        // Qolgan bloklar esa ustoz uchun KERAK va ochiq.
+        profile.Groups.Should().NotBeEmpty();
+        profile.Notes.Should().NotBeNull("ustoz izohlarni ko'rishi kerak");
+    }
+
+    /// <summary>Kurator (yordamchi) ham o'z guruhidagi o'quvchini ko'radi — moliyasiz.</summary>
+    [Fact]
+    public async Task Profile_ForOwnCurator_IsAllowedWithoutFinance()
+    {
+        var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-kurator");
+
+        using var curator = await WorldBuilder.ClientAsync(factory, world.Curator);
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(curator, world.Student.Id);
+
+        profile.User.Id.Should().Be(world.Student.Id);
+        profile.Finance.Should().BeNull();
+    }
+
+    /// <summary>🔴 BEGONA guruh ustozi — 403 (butun markaz ma'lumoti ochiq qolmasin).</summary>
+    [Fact]
+    public async Task Profile_ForForeignTeacher_IsForbidden()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "prof-oz");
+        var other = await WorldBuilder.CreateAsync(factory, "prof-begona");
+
+        using var foreignTeacher = await WorldBuilder.ClientAsync(factory, other.Teacher);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(
+            foreignTeacher, world.Student.Id);
+
+        status.Should().Be(HttpStatusCode.Forbidden, json);
+    }
+
+    /// <summary>
+    /// O'quvchi O'Z profilini ko'radi, lekin: izohlar YO'Q va to'lov
+    /// jurnali YO'Q (oylar esa ko'rinadi — u o'z qarzini bilishi kerak).
+    /// </summary>
+    [Fact]
+    public async Task Profile_ForSelf_HidesNotesAndTransactions()
+    {
+        var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-ozi");
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        // Ustoz izoh yozib qo'yadi — o'quvchi javobida ko'rinmasligi kerak.
+        using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
+
+        var note = await teacher.PostAsJsonAsync(
+            $"/api/v1/users/{world.Student.Id}/notes",
+            new { body = "Ichki eslatma: darsga kech qoladi." });
+
+        note.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(note));
+
+        // Izoh admin javobida BOR.
+        (await ProfileWorldBuilder.GetProfileAsync(admin, world.Student.Id))
+            .Notes.Should().ContainSingle();
+
+        using var student = await WorldBuilder.ClientAsync(factory, world.Student);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(student, world.Student.Id);
+
+        status.Should().Be(HttpStatusCode.OK, json);
+        json.Should().NotContain("kech qoladi", "ichki izoh o'quvchiga ko'rinmasligi kerak");
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(student, world.Student.Id);
+
+        profile.Notes.Should().BeNull();
+        profile.Finance.Should().NotBeNull("o'quvchi o'z qarzini ko'radi");
+        profile.Finance!.Transactions.Should().BeNull("jurnal alohida endpointda");
+        profile.Finance.Periods.Should().NotBeEmpty();
+    }
+
+    /// <summary>🔴 O'quvchi BOSHQA o'quvchining profilini ko'ra olmaydi.</summary>
+    [Fact]
+    public async Task Profile_ForAnotherStudent_IsForbidden()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "prof-boshqa");
+        var classmate = await WorldBuilder.AddStudentAsync(factory, world.GroupId, "prof-sinf");
+
+        using var student = await WorldBuilder.ClientAsync(factory, world.Student);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(student, classmate.Id);
+
+        status.Should().Be(HttpStatusCode.Forbidden, json,
+            "bitta guruhda o'qish boshqasining profilini ochish huquqini bermaydi");
+    }
+
+    /// <summary>Mavjud bo'lmagan profil — 404 (o'quv bo'limi uchun).</summary>
+    [Fact]
+    public async Task Profile_ForMissingUser_IsNotFound()
+    {
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        var (status, _) = await ProfileWorldBuilder.GetProfileRawAsync(admin, 99_999_999);
+
+        status.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ================================================================= 3) OMBOR KALITI
+
+    /// <summary>
+    /// 🔴 <c>objectKey</c> JAVOBGA CHIQMAYDI (6-bo'lim, 16-tuzoq).
+    ///
+    /// Ombor kaliti ichki ma'lumot: u bilan imzolangan havola yasashga
+    /// urinish mumkin va u fayl tuzilmasini oshkor qiladi. Profilda faqat
+    /// fayllar SONI beriladi.
+    /// </summary>
+    [Fact]
+    public async Task Profile_NeverLeaksSubmissionObjectKey()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "prof-fayl");
+
+        var objectKey = await ProfileWorldBuilder.AddSubmissionWithFileAsync(
+            factory, world.GroupId, world.Student.Id);
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(admin, world.Student.Id);
+
+        status.Should().Be(HttpStatusCode.OK, json);
+
+        json.Should().NotContain("objectKey", "ombor kaliti maydoni javobda bo'lmasligi kerak");
+        json.Should().NotContain(objectKey, "kalitning O'ZI ham javobga tushmasligi kerak");
+        json.Should().Contain("\"fileCount\":1", "faqat fayllar soni beriladi");
+    }
+}
