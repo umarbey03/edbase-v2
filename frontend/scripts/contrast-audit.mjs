@@ -451,6 +451,48 @@ function build(tokens, label) {
       `slate-400` bilan 5.20:1.
     */
     ['tabbar nofaol: slate-400 / ink-900 96%', 'slate-400', ['ink-900', 0.96, 'ink-950'], 4.5],
+
+    /* ============ WAVE 2: DARS DRAWER'I VA YUKLASH QATORLARI ============
+       Yangi juftliklar IKKI sababdan qo'shildi:
+
+        1) DRAWER ICHIDAGI BO'LIM KARTOCHKALARI `ink-950` (och kul-ko'k),
+           ya'ni fon OQ EMAS. Shaffof tint (`bg-rose-500/10`) o'sha kulrang
+           ustiga kompozitsiya qilinadi va natija oq fondagidan PASTROQ
+           chiqadi — mavjud "kartochka ustida" qatorlari bu holatni
+           tekshirmaydi.
+
+        2) FAYL QATORLARI `ink-850` sirtida (media ro'yxati, yuklash navbati,
+           shart biriktirmalari). Bu sirt auditda ilgari UMUMAN uchramagan.
+
+       Progress chizig'i (`brand-500` to'ldirish / `ink-750` yo'l) — GRAFIK
+       element (WCAG 1.4.11 -> 3:1): yonida "42% · 210 MB / 500 MB" yozuvi
+       turadi, ya'ni rang ma'noni YAKKA tashimaydi, lekin "qanchasi
+       to'lgani" ko'rinishi kerak.                                        */
+    ['fayl qatori sarlavhasi: slate-200 / ink-850', 'slate-200', 'ink-850', 4.5],
+    ['fayl qatori izohi: dim / ink-850', 'dim', 'ink-850', 3],
+    ['yuklash xatosi: rose-400 / ink-850', 'rose-400', 'ink-850', 4.5],
+    ['yuklash tugadi: green-400 / ink-850', 'green-400', 'ink-850', 4.5],
+    ['ikonka/tortish belgisi: slate-500 / ink-850', 'slate-500', 'ink-850', 3],
+    ['grafik: progress to‘ldirish brand-500 / yo‘l ink-750', 'brand-500', 'ink-750', 3],
+    ['progress yo‘li: ink-750 / ink-850', 'ink-750', 'ink-850', 1.15],
+    [
+      'drawer bo‘limi: rose-200 / rose tint 10% (ink-950 ustida)',
+      'rose-200',
+      ['rose-500', 0.1, 'ink-950'],
+      4.5,
+    ],
+    [
+      'drawer bo‘limi: amber-200 / amber tint 10% (ink-950 ustida)',
+      'amber-200',
+      ['amber-500', 0.1, 'ink-950'],
+      4.5,
+    ],
+    /* `line-strong` — "yuborishga tayyor" blokining chegarasi va u BO'LIM
+       fonida (`ink-950`) turadi, oq kartochkada emas. Talab yuqoridagi
+       `chegara: line-strong / kartochka` qatoridagi mantiq bilan bir xil
+       (sirt ajratgichi, matn emas), lekin kulrang fonda nisbat tabiiy
+       ravishda pastroq bo'ladi.                                          */
+    ['chegara: line-strong / bo‘lim foni (ink-950)', 'line-strong', 'ink-950', 1.1],
   ]
 
   const stageRows = [

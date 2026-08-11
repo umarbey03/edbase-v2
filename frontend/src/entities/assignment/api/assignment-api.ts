@@ -23,6 +23,13 @@ export function fetchMyAssignments(options?: {
 
 export interface AssignmentListParams {
   groupId?: number
+  /**
+   * WAVE 2 · KURS DARSI bo'yicha filtr — dars drawer'i shu bilan darsning
+   * vazifasi bor-yo'qligini aniqlaydi (`CourseLessonDto.hasAssignment` faqat
+   * `true`/`false` beradi, vazifaning O'ZINI emas, va alohida
+   * "darsning vazifasi" endpointi YO'Q).
+   */
+  moduleLessonId?: number
   page?: number
   pageSize?: number
 }
@@ -35,6 +42,7 @@ export function fetchAssignments(
   return http.get<PagedResult<AssignmentDto>>(BASE, {
     query: {
       GroupId: params.groupId,
+      ModuleLessonId: params.moduleLessonId,
       Page: params.page,
       PageSize: params.pageSize,
     },
@@ -161,4 +169,57 @@ export function gradeSubmission(
   body: GradeSubmissionRequest,
 ): Promise<SubmissionDto> {
   return http.post<SubmissionDto>(`/api/v1/submissions/${submissionId}/grade`, body)
+}
+
+/* ==========================================================================
+   WAVE 2 · VAZIFA SHARTI BIRIKTIRMALARI (rasm / audio / hujjat)
+
+   `imageKey` (BITTA rasm, ombor kaliti) o'rniga keladi: shart bir nechta
+   faylga ega bo'lishi mumkin va kalit UI'ga umuman chiqmaydi.
+
+   ★ YUKLASHNING O'ZI bu yerda YO'Q — progress va bekor qilish uchun
+   `XMLHttpRequest` kerak (`features/lesson-media/lib/upload-with-progress.ts`).
+   Bu modul faqat YO'L va `FormData` shaklini beradi.
+   ========================================================================== */
+
+/** `POST /api/v1/assignments/{id}/attachments` yo'li (`multipart/form-data`). */
+export function assignmentAttachmentUploadPath(assignmentId: number): string {
+  return `${BASE}/${assignmentId}/attachments`
+}
+
+/**
+ * Biriktirma uchun `FormData`.
+ *
+ * 🔴 MAYDON NOMI AYNAN `file` (server imzosi: `IFormFile file`). `kind`
+ * YUBORILMAYDI — server turni fayl MAZMUNIDAN aniqlaydi.
+ */
+export function buildAssignmentAttachmentForm(
+  file: File,
+  durationSec: number | null = null,
+): FormData {
+  const form = new FormData()
+  form.append('file', file)
+  if (durationSec != null) form.append('durationSec', String(durationSec))
+  return form
+}
+
+/** `DELETE /api/v1/assignments/attachments/{id}` — 204, qaytarib bo'lmaydi. */
+export function deleteAssignmentAttachment(attachmentId: number): Promise<void> {
+  return http.delete<void>(`${BASE}/attachments/${attachmentId}`)
+}
+
+/**
+ * `GET /api/v1/assignments/attachments/{id}` — Blob.
+ *
+ * Naqsh `fetchSubmissionFile` bilan AYNI: endpoint `Authorization` talab
+ * qiladi, brauzer esa `<img src>`/`<audio src>` da uni yubormaydi.
+ */
+export function fetchAssignmentAttachmentFile(
+  attachmentId: number,
+  options?: { signal?: AbortSignal },
+): Promise<DownloadedFile> {
+  return http.download(`${BASE}/attachments/${attachmentId}`, `biriktirma-${attachmentId}`, {
+    signal: options?.signal,
+    headers: { Accept: '*/*' },
+  })
 }
