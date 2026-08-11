@@ -69,6 +69,28 @@ export type IconName =
   | 'user'
   | 'phone'
   /*
+    IKONKALI AMAL TUGMALARI uchun to'plam (`IconButton`). Talab: *"har bir
+    o'quvchi bo'yicha actions buttonlar icon ko'rinishida bo'lgani ma'qul"* —
+    matnli tugmalar o'rniga qatorda ikonka turadi, ya'ni har amal uchun
+    ANIQ tanib olinadigan shakl kerak.
+
+    ⚠️ `play`, `mic`, `eye`, `paperclip` bu ro'yxatda YO'Q: ular allaqachon
+    yuqorida bor (jonli dars va vazifa ekranlaridan).
+
+    ⚠️ `video` — DARS VIDEOSI (to'rtburchak ichida "play"), `camera` esa
+    videoqo'ng'iroq kamerasi. Ikkisi boshqa narsa, almashtirib ishlatilmasin.
+  */
+  | 'pause'
+  | 'arrow-right-left'
+  | 'user-x'
+  | 'upload'
+  | 'image'
+  | 'video'
+  | 'link-off'
+  | 'wallet'
+  | 'note'
+  | 'chevron-left'
+  /*
     `sliders` — tizim sozlamalari menyusi. Eski ilovada bunday bo'lim UMUMAN
     bo'lmagan (muhit o'zgaruvchilari qo'lda tahrirlanardi), shuning uchun
     ko'chiriladigan sprite shakli ham yo'q. Tishli g'ildirak o'rniga

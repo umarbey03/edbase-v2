@@ -236,6 +236,12 @@ function open(sessionId: number): void {
             @click="selectDay(cell)"
           >
             {{ cell.day }}
+            <!--
+              Kun ostidagi nuqtalar — dars TURI. Ranglar tokendan (ilgari
+              `#f5b731` oltin va `#22d3ee` firuza QOTIB QOLGAN edi).
+              Nuqta grafik element, shuning uchun `-500` (to'yingan) daraja:
+              matn darajasi (`-300`) 5px doirada kir dog' bo'lib ko'rinadi.
+            -->
             <span
               v-if="cell.marks.length > 0"
               class="absolute bottom-1 flex gap-[2.5px]"
@@ -245,7 +251,7 @@ function open(sessionId: number): void {
                 v-for="mark in cell.marks"
                 :key="mark"
                 class="size-[5px] rounded-full"
-                :style="{ background: mark === 'Teacher' ? '#f5b731' : '#22d3ee' }"
+                :class="mark === 'Teacher' ? 'bg-brand-500' : 'bg-cyan-500'"
               />
             </span>
           </button>
@@ -284,13 +290,19 @@ function open(sessionId: number): void {
           :key="item.id"
           class="mb-2.5 flex items-center gap-3 rounded-[13px] border border-line bg-ink-900 p-[13px]"
         >
+          <!--
+            Dars turi nishoni: PASTEL tint + to'q ikonka (ilgari
+            `rgb(245 183 49 / .18)` + `#fcd34d` va `rgb(34 211 238 / .17)` +
+            `#67e8f9` qotib qolgan edi — qorong'i fonda yorug' ikonka
+            kerak edi, oq fonda esa aksincha).
+          -->
           <span
             class="flex size-[42px] shrink-0 items-center justify-center rounded-xl"
-            :style="{
-              background:
-                item.type === 'Teacher' ? 'rgb(245 183 49 / 0.18)' : 'rgb(34 211 238 / 0.17)',
-              color: item.type === 'Teacher' ? '#fcd34d' : '#67e8f9',
-            }"
+            :class="
+              item.type === 'Teacher'
+                ? 'bg-brand-500/12 text-brand-300'
+                : 'bg-cyan-500/12 text-cyan-300'
+            "
             aria-hidden="true"
           >
             <AppIcon

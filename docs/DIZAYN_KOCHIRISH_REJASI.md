@@ -11,6 +11,36 @@
 
 ---
 
+## 🔴 2026-08-11: RANG QARORI TESKARISIGA O'ZGARDI — avval shuni o'qing
+
+Loyiha egasi **iOS uslubidagi yorug', minimalistik** dizaynni so'radi (oq
+kartochka, ochiq kul-ko'k sahifa foni, indigo `#4f4de8` aksent, pastel
+nishonlar, yumshoq soyalar). Bajarildi: `frontend/src/style.css` yagona yorug'
+palitraga o'tkazildi, kontrast auditi 100 juftlikda yashil.
+
+**Shu hujjatning qaysi qismi KUCHINI YO'QOTDI:**
+
+| Bo'lim | Holat |
+|---|---|
+| 3.1 tema tokenlari jadvali (navy + oltin, rol bo'yicha) | ❌ **eskirgan** — uchta tema bittaga yig'ildi |
+| 7-bo'lim oxiridagi "1–2 to'lqin natijasi" rang jadvali | ❌ **eskirgan** |
+| "oltin fonda `text-white` ishlatmang" ogohlantirishi | ❌ endi aksent indigo, `on-brand` hamma joyda oq |
+| "kirish sahifasi yashil qoladi" qarori | ❌ u ham yorug' temaga o'tdi |
+
+**KUCHDA QOLGANI (o'zgarmadi):** matnlar aynan · menyu va tab tartibi aynan ·
+karkas (yon menyu, 390px Mini App, 5 tab) · `v-html` taqiqi · `100dvh` ·
+shrift loyihada saqlanishi · kuratorda yashiriladigan bloklar.
+
+Ya'ni foydalanuvchi "nima qayerda turishini" qayta o'rganmaydi — faqat
+ko'rinish yangi. **Yagona ataylab qilingan tartib chekinishi:** o'quv bo'limi
+guruh ichiga kirganda "O'quvchilar" tabi birinchi bo'ladi (ustoz/kuratorda
+tegilmaydi) — bu ham loyiha egasining talabi.
+
+Yangi rang tizimi va qarorlar: `docs/YANGI_TALABLAR_REJASI.md` 1-bo'limi.
+Jonli dars xonasi ATAYLAB to'q qoladi (`[data-surface='stage']`).
+
+---
+
 ## 1. XATONING ILDIZ SABABI (topildi)
 
 Eski loyihada `app/static/app.css` — **bazaviy** uslub fayli, uning rangi

@@ -106,7 +106,18 @@ const hasVideo = computed(() => props.track !== null)
       />
     </div>
 
-    <!-- Pastki yozuv -->
+    <!--
+      Pastki yozuv.
+
+      ★ `from-black/75`, `text-white/90` va `text-white/60` ATAYLAB
+      QOLDIRILDI (2026-08-11 "oq/qora shaffoflik" auditi). Sabab bu yerda
+      HAQIQIY: qatlam `<video>` elementining USTIDA turadi, ya'ni fon —
+      kameradan kelgan kadr va rangi oldindan MA'LUM EMAS (qorong'i xona,
+      oq devor, ekran ulashuvida oq slayd). Tema tokeni bu joyda ma'nosiz:
+      yorug' `ink-*` oq slaydda yozuvni yo'q qilardi, to'q `ink-*` esa
+      qorong'i xonada "dog'" bo'lib qolardi. Qora gradient + oq matn —
+      video subtitri qoidasi, u har qanday kadrda ishlaydi.
+    -->
     <div
       class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5"
     >

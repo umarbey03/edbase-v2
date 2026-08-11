@@ -44,12 +44,15 @@ const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
         />
       </button>
 
+      <!--
+        Avatar: gradient TOKENLARDA (ilgari `#f5b731 -> #22d3ee` va oltin
+        "nur" soyasi QOTIB QOLGAN edi). Yorug' temada nur soyasi o'rniga
+        oddiy `shadow-md`: oq fonda rangli glow iflos halqa bo'lib ko'rinadi.
+        `StudentAppBar` dagi kichik avatar bilan AYNAN bir xil gradient —
+        ikkisi bitta odamni ko'rsatadi.
+      -->
       <div
-        class="mb-3.5 mt-2.5 flex size-20 items-center justify-center rounded-full text-[32px] font-bold text-white"
-        style="
-          background: linear-gradient(135deg, #f5b731, #22d3ee);
-          box-shadow: 0 0 15px rgb(245 183 49 / 0.25);
-        "
+        class="mb-3.5 mt-2.5 flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-400 text-[32px] font-bold text-white shadow-md"
         aria-hidden="true"
       >
         {{ initial }}
@@ -60,18 +63,19 @@ const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
         v-text="fullName"
       />
 
+      <!--
+        Holat nishoni — pastel: `cyan-500` tinti + `cyan-300` matn
+        (ilgari `#22d3ee` matn + 12% tint qotib qolgan edi; oq fonda
+        `#22d3ee` 1.6:1 berardi va yozuv o'qilmasdi).
+        Nuqtadagi `box-shadow: 0 0 8px` glow OLIB TASHLANDI — yorug' fonda
+        u nuqtani xira dog'ga aylantiradi.
+      -->
       <p class="mb-5 mt-2">
         <span
-          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-[5px] text-xs font-semibold"
-          style="
-            background: rgb(34 211 238 / 0.12);
-            border-color: rgb(34 211 238 / 0.25);
-            color: #22d3ee;
-          "
+          class="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/25 bg-cyan-500/12 px-3 py-[5px] text-xs font-semibold text-cyan-300"
         >
           <span
-            class="size-2 rounded-full"
-            style="background: #22d3ee; box-shadow: 0 0 8px #22d3ee"
+            class="size-2 rounded-full bg-cyan-500"
             aria-hidden="true"
           />
           ZIN-NUR Online o‘quvchisi

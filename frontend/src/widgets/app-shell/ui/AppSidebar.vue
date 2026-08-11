@@ -34,21 +34,34 @@ const panelLabel = computed(() =>
 <template>
   <div class="flex h-full min-h-0 flex-col bg-ink-900">
     <!-- Logotip (eski `.logo`) -->
-    <div class="shrink-0 border-b border-line px-4.5 py-5">
-      <p class="text-lg font-bold tracking-tight">
-        Zin<span class="text-brand-500">-Nur</span>
-      </p>
+    <div class="flex shrink-0 items-center gap-3 border-b border-line px-4.5 py-5">
       <!--
-        Logo ostida ROL yoziladi — eski panellarda ham shunday edi
-        (`{{ 'Yordamchi' if role=='assistant' else 'Ustoz' }} paneli`,
-        `{{ 'Admin' if role=='admin' else "O'quv bo'limi" }}`). Umumiy
-        "Ta'lim platformasi" matni xodimga qaysi panelda turganini
-        aytmasdi — ayniqsa bir odam ikki rolda ishlaganda.
+        Indigo gradient plitka — ekran suratlaridagi belgi. Gradient
+        TOKENLAR orqali (`from-brand-500 to-brand-700`), qotib qolgan
+        HEX'siz: brend rangi almashsa plitka o'z-o'zidan moslashadi.
       -->
-      <p
-        class="mt-0.5 text-[10px] uppercase tracking-[1.5px] text-dim"
-        v-text="panelLabel"
-      />
+      <span
+        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-bold text-on-brand shadow-xs"
+        aria-hidden="true"
+      >
+        Z
+      </span>
+      <div class="min-w-0">
+        <p class="truncate text-lg font-bold tracking-tight">
+          Zin<span class="text-brand-500">-Nur</span>
+        </p>
+        <!--
+          Logo ostida ROL yoziladi — eski panellarda ham shunday edi
+          (`{{ 'Yordamchi' if role=='assistant' else 'Ustoz' }} paneli`,
+          `{{ 'Admin' if role=='admin' else "O'quv bo'limi" }}`). Umumiy
+          "Ta'lim platformasi" matni xodimga qaysi panelda turganini
+          aytmasdi — ayniqsa bir odam ikki rolda ishlaganda.
+        -->
+        <p
+          class="mt-0.5 truncate text-[10px] uppercase tracking-[1.5px] text-dim"
+          v-text="panelLabel"
+        />
+      </div>
     </div>
 
     <!-- Menyu (eski `.nav`) -->
@@ -60,13 +73,21 @@ const panelLabel = computed(() =>
         `active-class` da `!` SHART: aktiv va oddiy sinflar spetsifikligi bir xil,
         g'olibni CSS'dagi tartib hal qiladi — `text-slate-400` keyinroq chiqib,
         aktiv menyu elementi kulrang bo'lib qolardi.
+
+        ★ FAOL ELEMENT — TO'LIQ INDIGO FON + OQ MATN (ekran suratlaridagidek),
+        ilgari 16% tint + indigo matn edi. Yorug' temada tint variant juda
+        bo'sh chiqadi: 274 ta kulrang matn orasida "hozir qaysi bo'limdaman"
+        savoli bir qarashda javob olmasdi. Oq matn indigo fonda 5.9:1.
+
+        `hover:bg-brand-600!` — faol elementning o'zi ustiga kelganda ham
+        indigo qoladi (aks holda `hover:bg-ink-800` uni oqartirib yuborardi).
       -->
       <RouterLink
         v-for="item in items"
         :key="item.routeName"
         :to="{ name: item.routeName }"
-        class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
-        active-class="bg-brand-500/16! font-semibold text-brand-500! hover:text-brand-500!"
+        class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+        active-class="bg-brand-500! font-semibold text-on-brand! shadow-xs hover:bg-brand-600! hover:text-on-brand!"
         @click="emit('navigate')"
       >
         <AppIcon
@@ -101,7 +122,7 @@ const panelLabel = computed(() =>
         </div>
         <button
           type="button"
-          class="tap-target flex items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+          class="tap-target flex items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
           title="Chiqish"
           @click="emit('logout')"
         >

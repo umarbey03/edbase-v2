@@ -86,9 +86,19 @@ const tone = computed(() => roleTone(props.role))
           class="whitespace-pre-wrap break-words"
           v-text="props.body"
         />
+        <!--
+          🔴 O'z xabarining vaqti `text-white/60` edi: `bg-brand-600`
+          (#3f3dc0) ustida u 3.91:1 beradi va 10px matn uchun WCAG AA
+          (4.5:1) dan past. `/75` bilan 5.23:1 — hali ham "ikkilamchi" bo'lib
+          ko'rinadi, lekin o'qiladi.
+
+          ★ Bu ekran `[data-surface='stage']` ostida (jonli dars chati),
+          lekin `brand-600` sahna temasida QAYTA belgilanmagan — ya'ni rang
+          ikki sirtda ham bir xil va hisob ham bir xil.
+        -->
         <span
           class="mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums"
-          :class="props.isOwn ? 'text-white/60' : 'text-slate-500'"
+          :class="props.isOwn ? 'text-white/75' : 'text-slate-500'"
         >
           <template v-if="props.isPending">
             <AppIcon

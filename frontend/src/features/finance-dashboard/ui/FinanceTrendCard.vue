@@ -35,6 +35,16 @@ import {
  *
  * ★ Server DOIM 12 ta oy yuboradi (bo'sh bazada ham, nol qiymatlar bilan),
  * shuning uchun diagramma bo'sh massivdan yiqilmaydi.
+ *
+ * ★ IKKI QATORLI KATEGORIYALI PALITRA (`dataviz`): havorang = reja,
+ * yashil = yig'ilgan. Juftlik hisoblab tanlangan — oddiy ko'rishda ΔE 17.7,
+ * deuteranopiyada 16.8 (talab 15 / 8), ikkisi ham oq fonda ≥ 3:1. Qizil-
+ * yashil juftligi ATAYLAB ISHLATILMADI: u aynan shu ikki ustun yonma-yon
+ * turadigan joyda rang ko'rligida qo'shilib ketardi (ΔE 6.7).
+ *
+ * ★ Qo'shni ustunlar orasida 2px sirt oralig'i (`gap-0.5`) va 4px yumaloq
+ * uchi — `dataviz` ning belgi (mark) spetsifikatsiyasi: fon oralig'i
+ * bo'lmasa ikki to'ldirish bitta ustundek qo'shilib ko'rinadi.
  */
 const props = defineProps<{ months: readonly PaymentMonthSummaryDto[] }>()
 
@@ -88,14 +98,14 @@ function tooltip(month: PaymentMonthSummaryDto): string {
           >
             <div class="flex h-[100px] w-full items-end gap-0.5">
               <div
-                class="flex-1 rounded-t-[3px]"
+                class="flex-1 rounded-t-[4px]"
                 :style="{
                   height: `${barPercent(month.billed, max)}%`,
                   backgroundColor: TREND_PLANNED_COLOR,
                 }"
               />
               <div
-                class="flex-1 rounded-t-[3px]"
+                class="flex-1 rounded-t-[4px]"
                 :style="{
                   height: `${barPercent(month.collected, max)}%`,
                   backgroundColor: TREND_COLLECTED_COLOR,

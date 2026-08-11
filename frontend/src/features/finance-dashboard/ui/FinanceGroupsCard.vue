@@ -4,7 +4,7 @@ import { formatMoney } from '@/shared/lib/money'
 import type { PaymentGroupSummaryDto } from '@/shared/types'
 import { BaseCard } from '@/shared/ui'
 
-import { KPI_COLORS } from '../model/finance-view'
+import { KPI_ACCENTS } from '../model/finance-view'
 import FinanceBar from './FinanceBar.vue'
 
 /**
@@ -56,11 +56,16 @@ const props = defineProps<{
           </span>
         </div>
 
-        <!-- Eski ilovada ham "yig'ilgan / reja" nisbati YASHIL bar bilan. -->
+        <!--
+          "Yig'ilgan / reja" nisbati YASHIL bar bilan — eski ilovada ham
+          shunday. Rang endi `chart-in` tokeni (oq kartochkada 5.70:1);
+          eskisi `#22c55e` bo'lib 2.03:1 berardi va bar oq fonda "yorib
+          o'tib" ko'rinmasdi.
+        -->
         <FinanceBar
           :value="group.collected"
           :max="group.billed"
-          :color="KPI_COLORS.collected"
+          :color="KPI_ACCENTS.collected"
         />
 
         <p class="mt-1.5 text-[11px] tabular-nums text-muted">

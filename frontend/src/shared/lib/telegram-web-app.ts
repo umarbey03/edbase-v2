@@ -244,13 +244,13 @@ function compareVersions(left: string, right: string): number {
  *
  * ★ TEMA YO'NALISHI: biz Telegram'dan rang OLMAYMIZ, unga O'Z rangimizni
  * BERAMIZ. `themeParams` (foydalanuvchining Telegram temasi) ataylab umuman
- * o'qilmaydi — o'quvchi ilovasining rangi eski ilovadan aynan ko'chirilgan
- * (`#051e2d` fon, `#f5b731` urg'u) va u Telegram temasiga qarab
- * o'zgarmasligi kerak. `setHeaderColor`/`setBackgroundColor` esa aksincha
- * ishlaydi: Telegram'ning O'Z sarlavhasi va overscroll foni bizning fonimizga
- * moslanadi, ya'ni ilova "qirqilgan" ko'rinmaydi.
+ * o'qilmaydi — ilovaning rangi brend belgisi (yorug' `#f4f6fb` fon, indigo
+ * `#4f4de8` urg'u) va u Telegram temasiga qarab o'zgarmasligi kerak.
+ * `setHeaderColor`/`setBackgroundColor` esa aksincha ishlaydi: Telegram'ning
+ * O'Z sarlavhasi va overscroll foni bizning fonimizga moslanadi, ya'ni ilova
+ * "qirqilgan" ko'rinmaydi.
  *
- * @param backgroundColor `#rrggbb` — o'quvchi temasining foni.
+ * @param backgroundColor `#rrggbb` — ilova sahifasining foni.
  */
 export function applyMiniAppChrome(webApp: TelegramWebApp, backgroundColor: string): void {
   // Telegram'ga "chizib bo'ldim" deydi va yuklanish pardasini oladi.

@@ -124,13 +124,22 @@ function statValue(value: number | undefined): string {
             class="-rotate-90"
             aria-hidden="true"
           >
+            <!--
+              🔴 Halqa YO'LI (qatnashilmagan qismi). `stroke-ink-800`
+              (#f2f4f9) oq kartochkada 1.06:1 berardi — yo'l ko'rinmasdi va
+              davomat DOIM 100% dek tuyulardi (ma'no buzilishi: 40% ham
+              to'liq halqa bo'lib ko'rinardi).
+
+              `ink-750` — `StudentLearnPage` dagi "Kurs davomi" halqasi
+              allaqachon shunga o'tkazilgan, ikki ekran bir xil bo'lsin.
+            -->
             <circle
               cx="46"
               cy="46"
               r="40"
               fill="none"
               stroke-width="9"
-              class="stroke-ink-800"
+              class="stroke-ink-750"
             />
             <circle
               cx="46"

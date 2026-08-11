@@ -55,9 +55,20 @@ function open(thread: GroupChatThreadDto): void {
     <!-- ============================ Ochiq suhbat ============================ -->
     <template v-else>
       <div class="mb-3.5 flex items-center gap-3">
+        <!--
+          🔴 Fon `bg-white/[0.06]` + `hover:bg-white/[0.12]` edi: oq
+          kartochkada oq ustiga 6% oq = 1.02:1, ya'ni tugma UMUMAN
+          ko'rinmasdi (matn va ikonka "havoda" turardi) va hover hech qanday
+          javob bermasdi.
+
+          Naqsh `StudentChatPage` dan olindi — u yerda aynan shu tugma
+          allaqachon shunday tuzatilgan: oq sirt + `line-strong` kontur +
+          `ink-800` hover (`BaseButton` ning `secondary` varianti bilan bir
+          xil qoida).
+        -->
         <button
           type="button"
-          class="tap-target flex items-center gap-1.5 rounded-[10px] border border-line bg-white/[0.06] px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-white/[0.12]"
+          class="tap-target flex items-center gap-1.5 rounded-xl border border-line-strong bg-ink-900 px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-ink-800"
           @click="active = null"
         >
           <AppIcon

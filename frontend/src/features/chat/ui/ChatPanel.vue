@@ -135,7 +135,7 @@ function roleOf(senderId: number): string {
         />
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 lg:hidden"
+          class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-200 lg:hidden"
           title="Yopish"
           @click="emit('close')"
         >

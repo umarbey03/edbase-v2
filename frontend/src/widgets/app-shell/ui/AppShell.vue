@@ -29,15 +29,22 @@ const auth = useAuthStore()
   `<html>` ga qo'yiladi (teleport qilingan modal va toast ham temada qolsin),
   komponentlar nusxalanmaydi — faqat token qiymatlari almashadi.
 
-  Eski loyihada ustoz va o'quv bo'limi panellari bir xil emas edi: ikkalasi
-  ham navy + oltin, lekin boshqa-boshqa soyalarda (`#092235`/`#ffcc33` va
-  `#0f2d48`/`#f2c84b`) — shuning uchun ikkita alohida tema.
+  ★ 2026-08-10: ilova YAGONA yorug' temaga o'tdi, ya'ni `style.css` dagi
+  `[data-theme='teacher']` va `[data-theme='manage']` bloklari BO'SHATILDI
+  (rol bo'yicha rang farqi qolmadi). Xarita ATAYLAB saqlanadi — u ikki
+  ishni bajaradi:
+   1) `theme-color` meta'sini o'rnatadi (mobil brauzer manzil paneli);
+   2) rolni yana ajratish kerak bo'lganda `style.css` da bitta
+      `--color-brand-500` yozuvi yetadi, bu yerdagi kodga tegilmaydi.
+
+  `color` uchala rolda bir xil (`ink-950` = #f4f6fb) — bu HOZIR shunday,
+  kelajakda ajralishi mumkin, shuning uchun xarita tuzilishi buzilmadi.
 */
 const THEME_BY_ROLE: Record<string, { theme: string; color: string }> = {
-  Teacher: { theme: 'teacher', color: '#092235' },
-  Assistant: { theme: 'teacher', color: '#092235' },
-  Academic: { theme: 'manage', color: '#0f2d48' },
-  Admin: { theme: 'manage', color: '#0f2d48' },
+  Teacher: { theme: 'teacher', color: '#f4f6fb' },
+  Assistant: { theme: 'teacher', color: '#f4f6fb' },
+  Academic: { theme: 'manage', color: '#f4f6fb' },
+  Admin: { theme: 'manage', color: '#f4f6fb' },
 }
 
 const shellTheme = computed(() =>
@@ -130,14 +137,19 @@ async function handleLogout(): Promise<void> {
       v-if="drawerOpen"
       class="fixed inset-0 z-50 lg:hidden"
     >
+      <!--
+        Qoraytiruvchi qatlam: `bg-black/65` YORUG' temada juda og'ir chiqadi
+        (sahifa "o'chgandek" ko'rinadi). `slate-900` — `style.css` dagi
+        "scrim bandi" (neytral to'q ko'k #101828), 35% + yengil blur.
+      -->
       <div
-        class="absolute inset-0 bg-black/65 backdrop-blur-sm"
+        class="absolute inset-0 bg-slate-900/35 backdrop-blur-sm"
         aria-hidden="true"
         @click="closeDrawer"
       />
       <div
         ref="drawerPanel"
-        class="absolute inset-y-0 left-0 w-[264px] max-w-[82vw] animate-slide-in-left border-r border-line shadow-2xl"
+        class="absolute inset-y-0 left-0 w-[264px] max-w-[82vw] animate-slide-in-left border-r border-line shadow-lg"
         role="dialog"
         aria-modal="true"
         aria-label="Menyu"

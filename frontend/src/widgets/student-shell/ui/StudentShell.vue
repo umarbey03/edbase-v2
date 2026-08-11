@@ -50,8 +50,15 @@ const profileOpen = ref(false)
   Bir vaqtda faqat BITTA karkas mount bo'ladi (marshrut daraxti shunday
   qurilgan), shuning uchun atributni mount'da qo'yib, unmount'da olib
   tashlash yetarli — xodim sahifalari hech qachon o'quvchi temasini ko'rmaydi.
+
+  ★ 2026-08-10: ilova yagona YORUG' temaga o'tdi va `style.css` dagi
+  `[data-theme='student']` bloki deyarli BO'SHATILDI — unda faqat
+  `--radius-xl: 1rem` qoldi (eski Mini App'ning 16px kartochka radiusi).
+  Mexanizm ATAYLAB saqlanadi: kelajakda rolni ajratish kerak bo'lsa shu
+  blokka bitta `--color-brand-500` yozuvi qo'shiladi, bu yerdagi kodga
+  tegilmaydi.
 */
-const STUDENT_THEME_COLOR = '#051e2d'
+const STUDENT_THEME_COLOR = '#f4f6fb'
 let previousThemeColor: string | null = null
 
 function themeColorMeta(): HTMLMetaElement | null {

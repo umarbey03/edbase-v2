@@ -1,7 +1,14 @@
 <script setup lang="ts">
 /*
-  Eski dizayndagi `.card`: surface fon, 1px chegara, 12px radius, 20px padding.
-  Telefonda padding kichrayadi (14px) — 390px ekranda kontent uchun joy qolsin.
+  Kartochka: oq sirt, 1px yumshoq chegara + kichik soya, 16px radius,
+  20px padding. Telefonda padding kichrayadi (14px) — 390px ekranda
+  kontent uchun joy qolsin.
+
+  ★ NEGA CHEGARA HAM, SOYA HAM: yorug' temada chegara (#eceff5) oq
+  kartochkada 1.09:1 beradi — u yolg'iz o'zi sirt qirrasini ko'rsatmaydi.
+  Yolg'iz soya esa ekran suratlaridagi "aniq qirra" hissini bermaydi va
+  ustma-ust turgan kartochkalar bir-biriga oqib ketadi. Ikkisi birga —
+  iOS naqshi.
 */
 withDefaults(
   defineProps<{
@@ -17,7 +24,7 @@ withDefaults(
 
 <template>
   <section
-    class="rounded-xl border border-line bg-ink-900"
+    class="rounded-2xl border border-line bg-ink-900 shadow-sm"
     :class="flush ? '' : 'p-3.5 sm:p-5'"
   >
     <header
