@@ -176,10 +176,18 @@ public sealed class LessonAssetsController(ILessonAssetService assets) : Control
     /// bo'lsa **400** va HECH NARSA yozilmaydi (`DAVOM_ETTIRISH.md`
     /// 6-bo'lim, 7-tuzoq).
     ///
-    /// ⚠️ METOD `PUT` (kurs/modul/dars tartibi esa `POST .../reorder`).
-    /// Farq ONGLI EMAS, u talab shaklidan keldi — hisobotda qayd etilgan.
+    /// ★ METOD `POST` — loyihadagi qolgan UCHTA reorder endpointi bilan AYNI
+    /// (`POST /courses/reorder`, `POST /courses/{id}/modules/reorder`,
+    /// `POST /courses/{id}/modules/{id}/lessons/reorder`).
+    ///
+    /// ⚠️ AVVAL `PUT` edi (topshiriq shakli shunday bergan) — integratsiyada
+    /// `POST` ga o'tkazildi: to'rtta bir xil amal ikki xil metodda bo'lishi
+    /// frontend uchun yashirin tuzoq. `PUT` bu yerda semantik jihatdan ham
+    /// noto'g'ri edi — u "resursni to'liq almashtirish" degan ma'noni beradi
+    /// (`DAVOM_ETTIRISH.md` 6-bo'lim, 1-tuzoq), bu esa RESURS emas, AMAL.
+    /// Frontend hali yozilmagani uchun buzilgan klient yo'q.
     /// </summary>
-    [HttpPut("{lessonId:long}/assets/reorder")]
+    [HttpPost("{lessonId:long}/assets/reorder")]
     [Authorize(Roles = ManageRoles)]
     [ProducesResponseType<IReadOnlyList<PositionDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

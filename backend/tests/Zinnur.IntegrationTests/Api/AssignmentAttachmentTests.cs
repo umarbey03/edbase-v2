@@ -284,7 +284,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
     /// bazasi yaratilganda ALLAQACHON o'tgan, ya'ni "migratsiyadan oldin"
     /// holatini qayta yasash mumkin emas. Shuning uchun test AYNAN
     /// migratsiyada ishlatilgan SQL doimiysini
-    /// (<see cref="Wave1_LessonKindAssetsAndAttachments.ImageKeyBackfillSql"/>)
+    /// (<see cref="Wave1_GroupVideoStart_UserProfile_LessonAssets.ImageKeyBackfillSql"/>)
     /// oladi va uni eski shakldagi qator ustida bajaradi. Nusxa
     /// saqlanmaydi: migratsiya SQL'i o'zgarsa test AVTOMATIK yangisini
     /// tekshiradi.
@@ -318,7 +318,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
         // Migratsiyadagi AYNI SQL.
         await factory.WithDbAsync(async db =>
             await db.Database.ExecuteSqlRawAsync(
-                Wave1_LessonKindAssetsAndAttachments.ImageKeyBackfillSql));
+                Wave1_GroupVideoStart_UserProfile_LessonAssets.ImageKeyBackfillSql));
 
         var attachments = await factory.WithDbAsync(db => db.AssignmentAttachments
             .AsNoTracking()
@@ -340,7 +340,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
         // ---- IDEMPOTENTLIK: ikkinchi marta bajarilsa TAKROR yozuv yo'q ----
         await factory.WithDbAsync(async db =>
             await db.Database.ExecuteSqlRawAsync(
-                Wave1_LessonKindAssetsAndAttachments.ImageKeyBackfillSql));
+                Wave1_GroupVideoStart_UserProfile_LessonAssets.ImageKeyBackfillSql));
 
         var again = await factory.WithDbAsync(db => db.AssignmentAttachments
             .AsNoTracking()
@@ -385,7 +385,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
 
         await factory.WithDbAsync(async db =>
             await db.Database.ExecuteSqlRawAsync(
-                Wave1_LessonKindAssetsAndAttachments.ImageKeyBackfillSql));
+                Wave1_GroupVideoStart_UserProfile_LessonAssets.ImageKeyBackfillSql));
 
         var contentType = await factory.WithDbAsync(db => db.AssignmentAttachments
             .AsNoTracking()
@@ -421,7 +421,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
 
         await factory.WithDbAsync(async db =>
             await db.Database.ExecuteSqlRawAsync(
-                Wave1_LessonKindAssetsAndAttachments.ImageKeyBackfillSql));
+                Wave1_GroupVideoStart_UserProfile_LessonAssets.ImageKeyBackfillSql));
 
         var count = await factory.WithDbAsync(db => db.AssignmentAttachments
             .AsNoTracking()

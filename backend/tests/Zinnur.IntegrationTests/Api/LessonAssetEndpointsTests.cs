@@ -470,7 +470,7 @@ public sealed class LessonAssetEndpointsTests(StorageBackedApiFactory factory)
 
         using var admin = await AdminClientAsync();
 
-        var response = await admin.PutAsJsonAsync(
+        var response = await admin.PostAsJsonAsync(
             ReorderUri(lessonId), new { orderedIds = new[] { c, a, b } });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -508,7 +508,7 @@ public sealed class LessonAssetEndpointsTests(StorageBackedApiFactory factory)
         using var admin = await AdminClientAsync();
 
         // Uchtadan faqat IKKITASI yuborildi.
-        var response = await admin.PutAsJsonAsync(
+        var response = await admin.PostAsJsonAsync(
             ReorderUri(lessonId), new { orderedIds = new[] { c, a } });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -541,7 +541,7 @@ public sealed class LessonAssetEndpointsTests(StorageBackedApiFactory factory)
 
         using var admin = await AdminClientAsync();
 
-        var response = await admin.PutAsJsonAsync(
+        var response = await admin.PostAsJsonAsync(
             ReorderUri(first), new { orderedIds = new[] { mine, foreign } });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);

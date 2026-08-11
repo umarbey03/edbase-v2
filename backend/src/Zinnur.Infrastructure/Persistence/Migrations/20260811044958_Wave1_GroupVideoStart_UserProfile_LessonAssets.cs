@@ -7,17 +7,36 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Zinnur.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class Wave1_LessonKindAssetsAndAttachments : Migration
+    public partial class Wave1_GroupVideoStart_UserProfile_LessonAssets : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "TelegramLinkedAt",
+                table: "Users",
+                type: "timestamptz",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "TelegramUsername",
+                table: "Users",
+                type: "character varying(32)",
+                maxLength: 32,
+                nullable: true);
+
             migrationBuilder.AddColumn<int>(
                 name: "Kind",
                 table: "ModuleLessons",
                 type: "integer",
                 nullable: false,
                 defaultValue: 0);
+
+            migrationBuilder.AddColumn<long>(
+                name: "VideoStartLessonId",
+                table: "Groups",
+                type: "bigint",
+                nullable: true);
 
             migrationBuilder.CreateTable(
                 name: "AssignmentAttachments",
@@ -92,6 +111,83 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "StudentNotes",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    AuthorId = table.Column<long>(type: "bigint", nullable: false),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
+                    Body = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamptz", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamptz", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentNotes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentNotes_Groups_GroupId",
+                        column: x => x.GroupId,
+                        principalTable: "Groups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_StudentNotes_Users_AuthorId",
+                        column: x => x.AuthorId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentNotes_Users_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TelegramUnlinkAudits",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    UserId = table.Column<long>(type: "bigint", nullable: false),
+                    ActorId = table.Column<long>(type: "bigint", nullable: false),
+                    OldTelegramId = table.Column<long>(type: "bigint", nullable: false),
+                    OldTelegramUsername = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
+                    Reason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamptz", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamptz", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TelegramUnlinkAudits", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TelegramUnlinkAudits_Users_ActorId",
+                        column: x => x.ActorId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_TelegramUnlinkAudits_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Groups_VideoStartLessonId",
+                table: "Groups",
+                column: "VideoStartLessonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GroupMembers_GroupId_Status",
+                table: "GroupMembers",
+                columns: new[] { "GroupId", "Status" });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AssignmentAttachments_AssignmentId_Position",
                 table: "AssignmentAttachments",
@@ -112,6 +208,41 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                 table: "LessonAssets",
                 columns: new[] { "LessonId", "Position" });
 
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentNotes_AuthorId",
+                table: "StudentNotes",
+                column: "AuthorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentNotes_GroupId",
+                table: "StudentNotes",
+                column: "GroupId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentNotes_StudentId_Id",
+                table: "StudentNotes",
+                columns: new[] { "StudentId", "Id" },
+                descending: new[] { false, true });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TelegramUnlinkAudits_ActorId",
+                table: "TelegramUnlinkAudits",
+                column: "ActorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TelegramUnlinkAudits_UserId_Id",
+                table: "TelegramUnlinkAudits",
+                columns: new[] { "UserId", "Id" },
+                descending: new[] { false, true });
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_Groups_ModuleLessons_VideoStartLessonId",
+                table: "Groups",
+                column: "VideoStartLessonId",
+                principalTable: "ModuleLessons",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
             // ================================================================
             // 🔴 BACKFILL — `Assignments.ImageKey` -> `AssignmentAttachments`
             // ================================================================
@@ -122,10 +253,18 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
             //   o'quv bo'limi kiritgan barcha shart rasmlari ekrandan
             //   JIMGINA YO'QOLADI (bazada qoladi, lekin hech kim ko'rmaydi).
             //
-            // ⚠️ INTEGRATOR UCHUN: bu migratsiya birlashtirishda o'chirilib,
-            //   bitta yangi migratsiya generatsiya qilinadi. SHU BLOKNI
-            //   yangi migratsiyaga KO'CHIRISH ESDAN CHIQMASIN — aks holda
-            //   yo'qotish sezilmay o'tib ketadi.
+            // ⚠️ TARTIB MUHIM: bu chaqiruv `Up()` ning OXIRIDA turishi shart —
+            //   `AssignmentAttachments` jadvali yuqorida yaratiladi. Yuqoriga
+            //   ko'chirilsa "relation does not exist" bilan yiqiladi.
+            //
+            // ⚠️ QAYERDAN KELDI: bu blok `Wave1_LessonKindAssetsAndAttachments`
+            //   migratsiyasidan KO'CHIRILDI. Uchta parallel agent (C/E/G)
+            //   bir xil ota-snapshot ustiga uchta migratsiya yasagan edi;
+            //   integratsiyada uchalasi o'chirilib shu BITTA bog'in
+            //   generatsiya qilindi. Backfill AVTOMATIK generatsiya
+            //   QILINMAYDI (u model o'zgarishi emas, MA'LUMOT ko'chirish) —
+            //   shuning uchun qo'lda ko'chirildi. Kelajakda migratsiyalar
+            //   yana birlashtirilsa SHU BLOK ham ko'chirilishi kerak.
             //
             // `Kind = 0` (Image): eski ustun ATAYLAB faqat rasm uchun edi
             // (nomi ham `ImageKey`).
@@ -166,14 +305,14 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
         ///     paydo bo'lmaydimi). Test o'z nusxasini saqlasa, migratsiya
         ///     o'zgarganda test eski SQL'ni tekshirib "yashil" bo'lib
         ///     qolardi — ya'ni eng qimmat turdagi yolg'on.
+        ///     Test: `AssignmentAttachmentTests.Backfill_*`.
         ///
-        ///  2) INTEGRATOR KO'CHIRADI. Bu migratsiya bir necha agent ishini
-        ///     birlashtirishda o'chirilib, bitta yangi migratsiya
-        ///     generatsiya qilinadi. Backfill esa AVTOMATIK generatsiya
-        ///     QILINMAYDI (u model o'zgarishi emas, MA'LUMOT ko'chirish) —
-        ///     ya'ni uni qo'lda ko'chirish kerak. Nomlangan doimiy bo'lsa
-        ///     uni topish va ko'chirish oson va uni o'tkazib yuborish
-        ///     qiyin.
+        ///  2) INTEGRATOR KO'CHIRADI. Migratsiyalar birlashtirilganda bu
+        ///     blok AVTOMATIK ko'chmaydi (u model o'zgarishi emas, MA'LUMOT
+        ///     ko'chirish). Nomlangan doimiy bo'lsa uni topish va ko'chirish
+        ///     oson, o'tkazib yuborish esa qiyin: test doimiyning nomiga
+        ///     BOG'LANGAN, ya'ni ko'chirilmasa BUILD yiqiladi (jim
+        ///     ma'lumot yo'qolishidan ko'ra shovqinli xato yaxshi).
         /// </summary>
         public const string ImageKeyBackfillSql = """
             INSERT INTO "AssignmentAttachments"
@@ -212,15 +351,45 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_Groups_ModuleLessons_VideoStartLessonId",
+                table: "Groups");
+
             migrationBuilder.DropTable(
                 name: "AssignmentAttachments");
 
             migrationBuilder.DropTable(
                 name: "LessonAssets");
 
+            migrationBuilder.DropTable(
+                name: "StudentNotes");
+
+            migrationBuilder.DropTable(
+                name: "TelegramUnlinkAudits");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Groups_VideoStartLessonId",
+                table: "Groups");
+
+            migrationBuilder.DropIndex(
+                name: "IX_GroupMembers_GroupId_Status",
+                table: "GroupMembers");
+
+            migrationBuilder.DropColumn(
+                name: "TelegramLinkedAt",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "TelegramUsername",
+                table: "Users");
+
             migrationBuilder.DropColumn(
                 name: "Kind",
                 table: "ModuleLessons");
+
+            migrationBuilder.DropColumn(
+                name: "VideoStartLessonId",
+                table: "Groups");
         }
     }
 }

@@ -206,7 +206,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         (await teacher.DeleteAsync(AssetUri(world.FirstAssetId))).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
 
-        var reorder = await teacher.PutAsJsonAsync(
+        var reorder = await teacher.PostAsJsonAsync(
             ReorderUri(world.FirstLessonId), new { orderedIds = new[] { world.FirstAssetId } });
 
         reorder.StatusCode.Should().Be(HttpStatusCode.Forbidden);
