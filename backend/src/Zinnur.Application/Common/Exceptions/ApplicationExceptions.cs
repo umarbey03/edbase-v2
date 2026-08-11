@@ -65,6 +65,41 @@ public sealed class TooManyRequestsException(string message, int retryAfterSecon
     public int RetryAfterSeconds { get; } = retryAfterSeconds;
 }
 
+/// <summary>
+/// Yuborilgan fayl ruxsat etilgan hajmdan katta -> HTTP 413.
+///
+/// ★ NIMA UCHUN 400 EMAS (ONGLI QAROR): AYNI shartni Kestrel ham
+/// tekshiradi va u 413 qaytaradi — juda katta so'rov tanasi bizning
+/// kodimizga umuman yetib kelmasligi mumkin. Agar o'z tekshiruvimizda 400
+/// bersak, BITTA va AYNI nosozlik (fayl juda katta) chegaradan qanchalik
+/// oshganiga qarab gohida 413, gohida 400 bo'lardi — frontend ikki
+/// tarmoqli mantiq yozishga majbur bo'lardi va bittasini albatta unutardi.
+///
+/// ⚠️ FARQI <see cref="ValidationException"/> DAN: 400 — "ma'lumot
+/// NOTO'G'RI" (masalan `.mp4` deb nomlangan fayl ichida PDF). 413 —
+/// "ma'lumot to'g'ri, lekin KATTA". Foydalanuvchi uchun ham farq amaliy:
+/// birinchisida boshqa fayl kerak, ikkinchisida o'sha faylni siqish yoki
+/// qismlarga bo'lish kifoya.
+/// </summary>
+public sealed class PayloadTooLargeException(string message) : Exception(message);
+
+/// <summary>
+/// So'ralgan bayt oralig'i (`Range`) fayl chegarasidan tashqarida -> HTTP 416.
+///
+/// ★ NIMA UCHUN ALOHIDA TUR, 400 EMAS: 416 javobiga
+/// <c>Content-Range: bytes */&lt;hajm&gt;</c> sarlavhasi QO'SHILISHI shart
+/// (HTTP standarti talabi) — ya'ni javob yozadigan joyga faylning TO'LIQ
+/// hajmi yetib borishi kerak. Oddiy 400 bilan bu ma'lumot yo'qolardi va
+/// ba'zi video pleyerlar to'g'ri hajmni bilmagani uchun cheksiz qayta
+/// urinaverardi.
+/// </summary>
+public sealed class RangeNotSatisfiableException(long totalLength)
+    : Exception("So'ralgan oraliq fayl hajmidan tashqarida.")
+{
+    /// <summary>Faylning to'liq hajmi — <c>Content-Range: bytes */N</c> uchun.</summary>
+    public long TotalLength { get; } = totalLength;
+}
+
 /// <summary>Kiruvchi ma'lumot noto'g'ri -> HTTP 400.</summary>
 public sealed class ValidationException(IDictionary<string, string[]> errors)
     : Exception("Kiritilgan ma'lumotlarda xatolik bor.")

@@ -6,7 +6,9 @@ using Zinnur.Application.Assignments;
 using Zinnur.Application.Assignments.Dtos;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Models;
+using Zinnur.Application.Courses.Services;
 using Zinnur.Domain.Entities;
+using Zinnur.WebApi.Media;
 
 namespace Zinnur.WebApi.Controllers;
 
@@ -23,7 +25,9 @@ namespace Zinnur.WebApi.Controllers;
 [Route("api/v1/assignments")]
 [Authorize]
 [Produces("application/json")]
-public sealed class AssignmentsController(IAssignmentService assignments) : ControllerBase
+public sealed class AssignmentsController(
+    IAssignmentService assignments,
+    IAssignmentAttachmentService attachments) : ControllerBase
 {
     // ================================================================= xodim
 
@@ -235,6 +239,103 @@ public sealed class AssignmentsController(IAssignmentService assignments) : Cont
         return File(download.Content.Content, download.ContentType, download.FileName);
     }
 
+    // ================================================================= WAVE 1: shart biriktirmalari
+
+    /// <summary>
+    /// Vazifa SHARTIGA fayl biriktiradi (`multipart/form-data`, maydon
+    /// nomi — `file`).
+    ///
+    /// Rasm / audio / PDF qabul qilinadi va bir vazifada BIR NECHTA bo'lishi
+    /// mumkin. Video ATAYLAB qabul qilinmaydi — u dars mediasi
+    /// (`POST /api/v1/lessons/{lessonId}/assets`), u yerda `Range` bilan
+    /// oqim va alohida hajm chegarasi bor.
+    ///
+    /// 🔴 Tur MAZMUNDAN aniqlanadi: `.jpg` deb nomlangan PDF ham qabul
+    /// qilinadi (PDF ruxsat etilgan), lekin `.jpg` deb nomlangan EXE
+    /// **400** oladi. Hajm chegarasi sozlamadan
+    /// (`lesson.image_max_mb`) — oshsa **413**.
+    ///
+    /// RUXSAT: vazifani TAHRIRLASH huquqi bilan AYNI (kurs vazifasi —
+    /// faqat o'quv bo'limi; guruh vazifasi — o'sha guruhning ustozi/kuratori
+    /// ham).
+    /// </summary>
+    [HttpPost("{id:long}/attachments")]
+    [Authorize(Roles = StaffRoles)]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxAttachmentRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAttachmentRequestBytes)]
+    [ProducesResponseType<AssignmentAttachmentDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<AssignmentAttachmentDto>> UploadAttachment(
+        long id,
+        IFormFile file,
+        [FromForm] int? durationSec,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            throw MediaResponse.MissingFile();
+
+        await using var stream = file.OpenReadStream();
+
+        var created = await attachments.UploadAsync(
+            id,
+            new LessonAssetUpload(
+                file.FileName,
+
+                // Klient AYTGAN tur faqat XATO XABARI uchun uzatiladi.
+                file.ContentType,
+                stream,
+                file.Length,
+                Title: null,
+                durationSec),
+            CurrentUserId,
+            ct);
+
+        return StatusCode(StatusCodes.Status201Created, created);
+    }
+
+    /// <summary>
+    /// Shart biriktirmasini OQIM bilan beradi. `Range` qo'llab-quvvatlanadi
+    /// (`206` + `Accept-Ranges: bytes`) — uzun audio namunada oldinga o'tish
+    /// uchun.
+    ///
+    /// RUXSAT: vazifani KO'RISH huquqi bilan AYNI — o'quvchi ham oladi,
+    /// LEKIN faqat O'ZIGA TEGISHLI vazifani (kurs vazifasida darsning
+    /// kursga tegishliligi ham tekshiriladi).
+    /// </summary>
+    [HttpGet("~/api/v1/assignments/attachments/{attachmentId:long}")]
+    [Produces("application/octet-stream")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status206PartialContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status416RangeNotSatisfiable)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> DownloadAttachment(long attachmentId, CancellationToken ct)
+    {
+        var download = await attachments.OpenAsync(
+            attachmentId, MediaResponse.RawRange(Request.Headers.Range), CurrentUserId, ct);
+
+        return await MediaResponse.WriteAsync(this, download, ct);
+    }
+
+    /// <summary>Shart biriktirmasini o'chiradi (bazadan, so'ng ombordan).</summary>
+    [HttpDelete("~/api/v1/assignments/attachments/{attachmentId:long}")]
+    [Authorize(Roles = StaffRoles)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAttachment(long attachmentId, CancellationToken ct)
+    {
+        await attachments.DeleteAsync(attachmentId, CurrentUserId, ct);
+        return NoContent();
+    }
+
     // ---------------------------------------------------------------- ichki
 
     private const string StudentRole = "Student";
@@ -259,6 +360,17 @@ public sealed class AssignmentsController(IAssignmentService assignments) : Cont
     /// </summary>
     private const long MaxRequestBytes =
         (Submission.MaxAttachments * (long)SubmissionAttachmentReader.MaxAnyBytes) + (1024 * 1024);
+
+    /// <summary>
+    /// SHART biriktirmasi uchun so'rov tanasining QAT'IY chegarasi.
+    ///
+    /// ★ QIYMAT `lesson.image_max_mb` sozlamasining `Maximum` i bilan MOS
+    ///   (100 MB) + 1 MB zaxira. HAQIQIY chegara sozlamadan keladi
+    ///   (standart 10 MB) va servis ichida 413 bilan qo'llanadi; bu atribut
+    ///   esa faqat "diskni to'ldirib qo'yish"dan himoya (multipart fayl
+    ///   MODEL BOG'LASHDA, bizning kodimizdan OLDIN buferlanadi).
+    /// </summary>
+    private const long MaxAttachmentRequestBytes = (100L * 1024 * 1024) + (1024 * 1024);
 
     private long CurrentUserId =>
         long.Parse(

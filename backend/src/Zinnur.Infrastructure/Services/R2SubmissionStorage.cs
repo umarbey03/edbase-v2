@@ -76,13 +76,20 @@ public sealed class R2SubmissionStorage(
         var key = BuildKey(upload, settings);
         var now = clock.GetUtcNow().UtcDateTime;
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, BuildUri(key, settings));
+        using var request = new HttpRequestMessage(
+            HttpMethod.Put, S3SigV4.BuildUri(key, settings));
+
         using var content = new ByteArrayContent(upload.Content.ToArray());
 
         content.Headers.ContentType = new MediaTypeHeaderValue(upload.ContentType);
         request.Content = content;
 
-        Sign(request, Hex(SHA256.HashData(upload.Content.Span)), upload.ContentType, now, settings);
+        S3SigV4.Sign(
+            request,
+            S3SigV4.Hex(SHA256.HashData(upload.Content.Span)),
+            upload.ContentType,
+            now,
+            settings);
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
@@ -137,13 +144,19 @@ public sealed class R2SubmissionStorage(
                 "Fayl ombori sozlanmagan (`Storage:*`). Faylni ochib bo'lmadi.");
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(objectKey, settings));
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, S3SigV4.BuildUri(objectKey, settings));
 
         // GET da tana yo'q => bo'sh yuk (payload) xeshi. `UNSIGNED-PAYLOAD`
         // ham bo'lardi, lekin bo'sh xesh QAT'IYROQ va R2/MinIO ikkalasi ham
         // tushunadi. Content-Type sarlavhasi YO'Q — shuning uchun imzoga ham
         // kirmaydi (kanonik sarlavhalar ro'yxati AYNAN mos kelishi shart).
-        Sign(request, EmptyPayloadHash, contentType: null, clock.GetUtcNow().UtcDateTime, settings);
+        S3SigV4.Sign(
+            request,
+            S3SigV4.EmptyPayloadHash,
+            contentType: null,
+            clock.GetUtcNow().UtcDateTime,
+            settings);
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
@@ -231,131 +244,28 @@ public sealed class R2SubmissionStorage(
             $"{prefix}/{month}/{upload.StudentId}/{random}.{upload.Extension}");
     }
 
-    private static Uri BuildUri(string key, StorageOptions settings) =>
-        new($"{settings.ServiceUrl.TrimEnd('/')}/{settings.Bucket}/{EncodeKey(key)}");
-
     // ================================================================= SigV4
-
-    /// <summary>
-    /// AWS Signature Version 4 (S3 uchun) — PUT va GET uchun BITTA joy.
-    ///
-    /// Tartib QAT'IY: kanonik so'rov -> imzolanadigan satr -> imzo kaliti ->
-    /// imzo. Sarlavhalar ALFABIT tartibda va kichik harfda bo'lishi shart,
-    /// aks holda xizmat 403 (`SignatureDoesNotMatch`) qaytaradi.
-    ///
-    /// NIMA UCHUN IKKI METOD EMAS: imzo algoritmi nusxalansa, ikkinchi
-    /// nusxa birinchisidan asta uzoqlashadi va nosozlik faqat "403
-    /// SignatureDoesNotMatch" ko'rinishida — sababsiz — chiqadi. Farq
-    /// atigi ikkita: HTTP metodi va `content-type` sarlavhasi bor-yo'qligi.
-    /// </summary>
-    /// <param name="contentType">
-    /// Tana bo'lsa uning turi (imzoga KIRADI), GET da <c>null</c> —
-    /// sarlavha yuborilmagani uchun imzoga ham kirmasligi SHART.
-    /// </param>
-    /// <param name="settings">
-    /// Amal boshida BIR MARTA olingan kesim. ⚠️ Bu yerda `options.Current`
-    /// qayta chaqirilmaydi: imzo kaliti va `Credential` sarlavhasi AYNI
-    /// qiymatlardan chiqishi shart (izoh: sinf tepasida).
-    /// </param>
-    private static void Sign(
-        HttpRequestMessage request,
-        string payloadHash,
-        string? contentType,
-        DateTime utcNow,
-        StorageOptions settings)
-    {
-        var amzDate = utcNow.ToString("yyyyMMddTHHmmssZ", CultureInfo.InvariantCulture);
-        var dateStamp = utcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-
-        // ★ `Authority`, `Host` EMAS — bu yerda BUG bor edi.
-        //
-        // Imzoga kiradigan `host` qiymati HTTP klient YUBORADIGAN `Host`
-        // sarlavhasi bilan BAYT-BAYT bir xil bo'lishi shart. Klient esa
-        // standart bo'lmagan portni sarlavhaga QO'SHADI (`minio:9000`),
-        // `Uri.Host` esa portni TUSHIRIB QOLDIRADI. Natijada imzo va
-        // sarlavha farq qilardi.
-        //
-        // R2/S3 da bu ko'rinmasdi (443 — standart port, ya'ni ikkalasi ham
-        // portsiz), MinIO'ga ulangan zahoti esa HAR SO'ROV
-        // `403 SignatureDoesNotMatch` bilan qaytdi. `Uri.Authority` aynan
-        // kerakli semantikani beradi: standart port TUSHIRILADI, boshqasi
-        // QO'SHILADI — ya'ni ikkala muhitda ham to'g'ri.
-        var host = request.RequestUri!.Authority;
-
-        request.Headers.TryAddWithoutValidation("x-amz-content-sha256", payloadHash);
-        request.Headers.TryAddWithoutValidation("x-amz-date", amzDate);
-
-        // Kanonik sarlavhalar — alfabit tartibda (content-type, host, x-amz-*).
-        var canonicalHeaders = contentType is null
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"host:{host}\nx-amz-content-sha256:{payloadHash}\nx-amz-date:{amzDate}\n")
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"content-type:{contentType}\nhost:{host}\nx-amz-content-sha256:{payloadHash}\nx-amz-date:{amzDate}\n");
-
-        var signedHeaders = contentType is null
-            ? "host;x-amz-content-sha256;x-amz-date"
-            : "content-type;host;x-amz-content-sha256;x-amz-date";
-
-        var canonicalRequest = string.Join('\n',
-            request.Method.Method,
-            request.RequestUri.AbsolutePath,
-            string.Empty,                       // query yo'q
-            canonicalHeaders,
-            signedHeaders,
-            payloadHash);
-
-        var scope = string.Create(
-            CultureInfo.InvariantCulture, $"{dateStamp}/{settings.Region}/s3/aws4_request");
-
-        var stringToSign = string.Join('\n',
-            "AWS4-HMAC-SHA256",
-            amzDate,
-            scope,
-            Hex(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest))));
-
-        var signingKey = SigningKey(dateStamp, settings);
-        var signature = Hex(HMACSHA256.HashData(signingKey, Encoding.UTF8.GetBytes(stringToSign)));
-
-        request.Headers.TryAddWithoutValidation(
-            "Authorization",
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"AWS4-HMAC-SHA256 Credential={settings.AccessKey}/{scope}, "
-                + $"SignedHeaders={signedHeaders}, Signature={signature}"));
-    }
-
-    /// <summary>Imzo kaliti: sana -> region -> xizmat -> `aws4_request` zanjiri.</summary>
-    private static byte[] SigningKey(string dateStamp, StorageOptions settings)
-    {
-        var key = Encoding.UTF8.GetBytes("AWS4" + settings.SecretKey);
-
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(dateStamp));
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(settings.Region));
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes("s3"));
-
-        return HMACSHA256.HashData(key, Encoding.UTF8.GetBytes("aws4_request"));
-    }
-
-    private static string Hex(byte[] value) => Convert.ToHexString(value).ToLowerInvariant();
-
-    /// <summary>
-    /// Kalitni URL uchun kodlaydi, <c>/</c> ni SAQLAB (u yo'l ajratgichi).
-    /// Bizning kalitlarimiz xavfsiz belgilardan iborat, lekin kodlash
-    /// prefiks konfiguratsiyadan kelgani uchun MAJBURIY.
-    /// </summary>
-    private static string EncodeKey(string key) =>
-        string.Join('/', key.Split('/').Select(Uri.EscapeDataString));
+    //
+    // ⚠️ IMZO ALGORITMI BU YERDAN OLIB TASHLANDI -> `S3SigV4`.
+    //
+    // ★ NIMA UCHUN: uchinchi ombor xizmati (dars mediasi, `R2MediaStorage`)
+    //   qo'shilganda algoritm UCHINCHI nusxaga bo'linardi. Nusxalangan imzo
+    //   eng yomon turdagi texnik qarz: nosozlik faqat
+    //   `403 SignatureDoesNotMatch` ko'rinishida, SABABSIZ chiqadi.
+    //
+    // ★ BU YERDA TOPILGAN VA TUZATILGAN BUG `S3SigV4.Sign` ICHIDA, izohi
+    //   bilan birga SAQLANGAN: imzoga `Uri.Authority` (port BILAN) kiradi,
+    //   `Uri.Host` EMAS. `Uri.Host` portni tushirib qoldiradi va MinIO
+    //   (`minio:9000`) har so'rovni 403 bilan qaytarardi; R2/S3 da esa
+    //   (443 — standart port) muammo umuman ko'rinmasdi.
+    //
+    // Endi tuzatish BITTA joyda va u avtomatik ravishda uchala iste'molchiga
+    // (vazifa javobi, dars yozuvi, dars mediasi) tegishli.
 
     private static string Trim(string body) =>
         body.Length <= MaxLoggedBodyLength ? body : body[..MaxLoggedBodyLength];
 
     private const int MaxLoggedBodyLength = 500;
-
-    /// <summary>Bo'sh tananing SHA-256 xeshi — GET so'rovlar imzosida ishlatiladi.</summary>
-    private const string EmptyPayloadHash =
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
     /// <summary>Ombor turni aytmasa — "noma'lum ikkilik", brauzer uni RENDER QILMAYDI.</summary>
     private const string DefaultContentType = "application/octet-stream";

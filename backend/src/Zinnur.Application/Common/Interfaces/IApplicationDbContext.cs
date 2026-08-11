@@ -61,6 +61,20 @@ public interface IApplicationDbContext
     DbSet<TestAnswer> TestAnswers { get; }
     DbSet<LessonProgress> LessonProgress { get; }
 
+    // ---------------------------------------------------------------- WAVE 1: dars mediasi
+
+    /// <summary>
+    /// Dars mediasi: odatiy darsda VIDEO qismlari, imtihon darsida RASMLAR.
+    /// Ikkalasi BITTA jadvalda — sabab <see cref="LessonAsset"/> izohida.
+    /// </summary>
+    DbSet<LessonAsset> LessonAssets { get; }
+
+    /// <summary>
+    /// Uy vazifasi SHARTIGA biriktirilgan fayllar (rasm/audio/hujjat).
+    /// O'quvchining JAVOB fayllari bu yerda EMAS — <see cref="SubmissionFiles"/>.
+    /// </summary>
+    DbSet<AssignmentAttachment> AssignmentAttachments { get; }
+
     // ---------------------------------------------------------------- FAZA 4: moliya
 
     DbSet<Payment> Payments { get; }

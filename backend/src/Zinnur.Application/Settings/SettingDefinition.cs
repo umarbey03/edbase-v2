@@ -113,7 +113,14 @@ public enum SettingFormat
     TelegramSecret = 4,
 }
 
-/// <summary>Sozlamalar guruhi — panel shu bo'yicha bo'limlarga bo'linadi.</summary>
+/// <summary>
+/// Sozlamalar guruhi — panel shu bo'yicha bo'limlarga bo'linadi.
+///
+/// ⚠️ Qiymatlar bazaga YOZILMAYDI (jadvalda faqat kalit va qiymat), lekin
+/// JSON'da SATR sifatida chiqadi — ya'ni yangi guruh mavjud klientni
+/// buzmaydi. Baribir FAQAT oxiriga qo'shiladi: panel guruhlarni e'lon
+/// TARTIBIDA chizadi.
+/// </summary>
 public enum SettingGroup
 {
     General = 0,
@@ -122,6 +129,19 @@ public enum SettingGroup
     LiveKit = 3,
     Storage = 4,
     Security = 5,
+
+    /// <summary>
+    /// O'QUV KONTENTI chegaralari (dars videosi va imtihon rasmi hajmi).
+    ///
+    /// ★ NIMA UCHUN <see cref="Storage"/> GA QO'SHILMADI: u guruhda OMBORGA
+    /// ULANISH ma'lumotlari (manzil, bucket, kalit-sirlar) turadi va ularga
+    /// administrator faqat ombor ko'chirilganda tegadi. Fayl hajmi chegarasi
+    /// esa O'QUV qarori — "bir darsga qanchalik katta video ruxsat etiladi"
+    /// degan savolga o'quv bo'limi javob beradi. Bir bo'limda bo'lsa, hajm
+    /// chegarasini o'zgartirmoqchi bo'lgan xodim yonida ombor sirlarini
+    /// ko'rib turardi.
+    /// </summary>
+    Content = 6,
 }
 
 /// <summary>

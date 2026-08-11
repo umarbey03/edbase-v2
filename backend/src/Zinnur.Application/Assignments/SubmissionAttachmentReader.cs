@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Globalization;
-using System.Text;
 using Zinnur.Application.Common.Exceptions;
+using Zinnur.Application.Media;
 using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Assignments;
@@ -65,7 +65,23 @@ public static class SubmissionAttachmentReader
     public const int MaxAnyBytes = MaxAudioBytes;
 
     /// <summary>Tur aniqlash uchun yetarli sarlavha (`ftyp` brendi 12-baytda).</summary>
-    private const int HeaderSize = 32;
+    private const int HeaderSize = MediaSignatures.HeaderSize;
+
+    /// <summary>
+    /// JAVOB TOPSHIRISHDA qabul qilinadigan turkumlar.
+    ///
+    /// 🔴 <c>Video</c> va <c>Document</c> ATAYLAB YO'Q: ro'yxat o'quvchi
+    /// telefoni va brauzeri haqiqatan hosil qiladigan formatlar bilan
+    /// cheklangan (xatti-harakat AVVALGIDEK qoldi).
+    ///
+    /// ★ Bu to'plam AYNI PAYTDA ikki ma'noli konteynerlarni (`ftyp`, EBML)
+    /// hal qilish MEZONI ham: <c>Audio</c> ruxsat etilgani uchun iOS
+    /// Safari'ning ovoz yozuvi — hatto VIDEO brendi bilan kelsa ham —
+    /// avvalgidek ovoz deb qabul qilinadi (batafsil:
+    /// <see cref="MediaSignatures"/> izohi).
+    /// </summary>
+    private const MediaCategories AllowedCategories =
+        MediaCategories.Image | MediaCategories.Audio;
 
     private const int CopyBufferSize = 64 * 1024;
 
@@ -193,9 +209,18 @@ public static class SubmissionAttachmentReader
     /// <summary>
     /// Fayl turini SEHRLI BAYTLARDAN aniqlaydi.
     ///
-    /// Ro'yxat ataylab QISQA: faqat o'quvchi telefoni va brauzeri haqiqatan
-    /// hosil qiladigan formatlar. "Nomaʼlum bo'lsa ruxsat berish" TAQIQ —
-    /// noma'lum fayl rad etiladi (ruxsat ro'yxati, taqiq ro'yxati emas).
+    /// ⚠️ JADVAL BU YERDAN OLIB TASHLANDI -> <see cref="MediaSignatures"/>.
+    ///
+    /// ★ NIMA UCHUN: dars videosi va vazifa sharti biriktirmasi ham AYNI
+    /// tekshiruvga muhtoj. Jadval nusxalansa, bir kuni ulardan biri yangi
+    /// formatni (masalan iPhone'ning HEIC surati) tanimay qolardi va sabab
+    /// "faylning turi qo'llab-quvvatlanmaydi" degan umumiy xabar ostida
+    /// yashiringan bo'lardi. Endi jadval BITTA, bu metod esa faqat
+    /// TURKUMNI <see cref="AttachmentKind"/> ga o'giradi.
+    ///
+    /// XATTI-HARAKAT O'ZGARMADI: <see cref="AllowedCategories"/> AYNAN
+    /// avvalgi ruxsat to'plamini (rasm + ovoz) ifodalaydi va ikki ma'noli
+    /// konteynerlar avvalgidek OVOZ deb hal qilinadi.
     /// </summary>
     private static bool TrySniff(
         ReadOnlySpan<byte> header,
@@ -207,83 +232,17 @@ public static class SubmissionAttachmentReader
         contentType = string.Empty;
         extension = string.Empty;
 
-        // ---- rasmlar ----
-        if (Starts(header, [0xFF, 0xD8, 0xFF]))
-            return Set(AttachmentKind.Image, "image/jpeg", "jpg", out kind, out contentType, out extension);
+        if (!MediaSignatures.TryDetect(header, AllowedCategories, out var signature))
+            return false;
 
-        if (Starts(header, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
-            return Set(AttachmentKind.Image, "image/png", "png", out kind, out contentType, out extension);
+        // Turkum -> javob fayli turi. `AllowedCategories` faqat rasm va
+        // ovozni o'tkazadi, ya'ni bu yerda uchinchi holat BO'LMAYDI.
+        kind = signature.Category == MediaCategories.Audio
+            ? AttachmentKind.Audio
+            : AttachmentKind.Image;
 
-        if (StartsAscii(header, "GIF8"))
-            return Set(AttachmentKind.Image, "image/gif", "gif", out kind, out contentType, out extension);
-
-        // RIFF konteyneri: 8-baytdan boshlab turi yozilgan (WEBP yoki WAVE).
-        if (StartsAscii(header, "RIFF") && header.Length >= 12)
-        {
-            if (AsciiAt(header, 8, "WEBP"))
-                return Set(AttachmentKind.Image, "image/webp", "webp", out kind, out contentType, out extension);
-
-            if (AsciiAt(header, 8, "WAVE"))
-                return Set(AttachmentKind.Audio, "audio/wav", "wav", out kind, out contentType, out extension);
-        }
-
-        // ISO-BMFF (`....ftypXXXX`): HEIC (iPhone surati) va MP4/M4A (iOS ovozi)
-        // bir xil konteynerda — ularni BREND ajratadi.
-        if (header.Length >= 12 && AsciiAt(header, 4, "ftyp"))
-        {
-            var brand = Encoding.ASCII.GetString(header.Slice(8, 4)).ToUpperInvariant();
-
-            if (HeicBrands.Contains(brand, StringComparer.Ordinal))
-                return Set(AttachmentKind.Image, "image/heic", "heic", out kind, out contentType, out extension);
-
-            // Qolgan ISO-BMFF brendlari (M4A, MP42, ISOM...) — ovoz/video.
-            // MediaRecorder iOS Safari'da aynan shu shaklni beradi.
-            return Set(AttachmentKind.Audio, "audio/mp4", "m4a", out kind, out contentType, out extension);
-        }
-
-        // ---- ovoz ----
-        if (StartsAscii(header, "ID3"))
-            return Set(AttachmentKind.Audio, "audio/mpeg", "mp3", out kind, out contentType, out extension);
-
-        // MPEG freym sarlavhasi: 11 bit sinxron (FF Ex/Fx).
-        if (header.Length >= 2 && header[0] == 0xFF && (header[1] & 0xE0) == 0xE0)
-            return Set(AttachmentKind.Audio, "audio/mpeg", "mp3", out kind, out contentType, out extension);
-
-        if (StartsAscii(header, "OggS"))
-            return Set(AttachmentKind.Audio, "audio/ogg", "ogg", out kind, out contentType, out extension);
-
-        // EBML (Matroska/WebM). Brauzerning `MediaRecorder` ovoz yozuvi —
-        // odatda `audio/webm;codecs=opus`.
-        if (Starts(header, [0x1A, 0x45, 0xDF, 0xA3]))
-            return Set(AttachmentKind.Audio, "audio/webm", "webm", out kind, out contentType, out extension);
-
-        return false;
-    }
-
-    private static bool Set(
-        AttachmentKind value, string mime, string ext,
-        out AttachmentKind kind, out string contentType, out string extension)
-    {
-        kind = value;
-        contentType = mime;
-        extension = ext;
-        return true;
-    }
-
-    private static bool Starts(ReadOnlySpan<byte> header, ReadOnlySpan<byte> prefix) =>
-        header.Length >= prefix.Length && header[..prefix.Length].SequenceEqual(prefix);
-
-    private static bool StartsAscii(ReadOnlySpan<byte> header, string prefix) =>
-        AsciiAt(header, 0, prefix);
-
-    private static bool AsciiAt(ReadOnlySpan<byte> header, int offset, string value)
-    {
-        if (header.Length < offset + value.Length) return false;
-
-        for (var i = 0; i < value.Length; i++)
-        {
-            if (header[offset + i] != (byte)value[i]) return false;
-        }
+        contentType = signature.ContentType;
+        extension = signature.Extension;
 
         return true;
     }
@@ -305,5 +264,6 @@ public static class SubmissionAttachmentReader
     /// <summary>Ko'p fayl kichik bo'ladi — 64 KB dan boshlanadi va kerak bo'lsa o'sadi.</summary>
     private const int InitialCapacity = 64 * 1024;
 
-    private static readonly string[] HeicBrands = ["HEIC", "HEIX", "HEVC", "HEVX", "MIF1", "MSF1"];
+    // HEIC brendlari ro'yxati `MediaSignatures` ga ko'chdi (yangi HEIF
+    // hosilasi qo'shilganda BITTA joyda tuzatilsin).
 }

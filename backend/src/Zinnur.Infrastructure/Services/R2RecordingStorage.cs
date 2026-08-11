@@ -66,9 +66,8 @@ public sealed class R2RecordingStorage(
     /// <summary>Kalitning tasodifiy qismi (bayt) — taxmin qilib bo'lmasin.</summary>
     private const int RandomBytes = 8;
 
-    /// <summary>Bo'sh tananing SHA-256 xeshi (HEAD so'rovlar imzosida).</summary>
-    private const string EmptyPayloadHash =
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    // Bo'sh tananing SHA-256 xeshi endi `S3SigV4.EmptyPayloadHash` da —
+    // uchta ombor xizmatida bitta qiymat bo'lsin.
 
     /// <summary>
     /// Presigned so'rovda tananing xeshi o'rniga shu qiymat turadi:
@@ -131,7 +130,7 @@ public sealed class R2RecordingStorage(
         var scope = string.Create(
             CultureInfo.InvariantCulture, $"{dateStamp}/{settings.Region}/s3/aws4_request");
 
-        var baseUri = BuildUri(settings.EffectivePublicUrl, settings.Bucket, objectKey);
+        var baseUri = S3SigV4.BuildUri(settings.EffectivePublicUrl, settings.Bucket, objectKey);
 
         // ⚠️ `Authority`, `Host` EMAS — standart bo'lmagan port imzoga
         // KIRISHI shart (`R2SubmissionStorage` da topilgan va tuzatilgan
@@ -161,10 +160,10 @@ public sealed class R2RecordingStorage(
             "AWS4-HMAC-SHA256",
             amzDate,
             scope,
-            Hex(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest))));
+            S3SigV4.Hex(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest))));
 
-        var signature = Hex(HMACSHA256.HashData(
-            SigningKey(dateStamp, settings), Encoding.UTF8.GetBytes(stringToSign)));
+        var signature = S3SigV4.Hex(HMACSHA256.HashData(
+            S3SigV4.SigningKey(dateStamp, settings), Encoding.UTF8.GetBytes(stringToSign)));
 
         // Imzo ENG OXIRIDA qo'shiladi — u kanonik so'rovga KIRMAYDI.
         return new Uri(string.Create(
@@ -186,11 +185,20 @@ public sealed class R2RecordingStorage(
         }
 
         // ICHKI manzil: so'rovni BIZ yuboramiz, brauzer emas.
-        var uri = BuildUri(settings.ServiceUrl, settings.Bucket, objectKey);
+        var uri = S3SigV4.BuildUri(settings.ServiceUrl, settings.Bucket, objectKey);
 
         using var request = new HttpRequestMessage(HttpMethod.Head, uri);
 
-        Sign(request, settings, clock.GetUtcNow().UtcDateTime);
+        // HEAD: tana yo'q, `Content-Type` yo'q — ya'ni kanonik sarlavhalar
+        // ro'yxati eng qisqa shaklda (`host;x-amz-content-sha256;x-amz-date`).
+        // AYNI imzo `R2SubmissionStorage` va `R2MediaStorage` da ham
+        // ishlatiladi — algoritm `S3SigV4` da, YAGONA joyda.
+        S3SigV4.Sign(
+            request,
+            S3SigV4.EmptyPayloadHash,
+            contentType: null,
+            clock.GetUtcNow().UtcDateTime,
+            settings);
 
         var client = httpClientFactory.CreateClient(R2SubmissionStorage.HttpClientName);
 
@@ -216,84 +224,21 @@ public sealed class R2RecordingStorage(
         return new StoredObjectInfo(response.Content.Headers.ContentLength);
     }
 
-    // ================================================================= SigV4 (sarlavha)
-
-    /// <summary>
-    /// HEAD so'rovi uchun imzo — <c>Authorization</c> sarlavhasida.
-    /// Tana yo'q, <c>Content-Type</c> yo'q, ya'ni kanonik sarlavhalar
-    /// ro'yxati eng qisqa shaklda (<c>R2SubmissionStorage.Sign</c> ning
-    /// GET varianti bilan AYNI).
-    /// </summary>
-    private static void Sign(HttpRequestMessage request, StorageOptions settings, DateTime utcNow)
-    {
-        var amzDate = utcNow.ToString("yyyyMMddTHHmmssZ", CultureInfo.InvariantCulture);
-        var dateStamp = utcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-        var host = request.RequestUri!.Authority;
-
-        request.Headers.TryAddWithoutValidation("x-amz-content-sha256", EmptyPayloadHash);
-        request.Headers.TryAddWithoutValidation("x-amz-date", amzDate);
-
-        const string SignedHeaders = "host;x-amz-content-sha256;x-amz-date";
-
-        var canonicalHeaders = string.Create(
-            CultureInfo.InvariantCulture,
-            $"host:{host}\nx-amz-content-sha256:{EmptyPayloadHash}\nx-amz-date:{amzDate}\n");
-
-        var canonicalRequest = string.Join('\n',
-            "HEAD",
-            request.RequestUri.AbsolutePath,
-            string.Empty,               // query yo'q
-            canonicalHeaders,
-            SignedHeaders,
-            EmptyPayloadHash);
-
-        var scope = string.Create(
-            CultureInfo.InvariantCulture, $"{dateStamp}/{settings.Region}/s3/aws4_request");
-
-        var stringToSign = string.Join('\n',
-            "AWS4-HMAC-SHA256",
-            amzDate,
-            scope,
-            Hex(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest))));
-
-        var signature = Hex(HMACSHA256.HashData(
-            SigningKey(dateStamp, settings), Encoding.UTF8.GetBytes(stringToSign)));
-
-        request.Headers.TryAddWithoutValidation(
-            "Authorization",
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"AWS4-HMAC-SHA256 Credential={settings.AccessKey}/{scope}, "
-                + $"SignedHeaders={SignedHeaders}, Signature={signature}"));
-    }
-
     // ================================================================= umumiy
-
-    /// <summary>Imzo kaliti: sana -> region -> xizmat -> <c>aws4_request</c>.</summary>
-    private static byte[] SigningKey(string dateStamp, StorageOptions settings)
-    {
-        var key = Encoding.UTF8.GetBytes("AWS4" + settings.SecretKey);
-
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(dateStamp));
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(settings.Region));
-        key = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes("s3"));
-
-        return HMACSHA256.HashData(key, Encoding.UTF8.GetBytes("aws4_request"));
-    }
-
-    private static Uri BuildUri(string baseUrl, string bucket, string key) =>
-        new($"{baseUrl.TrimEnd('/')}/{bucket}/{EncodeKey(key)}");
-
-    /// <summary>
-    /// Kalitni URL uchun kodlaydi, <c>/</c> ni SAQLAB (u yo'l ajratgichi).
-    /// ⚠️ Kanonik so'rovdagi yo'l ham AYNAN shu ko'rinishda bo'lishi shart —
-    /// shuning uchun imzo <c>Uri.AbsolutePath</c> dan olinadi, ya'ni ikkala
-    /// tomon ham bir xil kodlashdan o'tadi.
-    /// </summary>
-    private static string EncodeKey(string key) =>
-        string.Join('/', key.Split('/').Select(Uri.EscapeDataString));
-
-    private static string Hex(byte[] value) => Convert.ToHexString(value).ToLowerInvariant();
+    //
+    // ⚠️ SARLAVHA BILAN IMZOLASH (HEAD) VA IMZO KALITI BU YERDAN OLIB
+    //    TASHLANDI -> `S3SigV4`. Sabab: algoritm uch nusxaga bo'linib
+    //    ketmasin (`R2SubmissionStorage`, `R2MediaStorage` ham AYNI kodni
+    //    ishlatadi). `Uri.Authority` (port BILAN) qoidasi o'sha yerda,
+    //    izohi bilan saqlangan.
+    //
+    // ★ QUERY-STRING (presigned) IMZOSI ATAYLAB SHU YERDA QOLDI: u boshqa
+    //   variant — imzo `X-Amz-*` query parametrlarida, payload
+    //   `UNSIGNED-PAYLOAD`, kanonik so'rovda query STRING sifatida
+    //   qatnashadi. Uni umumiy metodga siqish "bitta metod ikki xil ish
+    //   qiladi" degan holatga olib kelardi; umumiy qismlari
+    //   (`SigningKey`, `Hex`, `EncodeKey`, `BuildUri`) esa allaqachon
+    //   `S3SigV4` dan olinadi.
 
     private static string Trim(string body) =>
         body.Length <= MaxLoggedBodyLength ? body : body[..MaxLoggedBodyLength];

@@ -8,6 +8,7 @@ using Npgsql;
 using StackExchange.Redis;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Media;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings;
@@ -416,6 +417,20 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<ISubmissionStorage, R2SubmissionStorage>();
+
+        // ---------------------------------------------------------------- WAVE 1
+        //
+        // KATTA MEDIA (dars videosi, imtihon rasmi, vazifa sharti fayli).
+        //
+        // ★ NIMA UCHUN ALOHIDA XIZMAT, `ISubmissionStorage` KENGAYTIRILMAGAN:
+        //   sabab `IMediaStorage` port izohida batafsil (qisqasi: oqim bilan
+        //   yozish, `Range` bilan qisman o'qish va o'chirish — uchalasi ham
+        //   vazifa javobi yo'lida ATAYLAB yo'q).
+        //
+        // SINGLETON va AYNI nomlangan HTTP klient (`zinnur-storage`): ombor
+        // bitta, ulanish hovuzi ham bitta bo'lishi kerak. Imzo esa har
+        // chaqiruvda `S3SigV4` bilan qaytadan hisoblanadi — holat yo'q.
+        services.AddSingleton<IMediaStorage, R2MediaStorage>();
     }
 
     /// <summary>
