@@ -11,6 +11,19 @@ namespace Zinnur.Application.Common.Interfaces;
 public interface IApplicationDbContext
 {
     DbSet<User> Users { get; }
+
+    /// <summary>
+    /// Xodimlarning o'quvchi haqidagi ICHKI izohlari. O'quvchining O'ZI
+    /// ularni ko'rmaydi — sabab <see cref="StudentNote"/> sinfi izohida.
+    /// </summary>
+    DbSet<StudentNote> StudentNotes { get; }
+
+    /// <summary>
+    /// Telegram bog'lanishini uzish izi. Faqat QO'SHILADI va O'QILADI:
+    /// yozuv yaratilgandan keyin yangilanmaydi va o'chirilmaydi.
+    /// </summary>
+    DbSet<TelegramUnlinkAudit> TelegramUnlinkAudits { get; }
+
     DbSet<Course> Courses { get; }
     DbSet<CourseModule> Modules { get; }
     DbSet<ModuleLesson> ModuleLessons { get; }

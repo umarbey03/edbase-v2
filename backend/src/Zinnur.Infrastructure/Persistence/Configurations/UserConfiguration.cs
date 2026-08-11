@@ -26,6 +26,17 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // `private set` — EF backing field orqali o'qib-yozadi.
         builder.Property(u => u.PhoneNormalized).HasMaxLength(20);
 
+        // TELEGRAM @username — `@` belgisiz, Telegram chegarasi bo'yicha 32 belgi.
+        // `private set` — EF backing field orqali o'qib-yozadi (`PhoneNormalized`
+        // bilan AYNI naqsh).
+        //
+        // ⚠️ UNIKAL INDEKS ATAYLAB YO'Q: Telegram username BO'SHATILADI va
+        // boshqa odamga o'tib ketishi mumkin, ya'ni ikki profilda bir xil
+        // (eskirgani va yangisi) nom turishi MUMKIN — bu xato emas. Unikal
+        // indeks bo'lsa bot username yangilashda bir kun jimgina yiqilardi.
+        // Shaxs `TelegramId` bo'yicha aniqlanadi — unikallik AYNAN o'sha ustunda.
+        builder.Property(u => u.TelegramUsername).HasMaxLength(User.MaxTelegramUsernameLength);
+
         // Enum -> int (SPEC 2-bo'lim). Matn sifatida saqlansa nom o'zgarganda
         // bazadagi eski qiymatlar o'qilmay qoladi.
         builder.Property(u => u.Role).HasConversion<int>();

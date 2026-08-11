@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Zinnur.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Zinnur.Infrastructure.Persistence;
 namespace Zinnur.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811035127_Wave1_UserTelegramAndStudentNotes")]
+    partial class Wave1_UserTelegramAndStudentNotes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -417,9 +420,6 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamptz");
 
-                    b.Property<long?>("VideoStartLessonId")
-                        .HasColumnType("bigint");
-
                     b.PrimitiveCollection<int[]>("Weekdays")
                         .IsRequired()
                         .HasColumnType("integer[]");
@@ -436,9 +436,6 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TeacherId")
                         .HasDatabaseName("IX_Groups_TeacherId");
-
-                    b.HasIndex("VideoStartLessonId")
-                        .HasDatabaseName("IX_Groups_VideoStartLessonId");
 
                     b.HasIndex("IsActive", "CourseId")
                         .HasDatabaseName("IX_Groups_IsActive_CourseId");
@@ -1961,11 +1958,6 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Zinnur.Domain.Entities.ModuleLesson", null)
-                        .WithMany()
-                        .HasForeignKey("VideoStartLessonId")
-                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Course");
 

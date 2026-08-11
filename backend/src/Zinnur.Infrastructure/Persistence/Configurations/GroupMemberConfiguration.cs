@@ -50,5 +50,19 @@ public sealed class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMem
         // "Men qaysi guruhlardaman" so'rovi uchun (LiveSessionService.ListForUserAsync).
         builder.HasIndex(m => new { m.StudentId, m.Status })
             .HasDatabaseName("IX_GroupMembers_StudentId_Status");
+
+        // "SHU GURUHDA kim FAOL o'qiyapti" — foydalanuvchilar ro'yxatining
+        // `groupId` filtri (`GET /users?groupId=...`).
+        //
+        // NIMA UCHUN MAVJUD INDEKSLAR YETMAYDI:
+        //  • `UX_GroupMembers_GroupId_StudentId` — `group_id` prefiksiga
+        //    xizmat qiladi, lekin `status` unda YO'Q: Postgres indeksdan
+        //    guruhning BARCHA a'zoligini o'qib, keyin `status` ni qator
+        //    darajasida filtrlardi (chiqarilgan o'quvchilari ko'p bo'lgan
+        //    guruhda bu ortiqcha ish);
+        //  • `IX_GroupMembers_StudentId_Status` — prefiksi `student_id`,
+        //    ya'ni guruh bo'yicha qidiruvda umuman ishlamaydi.
+        builder.HasIndex(m => new { m.GroupId, m.Status })
+            .HasDatabaseName("IX_GroupMembers_GroupId_Status");
     }
 }
