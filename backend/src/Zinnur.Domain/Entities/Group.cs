@@ -28,6 +28,36 @@ public class Group : BaseEntity
 
     public Course? Course { get; set; }
 
+    /// <summary>
+    /// ========================================================================
+    /// VIDEO DARSLAR QAYSI QISMDAN BOSHLANADI (guruh darajasidagi sozlama)
+    /// ========================================================================
+    ///
+    /// Bitta kursga KO'P guruh biriktiriladi va ular bir vaqtda boshlamaydi:
+    /// yarim yildan keyin ochilgan guruh kursning 1-modulidan emas, O'RTASIDAN
+    /// boshlaydi. Bunday sozlama bo'lmasa o'quvchi hech qachon o'tmagan 20 ta
+    /// darsni "tugatmagan" bo'lib turadi va sur'at nazorati (gating) BUTUN
+    /// kursni qulflab qo'yadi — u zanjirni har doim 0-darsdan yuritadi.
+    ///
+    /// NIMA UCHUN GURUHDA, KURSDA EMAS: kurs UMUMIY — uni o'zgartirish
+    /// o'ntalab guruhga tegadi. Boshlanish nuqtasi esa har guruhda BOSHQA.
+    ///
+    /// NIMA UCHUN MODUL EMAS, DARS: modul O'RTASIDAN boshlash real ehtiyoj,
+    /// dars aniqligi modulni ham qoplaydi (modulning 1-darsi = modul boshi).
+    ///
+    /// QOIDALAR:
+    ///   • dars <b>guruhning kursiga</b> tegishli bo'lishi shart — bu faqat
+    ///     bazadan bilinadi, shuning uchun tekshiruv <c>GroupService</c> da (400);
+    ///   • <see cref="CourseId"/> <c>null</c> bo'lsa bu ham <c>null</c>
+    ///     (invariant shu yerda: <see cref="ValidateScheduleRule"/>);
+    ///   • <c>null</c> = guruh kursni BOSHIDAN boshlaydi, ya'ni bugungi
+    ///     xatti-harakat bit-to-bit o'zgarmaydi.
+    ///
+    /// Dars o'chirilsa FK <c>ON DELETE SET NULL</c> qiladi: guruh o'chib
+    /// ketmaydi, shunchaki cheklov yo'qoladi (<c>GroupConfiguration</c>).
+    /// </summary>
+    public long? VideoStartLessonId { get; set; }
+
     public long? TeacherId { get; set; }
 
     public long? AssistantId { get; set; }
@@ -145,6 +175,21 @@ public class Group : BaseEntity
         // Guruh o'zini o'ziga bog'lamasin
         if (CuratorGroupId == Id && Id != 0)
             throw new DomainException("Guruh o'zini o'ziga bog'lay olmaydi.");
+
+        // VIDEO BOSHLANISH NUQTASI kurssiz ma'nosiz: "qaysi kursning qaysi
+        // darsi?" degan savol javobsiz qolardi va gating uni hech qachon
+        // tanib olmasdi (dars hech bir kursga tegishli bo'lmay ko'rinardi).
+        //
+        // Bu FAQAT oxirgi himoya: `GroupService` ayni holatni undan OLDIN
+        // tutib, 400 va `problem.errors` bilan qaytaradi (foydalanuvchi uchun
+        // tushunarli xato). Shu yerdagi tekshiruv servisdan tashqari
+        // yo'llarni (seed, fon vazifasi, kelajakdagi import) qo'riqlaydi.
+        if (CourseId is null && VideoStartLessonId is not null)
+        {
+            throw new DomainException(
+                "Guruhga kurs biriktirilmagan — video darslar boshlanish nuqtasini "
+                + "tanlash uchun avval kurs biriktirilishi kerak.");
+        }
     }
 
     /// <summary>
