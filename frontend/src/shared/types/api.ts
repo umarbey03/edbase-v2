@@ -220,7 +220,10 @@ export interface AssignmentDto {
   maxScore: number
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
+  /** ⚠️ WAVE 2 dan ESKIRGAN (deprecated) — o'rniga `attachments`. */
   imageKey: string | null
+  /** WAVE 2 · vazifa SHARTIGA biriktirilgan fayllar (tartib bo'yicha). */
+  attachments: AssignmentAttachmentDto[] | null
   createdById: number | null
   submissionCount: number
   gradedCount: number
@@ -268,7 +271,10 @@ export interface StudentAssignmentDto {
   maxScore: number
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
+  /** ⚠️ WAVE 2 dan ESKIRGAN (deprecated) — o'rniga `attachments`. */
   imageKey: string | null
+  /** WAVE 2 · shart biriktirmalari. Qulflangan darsning vazifasida BO'SH. */
+  attachments: AssignmentAttachmentDto[] | null
   isOverdue: boolean
   lessonUnlocked: boolean
   canSubmit: boolean
@@ -749,8 +755,20 @@ export interface CuratorCandidateDto {
    Kurs kontenti (kurs -> modul -> dars).
    ========================================================================== */
 
-/** `LessonLockReason` enum — dars nima uchun yopiq. */
-export type LessonLockReasonName = 'PreviousIncomplete' | 'TeacherPace' | 'NotInCourse'
+/**
+ * `LessonLockReason` enum — dars nima uchun yopiq.
+ *
+ * ⚠️ `BeforeGroupStart` — WAVE 1 da qo'shilgan to'rtinchi qiymat
+ * (`Group.VideoStartLessonId`): dars guruh boshlagan qismdan OLDINDA va
+ * o'quvchining o'quv rejasiga UMUMAN kirmaydi. Tur uchta qiymatda qolib
+ * ketgan edi, ya'ni server bergan sabab UI'da umumiy "Yopiq" bo'lib
+ * ko'rinardi.
+ */
+export type LessonLockReasonName =
+  | 'PreviousIncomplete'
+  | 'TeacherPace'
+  | 'NotInCourse'
+  | 'BeforeGroupStart'
 
 /**
  * `GET /api/v1/courses` qatori — daraxtsiz, yengil.
@@ -782,6 +800,14 @@ export interface CourseLessonDto {
   description: string | null
   position: number
   durationMin: number | null
+  /** WAVE 2 · dars turi: `Normal` — video, `Exam` — rasm. */
+  kind: LessonKindName
+  /**
+   * WAVE 2 · dars mediasi TARTIB bo'yicha (video qismlari yoki imtihon
+   * rasmlari). 🔴 QULFLANGAN darsda BO'SH massiv — `description` bilan ayni
+   * qoida (sarlavha ko'rinadi, mazmun yo'q), lekin `kind` baribir keladi.
+   */
+  assets: LessonAssetDto[] | null
   unlocked: boolean
   lockReason: LessonLockReasonName | null
   hasAssignment: boolean
@@ -831,6 +857,15 @@ export interface LessonWriteRequest {
   name: string
   description?: string | null
   durationMin?: number | null
+  /**
+   * WAVE 2 · dars turi.
+   *
+   * 🔴 ATAYLAB `?` YO'Q, garchi serverda standart qiymati (`Normal`) bo'lsa
+   * ham: `PUT` — TO'LIQ ALMASHTIRISH (`DAVOM_ETTIRISH.md` 6-bo'lim, 1-tuzoq),
+   * ya'ni maydonni yubormaslik imtihon darsini jimgina `Normal` ga
+   * qaytarardi. Majburiy qilinganda bu xato `npm run typecheck` da ushlanadi.
+   */
+  kind: LessonKindName
 }
 
 /**
@@ -1897,3 +1932,88 @@ export interface TelegramUnlinkResponse {
 }
 
 /* ===== /WAVE 2 · FOYDALANUVCHI ===== */
+
+/* ===== WAVE 2 · KURS/DARS (wave2/course) ===== */
+
+/**
+ * `LessonKind` enum — dars turi (JSON'da SATR).
+ *
+ * 🔴 DOMAIN INVARIANTI: `Normal` darsda faqat `Video`, `Exam` darsda faqat
+ * `Image` asset bo'ladi. Turni almashtirishda mos kelmagan fayl BOR bo'lsa
+ * server **409** qaytaradi va jimgina O'CHIRMAYDI (bir soatlik video shunday
+ * yo'qolmasligi kerak) — UI 409 matnini ko'rsatib, avval fayllarni o'chirishga
+ * yo'naltiradi.
+ */
+export type LessonKindName = 'Normal' | 'Exam'
+
+/** `LessonAssetKind` enum — dars mediasining turi (JSON'da SATR). */
+export type LessonAssetKindName = 'Video' | 'Image'
+
+/**
+ * Darsga biriktirilgan bitta media: video QISMI yoki imtihon rasmi.
+ *
+ * 🔴 `objectKey` BU YERDA YO'Q va qo'shilmaydi (`DAVOM_ETTIRISH.md`
+ * 6-bo'lim, 16-tuzoq) — ombor kaliti ichki joylashuv ma'lumoti. Fayl DOIM
+ * `GET /api/v1/lessons/assets/{assetId}` orqali, har so'rovda tekshiriladigan
+ * ruxsat bilan o'qiladi.
+ */
+export interface LessonAssetDto {
+  id: number
+  lessonId: number
+  kind: LessonAssetKindName
+  /** 0 dan boshlanadigan zich tartib — `reorder` shu qiymatni qayta yozadi. */
+  position: number
+  /** Ko'rinadigan nom ("1-qism", "Nazariya"). `null` — UI tartibdan nom yasaydi. */
+  title: string | null
+  contentType: string
+  sizeBytes: number
+  /**
+   * ⚠️ Davomiylik KLIENTDAN keladi (serverda media dekoder yo'q) — FAQAT
+   * ko'rsatish uchun, unga hech qanday qaror bog'lanmaydi (13-bo'lim, 47-tuzoq).
+   */
+  durationSec: number | null
+  width: number | null
+  height: number | null
+  createdAt: string
+}
+
+/** `AttachmentKind` enum — vazifa shartiga biriktirilgan fayl turi. */
+export type AssignmentAttachmentKindName = 'Image' | 'Audio' | 'Document'
+
+/**
+ * Vazifa SHARTIGA biriktirilgan bitta fayl.
+ *
+ * 🔴 `objectKey` YO'Q. Fayl `GET /api/v1/assignments/attachments/{id}` orqali
+ * o'qiladi.
+ *
+ * ⚠️ `kind` MAZMUNDAN aniqlanadi, kengaytmadan emas: `ftyp` konteyneri
+ * (mp4/m4a) shu yo'lda AUDIO deb qabul qilinadi (13-bo'lim, 46-tuzoq).
+ */
+export interface AssignmentAttachmentDto {
+  id: number
+  assignmentId: number
+  kind: AssignmentAttachmentKindName
+  position: number
+  contentType: string
+  sizeBytes: number
+  /** ⚠️ Klientdan keladi — faqat ko'rsatish uchun. */
+  durationSec: number | null
+  createdAt: string
+}
+
+/**
+ * `POST /api/v1/lessons/{lessonId}/assets` ning `multipart` maydonlari
+ * (`file` dan tashqari hammasi ixtiyoriy).
+ *
+ * ⚠️ `kind` YUBORILMAYDI — u DARS TURIDAN kelib chiqadi. Klientdan qabul
+ * qilinsa invariantni buzadigan yozuv yasash mumkin bo'lardi.
+ */
+export interface LessonAssetUploadFields {
+  /** Video qismining nomi ("1-qism"). */
+  title?: string | null
+  durationSec?: number | null
+  width?: number | null
+  height?: number | null
+}
+
+/* ===== /WAVE 2 · KURS/DARS ===== */

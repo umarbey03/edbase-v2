@@ -297,3 +297,30 @@ export function submissionFileError(error: unknown): string {
   }
   return toUserMessage(error)
 }
+
+/* ==========================================================================
+   WAVE 2 · VAZIFA SHARTI BIRIKTIRMALARI
+
+   ⚠️ Bular O'QUVCHI JAVOBI chegaralaridan (`MAX_ATTACHMENTS`,
+   `MAX_IMAGE_BYTES`, `MAX_AUDIO_BYTES`) BOSHQA: shart biriktirmasi XODIM
+   yuklaydigan fayl va serverda uning o'z chegarasi bor
+   (`Assignment.MaxAttachments = 10`, hajm — `lesson.image_max_mb`
+   sozlamasidan, ya'ni SOZLANADIGAN qiymat va u kodda qotib qolmaydi).
+   ========================================================================== */
+
+/** Server: `Assignment.MaxAttachments`. */
+export const MAX_ASSIGNMENT_ATTACHMENTS = 10
+
+/**
+ * Shart biriktirmasi uchun `accept`.
+ *
+ * Server `Image | Audio | Document` turkumlarini qabul qiladi, hujjat esa
+ * faqat PDF (`MediaSignatures`). VIDEO ATAYLAB yo'q — u dars mediasi
+ * (`/lessons/{id}/assets`), u yerda `Range` bilan oqim va katta hajm
+ * chegarasi bor.
+ *
+ * ⚠️ `accept` faqat qulaylik: server turni MAZMUNDAN aniqlaydi. Va u yerda
+ * `ftyp` konteyneri (mp4/m4a) AUDIO deb qabul qilinadi — iOS Safari ovoz
+ * yozuvini video brendi bilan beradi (13-bo'lim, 46-tuzoq).
+ */
+export const ASSIGNMENT_ATTACHMENT_ACCEPT = 'image/*,audio/*,application/pdf'
