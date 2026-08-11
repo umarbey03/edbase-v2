@@ -13,6 +13,7 @@ using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings.Services;
+using Zinnur.Application.StudentNotes.Services;
 using Zinnur.Application.Tests.Services;
 using Zinnur.Application.Users.Services;
 
@@ -41,6 +42,24 @@ public static class DependencyInjection
         services.AddScoped<IAttendanceService, AttendanceService>();
 
         services.AddScoped<IUserService, UserService>();
+
+        // ---------------------------------------------------------------- WAVE 1
+        //
+        // O'QUVCHI PROFILI (drawer uchun yagona agregat) va XODIM IZOHLARI.
+        //
+        // Profil servisi `IUserService` dan ATAYLAB ajratilgan: u faqat
+        // O'QIYDI va uning ruxsat qoidasi boshqa savolga javob beradi
+        // ("kim nimani KO'RADI", "kim kimni BOSHQARADI" emas) — batafsil
+        // `IUserProfileService` izohida.
+        //
+        // Ikkalasi ham SCOPED: so'rov umriga bog'langan `DbContext` ga
+        // tayanadi. Izoh servisi bunga qo'shimcha ravishda izoh qatorini
+        // AYNI ChangeTracker'da to'playdi. Singleton bo'lsa scoped kontekst
+        // ushlab qolinardi ("captive dependency") va ikkinchi so'rovda
+        // allaqachon yopilgan kontekst bilan ishlashga urinilardi.
+        services.AddScoped<IUserProfileService, UserProfileService>();
+        services.AddScoped<IStudentNoteService, StudentNoteService>();
+
         services.AddScoped<IGroupService, GroupService>();
 
         // Jadval servisi guruh servisidan ALOHIDA: uni fon vazifasi

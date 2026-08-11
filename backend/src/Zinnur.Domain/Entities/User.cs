@@ -36,6 +36,32 @@ public class User : BaseEntity
 
     public long? TelegramId { get; set; }
 
+    /// <summary>
+    /// Telegram <c>@username</c> — <c>@</c> BELGISIZ saqlanadi.
+    ///
+    /// NIMA UCHUN KERAK: xodim o'quvchi bilan Telegram'da bog'lanishi kerak
+    /// bo'lganda raqamli <see cref="TelegramId"/> bilan hech nima qila
+    /// olmaydi — u Telegram qidiruvida ishlamaydi. Username esa bosiladigan
+    /// havola (<c>t.me/...</c>).
+    ///
+    /// ★ SHAXSNI ANIQLAYDIGAN IDENTIFIKATOR EMAS: foydalanuvchi uni istalgan
+    /// payt o'zgartiradi va bo'shatib qo'ygan nomni BOSHQA odam olib qo'yishi
+    /// mumkin. Shuning uchun u FAQAT ko'rsatish uchun; shaxs har doim
+    /// <see cref="TelegramId"/> bo'yicha aniqlanadi (<c>IX_Users_TelegramId</c>
+    /// unikal indeksi). Bot bilan HAR muloqotda qayta yozib boriladi
+    /// (<see cref="RefreshTelegramUsername"/>) — eskirgan nom xodimni boshqa
+    /// odamga yo'llab qo'ymasin.
+    /// </summary>
+    public string? TelegramUsername { get; private set; }
+
+    /// <summary>
+    /// Telegram qachon bog'langani. <see cref="TelegramId"/> bo'lmasa DOIM
+    /// <c>null</c>: ikkisi ham faqat <see cref="LinkTelegram"/> va
+    /// <see cref="UnlinkTelegram"/> orqali o'zgaradi, shuning uchun
+    /// "bog'lanmagan, lekin bog'lanish sanasi bor" holati mumkin emas.
+    /// </summary>
+    public DateTimeOffset? TelegramLinkedAt { get; private set; }
+
     public UserRole Role { get; set; } = UserRole.Student;
 
     public bool IsActive { get; set; } = true;
@@ -70,6 +96,108 @@ public class User : BaseEntity
         InvalidateTokens();
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    // ======================================================================
+    // TELEGRAM BOG'LANISHI
+    // ======================================================================
+
+    /// <summary>
+    /// Telegram hisobini profilga bog'laydi (bot oqimidan — telefon
+    /// ulashilgandan keyin).
+    /// </summary>
+    public void LinkTelegram(long telegramId, string? username, DateTimeOffset now)
+    {
+        if (telegramId <= 0)
+            throw new DomainException("Telegram ID musbat bo'lishi kerak.");
+
+        TelegramId = telegramId;
+        TelegramUsername = NormalizeTelegramUsername(username);
+        TelegramLinkedAt = now;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Bog'lanishni UZADI va barcha mavjud sessiyalarni bekor qiladi.
+    /// Uzilgan qiymatlarni qaytaradi — chaqiruvchi ularni audit iziga yozadi.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <see cref="InvalidateTokens"/> AYNAN SHU YERDA, chaqiruvchida EMAS.
+    ///
+    /// Sabab: o'quvchi platformaga FAQAT Telegram orqali kiradi (Mini App),
+    /// ya'ni "bog'lanishni uzish" amalining butun ma'nosi — kirish huquqini
+    /// olib qo'yish. Token versiyasi oshirilmasa o'quvchining qo'lidagi
+    /// kirish tokeni yana 15 daqiqa ishlab turardi va amal JIMGINA kuchsiz
+    /// bo'lib qolardi. Invariant Domain'da bo'lgani uchun yangi chaqiruv
+    /// joyi qo'shilganda uni unutib bo'lmaydi.
+    ///
+    /// ⚠️ Bu YETARLI EMAS: sessiya holati keshi ham tozalanishi kerak
+    /// (<c>IAuthStateCache</c>), aks holda token yana 60 sekund qabul
+    /// qilinardi. Kesh Application qatlamida — buni chaqiruvchi bajaradi.
+    /// </remarks>
+    public (long TelegramId, string? Username) UnlinkTelegram(DateTimeOffset now)
+    {
+        if (TelegramId is not { } telegramId)
+        {
+            throw new DomainException(
+                "Bu profilga Telegram hisobi bog'lanmagan — uzish uchun narsa yo'q.");
+        }
+
+        var username = TelegramUsername;
+
+        TelegramId = null;
+        TelegramUsername = null;
+        TelegramLinkedAt = null;
+        InvalidateTokens();
+        UpdatedAt = now;
+
+        return (telegramId, username);
+    }
+
+    /// <summary>
+    /// Username'ni bot bilan har muloqotda yangilab boradi.
+    /// Bog'lanmagan profilga TEGMAYDI.
+    /// </summary>
+    /// <returns>
+    /// Qiymat haqiqatan o'zgardimi. <c>false</c> bo'lsa chaqiruvchi bekorga
+    /// yozuv qilmaydi — bot har <c>/start</c> da bu metodni chaqiradi va
+    /// aks holda har xabar <c>UPDATE</c> hosil qilardi.
+    /// </returns>
+    public bool RefreshTelegramUsername(string? username)
+    {
+        if (TelegramId is null) return false;
+
+        var normalized = NormalizeTelegramUsername(username);
+
+        if (string.Equals(normalized, TelegramUsername, StringComparison.Ordinal))
+            return false;
+
+        TelegramUsername = normalized;
+        return true;
+    }
+
+    /// <summary>
+    /// <c>@</c> ni olib tashlaydi, bo'sh qiymatni <c>null</c> ga aylantiradi
+    /// va uzunlikni chegaraga QIRQADI (istisno KO'TARMAYDI).
+    ///
+    /// Nima uchun qirqiladi: Telegram username'ni 32 belgi bilan kafolatlaydi,
+    /// lekin bu qiymat TASHQI tizimdan keladi. Kutilmagan uzun qiymat istisno
+    /// ko'tarsa butun webhook yiqilardi va o'quvchi bog'lanish o'rniga
+    /// jimgina xato olardi — ko'rsatish uchun ishlatiladigan maydon buni
+    /// oqlamaydi.
+    /// </summary>
+    private static string? NormalizeTelegramUsername(string? username)
+    {
+        var value = username?.Trim().TrimStart('@').Trim();
+
+        if (string.IsNullOrEmpty(value)) return null;
+
+        return value.Length <= MaxTelegramUsernameLength
+            ? value
+            : value[..MaxTelegramUsernameLength];
+    }
+
+    /// <summary>Telegram'ning o'z chegarasi — 32 belgi.</summary>
+    public const int MaxTelegramUsernameLength = 32;
 
     /// <summary>
     /// Telefonni o'rnatadi va <see cref="PhoneNormalized"/> ni AVTOMATIK hisoblaydi.

@@ -39,6 +39,8 @@ public sealed class UserService(
         if (query.IsActive is { } isActive)
             rows = rows.Where(u => u.IsActive == isActive);
 
+        rows = ApplyGroupFilter(rows, query.GroupId);
+        rows = ApplyTelegramFilter(rows, query.TelegramLinked);
         rows = ApplySearch(rows, query.Search);
 
         // Ikkita so'rov (COUNT + sahifa) — ataylab: `Total` bo'lmasa frontend
@@ -52,7 +54,7 @@ public sealed class UserService(
             .Take(pageSize)
             // PasswordHash BAZADAN UMUMAN OLINMAYDI — faqat kerakli ustunlar.
             .Select(u => new Projection(
-                u.Id, u.FullName, u.Email, u.Phone, u.TelegramId,
+                u.Id, u.FullName, u.Email, u.Phone, u.TelegramId, u.TelegramUsername,
                 u.Role, u.IsActive, u.CreatedAt, u.UpdatedAt))
             .ToListAsync(ct);
 
@@ -195,6 +197,64 @@ public sealed class UserService(
 
         // Parol OCHIQ KO'RINISHDA hech qayerda saqlanmaydi — faqat shu javobda.
         return new ResetPasswordResponse(user.Id, password);
+    }
+
+    // ================================================================= Telegram
+
+    public async Task<TelegramUnlinkResponse> UnlinkTelegramAsync(
+        long id, TelegramUnlinkRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        var user = await LoadTargetAsync(id, ct);
+
+        // RUXSAT: YAGONA qoida (X-4). Ya'ni o'quv bo'limi xodimi admin yoki
+        // boshqa o'quv bo'limi xodimining Telegram'ini uzib, uning profilini
+        // o'ziga bog'lab olishga urinib ko'ra olmaydi.
+        EnsureCanManage(actor, user);
+
+        // 🔴 Domain metodi: `TelegramId`/`TelegramUsername`/`TelegramLinkedAt`
+        //    tozalanadi VA `TokenVersion` oshiriladi. Bog'lanmagan profilda
+        //    `DomainException` -> 409 (middleware xaritalaydi), ya'ni "hech
+        //    nima o'zgarmadi, lekin 200 qaytdi" holati mumkin emas.
+        var (oldTelegramId, oldUsername) = user.UnlinkTelegram(DateTimeOffset.UtcNow);
+
+        // AUDIT AYNI KUZATUVCHIDA: profil o'zgarishi va iz BITTA
+        // `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi. Amal
+        // yiqilsa iz ham qolmaydi (bo'lmagan o'zgarish haqida yozuv yo'q),
+        // muvaffaqiyatli bo'lsa esa izsiz uzish MUMKIN EMAS.
+        db.TelegramUnlinkAudits.Add(new TelegramUnlinkAudit
+        {
+            UserId = user.Id,
+            ActorId = actor.Id,
+            OldTelegramId = oldTelegramId,
+            OldTelegramUsername = oldUsername,
+            Reason = NormalizeReason(request.Reason),
+        });
+
+        await db.SaveChangesAsync(ct);
+
+        // ★ KESHNI TOZALASH SHART. `TokenVersion` bazada oshdi, lekin sessiya
+        //   holati Redis'da 60 sekund keshlanadi — tozalanmasa o'quvchining
+        //   eski kirish tokeni shu vaqt ichida hamon qabul qilinardi va
+        //   "platformaga kira olmaydi" talabi CHALA bajarilgan bo'lardi.
+        //   (Ayni naqsh `SetActiveAsync` va `ResetPasswordAsync` da.)
+        await authState.InvalidateAsync(user.Id, ct);
+
+        return new TelegramUnlinkResponse(null, null);
+    }
+
+    /// <summary>Auditga yoziladigan sababni tozalaydi va chegaraga qirqadi.</summary>
+    private static string? NormalizeReason(string? reason)
+    {
+        var value = reason?.Trim();
+
+        if (string.IsNullOrEmpty(value)) return null;
+
+        return value.Length <= TelegramUnlinkAudit.MaxReasonLength
+            ? value
+            : value[..TelegramUnlinkAudit.MaxReasonLength];
     }
 
     // ================================================================= CSV import
@@ -518,6 +578,47 @@ public sealed class UserService(
         ?? throw new NotFoundException(nameof(User), id);
 
     /// <summary>
+    /// GURUH bo'yicha filtr: shu guruhda <c>Active</c> a'zo bo'lganlar.
+    ///
+    /// ★ Yozilish shakli MUHIM: avval a'zoliklar guruh va holat bo'yicha
+    /// FILTRLANADI, so'ng foydalanuvchi Id'si o'sha to'plamda izlanadi
+    /// (<c>IN (SELECT ...)</c> = yarim birlashma). Shu shaklda Postgres
+    /// <c>IX_GroupMembers_GroupId_Status</c> indeksini AYNAN prefiksidan
+    /// boshlab ishlatadi.
+    ///
+    /// ★ Nima uchun faqat <c>Active</c>: sabab <c>UserListQuery.GroupId</c>
+    /// izohida (chiqarilgan o'quvchi ro'yxatda ko'rinsa xodim uni hali
+    /// o'qiyapti deb o'ylardi).
+    /// </summary>
+    private IQueryable<User> ApplyGroupFilter(IQueryable<User> rows, long? groupId)
+    {
+        if (groupId is not { } id) return rows;
+
+        var members = db.GroupMembers.AsNoTracking()
+            .Where(m => m.GroupId == id && m.Status == MemberStatus.Active)
+            .Select(m => m.StudentId);
+
+        return rows.Where(u => members.Contains(u.Id));
+    }
+
+    /// <summary>
+    /// TELEGRAM bo'yicha filtr. <c>true</c> — bog'langanlar.
+    ///
+    /// <c>TelegramId != null</c> sharti FILTRLI UNIKAL indeks
+    /// (<c>IX_Users_TelegramId</c>, <c>WHERE "TelegramId" IS NOT NULL</c>)
+    /// bilan aynan mos tushadi. <c>false</c> holati esa indekssiz: bog'lanmagan
+    /// foydalanuvchilar ko'pchilikni tashkil qiladi va ular uchun indeks
+    /// baribir foyda bermasdi (Postgres seq scan'ni tanlardi).
+    /// </summary>
+    private static IQueryable<User> ApplyTelegramFilter(IQueryable<User> rows, bool? linked) =>
+        linked switch
+        {
+            true => rows.Where(u => u.TelegramId != null),
+            false => rows.Where(u => u.TelegramId == null),
+            null => rows,
+        };
+
+    /// <summary>
     /// Qidiruv: F.I.Sh. / email / telefon bo'yicha qism-satr.
     ///
     /// <c>LIKE '%...%'</c> B-tree indeksdan FOYDALANA OLMAYDI, shuning uchun
@@ -676,11 +777,11 @@ public sealed class UserService(
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
 
     private static UserDetailsDto Map(User u) => new(
-        u.Id, u.FullName, u.Email, u.Phone, u.TelegramId,
+        u.Id, u.FullName, u.Email, u.Phone, u.TelegramId, u.TelegramUsername,
         u.Role.ToString(), u.IsActive, u.CreatedAt, u.UpdatedAt);
 
     private static UserDetailsDto Map(Projection p) => new(
-        p.Id, p.FullName, p.Email, p.Phone, p.TelegramId,
+        p.Id, p.FullName, p.Email, p.Phone, p.TelegramId, p.TelegramUsername,
         p.Role.ToString(), p.IsActive, p.CreatedAt, p.UpdatedAt);
 
     // ---------------------------------------------------------------- CSV yordamchi
@@ -797,7 +898,8 @@ public sealed class UserService(
     /// <summary>Ro'yxat so'rovi uchun ustunlar to'plami — <c>PasswordHash</c> olinmaydi.</summary>
     private sealed record Projection(
         long Id, string FullName, string Email, string? Phone, long? TelegramId,
-        UserRole Role, bool IsActive, DateTimeOffset CreatedAt, DateTimeOffset? UpdatedAt);
+        string? TelegramUsername, UserRole Role, bool IsActive,
+        DateTimeOffset CreatedAt, DateTimeOffset? UpdatedAt);
 
     private sealed record ImportColumns(int FullName, int Phone, int Email, int Role);
 
