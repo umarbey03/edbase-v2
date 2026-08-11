@@ -806,13 +806,36 @@ A (dizayn)  ──► B (drawer, confirm, loader, ikonka)  ──┬──► C 
 |---|---|---|
 | A | iOS yorug' dizayn tizimi | ✅ **tugadi** (2026-08-11). `typecheck`/`lint` toza, kontrast auditi **100/100**. Aksent `#4f4de8`. Qoldiq rang xatolari alohida agentda |
 | B | Drawer · confirm · loader · IconButton | ✅ **tugadi**. Brauzerda tasdiqlangan (85vw/92vw/to'liq ekran, qatlam steki, sanoqli skroll qulfi) |
-| C | Guruh bo'limlari + `VideoStartLessonId` | 🔄 **backend tugadi** (`wave1/group-video-start`, `89720a4`, build 0/0, 1078 test). **UI qolgan** |
-| D | O'quvchilar tabi birinchi + ikonkali amallar | ⬜ |
-| E | O'quvchi profili drawer (backend + UI) | ⬜ |
-| F | Foydalanuvchi filtrlari (guruh, Telegram) | ⬜ |
-| G | Dars drawer: tur · video qismlari · vazifa | ⬜ |
+| C | Guruh bo'limlari + `VideoStartLessonId` | ✅ backend `89720a4` · UI `a4754b6` |
+| D | O'quvchilar tabi birinchi + ikonkali amallar | ✅ `a4754b6` (+ integratorning ikonka ulanishi) |
+| E | O'quvchi profili drawer (backend + UI) | ✅ backend `60f5729` (+57 test) · UI `aedf2e7` |
+| F | Foydalanuvchi filtrlari (guruh, Telegram) | ✅ backend `60f5729` · UI `aedf2e7` |
+| G | Dars drawer: tur · video qismlari · vazifa | ✅ backend `03dd160` (+79 test) · UI `0efd948` |
+| — | **2-to'lqin integratsiyasi + brauzer QA** | ✅ `wave2/integration`. Bitta haqiqiy to'qnashuv (`api.ts` marker bloklari), 641 qo'shilgan qator mexanik tekshirilib **0 yo'qolgan**. Brauzerda **35 punkt: 34 o'tdi, 1 qismiy** (20 — sabab 13.6/57). **Ikki haqiqiy xato topilib tuzatildi** (quyida) |
+| — | **1-to'lqin integratsiyasi** | ✅ `wave1/integration` — uch branch to'qnashuvsiz merge, **bitta** migratsiya, **680+534 = 1214 test** (arifmetika aynan mos: bitta test yo'qolmagan/takrorlanmagan) |
+| — | **infra: nginx yuklash chegaralari** | ✅ `6539ca6` — 4 ta `location`, jonli isbot bilan. Yo'l-yo'lakay MAVJUD bug tuzatildi: `assignments/{id}/submit` da nginx 10m, Kestrel 51 MB |
 | H | Tasdiqlash va loader auditi | ⬜ |
 | J | Oldingi rejadan qolganlar | ⬜ |
+
+---
+
+## 12.1. BRAUZER QA'SIDA TOPILGAN VA TUZATILGAN IKKI XATO
+
+**1. 🔴 Jadval xulosasi HAQIQATNING TESKARISINI yozardi** (`GroupEditDrawer.vue`).
+Faqat guruh nomini o'zgartirib saqlaganda server
+`scheduleTouched: true, regenerated: false, titlesUpdated: 50` qaytaradi — darslar
+**o'rnida** tahrirlangan, Id/xona/davomat/chat saqlangan. UI esa
+*"Jadval yangilandi: +0 / −0, saqlab qolindi 0"* deb yozardi, ya'ni xodim **50
+dars o'chib ketgan** deb o'ylardi. Endi `regenerated` bayrog'i ajratiladi:
+*"Saqlandi. Darslar o'chirilmadi — 50 ta dars nomi o'rnida yangilandi."*
+★ Umumiy qoida: `created`/`deleted`/`preserved` FAQAT `regenerated: true` da
+ma'noga ega; o'rnida tahrirlash `hostsUpdated`/`titlesUpdated` bilan o'lchanadi.
+
+**2. 🔴 Beshta amal ikonkasidan IKKITASI ishlamasdi** (`TeacherGroupPage.vue`).
+"Profilni ochish" va "To'lov holati" faqat *"keyingi bosqichda ulanadi"* izohini
+chiqarardi — `features/student-profile` qardosh branchda bo'lgani uchun ataylab
+`TODO` qoldirilgan edi. Merge'dan keyin bu integratorning ishi; ulandi va
+brauzerda tasdiqlandi.
 
 ---
 
@@ -1010,3 +1033,41 @@ A (dizayn)  ──► B (drawer, confirm, loader, ikonka)  ──┬──► C 
     750 ga o'tkazamiz" degan tuzatish ba'zi joyda kontrastni PASAYTIRADI
     (`NotFoundPage` dagi "404" aynan shunday bo'lardi: 1.19 → 1.09).
     Har almashtirishdan keyin auditni yurgizing.
+
+### 13.6. 2-to'lqin QA'sidan (2026-08-11)
+
+56. 🔴 **Asosiy ish daraxti eskirib qolishi mumkin.** QA paytida
+    `~/Documents/Projects/zinnur-v2` `wave1/infra-upload-limits` da turgan va u
+    wave1 **backendini o'z ichiga olmagan** edi; ishlab turgan `zinnur/api:dev`
+    образи 2026-07-31 dan edi va yangi migratsiya bazaga qo'llanmagan edi.
+    Ya'ni "brauzerda tekshirdim" degan da'vo eski kodga tegishli bo'lishi
+    mumkin. **Qoida:** tekshirishdan oldin `docker inspect ... --format
+    '{{.Created}}'` va `__EFMigrationsHistory` ning oxirgi yozuvi ko'riladi.
+57. ⚠️ **Ustoz/kurator o'quvchi profilini ilovaning HECH BIR joyidan
+    ocholmaydi:** `GroupMembersPanel` barcha amal ikonkalarini `canManage`
+    (`Academic`/`Admin`) ostiga oladi, `/boshqaruv` ham faqat shu rollarga
+    ochiq. Backend esa bu yo'lni **ataylab** ochgan (ustozga o'z guruhi
+    o'quvchisi, `finance: null` bilan). Bu **mahsulot qarori** — loyiha egasi
+    hal qilsin.
+58. **`aria-pressed` naqshi nomuvofiq:** dars turi segmentida bor, guruh
+    tahrirlashdagi hafta kuni tugmalarida **yo'q** (tanlangan holat faqat rang
+    bilan).
+59. **Test harness tuzoqlari** (yolg'on xato beradi, kod aybdor emas):
+    · bitta `tick` da ikki `.click()` — Vue props keyingi tick da yangilanadi,
+      ikkala ishlovchi ham ESKI qiymatdan hisoblaydi (odam bunday bosa olmaydi);
+    · ichma-ich `li` — kurs daraxtida modul `li` si darslar matnini o'z ichiga
+      oladi, `innerText.includes(nom)` BOSHQA darsni ochadi;
+    · `ConfirmHost` tasdiqlarni **navbatga** oladi — ochiq tasdiq ustidan
+      ikkinchisi chaqirilsa ESC birinchisini yopadi va darhol ikkinchisi
+      ko'rinadi ("ESC ishlamadi" degan yolg'on xulosa);
+    · `PaginationBar` tugmalarida faqat `title` bor — modal ichida bosishdan
+      oldin **ichki skroller** surilishi kerak;
+    · dars tahrirlash yo'li `PUT /courses/{c}/modules/{m}/lessons/{l}`;
+      `PUT /lessons/{id}` **404**;
+    · arm64 host + amd64 Puppeteer'da CDP `DOM.setFileInputFiles` **jimgina**
+      ishlamaydi (`input.files.length` 0 da qoladi, xato ham chiqmaydi) —
+      fayl sahifa ichida `DataTransfer` + `File` bilan yasaladi.
+60. **Media yuklash UX'ida oraliq bosqich bor:** fayl tanlangach
+    **"Yuborishga tayyor"** ro'yxatiga tushadi (har qismga nom beriladi, nom
+    keyin tahrirlanmaydi — server `PATCH title` bermaydi), yuklash
+    **"Yuklashni boshlash"** bilan boshlanadi.
