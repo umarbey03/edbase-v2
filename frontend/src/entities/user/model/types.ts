@@ -49,6 +49,18 @@ export function isManagerRole(role: string): boolean {
   return role === 'Academic' || role === 'Admin'
 }
 
+/**
+ * FAQAT administrator.
+ *
+ * `isManagerRole` dan ataylab ajratilgan: pul kiritish va yechish loyiha
+ * egasining qaroriga ko'ra faqat admin panelida ("bunisi faqat admin
+ * panelda"). O'quv bo'limi moliyani KO'RADI, lekin o'zgartira olmaydi.
+ * ⚠️ Bu — KO'RINISH darvozasi; serverdagi tekshiruvni almashtirmaydi.
+ */
+export function isAdminRole(role: string): boolean {
+  return role === 'Admin'
+}
+
 /** Rol bo'yicha saralash og'irligi: ustoz -> kurator -> qolganlar. */
 export function roleWeight(role: string): number {
   if (role === 'Teacher') return 0

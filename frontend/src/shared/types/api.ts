@@ -606,6 +606,14 @@ export interface UserDetailsDto {
   email: string | null
   phone: string | null
   telegramId: number | null
+  /**
+   * WAVE 2 (`wave2/users`): Telegram `from.username`, `@` BELGISIZ.
+   *
+   * 🔴 IDENTIFIKATOR SIFATIDA ISHLATILMAYDI — bo'shatilgan nom boshqa odamga
+   * o'tadi (shu sababli backendda unikal indeks ATAYLAB yo'q). Faqat
+   * `t.me/<username>` havolasi uchun; shaxs `telegramId` bo'yicha aniqlanadi.
+   */
+  telegramUsername: string | null
   role: string | null
   isActive: boolean
   createdAt: string
@@ -1660,3 +1668,232 @@ export interface RecordingLinkDto {
   url: string | null
   expiresAt: string
 }
+
+/* ===== WAVE 2 · FOYDALANUVCHI (wave2/users) =====
+
+   O'quvchi profili drawer'i (`GET /users/{id}/profile`), Telegram
+   bog'lanishini uzish va ichki izohlar CRUD'i.
+
+   ★ SHAKL BACKEND RECORD'LARIDAN AYNAN ko'chirilgan
+   (`Application/Users/Dtos/UserProfileDtos.cs`,
+   `Application/StudentNotes/Dtos/StudentNoteDtos.cs`,
+   `Application/Users/Dtos/UserDtos.cs`). C# `long` -> `number`,
+   `DateTimeOffset` -> ISO satr, `DateOnly` -> `YYYY-MM-DD`, enum -> SATR.
+
+   🔴 NULL'LARNING MA'NOSI RUXSATGA BOG'LIQ va serverda KESILADI:
+     • `finance === null`   -> so'rovchi USTOZ/KURATOR (moliya javobda YO'Q);
+     • `notes === null`     -> so'rovchi o'quvchining O'ZI (ichki eslatma);
+     • `finance.transactions === null` -> yana o'quvchining o'zi.
+   Ya'ni bu maydonlarni frontendda "yashirish" emas, YO'QLIGINI hurmat qilish
+   kerak — bo'lim UMUMAN render qilinmaydi.
+   ========================================================================== */
+
+/** Profil drawer'ining butun mazmuni — BITTA so'rovda (7 ta emas). */
+export interface UserProfileDto {
+  /** ★ Ro'yxatdagi bilan AYNI tur — ikkinchi "profil foydalanuvchisi" shakli YO'Q. */
+  user: UserDetailsDto
+  telegram: ProfileTelegramDto
+  groups: ProfileGroupDto[]
+  /** 🔴 `null` — ustoz/kurator so'ragan (bo'lim render QILINMAYDI). */
+  finance: ProfileFinanceDto | null
+  study: ProfileStudyDto
+  /** 🔴 `null` — o'quvchining o'zi so'ragan (bo'lim render QILINMAYDI). */
+  notes: StudentNoteDto[] | null
+}
+
+/** Telegram ulanish holati + OXIRGI uzishning izi. */
+export interface ProfileTelegramDto {
+  /** Hosila: `telegramId !== null`. */
+  linked: boolean
+  telegramId: number | null
+  /** `@` BELGISIZ (`UserDetailsDto.telegramUsername` dagi ogohlantirish o'sha). */
+  username: string | null
+  linkedAt: string | null
+  /**
+   * Oxirgi uzish izi. Uchalasi ham `Student` rolida DOIM `null`: "sizni
+   * Aziz Karimov uzgan" degan matn ichki ish tartibini oshkor qilardi.
+   * Bog'lanish HOZIR mavjud bo'lsa ham to'lishi mumkin ("uzilgan, keyin
+   * qaytadan bog'langan" tarixi).
+   */
+  unlinkedAt: string | null
+  unlinkedByName: string | null
+  unlinkReason: string | null
+}
+
+/** O'quvchining bitta guruhdagi a'zoligi (hamma holat bilan). */
+export interface ProfileGroupDto {
+  groupId: number
+  groupName: string
+  teacherName: string | null
+  status: MemberStatusName
+  joinedAt: string
+  /**
+   * ⚠️ TAXMINIY: a'zolik qatorining `updatedAt` qiymati va faqat
+   * `Stopped`/`Moved` holatida keladi. "Qachon chiqdi" ustuni modelda YO'Q,
+   * `updatedAt` esa pauza/tiklashda ham yangilanadi — shuning uchun UI'da
+   * "chiqqan sana" deb DA'VO QILINMAYDI, "oxirgi o'zgarish" deb yoziladi.
+   */
+  leftAt: string | null
+  /**
+   * ⚠️ HOZIR DOIM `null` — `GroupMember` ko'chirish havolasini SAQLAMAYDI
+   * (`MovedToGroupId` ustuni yo'q, alohida vazifada qo'shiladi). Shu sababli
+   * "→ qayerga" chipi FAQAT `movedToGroupId !== null` shartida chiziladi.
+   */
+  movedToGroupId: number | null
+  movedToGroupName: string | null
+  /** `YYYY-MM-DD`, faqat `Paused` holatida. */
+  pausedUntil: string | null
+}
+
+/** O'quvchining moliya kesimi. */
+export interface ProfileFinanceDto {
+  /** Ortiqcha to'langan va hali sarflanmagan pul. */
+  balance: number
+  totalPaid: number
+  /**
+   * Ochiq oylarning QOLGAN qismi (`amount − paidAmount`) yig'indisi.
+   * Formula moliya moduli bilan AYNI: qisman to'langan oy to'liq qarz
+   * deb sanalmaydi, kechirilgan oy esa umuman qarz emas.
+   */
+  totalDue: number
+  /** AMALDAGI bloklash qamrovi (sozlamadagi emas) — `None` = bloklanmagan. */
+  blockScope: PaymentBlockScopeName
+  periods: ProfilePeriodDto[]
+  /** 🔴 `null` — o'quvchining o'zi so'ragan. Aks holda OXIRGI 50 ta. */
+  transactions: PaymentTransactionDto[] | null
+  /** 50 tadan ko'p yozuv bormi — "Hammasini ko'rish" tugmasi shunga bog'liq. */
+  hasMoreTransactions: boolean
+}
+
+/** Bitta hisob oyi (o'quvchi × guruh × oy). */
+export interface ProfilePeriodDto {
+  /** Hisob oyi, `YYYY-MM`. */
+  month: string
+  groupId: number
+  groupName: string
+  amount: number
+  paidAmount: number
+  outstanding: number
+  status: PaymentStatusName
+  /**
+   * SHU oyda SHU guruhda O'TKAZILGAN darslar soni.
+   * To'lov modeli OYLIK — "qaysi dars uchun" kesimi modelda yo'q; xodim
+   * "540 000 so'm / 8 dars" deb tushuntira olishi uchun shu son beriladi.
+   */
+  sessionCount: number
+}
+
+/** O'quv natijalari: uy vazifalari, testlar, davomat. */
+export interface ProfileStudyDto {
+  assignments: ProfileAssignmentDto[]
+  /** 50 tadan ko'p javob bormi (to'liq ro'yxat uchun alohida endpoint kerak). */
+  hasMoreAssignments: boolean
+  tests: ProfileTestDto[]
+  hasMoreTests: boolean
+  attendance: ProfileAttendanceDto
+}
+
+/** Uy vazifasiga topshirilgan javob va bahosi. */
+export interface ProfileAssignmentDto {
+  submissionId: number
+  assignmentId: number
+  title: string
+  /** Guruh vazifasi bo'lsa guruh nomi, KURS vazifasida `null`. */
+  groupName: string | null
+  /** Kurs vazifasi bo'lsa dars nomi, aks holda `null`. */
+  lessonName: string | null
+  score: number | null
+  maxScore: number
+  status: SubmissionStatusName
+  submittedAt: string
+  isLate: boolean
+  /** 🔴 Faqat SON: havola ham, `objectKey` ham ATAYLAB yo'q (16-tuzoq). */
+  fileCount: number
+}
+
+/** Test urinishi natijasi. */
+export interface ProfileTestDto {
+  attemptId: number
+  testId: number
+  title: string
+  kind: TestKindName
+  /**
+   * Olingan BALL (to'g'ri javoblar soni EMAS): har savolning o'z `points` i
+   * bor, shuning uchun "N/M to'g'ri" deb yozish MUMKIN EMAS.
+   */
+  score: number | null
+  maxScore: number | null
+  /** Foiz (0..100), bir xona aniqlikda. */
+  scorePercent: number | null
+  closedByTimeout: boolean
+  /** Tugatilmagan urinishda `null`. */
+  finishedAt: string | null
+}
+
+/**
+ * Davomat: maxraj — FAOL guruhlardagi YAKUNLANGAN darslar, "kelgan" esa
+ * `Absent` dan boshqa har qanday holat (kechikkan ham kelgan hisoblanadi).
+ * Formula platformadagi bilan AYNI — ikkinchisi yozilsa profil va o'quvchi
+ * ilovasi turli foiz ko'rsatardi.
+ */
+export interface ProfileAttendanceDto {
+  total: number
+  present: number
+  missed: number
+  percent: number
+}
+
+/**
+ * Xodimning o'quvchi haqidagi ICHKI izohi.
+ *
+ * 🔴 O'QUVCHIGA HECH QACHON KO'RSATILMAYDI: `Student` roli izohlar
+ * endpointidan 403 oladi va agregatda `notes` bloki `null` bo'ladi.
+ */
+export interface StudentNoteDto {
+  id: number
+  studentId: number
+  body: string
+  authorId: number
+  authorName: string
+  groupId: number | null
+  groupName: string | null
+  createdAt: string
+  updatedAt: string | null
+  /**
+   * So'rovchi shu izohni tahrirlay/o'chira oladimi.
+   * ★ FAQAT KO'RINISH uchun — server har `PUT`/`DELETE` da qaytadan tekshiradi.
+   */
+  canEdit: boolean
+}
+
+/** `POST /users/{id}/notes` tanasi. Bo'sh yoki 2000+ matn -> 409. */
+export interface CreateStudentNoteRequest {
+  body: string
+  /**
+   * Ixtiyoriy kontekst: "qaysi guruhdagi xatti-harakati haqida".
+   * Begona guruh -> 400 (`problem.errors.groupId[0]`).
+   */
+  groupId?: number | null
+}
+
+/** `PUT /users/{id}/notes/{noteId}` tanasi — faqat MATN o'zgaradi. */
+export interface UpdateStudentNoteRequest {
+  body: string
+}
+
+/** `POST /users/{id}/telegram/unlink` tanasi — butunlay ixtiyoriy. */
+export interface TelegramUnlinkRequest {
+  /** Audit iziga yoziladi (maks 500 belgi; server ortig'ini qirqadi). */
+  reason?: string | null
+}
+
+/**
+ * Uzishdan keyingi holat. Ikkala maydon ham DOIM `null` — shakl profil
+ * javobidagi `telegram` bloki bilan bir xil bo'lsin.
+ */
+export interface TelegramUnlinkResponse {
+  telegramId: number | null
+  telegramUsername: string | null
+}
+
+/* ===== /WAVE 2 · FOYDALANUVCHI ===== */

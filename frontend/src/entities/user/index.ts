@@ -1,5 +1,11 @@
 export { fetchMe, login, loginWithTelegram, logout } from './api/auth-api'
 export {
+  createStudentNote,
+  deleteStudentNote,
+  NOTE_BODY_MAX,
+  updateStudentNote,
+} from './api/student-note-api'
+export {
   activateUser,
   createUser,
   deactivateUser,
@@ -8,9 +14,21 @@ export {
   USER_SEARCH_MIN,
 } from './api/user-api'
 export type { UserListParams } from './api/user-api'
+export { fetchUserProfile, unlinkTelegram } from './api/user-profile-api'
 export { homeRouteFor, navItemsForRole } from './model/navigation'
 export type { NavItem } from './model/navigation'
 export {
+  attendanceTone,
+  percentLabel,
+  TELEGRAM_FILTER_OPTIONS,
+  telegramFilterToParam,
+  telegramHandle,
+  telegramLink,
+  UNLINK_REASON_MAX,
+} from './model/profile'
+export type { TelegramFilterValue } from './model/profile'
+export {
+  isAdminRole,
   isManagerRole,
   isStaffRole,
   ROLE_OPTIONS,

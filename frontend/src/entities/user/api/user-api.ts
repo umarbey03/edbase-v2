@@ -22,6 +22,16 @@ export interface UserListParams {
   search?: string
   role?: UserRoleName
   isActive?: boolean
+  /**
+   * Shu guruhda **`Active`** a'zo bo'lganlar (BLOK F).
+   *
+   * ⚠️ `Paused`/`Stopped`/`Moved` KIRMAYDI — server qarori. UI'da bu shart
+   * AYTILISHI kerak: aks holda xodim guruhdan chiqarilgan o'quvchini
+   * "yo'qolgan" deb o'ylardi.
+   */
+  groupId?: number
+  /** `true` — Telegram bog'langanlar, `false` — bog'lanmaganlar. */
+  telegramLinked?: boolean
   page?: number
   pageSize?: number
 }
@@ -36,6 +46,8 @@ export function fetchUsers(
       Search: params.search,
       Role: params.role,
       IsActive: params.isActive,
+      GroupId: params.groupId,
+      TelegramLinked: params.telegramLinked,
       Page: params.page,
       PageSize: params.pageSize,
     },
