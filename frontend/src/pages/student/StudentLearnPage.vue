@@ -136,12 +136,18 @@ function doneCount(lessons: CourseLessonDto[]): number {
             class="-rotate-90"
             aria-hidden="true"
           >
+            <!--
+              Halqa YO'LI (to'lmagan qismi). Ilgari `rgb(255 255 255 / .1)`
+              QOTIB QOLGAN edi — oq kartochkada u UMUMAN ko'rinmasdi
+              (oq ustiga 10% oq), ya'ni foiz halqasining "qolgan qismi"
+              yo'qolib, jarayon 100% dek tuyulardi.
+            -->
             <circle
               cx="31"
               cy="31"
               r="26"
               fill="none"
-              stroke="rgb(255 255 255 / 0.1)"
+              class="stroke-ink-750"
               stroke-width="5"
             />
             <circle
@@ -174,7 +180,8 @@ function doneCount(lessons: CourseLessonDto[]): number {
           <p class="mt-1 text-[12.5px] text-slate-400">
             {{ course.unlockedCount.value }} / {{ course.lessonCount.value }} dars ochilgan
           </p>
-          <div class="mt-2 h-[5px] overflow-hidden rounded-sm bg-white/10">
+          <!-- Jarayon chizig'i yo'li: `bg-white/10` oq sirtda ko'rinmaydi. -->
+          <div class="mt-2 h-[5px] overflow-hidden rounded-sm bg-ink-750">
             <span
               class="block h-full rounded-sm bg-brand-500 transition-[width] duration-500"
               :style="{ width: `${course.unlockedPercent.value}%` }"
@@ -271,9 +278,13 @@ function doneCount(lessons: CourseLessonDto[]): number {
         :to="{ name: 'student-tests' }"
         class="flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px]"
       >
+        <!--
+          Pastel nishon: tint + to'q ikonka. Ilgari `rgb(34 211 238 / .17)`
+          fon va `#67e8f9` ikonka QOTIB QOLGAN edi (yorug' firuza qorong'i
+          fon uchun) — oq sirtda u 1.6:1 berardi.
+        -->
         <span
-          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl"
-          style="background: rgb(34 211 238 / 0.17); color: #67e8f9"
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-cyan-500/12 text-cyan-300"
           aria-hidden="true"
         >
           <AppIcon
@@ -301,9 +312,9 @@ function doneCount(lessons: CourseLessonDto[]): number {
         :to="{ name: 'student-recordings' }"
         class="flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px]"
       >
+        <!-- Pastel nishon (ilgari `rgb(139 92 246 / .18)` + `#c4b5fd`). -->
         <span
-          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl"
-          style="background: rgb(139 92 246 / 0.18); color: #c4b5fd"
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-violet-500/12 text-violet-200"
           aria-hidden="true"
         >
           <AppIcon

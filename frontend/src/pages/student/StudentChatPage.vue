@@ -219,9 +219,10 @@ const showList = computed(() => activePeer.value === null && activeThread.value 
             v-for="conversation in conversations"
             :key="conversation.peerId"
           >
+            <!-- Tint asosi `-500` (shkala shartnomasi: `style.css`). -->
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-[14px] border border-sky-400/35 bg-sky-400/[0.06] px-3.5 py-3 text-left transition-colors hover:bg-sky-400/[0.12]"
+              class="flex w-full items-center gap-3 rounded-[14px] border border-sky-500/30 bg-sky-500/[0.07] px-3.5 py-3 text-left transition-colors hover:bg-sky-500/[0.13]"
               @click="openConversation(conversation)"
             >
               <BaseAvatar
@@ -286,7 +287,7 @@ const showList = computed(() => activePeer.value === null && activeThread.value 
       <div class="mb-3 mt-2 flex items-center gap-3">
         <button
           type="button"
-          class="tap-target flex items-center gap-1.5 rounded-[10px] border border-line bg-white/[0.06] px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-white/[0.12]"
+          class="tap-target flex items-center gap-1.5 rounded-xl border border-line-strong bg-ink-900 px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-ink-800"
           @click="backToList"
         >
           <AppIcon
@@ -325,7 +326,7 @@ const showList = computed(() => activePeer.value === null && activeThread.value 
       <div class="mb-3 mt-2 flex items-center gap-3">
         <button
           type="button"
-          class="tap-target flex items-center gap-1.5 rounded-[10px] border border-line bg-white/[0.06] px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-white/[0.12]"
+          class="tap-target flex items-center gap-1.5 rounded-xl border border-line-strong bg-ink-900 px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-ink-800"
           @click="backToList"
         >
           <AppIcon

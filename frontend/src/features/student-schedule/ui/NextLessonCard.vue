@@ -32,32 +32,49 @@ const isLive = computed(
 )
 const joinable = computed(() => props.session !== null && canJoin(props.session, props.now))
 
-/** Kartochka foni: oltin / firuza / (jonli bo'lsa) qizil radial gradient. */
+/**
+ * Kartochka foni: indigo / firuza / (jonli bo'lsa) qizil radial gradient.
+ *
+ * ★ RANGLAR TOKENGA O'TKAZILDI. Ilgari qiymatlar QOTIB QOLGAN edi
+ * (`rgb(245 183 49)` — eski oltin aksent, `rgb(34 211 238)` — firuza,
+ * `rgb(239 68 68)` — qizil). Brend indigo bo'lgach oltin kartochka butun
+ * ilovadan ajralib qolardi. `color-mix` shaffoflikni TOKENDAN hisoblaydi,
+ * ya'ni aksent almashsa kartochka o'z-o'zidan moslashadi.
+ *
+ * Yorug' temada tintlar PASAYTIRILDI (24%/16% -> 18%/12%): oq sirt ustida
+ * bir xil foiz to'yingan rangni ancha "baland" ko'rsatadi va sarlavha
+ * yozuvi tint ustida kontrastini yo'qotardi.
+ */
 const cardStyle = computed(() => {
   if (isLive.value) {
     return {
-      borderColor: 'rgb(239 68 68 / 0.5)',
+      borderColor: 'color-mix(in oklab, var(--color-rose-500) 45%, transparent)',
       background:
-        'radial-gradient(125% 100% at 100% 0, rgb(239 68 68 / 0.24), transparent 60%), var(--color-ink-900)',
+        'radial-gradient(125% 100% at 100% 0, color-mix(in oklab, var(--color-rose-500) 18%, transparent), transparent 60%), var(--color-ink-900)',
     }
   }
   if (isTeacher.value) {
     return {
-      borderColor: 'rgb(245 183 49 / 0.42)',
+      borderColor: 'color-mix(in oklab, var(--color-brand-500) 38%, transparent)',
       background:
-        'radial-gradient(125% 100% at 100% 0, rgb(245 183 49 / 0.16), transparent 60%), var(--color-ink-900)',
+        'radial-gradient(125% 100% at 100% 0, color-mix(in oklab, var(--color-brand-500) 12%, transparent), transparent 60%), var(--color-ink-900)',
     }
   }
   return {
-    borderColor: 'rgb(34 211 238 / 0.42)',
+    borderColor: 'color-mix(in oklab, var(--color-cyan-500) 38%, transparent)',
     background:
-      'radial-gradient(125% 100% at 100% 0, rgb(34 211 238 / 0.16), transparent 60%), var(--color-ink-900)',
+      'radial-gradient(125% 100% at 100% 0, color-mix(in oklab, var(--color-cyan-500) 12%, transparent), transparent 60%), var(--color-ink-900)',
   }
 })
 
+/*
+  Sarlavha yozuvi (11px extrabold uppercase) — MATN, ya'ni `-400`/`-300`
+  darajasi kerak (shkalalar teskari: `style.css` boshidagi izoh).
+  To'yingan `cyan-500`/`rose-500` bu yerda 2.5:1 berardi.
+*/
 const labelColor = computed(() => {
-  if (isLive.value) return '#ff9b9b'
-  return isTeacher.value ? 'var(--color-brand-400)' : '#67e8f9'
+  if (isLive.value) return 'var(--color-rose-400)'
+  return isTeacher.value ? 'var(--color-brand-400)' : 'var(--color-cyan-300)'
 })
 
 /** Orqaga sanoq: kun / soat / daqiqa / sek (eski `.count.mini`). */
@@ -125,7 +142,13 @@ function join(): void {
         <span v-text="formatWeekdayDateTime(props.session.scheduledStart)" />
       </p>
 
-      <!-- Jonli darsda sanoq ortiqcha — darhol kirish tugmasi chiqadi. -->
+      <!--
+        Jonli darsda sanoq ortiqcha — darhol kirish tugmasi chiqadi.
+
+        Katakcha foni ilgari `bg-black/25` edi: qorong'i fonda u "chuqurlik"
+        berardi, oq kartochkada esa kulrang dog' bo'lib chiqadi.
+        `ink-800` — yorug' temadagi ichki blok rangi.
+      -->
       <div
         v-if="!isLive && countdown !== null"
         class="mb-2.5 mt-3 flex gap-1.5"
@@ -133,7 +156,7 @@ function join(): void {
         <div
           v-for="cell in countdown"
           :key="cell.label"
-          class="flex-1 rounded-[11px] border border-line bg-black/25 px-1 py-2 text-center"
+          class="flex-1 rounded-[11px] border border-line bg-ink-800 px-1 py-2 text-center"
         >
           <b
             class="block text-[21px] font-extrabold leading-none tabular-nums"

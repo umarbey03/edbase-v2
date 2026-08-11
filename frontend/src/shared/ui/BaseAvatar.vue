@@ -22,16 +22,28 @@ const SIZES: Record<AvatarSize, string> = {
   lg: 'size-14 text-lg',
 }
 
-/** Barqaror palitra — bir xil ism doim bir xil rangda ko'rinadi. */
+/*
+  Barqaror palitra — bir xil ism DOIM bir xil rangda ko'rinadi (`colorIndex`
+  ismdan barqaror hash oladi; server hech narsa bermaydi, ya'ni ro'yxat
+  qayta yuklansa ham rang o'zgarmaydi).
+
+  ★ ILGARI SHAFFOF TINT + TO'Q HARF EDI (`bg-rose-500/20 text-rose-200`):
+  qorong'i fonda bu yumshoq ko'rinardi, YORUG' fonda esa 20% tint oq
+  kartochkada deyarli yo'qoladi va avatar "bo'sh doira" bo'lib qolardi.
+  Ekran suratlaridagi ko'rinish — TO'Q PASTEL TO'LDIRISH + OQ HARF.
+
+  Har bir `-400` daraja oq matn bilan >= 4.7:1 beradi (eng past — sky
+  4.74:1), ya'ni 10px bosh harf ham o'qiladi.
+*/
 const PALETTE = [
-  'bg-indigo-500/20 text-indigo-200',
-  'bg-emerald-500/20 text-emerald-200',
-  'bg-amber-500/20 text-amber-200',
-  'bg-rose-500/20 text-rose-200',
-  'bg-sky-500/20 text-sky-200',
-  'bg-violet-500/20 text-violet-200',
-  'bg-teal-500/20 text-teal-200',
-  'bg-orange-500/20 text-orange-200',
+  'bg-indigo-400 text-white',
+  'bg-emerald-400 text-white',
+  'bg-amber-400 text-white',
+  'bg-rose-400 text-white',
+  'bg-sky-400 text-white',
+  'bg-violet-400 text-white',
+  'bg-teal-400 text-white',
+  'bg-orange-400 text-white',
 ] as const
 
 const label = computed(() => initials(props.name))

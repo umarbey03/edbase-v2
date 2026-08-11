@@ -18,7 +18,7 @@ import { formatMoney } from '@/shared/lib/money'
 import type { PaymentSummaryParams } from '@/entities/payment'
 import { AppIcon, BaseButton, DataStatus, PageHeader } from '@/shared/ui'
 
-import { isoDateLabel, KPI_COLORS } from '../model/finance-view'
+import { isoDateLabel, KPI_ACCENTS } from '../model/finance-view'
 import FinanceAgingCard from './FinanceAgingCard.vue'
 import FinanceGroupsCard from './FinanceGroupsCard.vue'
 import FinanceKpiTile from './FinanceKpiTile.vue'
@@ -64,7 +64,8 @@ interface KpiTile {
   key: string
   label: string
   value: string
-  color: string
+  /** Kartochkaning 3px yuqori chizig'i (raqam siyoh rangida — `FinanceKpiTile`). */
+  accent: string
   sub: string
 }
 
@@ -178,42 +179,42 @@ const mainTiles = computed<KpiTile[]>(() => {
       key: 'billed',
       label: 'Rejadagi tushum',
       value: formatMoney(kpi.billed),
-      color: KPI_COLORS.planned,
+      accent: KPI_ACCENTS.planned,
       sub: periodsLabel.value,
     },
     {
       key: 'periodCollected',
       label: 'Yig‘ilgan',
       value: formatMoney(kpi.periodCollected),
-      color: KPI_COLORS.collected,
+      accent: KPI_ACCENTS.collected,
       sub: 'shu oylarga tegishli',
     },
     {
       key: 'collectionRate',
       label: 'Yig‘ilish foizi',
       value: collectionRateLabel(kpi.collectionRate),
-      color: KPI_COLORS.rate,
+      accent: KPI_ACCENTS.rate,
       sub: '',
     },
     {
       key: 'outstanding',
       label: 'Umumiy qarz',
       value: formatMoney(kpi.outstanding),
-      color: KPI_COLORS.debt,
+      accent: KPI_ACCENTS.debt,
       sub: `${kpi.debtorStudents} qarzdor · bugungi holat`,
     },
     {
       key: 'discounts',
       label: 'Chegirmalar',
       value: formatMoney(kpi.discounts),
-      color: KPI_COLORS.discounts,
+      accent: KPI_ACCENTS.discounts,
       sub: '',
     },
     {
       key: 'studentBalance',
       label: 'Balansdagi pul',
       value: formatMoney(kpi.studentBalance),
-      color: KPI_COLORS.balance,
+      accent: KPI_ACCENTS.balance,
       sub: 'oldindan to‘lovlar',
     },
   ]
@@ -234,28 +235,28 @@ const journalTiles = computed<KpiTile[]>(() => {
       key: 'collected',
       label: 'Kassaga tushgan',
       value: formatMoney(kpi.collected),
-      color: KPI_COLORS.collected,
+      accent: KPI_ACCENTS.collected,
       sub: `${kpi.paymentCount} ta to‘lov · ${kpi.payingStudents} o‘quvchi`,
     },
     {
       key: 'refunded',
       label: 'Qaytarilgan',
       value: formatMoney(kpi.refunded),
-      color: KPI_COLORS.debt,
+      accent: KPI_ACCENTS.debt,
       sub: '',
     },
     {
       key: 'netCollected',
       label: 'Sof tushum',
       value: formatMoney(kpi.netCollected),
-      color: KPI_COLORS.planned,
+      accent: KPI_ACCENTS.planned,
       sub: 'tushgan − qaytarilgan',
     },
     {
       key: 'balanceUsed',
       label: 'Balansdan yopilgan',
       value: formatMoney(kpi.balanceUsed),
-      color: KPI_COLORS.balance,
+      accent: KPI_ACCENTS.balance,
       // Bu YANGI pul emas — oldin to'langan puldan oy yopilgani.
       sub: 'yangi tushum emas',
     },
@@ -263,7 +264,7 @@ const journalTiles = computed<KpiTile[]>(() => {
       key: 'waived',
       label: 'Kechirilgan',
       value: formatMoney(kpi.waived),
-      color: KPI_COLORS.waived,
+      accent: KPI_ACCENTS.waived,
       sub: '',
     },
   ]
@@ -339,7 +340,7 @@ const journalTiles = computed<KpiTile[]>(() => {
             :key="tile.key"
             :label="tile.label"
             :value="tile.value"
-            :color="tile.color"
+            :accent="tile.accent"
             :sub="tile.sub"
           />
         </div>
@@ -383,7 +384,7 @@ const journalTiles = computed<KpiTile[]>(() => {
             :key="tile.key"
             :label="tile.label"
             :value="tile.value"
-            :color="tile.color"
+            :accent="tile.accent"
             :sub="tile.sub"
           />
         </div>

@@ -98,10 +98,15 @@ function handleNextClick(): void {
         <span v-text="isLive ? 'Jonli' : countdown" />
       </button>
 
+      <!--
+        Profil avatari. Gradient TOKENLARDA: ilgari `#f5b731 -> #22d3ee`
+        (oltin -> firuza) QOTIB QOLGAN edi va yangi indigo brend bilan
+        umuman bog'lanmasdi. Oq harf indigo->violet gradientda 5.9:1 dan
+        past tushmaydi (eng yorug' nuqtasi — `brand-500`).
+      -->
       <button
         type="button"
-        class="tap-expand flex size-10 animate-pop items-center justify-center rounded-full text-base font-bold text-white"
-        style="background: linear-gradient(135deg, #f5b731, #22d3ee)"
+        class="tap-expand flex size-10 animate-pop items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-400 text-base font-bold text-white"
         :title="props.displayName"
         aria-label="Profil"
         @click="emit('open-profile')"

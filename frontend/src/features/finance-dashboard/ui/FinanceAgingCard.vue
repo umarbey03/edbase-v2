@@ -78,12 +78,29 @@ const total = computed(() => sumMoney(props.buckets.map((bucket) => bucket.amoun
         :key="bucket.bucket"
         class="rounded-[10px] border border-line px-3.5 py-3"
       >
+        <!--
+          🔴 GURUH NOMI SIYOH RANGIDA. Ilgari u `agingColor(...)` bilan
+          xavflilik rangida edi va eski shkalada `#f2c84b` (31-60) oq
+          kartochkada 1.71:1 berardi — yozuv o'qilmasdi.
+
+          `dataviz` qoidasi: yorliq SIYOH tokenida, rang esa YONIDAGI
+          belgida. Bu yerda u ikki marta foyda beradi: (1) nom doim 16.7:1
+          da o'qiladi; (2) rang ko'rligida ham guruhlar farqlanadi, chunki
+          ajratuvchi ma'lumot MATNDA ("0-30 kun" … "90+ kun") — topshiriqdagi
+          "faqat rangga tayanmasin" talabi aynan shu.
+
+          Nuqta nomdan oldin turadi va pastdagi bar bilan BIR XIL qadamda:
+          shkala (och qizil → to'q qizil) bir qarashda o'qiladi.
+        -->
         <div class="mb-2 flex items-baseline justify-between gap-2">
-          <b
-            class="text-[13px]"
-            :style="{ color: agingColor(bucket.bucket) }"
-            v-text="agingLabel(bucket.bucket)"
-          />
+          <b class="flex min-w-0 items-center gap-1.5 text-[13px]">
+            <span
+              class="size-2 shrink-0 rounded-full"
+              :style="{ backgroundColor: agingColor(bucket.bucket) }"
+              aria-hidden="true"
+            />
+            <span v-text="agingLabel(bucket.bucket)" />
+          </b>
           <!-- Eski ilovada faqat "N ta" bor edi; oylar soni QO'SHIMCHA — u
                qarzning nechta oyga tarqalganini ko'rsatadi. -->
           <span class="shrink-0 text-[11px] text-muted">

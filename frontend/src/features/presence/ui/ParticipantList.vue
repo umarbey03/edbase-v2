@@ -28,7 +28,7 @@ const hiddenCount = computed(() => Math.max(0, props.totalCount - visible.value.
       <li
         v-for="participant in visible"
         :key="participant.userId"
-        class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/5"
+        class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-ink-800"
       >
         <BaseAvatar
           :name="participant.displayName"

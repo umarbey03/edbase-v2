@@ -44,25 +44,35 @@ const nodes = computed(() =>
 )
 
 /*
-  Tugma uslublari eski CSS'dan aynan: 66px doira, ostida 5px "qalinlik"
-  soyasi (bosilganda 2px ga tushadi — o'yin tugmasi effekti).
+  Tugma uslublari eski CSS'dan: 66px doira, ostida 5px "qalinlik" soyasi
+  (bosilganda 2px ga tushadi — o'yin tugmasi effekti).
+
+  ★ RANGLAR TOKENGA O'TKAZILDI. Ilgari `now` holati oltin gradient +
+  `#3a2600` matn + `#a9760a` soya bilan QOTIB QOLGAN edi (eski navy+oltin
+  temadan). Yorug' temada u butun ilovadan ajralib, "boshqa ekran"
+  taassurotini berardi; brend esa endi indigo. Uchala holat ham
+  brend/neytral tokenlarda: aksent almashsa yo'lakcha o'z-o'zidan
+  moslashadi.
+
+  `lock` soyasi `rgb(0 0 0 / .28)` EMAS: qora soya oq fonda "teshik"
+  bo'lib ko'rinardi — `line-strong` yumshoq qalinlik beradi.
 */
 const NODE_STYLE: Record<NodeState, Record<string, string>> = {
   now: {
-    background: 'linear-gradient(180deg, #f7c948, #e8a412)',
-    color: '#3a2600',
-    boxShadow: '0 5px 0 #a9760a',
+    background: 'linear-gradient(180deg, var(--color-brand-500), var(--color-brand-600))',
+    color: 'var(--color-on-brand)',
+    boxShadow: '0 5px 0 var(--color-brand-700)',
   },
   open: {
     background: 'var(--color-ink-800)',
     color: 'var(--color-brand-500)',
     border: '2px solid var(--color-brand-500)',
-    boxShadow: '0 5px 0 rgb(245 183 49 / 0.28)',
+    boxShadow: '0 5px 0 color-mix(in oklab, var(--color-brand-500) 28%, transparent)',
   },
   lock: {
     background: 'var(--color-ink-800)',
-    color: 'var(--color-dim)',
-    boxShadow: '0 5px 0 rgb(0 0 0 / 0.28)',
+    color: 'var(--color-slate-500)',
+    boxShadow: '0 5px 0 var(--color-line-strong)',
   },
 }
 

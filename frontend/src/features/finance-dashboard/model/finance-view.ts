@@ -5,56 +5,113 @@ import type { PaymentAgingBucketName, PaymentMonthSummaryDto } from '@/shared/ty
 /**
  * MOLIYA DASHBOARD'INING KO'RINISH QOIDALARI.
  *
- * Ranglar eski ilovadan AYNAN ko'chirilgan:
+ * Tartib, sarlavhalar va matnlar eski ilovadan ko'chirilgan:
  * `Zinnur-platform/app/templates/academic.html`
  *   • KPI kartochkalari — 2668–2674-qatorlar;
  *   • "Qarz yoshi" guruhlari — 2675-qator (`const AG={...}`);
  *   • "Oxirgi 12 oy" ustunlari — 2691–2693-qatorlar.
  *
- * ★ NEGA TEMA TOKENI EMAS, ANIQ HEX: bular DIAGRAMMA ranglari — ular
- * ma'noni (reja / yig'ilgan / qarz yoshi) kodlaydi va tema o'zgarganda
- * o'zgarmasligi kerak. Tema tokeni (`brand-500` va h.k.) sirtlar va tugmalar
- * uchun; ularni bu yerga aralashtirsak, o'quv bo'limi xodimi eski paneldagi
- * "yashil = yig'ilgan, qizil = qarz" odatini yo'qotardi.
+ * 🔴 RANGLAR ESA KO'CHIRILMADI — QAYTA QURILDI (2026-08-11).
+ *
+ * Ilgari shu faylda 12 ta QOTIB QOLGAN HEX turgan (`#3b9eff`, `#22c55e`,
+ * `#f2c84b`, `#f43f5e`, `#a855f7`, `#14b8a6`, `#fb923c`, …) va yuqoridagi
+ * izoh ularni "tema tokeni emas, ma'no rangi" deb himoya qilardi. Bu
+ * fikrning YARMI to'g'ri: ranglar haqiqatan ma'no kodlaydi. Lekin ular
+ * QORONG'I navy fon uchun tanlangan edi va ilova yorug' temaga o'tgach
+ * oq kartochkada o'qilmay qoldi:
+ *     `#f2c84b` (eski oltin) — 1.71:1 · `#22c55e` — 2.03:1 · `#fb923c` — 2.17:1
+ * ya'ni "Yig'ilish foizi" raqami ham, yashil ustunlar ham amalda KO'RINMAS
+ * edi. Bundan tashqari `#f2c84b` endi brend rangi ham emas.
+ *
+ * Yangi qiymatlar `src/style.css` dagi `--color-chart-*` tokenlarida va
+ * ular "chiroyli" tanlanmagan — `dataviz` metodikasi bo'yicha HISOBLANGAN
+ * (OKLab ΔE, CVD simulyatsiyasi, oq sirtda kontrast). Sabablari va
+ * o'lchangan raqamlari o'sha token blokining izohida.
+ *
+ * ★ MA'NO SAQLANDI: "yashil = yig'ilgan, qizil = qarz" — o'quv bo'limi
+ * xodimining eski paneldan olib kelgan odati. Faqat ohang boshqa: yorqin
+ * yashil o'rniga to'q emerald (`chart-in`), pushti-qizil o'rniga to'q
+ * qizil (`chart-out`).
+ *
+ * ★ QIYMAT SIFATIDA CSS `var()` QAYTARADI, HEX EMAS. Sabab: ranglar
+ * inline `style` ichida ishlatiladi (`:style="{ backgroundColor: ... }"`),
+ * ya'ni Tailwind klassi bo'lib bo'lmaydi; `var()` esa yagona manbani
+ * (`style.css`) saqlaydi va nusxa HEX paydo bo'lishiga yo'l qo'ymaydi.
  */
 
-/** Eski `kpiCard(...)` chaqiruvlaridagi ranglar, o'sha tartibda. */
-export const KPI_COLORS = {
-  /** "Rejadagi tushum" — eskisida `#3b9eff`. */
-  planned: '#3b9eff',
-  /** "Yig'ilgan" — eskisida `#22c55e`. */
-  collected: '#22c55e',
-  /** "Yig'ilish foizi" — eskisida `#f2c84b` (o'quv bo'limi urg'u rangi). */
-  rate: '#f2c84b',
-  /** "Umumiy qarz" — eskisida `#f43f5e`. */
-  debt: '#f43f5e',
-  /** "Chegirmalar" — eskisida `#a855f7`. */
-  discounts: '#a855f7',
-  /** "Balansdagi pul" — eskisida `#14b8a6`. */
-  balance: '#14b8a6',
+/**
+ * KPI kartochkasining URG'U rangi — kartochkaning 3px yuqori chizig'i.
+ *
+ * 🔴 RAQAMNING O'ZI ENDI RANGSIZ (siyoh rangida). `dataviz` qoidasi:
+ * "qiymat va yorliq SIYOH tokenlarida, rang esa yonidagi BELGIDA" — aks
+ * holda 26px raqam o'z rangining kontrastiga qaram bo'lib qoladi. Qorong'i
+ * fonda rangli raqam to'g'ri yechim edi (yorqin rang o'qiladigan variant),
+ * oq fonda esa to'q siyoh o'qiladi: `slate-50` = 18.9:1, ya'ni har qanday
+ * rangdan yaxshiroq.
+ *
+ * ★ YETTI KO'RSATKICH — TO'RT RANG + NEYTRAL. Bu qisqartirish ataylab:
+ * yorug' sirtda 4.5:1 talabi bilan bir vaqtda bir-biridan ajralib turadigan
+ * to'rtdan ortiq ton fizik jihatdan yo'q (hisob-kitob `style.css` da).
+ * Rangni faqat MA'NOSI bor ko'rsatkich oladi:
+ *     havorang = reja/o'lchov · yashil = kelgan pul ·
+ *     qizil = yetmagan/qaytgan pul · binafsha = voz kechilgan pul.
+ * Qolgani (foiz, balans) — hisob-kitob ma'lumoti, neytral qoladi.
+ */
+export const KPI_ACCENTS = {
+  /** "Rejadagi tushum" va "Sof tushum" — o'lchov bazasi. */
+  planned: 'var(--color-chart-plan)',
+  /** "Yig'ilgan" va "Kassaga tushgan" — kelgan pul. */
+  collected: 'var(--color-chart-in)',
   /**
-   * "Kechirilgan" — eskisida KPI kartochkasi YO'Q edi (backend bu raqamni
-   * endi beradi). Rang "Qarz yoshi" ning 61–90 guruhidan olindi: kechirim
-   * ham yo'qotilgan pul, lekin qarzdek qizil emas.
+   * "Yig'ilish foizi" — NEYTRAL. Bu pul emas, nisbat: yashil qilsak
+   * "Yig'ilgan" bilan bir xil ma'no berardi, alohida rang bersak esa
+   * palitrada beshinchi ton kerak bo'lardi (yo'q — `style.css` ga qarang).
    */
-  waived: '#fb923c',
+  rate: 'var(--color-chart-neutral)',
+  /** "Umumiy qarz" va "Qaytarilgan" — yetmagan yoki qaytgan pul. */
+  debt: 'var(--color-chart-out)',
+  /** "Chegirmalar" va "Kechirilgan" — ataylab olinmagan pul. */
+  discounts: 'var(--color-chart-other)',
+  /**
+   * "Balansdagi pul" / "Balansdan yopilgan" — NEYTRAL. Bu YANGI tushum
+   * emas (oldin to'langan puldan yopilgani), shuning uchun uni yashil
+   * qilish hisobotni yolg'on qilardi.
+   */
+  balance: 'var(--color-chart-neutral)',
+  /**
+   * "Kechirilgan" — "Chegirmalar" bilan BIR XIL rangda. Ikkisi ham "voz
+   * kechilgan pul" oilasi va ular hech qachon yonma-yon turmaydi
+   * (biri asosiy raqamlar setkasida, ikkinchisi kassa jurnalida).
+   */
+  waived: 'var(--color-chart-other)',
 } as const
 
-/** Eski `const AG={'0-30':…}` — qarz qancha eskirsa, rang shuncha xavfli. */
+/**
+ * "Qarz yoshi" guruhi rangi — ORDINAL shkala (bitta ton, yorug'dan to'qqa).
+ *
+ * Eski `const AG={...}` da yashil → sariq → to'q sariq → qizil edi. Yorug'
+ * fonda u ikki marta yiqiladi: sariq/to'q sariq 3:1 ga chiqmaydi, bizning
+ * to'q "matn" qadamlarida esa sariq-to'q sariq-qizil bir-biridan
+ * AJRALMAYDI (o'lchangan ΔE 2.9 — amalda bitta rang). Yechim va o'lchovlar
+ * `style.css` dagi `--color-chart-age-*` izohida.
+ */
 const AGING_COLORS: Record<PaymentAgingBucketName, string> = {
-  '0-30': '#22c55e',
-  '31-60': '#f2c84b',
-  '61-90': '#fb923c',
-  '90+': '#f43f5e',
+  '0-30': 'var(--color-chart-age-1)',
+  '31-60': 'var(--color-chart-age-2)',
+  '61-90': 'var(--color-chart-age-3)',
+  '90+': 'var(--color-chart-age-4)',
 }
+
+/** Shkalaning eng to'q (eng xavfli) qadami — noma'lum guruh uchun. */
+const AGING_FALLBACK_COLOR = 'var(--color-chart-age-4)'
 
 /**
  * Guruh rangi. `lookup` ATAYLAB: server kelajakda beshinchi guruh qo'shsa
- * (masalan `180+`) UI qulamasin — noma'lum guruh eng xavfli rangda chiziladi,
+ * (masalan `180+`) UI qulamasin — noma'lum guruh eng to'q rangda chiziladi,
  * chunki u faqat ESKIROQ qarz bo'lishi mumkin.
  */
 export function agingColor(bucket: string): string {
-  return lookup(AGING_COLORS, bucket, '#f43f5e')
+  return lookup(AGING_COLORS, bucket, AGING_FALLBACK_COLOR)
 }
 
 /** Eski `${k} kun` — "0-30 kun", "90+ kun". */
@@ -64,11 +121,22 @@ export function agingLabel(bucket: string): string {
 
 /* ------------------------------------------------------- "Oxirgi 12 oy" --- */
 
-/** Reja ustuni — eskisida `rgba(59,158,255,.35)` (KPI ko'kining shaffofi). */
-export const TREND_PLANNED_COLOR = 'rgba(59,158,255,.35)'
+/**
+ * Reja ustuni.
+ *
+ * 🔴 Eskisida `rgba(59,158,255,.35)` — 35% SHAFFOF ko'k edi. Qorong'i fonda
+ * u "xira reja" bo'lib ko'rinardi, oq kartochkada esa `#baddff` ga
+ * aylanib 1.35:1 beradi — ustun UMUMAN ko'rinmasdi va diagrammada faqat
+ * yashil "yig'ilgan" qolardi, ya'ni reja bilan solishtirish imkoni yo'q
+ * edi. Endi to'liq to'q havorang (4.70:1).
+ *
+ * ★ "Reja"ni ataylab xira qilmadik: `dataviz` qoidasi bo'yicha ikki qatorli
+ * diagrammada ikkisi ham HAQIQIY qator (legenda bor), biri "fon" emas.
+ */
+export const TREND_PLANNED_COLOR = 'var(--color-chart-plan)'
 
-/** Yig'ilgan ustuni — eskisida to'q yashil `#22c55e`. */
-export const TREND_COLLECTED_COLOR = '#22c55e'
+/** Yig'ilgan ustuni — `chart-in` (oq fonda 5.70:1). Eskisida `#22c55e` (2.03:1). */
+export const TREND_COLLECTED_COLOR = 'var(--color-chart-in)'
 
 /**
  * Ustun balandligi FOIZDA.

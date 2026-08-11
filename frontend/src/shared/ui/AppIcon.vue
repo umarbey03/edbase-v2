@@ -94,6 +94,55 @@ const PATHS: Record<IconName, string> = {
 
   // Uchta vertikal "regulyator" — tizim sozlamalari bo'limi (sababi `icon-names.ts` da).
   sliders: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
+
+  /*
+    ============ IKONKALI AMAL TUGMALARI (`IconButton`) ============
+
+    Hammasi mavjud uslubga moslashtirilgan: 24×24 setka, faqat `stroke`,
+    `stroke-width` 1.75 (SVG atributi umumiy), doiralar yoy (`a`) buyrug'iga
+    aylantirilgan — `AppIcon` bitta `<path>` chizadi.
+
+    Juftliklari MIRROR qilib olingan, shunda qarama-qarshi amal bir qarashda
+    tanilsin: `pause` ↔ `play`, `upload` ↔ `download`,
+    `chevron-left` ↔ `chevron-right`, `user-x` ↔ `user-check`.
+  */
+
+  // To'xtatish (jonli dars yozuvi, video). `play` bilan bir o'lchamda ko'rinsin
+  // uchun to'rtburchak — ikki yupqa chiziq 1.75px da "sinib" ketardi.
+  pause: 'M6 4h4v16H6z M14 4h4v16h-4z',
+
+  // "Ko'chirish" (o'quvchini boshqa guruhga): ikki yo'nalishli almashinuv.
+  'arrow-right-left': 'M8 3L4 7l4 4 M4 7h16 M16 21l4-4-4-4 M20 17H4',
+
+  // Guruhdan CHIQARISH — `user-check` ning teskarisi (o'sha odam shakli + ✕).
+  'user-x': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M17 8l5 5 M22 8l-5 5',
+
+  // Fayl yuklash — `download` ning aynan mirror'i (o'q yuqoriga, chiziq tepada).
+  upload: 'M12 21V9 M7 14l5-5 5 5 M4 4h16',
+
+  // Rasm biriktirmasi: ramka + quyosh + tog' (tanish "gallereya" shakli).
+  image:
+    'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z M21 15l-5-5L5 21',
+
+  // DARS VIDEOSI: ekran + ichida play. `camera` (videoqo'ng'iroq) dan farq
+  // qilishi shart — ikkisi bir sahifada yonma-yon turadi.
+  video: 'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M10 9l5 3-5 3V9z',
+
+  // Havolani UZISH (Telegram uzish, biriktirmani olib tashlash). Chizilgan
+  // chiziq (`M1 1l22 22`) — `mic-off`/`eye-off`/`wifi-off` bilan bir naqsh.
+  'link-off':
+    'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5 M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5 M1 1l22 22',
+
+  // Hamyon — to'lov/balans amallari (qoplama + qopqoq + qulf nuqtasi).
+  wallet:
+    'M3 7.5A2.5 2.5 0 0 1 5.5 5H18a1 1 0 0 1 1 1v1.5 M3 7.5v10A2.5 2.5 0 0 0 5.5 20H19a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H5.5A2.5 2.5 0 0 1 3 7.5z M16.5 14h.01',
+
+  // Izoh/eslatma — burchagi qayrilgan varaq. `file-text` dan FARQ QILADI
+  // (u yerda qayrilma yuqori-o'ngda, hujjat ma'nosida).
+  note: 'M4 4h16v11l-5 5H4z M15 20v-5h5 M8 9h8 M8 12.5h4',
+
+  // Orqaga o'tish (drawer ichidagi ko'p qadamli oqim) — `chevron-right` mirror'i.
+  'chevron-left': 'M15 18l-6-6 6-6',
 }
 </script>
 

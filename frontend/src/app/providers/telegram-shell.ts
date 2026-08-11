@@ -23,16 +23,21 @@ import {
  */
 
 /**
- * O'quvchi temasining foni (`style.css` dagi `[data-theme='student']` ->
- * `--color-ink-950`). Telegram sarlavhasi shu rangga bo'yaladi.
+ * Ilova sahifasining foni (`style.css` dagi `--color-ink-950`). Telegram
+ * sarlavhasi va foni shu rangga bo'yaladi.
  *
  * ★ QAYSI TEMA USTUN: Telegram foydalanuvchining O'Z temasini
- * (`themeParams`) taklif qiladi, biz uni O'QIMAYMIZ. O'quvchi ilovasining
- * rangi eski ilovadan aynan ko'chirilgan va tanib olinadigan belgi —
- * foydalanuvchining Telegram temasi uni bosib ketmasligi kerak. Aksincha:
- * Telegram elementlari BIZNING rangimizga moslashadi.
+ * (`themeParams`) taklif qiladi, biz uni O'QIMAYMIZ. Ilovaning rangi
+ * tanib olinadigan belgi — foydalanuvchining Telegram temasi uni bosib
+ * ketmasligi kerak. Aksincha: Telegram elementlari BIZNING rangimizga
+ * moslashadi.
+ *
+ * ★ 2026-08-10: qiymat eski navy `#051e2d` dan yorug' `#f4f6fb` ga
+ * o'tdi (`index.html` dagi `theme-color` va `StudentShell` bilan BIR XIL
+ * bo'lishi shart — aks holda Telegram sarlavhasi to'q, ilova ichi yorug'
+ * bo'lib, ekran ikkiga bo'linib ko'rinadi).
  */
-const STUDENT_BACKGROUND = '#051e2d'
+const STUDENT_BACKGROUND = '#f4f6fb'
 
 /**
  * "Orqaga" tugmasi KO'RINMAYDIGAN marshrutlar — pastki tab paneli

@@ -95,21 +95,37 @@ async function handleSubmit(): Promise<void> {
     v-else
     class="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10"
   >
-    <!-- Fon nuri -->
+    <!--
+      Fon nuri. Ilgari QOTIB QOLGAN yashil edi (`rgba(47,158,65,.18)` — eski
+      `--accent: #2f9e41`), ya'ni brend indigo bo'lgach kirish sahifasi
+      ilovaning qolgan qismidan boshqa rangda qolardi. Endi tokendan.
+
+      Yorug' fonda shaffoflik PASAYTIRILDI (18%/10% -> 7%/5%) va
+      `opacity-60` olib tashlandi: oq sirtda bir xil foiz nurni "bo'yoq
+      dog'i" darajasiga chiqaradi.
+    -->
     <div
-      class="pointer-events-none fixed inset-0 opacity-60"
+      class="pointer-events-none fixed inset-0"
       aria-hidden="true"
       style="
         background:
-          radial-gradient(60rem 40rem at 20% -10%, rgba(47, 158, 65, 0.18), transparent 60%),
-          radial-gradient(40rem 30rem at 90% 110%, rgba(34, 197, 94, 0.1), transparent 60%);
+          radial-gradient(
+              60rem 40rem at 20% -10%,
+              color-mix(in oklab, var(--color-brand-500) 7%, transparent),
+              transparent 60%
+            ),
+          radial-gradient(
+            40rem 30rem at 90% 110%,
+            color-mix(in oklab, var(--color-violet-500) 5%, transparent),
+            transparent 60%
+          );
       "
     />
 
     <div class="relative w-full max-w-sm">
       <div class="mb-7 text-center">
         <div
-          class="mx-auto flex size-12 items-center justify-center rounded-xl bg-brand-500 text-lg font-bold text-white"
+          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-bold text-white shadow-sm"
         >
           Z
         </div>
@@ -121,8 +137,13 @@ async function handleSubmit(): Promise<void> {
         </p>
       </div>
 
+      <!--
+        `shadow-2xl shadow-black/40` YORUG' temada juda og'ir: oq forma
+        ostidagi qora bulut "yopishqoq" ko'rinadi. `shadow-lg` — yumshoq
+        soya tokeni (`style.css`).
+      -->
       <form
-        class="rounded-2xl bg-ink-900 p-6 shadow-2xl shadow-black/40 ring-1 ring-inset ring-line"
+        class="rounded-[1.25rem] bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line"
         novalidate
         @submit.prevent="handleSubmit"
       >
@@ -149,7 +170,7 @@ async function handleSubmit(): Promise<void> {
               autocomplete="email"
               required
               placeholder="ism@zinnur.uz"
-              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-dim focus:outline-none focus:ring-1 focus:ring-brand-500"
+              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
           </div>
         </label>
@@ -170,11 +191,15 @@ async function handleSubmit(): Promise<void> {
               autocomplete="current-password"
               required
               placeholder="••••••••"
-              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-16 text-sm text-slate-100 ring-1 ring-inset ring-line transition-colors placeholder:text-dim focus:outline-none focus:ring-1 focus:ring-brand-500"
+              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-16 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
+            <!--
+              `hover:bg-white/5` oq sirtda umuman ko'rinmaydi; maydon foni
+              `ink-950` bo'lgani uchun hover bir daraja to'qroq — `ink-750`.
+            -->
             <button
               type="button"
-              class="absolute inset-y-0 right-2 my-auto h-7 rounded-lg px-2 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
+              class="absolute inset-y-0 right-2 my-auto h-7 rounded-lg px-2 text-[11px] font-medium text-slate-400 transition-colors hover:bg-ink-750 hover:text-slate-200"
               @click="showPassword = !showPassword"
             >
               {{ showPassword ? 'Yashirish' : 'Ko‘rsatish' }}

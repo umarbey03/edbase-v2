@@ -50,7 +50,7 @@ cd ~/Documents/Projects/zinnur-v2/backend
 
 # Build (NuGet keshi bilan ~2 s, keshsiz ~4 daqiqa)
 docker run --rm -v "$PWD":/src -w /src -v zinnur-nuget-cache:/root/.nuget/packages \
-  mcr.microsoft.com/dotnet/sdk:9.0 dotnet build Zinnur.sln -v q --nologo
+  mcr.microsoft.com/dotnet/sdk:9.0 dotnet build Zinnur.sln -v q --nologo --no-incremental
 
 # Testlar — jonli Postgres/Redis/MinIO ga ulanadi
 docker run --rm --add-host=host.docker.internal:host-gateway \
@@ -64,7 +64,9 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
   mcr.microsoft.com/dotnet/sdk:9.0 dotnet test Zinnur.sln --nologo -v q
 ```
 
-**Kutilgan natija: 621 unit + 413 integratsiya = 1034 test, 0 yiqilgan.**
+**Kutilgan natija (2026-08-11 da o'lchangan): `main` da 621 unit + 434
+integratsiya = 1055 test, 0 yiqilgan.** Hujjatdagi eski "413 / 1034" raqami
+noto'g'ri edi — har safar buyruqni yurgizib haqiqiy bazani o'lchang.
 
 ⚠️ `TEST_STORAGE_*` bermasangiz 5 ta fayl testi yiqiladi (MinIO'ga yetmaydi).
 ⚠️ `--no-incremental` MAJBURIY: Docker bind-mount'da inkremental build eski DLL
@@ -222,7 +224,12 @@ Enumlar (JSON'da SATR): `kind` = `Text|Number|Money|Toggle|Choice|Secret` ·
 7. **`reorder` TO'LIQ ro'yxat kutadi** (yetishmasa 400).
 8. **Redis kalitlari makon bilan** (`Redis:KeyPrefix`).
 9. **Tema `<html>` ga qo'yiladi**, karkas `<div>` iga emas (teleport).
-10. **Oltin fonda `text-white` ishlatmang** — kontrast ~1.9:1.
+10. ~~**Oltin fonda `text-white` ishlatmang** — kontrast ~1.9:1.~~
+    ❌ **2026-08-11 dan kuchda emas:** aksent indigo (`#4f4de8`), `on-brand`
+    hamma joyda oq. Ranglar `frontend/src/style.css` da yagona yorug' palitra;
+    qo'lda hisoblash o'rniga `frontend/scripts/contrast-audit.mjs` darvozasi
+    ishlatiladi (`exit 1` bilan yiqiladi). Batafsil:
+    `docs/YANGI_TALABLAR_REJASI.md` 1-bo'limi.
 11. **`DayOfWeek`:** eski Python dushanba=0, .NET yakshanba=0 →
     `dotnet = (python + 1) % 7`. Ma'lumot ko'chirishda MAJBURIY.
 12. **LiveKit ICE:** prod'da `NODE_IP=127.0.0.1` qolib ketsa media hech qachon

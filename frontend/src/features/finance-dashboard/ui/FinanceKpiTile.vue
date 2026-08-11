@@ -19,8 +19,13 @@ withDefaults(
   defineProps<{
     label: string
     value: string
-    /** Kartochka urg'u rangi — `model/finance-view.ts` dagi `KPI_COLORS`. */
-    color: string
+    /**
+     * Kartochkaning 3px YUQORI CHIZIG'I — `model/finance-view.ts` dagi
+     * `KPI_ACCENTS`. Faqat shu chiziq; RAQAM ENDI SIYOH RANGIDA (quyidagi
+     * izoh). Prop nomi `color` dan `accent` ga o'zgartirildi — aks holda
+     * "raqam ham shu rangda" degan yolg'on taassurot qolardi.
+     */
+    accent: string
     /** Yorliq ostidagi kichik izoh (eski `sub`). Bo'sh bo'lsa chizilmaydi. */
     sub?: string
   }>(),
@@ -31,11 +36,26 @@ withDefaults(
 <template>
   <BaseCard
     class="text-center"
-    :style="{ borderTopWidth: '3px', borderTopColor: color }"
+    :style="{ borderTopWidth: '3px', borderTopColor: accent }"
   >
+    <!--
+      🔴 RAQAM RANGSIZ (`slate-50` siyohi, 18.9:1). Ilgari `:style="{ color }"`
+      bilan urg'u rangida edi.
+
+      Sabab (`dataviz` qoidasi): "qiymat va yorliq SIYOH tokenlarida, rang esa
+      yonidagi BELGIDA". Qorong'i navy fonda rangli raqam TO'G'RI yechim edi —
+      u yerda yorqin rang o'qiladigan variant. Oq kartochkada teskarisi:
+      `#f2c84b` 1.71:1, `#22c55e` 2.03:1 berardi, ya'ni "Yig'ilish foizi" va
+      "Yig'ilgan" raqamlari amalda KO'RINMASDI. Ma'no yo'qolmaydi — rang
+      kartochkaning yuqori chizig'ida qoladi va yonida yorliq MATNI turadi
+      (rang hech qayerda YAKKA ma'no tashimaydi).
+
+      `tabular-nums` SAQLANADI, `dataviz` ning "katta raqam proporsional
+      bo'lsin" tavsiyasiga qaramay: kartochkalar setkada yonma-yon turadi va
+      raqamlar ustun bo'lib o'qiladi — o'zgaruvchan kenglikda ular "sakraydi".
+    -->
     <p
-      class="text-[26px] font-extrabold leading-[1.15] tabular-nums"
-      :style="{ color }"
+      class="text-[26px] font-extrabold leading-[1.15] tabular-nums text-slate-50"
       v-text="value"
     />
     <p

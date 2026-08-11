@@ -23,26 +23,54 @@ import { formatCountdown } from '@/shared/lib/datetime'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 
 /*
-  ★ JONLI DARS TEMASI — eski `live.html` AYNAN ustoz panelining tokenlarini
-  ishlatgan: `--bg:#092235`, `--accent:#ffcc33`, `--border:#1a476b`. Shuning
-  uchun yangi tema bloki yaratilmadi, `teacher` qayta ishlatiladi.
+  🔴 JONLI DARS SAHNASI QORONG'I QOLADI.
 
-  NIMA UCHUN SHU YERDA: jonli xona ikkala karkasdan ham TASHQARIDA (to'liq
-  ekran, yon menyusiz). Temasiz qolganda o'quvchi oltin ilovadan YASHIL
-  xonaga tushib qolardi — parite tekshiruvida shu topildi.
+  Ilova 2026-08-10 da yagona YORUG' temaga o'tdi, lekin video sahnasi bundan
+  MUSTASNO (`docs/YANGI_TALABLAR_REJASI.md` A5). Uch sabab:
+   1) ko'z charchaydi — kino qoidasi: video atrofi to'q bo'ladi;
+   2) ekran ulashishda oq ramka video kontrastini "yeydi";
+   3) hech bir jonli dars mahsuloti (Zoom, Meet, LiveKit) yorug' emas.
+
+  ★ BU ROL TEMASI EMAS, SIRT TEMASI — atribut nomi ham boshqa
+  (`data-surface`, `data-theme` EMAS), shuning uchun karkas qo'ygan
+  `data-theme` bilan to'qnashmaydi va uni saqlab-tiklash kerak emas
+  (ilgari shunday qilinardi, chunki xona `teacher` temasini o'zlashtirardi).
+  `style.css` da `[data-surface='stage']` ostida `ink-*`, `slate-*` va
+  semantik shkalalar to'q sirt uchun qayta belgilanadi; aksent indigo qoladi.
+
+  ★ ATRIBUT `<html>` GA QO'YILADI, sahifa ildiz `<div>` iga EMAS.
+  Sabab — `DAVOM_ETTIRISH.md` 6-bo'lim, 9-tuzoq: `SessionRecordingControl`
+  ning xato toasti `<Teleport to="body">` bilan chiziladi va sahifa
+  daraxtidan TASHQARIDA turadi; `<div>` da bo'lganda u to'q sahna ustida
+  YORUG' tema tokenlarida chiqardi. `<html>` da bo'lganda `<body>` fonining
+  o'zi ham to'q bo'ladi — iPhone'dagi overscroll oq chaqnab ketmaydi.
+
+  Bir vaqtda faqat BITTA jonli xona mount bo'ladi (marshrut daraxti shunday),
+  shuning uchun mount'da qo'yib unmount'da olib tashlash yetarli.
 */
-const LIVE_THEME = 'teacher'
-let previousTheme: string | undefined
+const STAGE_THEME_COLOR = '#0f1115'
+let previousThemeColor: string | null = null
 
 onMounted(() => {
-  previousTheme = document.documentElement.dataset['theme']
-  document.documentElement.dataset['theme'] = LIVE_THEME
+  document.documentElement.dataset['surface'] = 'stage'
+
+  /*
+    Mobil brauzer manzil paneli ham to'q bo'ladi. Karkaslar chiqishda
+    `theme-color` ni YORUG' qiymatga tiklaydi (`#f4f6fb`), ya'ni bu qator
+    bo'lmasa telefon ekranining yuqori chizig'i oq bo'lib, to'q xona
+    "qirqilgan" ko'rinardi.
+  */
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (meta !== null) {
+    previousThemeColor = meta.content
+    meta.content = STAGE_THEME_COLOR
+  }
 })
 
 onBeforeUnmount(() => {
-  // Karkasga qaytganda o'sha karkasning temasi tiklanadi (o'quvchi -> oltin).
-  if (previousTheme === undefined) delete document.documentElement.dataset['theme']
-  else document.documentElement.dataset['theme'] = previousTheme
+  delete document.documentElement.dataset['surface']
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (meta !== null && previousThemeColor !== null) meta.content = previousThemeColor
 })
 
 const route = useRoute()
@@ -529,7 +557,12 @@ onBeforeUnmount(() => {
         </div>
       </main>
 
-      <!-- Mobil uchun fon qoplamasi -->
+      <!--
+        Mobil uchun fon qoplamasi. `bg-black/60` ATAYLAB qoldirildi (yorug'
+        temaga o'tkazilmadi): bu ekran `[data-surface='stage']` ostida —
+        sahna baribir to'q, ostida esa video oqadi. Yorug' `slate-900/35`
+        qatlami u yerda videoni oqartirib, chat panelini "havoda" qoldirardi.
+      -->
       <div
         v-if="chatOpen"
         class="fixed inset-0 z-30 bg-black/60 lg:hidden"
