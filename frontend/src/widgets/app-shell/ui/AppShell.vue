@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { NotificationBell, useNotificationHub } from '@/features/notifications'
 import { AppIcon } from '@/shared/ui'
 
 import AppSidebar from './AppSidebar.vue'
@@ -76,6 +77,15 @@ onBeforeUnmount(() => {
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   if (meta !== null && previousThemeColor !== null) meta.content = previousThemeColor
 })
+
+/*
+  ★ BILDIRISHNOMA KANALI KARKAS DARAJASIDA (R35/R36) — `StudentShell`
+  dagi bilan AYNI qaror va AYNI sabab: qo'ng'iroqcha bu karkasda IKKI
+  joyda chiziladi (mobil sarlavha va yon menyu), ulanish esa YAGONA
+  bo'lishi kerak. Qo'ng'iroqchaning o'zi hub'ga ulanmaydi — u faqat
+  TanStack Query keshidan o'qiydi.
+*/
+useNotificationHub()
 
 const drawerOpen = ref(false)
 /** Drawer yopilgandan keyin fokus shu tugmaga qaytadi (klaviatura foydalanuvchisi uchun). */
@@ -185,6 +195,18 @@ async function handleLogout(): Promise<void> {
           class="min-w-0 flex-1 truncate text-sm font-semibold"
           v-text="pageTitle"
         />
+        <!--
+          R35/R36 — qo'ng'iroqcha TELEFON/PLANSHET sarlavhasida.
+
+          🔴 NEGA YON MENYUDAGISI YETARLI EMAS: telefonda yon menyu
+          DRAWER ichida, ya'ni yopiq turadi. Bildirishnoma nishoni esa
+          ta'rifi bo'yicha KO'RINIB turishi kerak — burger ostiga
+          yashiringan nishon hech qanday xabar bermasdi. Shuning uchun
+          bu yerda ham bor, `AppSidebar` dagisi esa `hidden lg:flex`
+          bilan faqat DESKTOPDA chiziladi — ikkalasi hech qachon birga
+          ko'rinmaydi.
+        -->
+        <NotificationBell />
         <!--
           R19 — yon panel bilan AYNAN bir xil rang (`text-brand-500`). Mobil
           sarlavhada nom yonma-yon `pageTitle` bilan turadi, shuning uchun

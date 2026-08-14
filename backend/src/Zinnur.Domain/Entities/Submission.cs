@@ -54,7 +54,23 @@ public class Submission : BaseEntity
     /// <summary>Muddatdan keyin topshirilganmi (baholashda hisobga olinadi).</summary>
     public bool IsLate { get; set; }
 
+    /// <summary>
+    /// O'QUVCHI biriktirgan fayllar.
+    ///
+    /// 🔴 USTOZNING TEKSHIRUV FAYLLARI BU YERDA EMAS —
+    /// <see cref="FeedbackFiles"/> da. Ular bitta kolleksiyaga qo'shilsa,
+    /// <c>MaxAttachments</c> sanog'i va javob formati tekshiruvi
+    /// (<c>AnswerFormats</c>) ustozning fayllarini ham o'quvchi yuborgan deb
+    /// hisoblardi; to'liq asoslash <see cref="SubmissionFeedbackFile"/> da.
+    /// </summary>
     public ICollection<SubmissionFile> Files { get; set; } = new List<SubmissionFile>();
+
+    /// <summary>
+    /// USTOZ/KURATOR tekshirishda biriktirgan fayllar (R37) — tuzatilgan
+    /// varaq surati, namuna talaffuzi, PDF sharh.
+    /// </summary>
+    public ICollection<SubmissionFeedbackFile> FeedbackFiles { get; set; } =
+        new List<SubmissionFeedbackFile>();
 
     // ---------------------------------------------------------------- hisoblanuvchi
 

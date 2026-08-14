@@ -604,6 +604,27 @@ public static class SettingsRegistry
             Maximum = 100m,
         },
 
+        // ================================================================ DARS YOZUVLARI (R5)
+
+        new()
+        {
+            Key = "recordings.visible_to_students",
+            Group = SettingGroup.Content,
+            DisplayName = "Dars yozuvlari o'quvchilarga ochiq",
+            Description =
+                "O'chirilsa \"Dars yozuvlari\" BO'LIMI o'quvchilar uchun BUTUNLAY yopiladi: "
+                + "ro'yxat bo'shaydi, \"O'quv\" ekranidagi kirish kartochkasi yo'qoladi va "
+                + "eski havola bilan ochishga urinish ham rad etiladi. "
+                + "⚠️ Yozib olishning O'ZIGA TEGMAYDI — darslar baribir yoziladi va o'quv "
+                + "bo'limi ularni ko'raveradi; faqat o'quvchiga ko'rsatilmaydi. "
+                + "★ Bu — ENG QO'POL kalit. Bitta guruhni yopish uchun guruh tahririda "
+                + "\"Yozuvlar o'quvchilarga ochiq\", bitta darsni yopish uchun esa "
+                + "yozuvlar ro'yxatidagi tugma ishlatiladi.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            DefaultValue = "true",
+        },
+
         // ================================================================ GURUH CHATI
         //
         // 🔴 BU IKKI KALIT MA'LUMOTNI DOIMIY O'CHIRADI. Registrdagi boshqa
@@ -916,6 +937,21 @@ public static class SettingsRegistry
         // qiymatni tahrirlardi.
         public const string ChatRetentionEnabled = "chat.retention_enabled";
         public const string ChatRetentionMonths = "chat.retention_months";
+
+        // ---------------------------------------------------------------- R5: yozuv ko'rinishi
+        //
+        // ★ NIMA UCHUN MIGRATSIYASIZ KALIT, YANGI USTUN EMAS: "butun bo'lim
+        //   yopilsin" (talabdagi *"entire part of records"*) — markaz
+        //   darajasidagi qaror va u yagona qiymat. Uni saqlash uchun jadval
+        //   ham, migratsiya ham kerak emas; buning ustiga admin panelida u
+        //   BIR SATR frontend kodisiz paydo bo'ladi (registr o'zi forma
+        //   quradi).
+        //
+        // ⚠️ HAR SO'ROVDA O'QILADI (`ISettingsResolver` keshi orqali), ishga
+        //   tushishda emas — ya'ni paneldan o'zgartirilsa DARHOL kuchga
+        //   kiradi. Aks holda "saqlandi" deyilib, o'quvchilarda hech nima
+        //   o'zgarmasdi.
+        public const string RecordingsVisibleToStudents = "recordings.visible_to_students";
     }
 
     /// <summary>

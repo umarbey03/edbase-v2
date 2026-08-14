@@ -22,12 +22,56 @@ public static class MessageText
     /// <exception cref="DomainException">Matn bo'sh.</exception>
     public static string Normalize(string? raw, int maxLength)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxLength, 1);
-
-        var text = (raw ?? string.Empty).Trim();
+        var text = NormalizeOptional(raw, maxLength);
 
         if (text.Length == 0)
             throw new DomainException("Xabar bo'sh bo'lishi mumkin emas.");
+
+        return text;
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 BO'SH MATNGA RUXSAT BERADIGAN VARIANT (R16b) — ONGLI QAROR
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Bugungacha loyihada "bo'sh xabar" degan tushuncha UMUMAN yo'q edi:
+    /// <see cref="Normalize"/> bo'sh matnni Domain darajasida rad etardi va
+    /// uchala chat ham matnni MAJBURIY deb bilardi.
+    ///
+    /// ★ NIMA UCHUN INVARIANT O'ZGARDI: R16b talabi — "telegram chat kabi
+    /// ... rasm, fayl yuklash". Telegram'da izohsiz surat MUTLAQO ODATIY
+    /// holat. Agar matn majburiy bo'lib qolsa, klient rasmni jo'natish
+    /// uchun bo'shliq yoki nuqta yozib yuborishga majbur bo'lardi — ya'ni
+    /// qoida buzilmasdi, faqat MA'NOSIZ ma'lumot bilan chetlab o'tilardi.
+    ///
+    /// 🔴 INVARIANT BEKOR QILINMADI, KO'CHIRILDI. "Xabarda hech nima
+    /// bo'lmasligi mumkin emas" qoidasi kuchida qoladi, faqat endi u
+    /// MATNGA emas, MAZMUNGA tegishli:
+    ///
+    ///     matn BO'SH bo'lsa -> kamida BITTA biriktirma bo'lishi SHART.
+    ///
+    /// Bu shart <see cref="Entities.GroupChatMessage.CreateWithAttachments"/>
+    /// da tekshiriladi va u YAGONA joy: oddiy
+    /// <see cref="Entities.GroupChatMessage.Create"/> avvalgidek bo'sh
+    /// matnni rad etadi, ya'ni "biriktirmasiz bo'sh xabar" yozishning yo'li
+    /// YO'Q. Aks holda bu metod ochiq eshik bo'lardi: bir kuni kimdir uni
+    /// oddiy matn yo'lida ishlatib, chatga bo'm-bo'sh qatorlar oqib
+    /// kirardi.
+    ///
+    /// ⚠️ <c>null</c> QAYTMAYDI, BO'SH SATR qaytadi. Sabab amaliy:
+    /// <c>GroupChatMessage.Body</c> ustuni NOT NULL bo'lib qoladi va DTO
+    /// hamda frontend uchun <c>string</c> bo'lib qolaveradi. Uni
+    /// <c>string?</c> ga aylantirish o'qish yo'llarining HAMMASIGA
+    /// (sahifalash, ko'chirma, realtime tekshiruvi) null-tekshiruv
+    /// qo'shishni talab qilardi — bittasi unutilsa bir kuni
+    /// <c>NullReferenceException</c> chatning butun sahifasini yiqitardi.
+    /// </summary>
+    public static string NormalizeOptional(string? raw, int maxLength)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxLength, 1);
+
+        var text = (raw ?? string.Empty).Trim();
 
         if (text.Length <= maxLength)
             return text;

@@ -83,6 +83,18 @@ watch(() => [props.open, props.assignment], resetForm, { immediate: true })
 const errors = computed(() => validateAssignmentForm(form.value))
 
 /**
+ * R33 — "Kim tekshiradi" tanlovi FAQAT guruh vazifasida.
+ *
+ * ★ TAHRIRLASHDA nishon `target` da EMAS (u faqat yaratishda tanlanadi) —
+ *   mavjud vazifaning nishonini server bermaydi deb o'ylash xato bo'lardi:
+ *   `AssignmentDto.groupId` allaqachon keladi. Shuning uchun ikki manba:
+ *   tahrirlashda DTO, yaratishda tanlangan nishon.
+ */
+const graderRoleVisible = computed(() =>
+  isEdit.value ? props.assignment?.groupId !== null : target.value.kind === 'group',
+)
+
+/**
  * Biriktirma yuklandi yoki o'chirildi.
  *
  * `saved` DARHOL emit qilinadi (formani saqlashni kutmasdan): fayl serverda
@@ -232,6 +244,7 @@ async function handleSubmit(): Promise<void> {
         v-model="form"
         :submitted="submitted"
         :disabled="isPending"
+        :show-grader-role="graderRoleVisible"
       />
 
       <!--

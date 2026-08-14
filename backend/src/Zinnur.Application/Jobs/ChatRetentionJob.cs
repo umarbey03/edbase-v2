@@ -1,7 +1,9 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Media;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
 
@@ -141,6 +143,7 @@ namespace Zinnur.Application.Jobs;
 public sealed class ChatRetentionJob(
     IApplicationDbContext db,
     ISettingsResolver settings,
+    IMediaStorage storage,
     TimeProvider clock,
     ChatRetentionSettings options,
     ILogger<ChatRetentionJob> logger) : IScheduledJob
@@ -280,6 +283,16 @@ public sealed class ChatRetentionJob(
             if (ids.Count == 0)
                 return (deleted, batches, false);
 
+            // 🔴 OMBOR AVVAL, BAZA KEYIN — R16b BIRIKTIRMALARI UCHUN.
+            //
+            // Tartib ATAYLAB teskari (loyihaning qolgan joylarida "avval
+            // baza, keyin ombor"): u yerda o'chirish FOYDALANUVCHI amali va
+            // yiqilgan omborda dangling qator qolmasligi muhimroq edi. Bu
+            // yerda esa qator o'chgach kalitni QAYTA TOPISHNING ILOJI YO'Q
+            // — vazifa avtomatik, hech kim qaytadan urinmaydi va obyekt
+            // R2'da MANGU qolardi. Batafsil: `GroupChatAttachment` izohi.
+            await PurgeAttachmentObjectsAsync(ids, ct).ConfigureAwait(false);
+
             deleted += await db.GroupChatMessages
                 .Where(m => ids.Contains(m.Id))
                 .ExecuteDeleteAsync(ct)
@@ -293,6 +306,79 @@ public sealed class ChatRetentionJob(
         }
 
         return (deleted, batches, true);
+    }
+
+    // ================================================================= biriktirmalar (R16b)
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 OMBORDAGI OBYEKTLARNI O'CHIRISH — YETIM QOLMASLIGI UCHUN
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// R16b dan keyin chat xabarida FAYL bo'lishi mumkin va u R2 da
+    /// PUL BILAN o'lchanadigan joy egallaydi. Baza esa R2 haqida hech nima
+    /// bilmaydi: <c>GroupChatAttachments</c> qatori kaskad bilan yo'qoladi,
+    /// obyekt esa qoladi. Tozalash SOATIGA bir marta yuradigan doimiy
+    /// jarayon ekanini hisobga olsak, bu bir martalik nuqson emas —
+    /// TO'PLANIB boradigan xarajat.
+    ///
+    /// ── NIMA UCHUN "TOPILMAGANI YIQITMAYDI" ────────────────────────────
+    ///
+    /// Ombor javob bermasa yoki sozlanmagan bo'lsa, vazifa TO'XTAMAYDI:
+    /// qatorlar baribir o'chiriladi va kalitlar LOGGA yoziladi.
+    ///
+    /// 🔴 Muqobil ("ombor tiklanmaguncha o'chirmaymiz") ANIQ YOMONROQ:
+    /// egasining talabi — yozishmalar O'CHIRILISHI (maxfiylik va joy), va
+    /// R2 nosozligi tufayli tozalash JIMGINA to'xtab qolsa, uni hech kim
+    /// sezmasdi (aynan shu tur nosozlik <c>ChatRetentionJob</c> sinf
+    /// izohida "jimgina to'xtash" deb ogohlantirilgan). Log qatori esa
+    /// operatorga aniq ish beradi: kalitlar ma'lum, ularni qo'lda o'chirsa
+    /// bo'ladi.
+    ///
+    /// ⚠️ SO'ROV FAQAT BIRIKTIRMASI BOR PAKETLARDA BAZAGA BORADI — yo'q,
+    /// aslida HAR paketda bitta arzon indeks so'rovi bo'ladi
+    /// (`IX_GroupChatAttachments_MessageId_Position`). Ko'p markazlarda
+    /// biriktirma kam, ya'ni natija odatda BO'SH ro'yxat va hech qanday
+    /// ombor chaqiruvi bo'lmaydi.
+    /// </summary>
+    private async Task PurgeAttachmentObjectsAsync(List<long> messageIds, CancellationToken ct)
+    {
+        var keys = await db.GroupChatAttachments.AsNoTracking()
+            .Where(a => messageIds.Contains(a.MessageId))
+            .Select(a => a.ObjectKey)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        if (keys.Count == 0) return;
+
+        if (!storage.IsConfigured)
+        {
+            // Ombor umuman sozlanmagan — obyektlar boshqa deployment'da
+            // bo'lishi mumkin. Kalitlarni yozib qo'yamiz va davom etamiz.
+            JobLog.ChatAttachmentsOrphaned(logger, keys.Count, string.Join(", ", keys));
+            return;
+        }
+
+        var failed = new List<string>();
+
+        foreach (var key in keys)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                // `DeleteAsync` IDEMPOTENT: obyekt yo'q bo'lsa xato bermaydi
+                // (`IMediaStorage` kelishuvi), ya'ni takroriy yurish xavfsiz.
+                await storage.DeleteAsync(key, ct).ConfigureAwait(false);
+            }
+            catch (ServiceUnavailableException)
+            {
+                failed.Add(key);
+            }
+        }
+
+        if (failed.Count > 0)
+            JobLog.ChatAttachmentsOrphaned(logger, failed.Count, string.Join(", ", failed));
     }
 
     // ================================================================= yordamchi

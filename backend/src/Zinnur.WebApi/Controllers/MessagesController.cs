@@ -67,6 +67,24 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
         return StatusCode(StatusCodes.Status201Created, created);
     }
 
+    /// <summary>
+    /// R40 — DARS savollari navbati (xodim uchun): o'quvchilar aynan kurs
+    /// darsi sahifasidan yozgan savollar, javobsizlar tepada va eng uzoq
+    /// kutgani birinchi.
+    ///
+    /// ★ ALOHIDA EKRAN EMAS, SARALANGAN KIRISH NUQTASI: har qator
+    /// <c>peerId</c> beradi va u AYNI yozishma endpointlariga olib boradi.
+    /// Ikkinchi xabar tizimi qurilmagan (sabab <c>IDirectMessageService</c>
+    /// izohida).
+    /// </summary>
+    /// <param name="take">1..100, standart 50.</param>
+    [HttpGet("lesson-questions")]
+    [ProducesResponseType<IReadOnlyList<LessonQuestionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<LessonQuestionDto>>> LessonQuestions(
+        [FromQuery] int take = 50, CancellationToken ct = default) =>
+        Ok(await messages.ListLessonQuestionsAsync(CurrentUserId, take, ct));
+
     /// <summary>Suhbatdagi kiruvchi xabarlarni "o'qildi" deb belgilaydi (idempotent).</summary>
     [HttpPost("conversations/{peerId:long}/read")]
     [ProducesResponseType<MarkReadResultDto>(StatusCodes.Status200OK)]

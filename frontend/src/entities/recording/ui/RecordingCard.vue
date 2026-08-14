@@ -9,6 +9,8 @@ import {
   formatRecordingSize,
   recordingStatusLabel,
   recordingStatusTone,
+  reviewVerdictLabel,
+  reviewVerdictTone,
 } from '../model/types'
 import type { Recording } from '../model/types'
 
@@ -23,9 +25,24 @@ import type { Recording } from '../model/types'
  *
  * ESKISIDAN OLIB TASHLANGANLARI VA SABABI:
  *  • ustoz avatari va ismi — `RecordingListItemDto` da dars EGASI yo'q;
- *  • "Ko'rilmagan / Tasdiqlandi / Muammo bor" nishoni va AI tahlil tugmasi —
- *    v2 backendida bunday maydon ham, endpoint ham yo'q. O'rniga TEXNIK holat
- *    ("Yozilmoqda", "Xato") ko'rsatiladi: u haqiqiy va foydali.
+ *
+ * ★★ QAYTA TIKLANDI (R29, 2026-08-14): "Ko'rilmagan / Tasdiqlandi /
+ *    Muammo bor" nishoni va tahlil tugmasi. Ilgari bu yerda ular
+ *    "v2 backendida bunday maydon ham, endpoint ham yo'q" degan izoh
+ *    bilan olib tashlangan edi — endi ikkalasi ham bor
+ *    (`SessionReview` entity'si va `/live-sessions/{id}/review`).
+ *
+ *    ⚠️ ESKISIDAN FARQ: nishon "AI tahlili" emas, O'QUV BO'LIMI XODIMI
+ *    yozgan xulosa. Eski ilovadagi nom chalg'ituvchi edi.
+ *
+ *    🔴 NISHON O'QUVCHIDA CHIZILMAYDI va bu shart komponent ichida
+ *    tekshirilmaydi: server o'quvchiga `hasReview: false` beradi, ya'ni
+ *    `v-if` o'z-o'zidan yopiladi. Chegara SERVERDA (`RecordingService`)
+ *    — bu yerda faqat uning natijasi o'qiladi.
+ *
+ *    TEXNIK holat nishoni ("Yozilmoqda", "Xato") HAM QOLADI: u boshqa
+ *    savolga javob beradi ("fayl bormi?"), sifat nishoni esa
+ *    ("dars qanday o'tdi?"). Ikkalasi bir vaqtda ma'noli.
  *
  * ▶ tugmasi ichidagi ikonka `text-on-brand` — brend fonidagi matn rangi
  * tokenda turadi (hozir oq, indigo fonda 5.9:1). `text-white` yozib
@@ -39,11 +56,30 @@ const props = withDefaults(
     groupName?: string
     /** Dars jadval bo'yicha qachon boshlangani. Bo'sh bo'lsa yozuv sanasi ishlatiladi. */
     scheduledStart?: string
+    /**
+     * Xodim ko'rinishimi: sifat nishoni va ko'rinish kaliti FAQAT shunda
+     * chiziladi (R29 / R5).
+     *
+     * ⚠️ QULAYLIK BAYROG'I, RUXSAT EMAS. O'quvchiga server `hasReview`
+     * ni `false` beradi va ko'rinish endpointi `403` qaytaradi — ya'ni
+     * `staff` noto'g'ri `true` bo'lsa ham hech narsa oshkor bo'lmaydi va
+     * hech narsa o'zgarmaydi.
+     */
+    staff?: boolean
   }>(),
-  { groupName: '', scheduledStart: '' },
+  { groupName: '', scheduledStart: '', staff: false },
 )
 
-const emit = defineEmits<{ play: [recordingId: number] }>()
+const emit = defineEmits<{
+  play: [recordingId: number]
+  /**
+   * R29: sifat tahlilini ochish. DARS id'si uzatiladi, yozuv id'si emas —
+   * tahlil DARSGA bog'langan (sabab: `SessionReview` entity'si izohi).
+   */
+  review: [sessionId: number]
+  /** R5: ko'rinishni almashtirish. Ikkinchi argument — YANGI holat. */
+  visibility: [recordingId: number, visible: boolean]
+}>()
 
 const duration = computed(() => formatRecordingDuration(props.recording.durationSeconds))
 const size = computed(() => formatRecordingSize(props.recording.sizeBytes))
@@ -67,6 +103,15 @@ function play(): void {
   if (!playable.value) return
   emit('play', props.recording.id)
 }
+
+/*
+  ★ NISHON UCHTA HOLATNI KO'RSATADI, LEKIN MANBA IKKITA MAYDON:
+  `hasReview === false` va `reviewStatus === 'NotReviewed'` FOYDALANUVCHI
+  UCHUN bir xil ("hali xulosa yo'q"), shuning uchun ikkalasi ham
+  "Ko'rilmagan" beradi (sabab: `reviewVerdictLabel` izohi).
+*/
+const reviewLabel = computed(() => reviewVerdictLabel(props.recording.reviewStatus))
+const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus))
 </script>
 
 <template>
@@ -186,6 +231,65 @@ function play(): void {
           class="mt-2.5 rounded-md border-l-2 border-rose-500 bg-rose-500/10 px-2 py-1.5 text-[11px] leading-relaxed text-rose-200"
           v-text="errorText"
         />
+      </div>
+
+      <!--
+        ══════════════════════════════════════════════════════════════════
+         R29 + R5 — XODIM QATORI
+        ══════════════════════════════════════════════════════════════════
+
+        🔴 BUTUN BLOK `staff` GA BOG'LANGAN, LEKIN U YAGONA HIMOYA EMAS:
+           `hasReview` o'quvchiga har doim `false`, ko'rinish endpointi esa
+           unga `403` beradi. Ya'ni bayroq — QULAYLIK (foydasiz tugma
+           ko'rsatilmasin), chegara emas.
+      -->
+      <div
+        v-if="staff"
+        class="flex flex-wrap items-center gap-1.5 border-t border-line pt-2.5"
+      >
+        <button
+          type="button"
+          class="inline-flex min-h-9 items-center gap-1 rounded-lg px-1.5 transition-colors hover:bg-ink-800"
+          :title="recording.hasReview ? 'Sifat tahlilini ochish' : 'Tahlil yozish'"
+          @click="emit('review', recording.sessionId)"
+        >
+          <BaseBadge :tone="reviewTone">
+            {{ reviewLabel }}
+          </BaseBadge>
+          <AppIcon
+            name="chevron-right"
+            :size="12"
+            class="text-dim"
+          />
+        </button>
+
+        <!--
+          ★ KO'RINISH KALITI. Yorliq HOZIRGI holatni emas, BOSILGANDA NIMA
+            BO'LISHINI aytadi ("Yashirish" -> yashiradi): tugma yorlig'i
+            buyruq bo'lishi kerak, holat ko'rsatkichi emas — aks holda
+            xodim teskarisini bosardi.
+        -->
+        <button
+          type="button"
+          class="ml-auto inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition-colors"
+          :class="
+            recording.isVisibleToStudents
+              ? 'text-slate-400 hover:bg-ink-800'
+              : 'text-amber-300 hover:bg-amber-500/10'
+          "
+          :title="
+            recording.isVisibleToStudents
+              ? 'Yozuv o‘quvchilarga ochiq'
+              : 'Yozuv o‘quvchilardan yashirilgan'
+          "
+          @click="emit('visibility', recording.id, !recording.isVisibleToStudents)"
+        >
+          <AppIcon
+            :name="recording.isVisibleToStudents ? 'eye' : 'eye-off'"
+            :size="13"
+          />
+          {{ recording.isVisibleToStudents ? 'Yashirish' : 'Ochish' }}
+        </button>
       </div>
 
       <div class="mt-auto flex items-center justify-between gap-2 border-t border-line pt-2.5">

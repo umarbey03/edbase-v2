@@ -98,6 +98,47 @@ public interface IAssignmentService
     /// <exception cref="Common.Exceptions.ForbiddenException">Ruxsat yo'q.</exception>
     Task EnsureCanWriteAssignmentAsync(
         long assignmentId, long actorId, CancellationToken ct = default);
+
+    // ================================================================= R37
+    //
+    // ★ JAVOB DARAJASIDAGI IKKI DARVOZA — TEKSHIRUV FAYLLARI UCHUN.
+    //
+    // Yuqoridagi ikkitasi VAZIFA haqida ("kim shu vazifani ko'radi"),
+    // bulari esa BITTA JAVOB haqida ("kim shu o'quvchining ishini
+    // ko'radi", "kim uni baholaydi"). Farq muhim: kurs vazifasini HAR
+    // ustoz ko'radi, lekin begona guruhning JAVOBINI ko'rmaydi.
+    //
+    // 🔴 NIMA UCHUN QAYTA YOZILMADI: ikkala qoida ham allaqachon
+    // `AssignmentService` ICHIDA bor (`EnsureCanReadStudentWorkAsync` va
+    // `LoadSubmissionForStaffAsync`) va aynan ular fayl o'qish yo'lini
+    // qo'riqlaydi. Ularni ikkinchi servisda takrorlash eski tizimning
+    // X-6 kamchiligini (begona bolaning ishini ko'rish) qaytarib
+    // keltirishning eng ehtimolli yo'li bo'lardi.
+
+    /// <summary>
+    /// Javobni (o'quvchining ISHINI) KO'RISH huquqi.
+    ///
+    /// O'TADI: javobning EGASI; o'sha o'quvchiga mas'ul ustoz/kurator;
+    /// o'quv bo'limi va admin. Boshqa o'quvchi — SHARTSIZ 403.
+    /// </summary>
+    /// <exception cref="Common.Exceptions.NotFoundException">Javob yo'q.</exception>
+    /// <exception cref="Common.Exceptions.ForbiddenException">Ruxsat yo'q.</exception>
+    Task EnsureCanReadSubmissionAsync(
+        long submissionId, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Javobni BAHOLASH (va tekshiruv fayli biriktirish) huquqi —
+    /// o'qishdan qat'iyroq: o'quvchi HECH QACHON o'tmaydi.
+    ///
+    /// ★ AYNAN <c>GradeAsync</c> ishlatadigan yo'l bilan bir xil manba
+    /// (<c>LoadSubmissionForStaffAsync</c>) — ya'ni "baho qo'ya oladigan
+    /// odam" va "tekshiruv fayli qo'ya oladigan odam" DOIM bir xil
+    /// bo'lib qoladi.
+    /// </summary>
+    /// <exception cref="Common.Exceptions.NotFoundException">Javob yo'q.</exception>
+    /// <exception cref="Common.Exceptions.ForbiddenException">Ruxsat yo'q.</exception>
+    Task EnsureCanGradeSubmissionAsync(
+        long submissionId, long actorId, CancellationToken ct = default);
 }
 
 /// <summary>

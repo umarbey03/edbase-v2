@@ -1,5 +1,6 @@
 export {
   fetchConversations,
+  fetchLessonQuestions,
   fetchThread,
   markConversationRead,
   sendDirectMessage,
@@ -14,4 +15,10 @@ export {
   waitingHours,
   withDayLabels,
 } from './model/types'
+export {
+  askAboutLesson,
+  clearLessonQuestionContext,
+  useLessonQuestionContext,
+} from './model/lesson-question'
+export type { LessonQuestionContext } from './model/lesson-question'
 export type { DirectMessageRow } from './model/types'

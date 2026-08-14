@@ -1,4 +1,5 @@
 using Zinnur.Domain.Enums;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Application.Assignments.Dtos;
 
@@ -46,7 +47,18 @@ public sealed record AssignmentDto(
     int SubmissionCount,
     int GradedCount,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+
+    /* ===== R33 ===== */
+
+    /// <summary>
+    /// Shu vazifani KIM tekshiradi. <c>null</c> — guruh sozlamasi ishlaydi
+    /// (<c>Group.AssignmentGraderRole</c>). JSON'da SATR: <c>"Assistant"</c>.
+    ///
+    /// ★ FAQAT GURUH vazifasida to'ldirilishi mumkin — sabab
+    /// <c>Assignment.GraderRole</c> izohida.
+    /// </summary>
+    GroupStaffRole? GraderRole = null);
 
 /// <summary>
 /// Vazifa SHARTIGA biriktirilgan bitta fayl.
@@ -105,6 +117,17 @@ public sealed record StudentAssignmentDto(
     StudentSubmissionDto? MySubmission);
 
 /// <summary>O'quvchining o'z javobi (qisqa shakl).</summary>
+/// <param name="Files">O'QUVCHI biriktirgan fayllar.</param>
+/// <param name="FeedbackFiles">
+/// USTOZ tekshirishda biriktirgan fayllar (R37) — tuzatilgan varaq surati,
+/// namuna talaffuzi, PDF sharh.
+///
+/// 🔴 <paramref name="Files"/> BILAN ARALASHTIRILMASIN: bu ikkalasi
+/// BOSHQA-BOSHQA jadvaldan keladi va ularning yuklab olish manzillari ham
+/// boshqa (<c>/submissions/files/{id}</c> va
+/// <c>/submissions/feedback-files/{id}</c>). Sabab
+/// <c>SubmissionFeedbackFile</c> izohida.
+/// </param>
 public sealed record StudentSubmissionDto(
     long Id,
     SubmissionStatus Status,
@@ -117,7 +140,8 @@ public sealed record StudentSubmissionDto(
     bool AllowResubmit,
     string? ResubmitNote,
     bool IsLate,
-    IReadOnlyList<SubmissionFileDto> Files);
+    IReadOnlyList<SubmissionFileDto> Files,
+    IReadOnlyList<SubmissionFeedbackFileDto> FeedbackFiles);
 
 /// <summary>Baholash ro'yxati uchun to'liq javob (xodim ko'rinishi).</summary>
 public sealed record SubmissionDto(
@@ -137,7 +161,32 @@ public sealed record SubmissionDto(
     bool AllowResubmit,
     string? ResubmitNote,
     bool IsLate,
-    IReadOnlyList<SubmissionFileDto> Files);
+    IReadOnlyList<SubmissionFileDto> Files,
+    IReadOnlyList<SubmissionFeedbackFileDto> FeedbackFiles);
+
+/// <summary>
+/// USTOZ tekshirishda biriktirgan fayl (R37).
+///
+/// 🔴 <see cref="SubmissionFileDto"/> DAN FARQI — <c>ObjectKey</c> YO'Q.
+/// U yerda kalit tarixiy sabablarga ko'ra qolgan (eski klientlar), yangi
+/// maydonda esa uni takrorlashning ma'nosi yo'q: baytlar
+/// <c>GET /api/v1/submissions/feedback-files/{id}</c> orqali, ruxsat
+/// tekshiruvidan o'tib olinadi.
+/// </summary>
+/// <param name="FileName">
+/// Ustoz bergan nom (tozalangan). Hujjat uchun MUHIM — o'quvchi
+/// "tuzatilgan-varaq.pdf" ni ko'rishi kerak.
+/// </param>
+/// <param name="CreatedById">Kim biriktirgani (xodim Id'si).</param>
+public sealed record SubmissionFeedbackFileDto(
+    long Id,
+    long SubmissionId,
+    AttachmentKind Kind,
+    string ContentType,
+    string? FileName,
+    long SizeBytes,
+    long? CreatedById,
+    DateTimeOffset CreatedAt);
 
 /// <summary>
 /// Ilova qilingan fayl.
@@ -165,7 +214,14 @@ public sealed record CreateAssignmentRequest(
     decimal MaxScore = 5m,
     DateTimeOffset? DueAt = null,
     AnswerFormats AllowedFormats = AnswerFormats.Text | AnswerFormats.Image,
-    string? ImageKey = null);
+    string? ImageKey = null,
+
+    /// <summary>
+    /// R33 — shu vazifaning tekshiruvchisi. <c>null</c> (standart) — guruh
+    /// sozlamasi ishlaydi. KURS vazifasida to'ldirilsa 409 (sabab
+    /// <c>Assignment.GraderRole</c> izohida).
+    /// </summary>
+    GroupStaffRole? GraderRole = null);
 
 /// <summary>
 /// Tahrirlash. Vazifa NISHONI (guruh yoki dars) o'zgartirilmaydi — bu boshqa
@@ -177,7 +233,10 @@ public sealed record UpdateAssignmentRequest(
     decimal MaxScore = 5m,
     DateTimeOffset? DueAt = null,
     AnswerFormats AllowedFormats = AnswerFormats.Text | AnswerFormats.Image,
-    string? ImageKey = null);
+    string? ImageKey = null,
+
+    /// <summary>R33 — tekshiruvchi (<c>null</c> = guruh sozlamasi).</summary>
+    GroupStaffRole? GraderRole = null);
 
 public sealed record GradeSubmissionRequest(decimal Score, string? Feedback = null);
 

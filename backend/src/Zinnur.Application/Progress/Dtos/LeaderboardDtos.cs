@@ -35,11 +35,25 @@ public enum LeaderboardScope
 /// <c>Rows</c> tartibiga qarab chizsin, <c>Rank</c> ni esa YORLIQ sifatida
 /// ko'rsatsin.
 /// </param>
-/// <param name="Total">Yakuniy ball 0..100 (uch mezon o'rtachasi).</param>
+/// <param name="Total">Yakuniy ball 0..100 (MAVJUD mezonlar o'rtachasi).</param>
 /// <param name="AttendancePercent"><c>null</c> — shu oyda o'tilgan dars yo'q.</param>
 /// <param name="AssignmentPercent"><c>null</c> — shu oyda baholangan vazifa yo'q.</param>
 /// <param name="TestPercent"><c>null</c> — shu oyda topshirilgan test yo'q.</param>
 /// <param name="IsMe">Bu qator so'rov yuborgan foydalanuvchiniki.</param>
+/// <param name="LessonPercent">
+/// DARS BAHOSI foizi (R24). <c>null</c> — shu oyda dars bahosi yo'q.
+///
+/// ★ <paramref name="AssignmentPercent"/> BILAN ARALASHTIRILMAYDI: u
+/// topshirilgan ISHNING bahosi, bu esa DARSNING bahosi (topshirilgan ish
+/// umuman bo'lmasligi mumkin).
+///
+/// 🔴 MAYDON ENG OXIRIDA, <paramref name="IsMe"/> DAN HAM KEYIN — bu
+/// ataylab qilingan noqulaylik. Sabab: bu yozuv Redis'da JSON bo'lib
+/// saqlanadi (<c>CachedLeaderboard</c>) va pozitsion o'rtaga qo'shilgan
+/// maydon eski keshdagi qatorlarni jimgina SURIB yuborardi. Standart
+/// qiymat bilan oxirida turgani esa eski JSON'ni ham to'g'ri o'qiydi
+/// (yo'q maydon = <c>null</c> = "dars bahosi yo'q").
+/// </param>
 public sealed record LeaderboardRowDto(
     long StudentId,
     string StudentName,
@@ -48,7 +62,8 @@ public sealed record LeaderboardRowDto(
     decimal? AttendancePercent,
     decimal? AssignmentPercent,
     decimal? TestPercent,
-    bool IsMe);
+    bool IsMe,
+    decimal? LessonPercent = null);
 
 /// <summary>
 /// Guruhning bir oylik reyting jadvali.

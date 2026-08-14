@@ -223,3 +223,55 @@ export function fetchAssignmentAttachmentFile(
     headers: { Accept: '*/*' },
   })
 }
+
+/* ==========================================================================
+   R37 · USTOZNING TEKSHIRUV FAYLLARI (rasm / ovoz / PDF)
+
+   Talab: *"student uchun ham teacher uchun ham vazifada fayl va rasm
+   jo'natish mumkin bo'lsin"*. O'quvchi tomoni allaqachon ishlaydi
+   (`submitAssignment`), bu esa TESKARI yo'nalish.
+
+   🔴 `gradeSubmission` TEGILMADI va bu ONGLI: u JSON qabul qiladi va uni
+   frontend ham, backend integratsion testlari ham shunday chaqiradi.
+   `multipart` ga o'tkazilsa HAR BIR mavjud chaqiruv 415 olardi. Shuning
+   uchun fayl ALOHIDA endpoint orqali ketadi va bahodan MUSTAQIL — uni
+   baho qo'yishdan oldin ham, keyin ham biriktirish mumkin.
+   ========================================================================== */
+
+/** `POST /api/v1/submissions/{id}/feedback-files` yo'li (`multipart/form-data`). */
+export function submissionFeedbackUploadPath(submissionId: number): string {
+  return `/api/v1/submissions/${submissionId}/feedback-files`
+}
+
+/**
+ * Tekshiruv fayli uchun `FormData`.
+ *
+ * 🔴 MAYDON NOMI AYNAN `file` (server imzosi: `IFormFile file`). Tur
+ * YUBORILMAYDI — server uni fayl MAZMUNIDAN aniqlaydi.
+ */
+export function buildSubmissionFeedbackForm(file: File): FormData {
+  const form = new FormData()
+  form.append('file', file)
+  return form
+}
+
+/** `DELETE /api/v1/submissions/feedback-files/{id}` — 204, qaytarib bo'lmaydi. */
+export function deleteSubmissionFeedbackFile(fileId: number): Promise<void> {
+  return http.delete<void>(`/api/v1/submissions/feedback-files/${fileId}`)
+}
+
+/**
+ * `GET /api/v1/submissions/feedback-files/{id}` — Blob.
+ *
+ * ★ O'QUVCHI HAM OLADI (ruxsat — javobni KO'RISH huquqi): R37 ning mohiyati
+ * aynan shu, ustoz qo'ygan tuzatish o'quvchiga yetib borishi kerak.
+ */
+export function fetchSubmissionFeedbackFile(
+  fileId: number,
+  options?: { signal?: AbortSignal },
+): Promise<DownloadedFile> {
+  return http.download(`/api/v1/submissions/feedback-files/${fileId}`, `fayl-${fileId}`, {
+    signal: options?.signal,
+    headers: { Accept: '*/*' },
+  })
+}

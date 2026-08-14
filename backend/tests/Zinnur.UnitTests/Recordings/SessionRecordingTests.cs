@@ -269,4 +269,97 @@ public sealed class SessionRecordingTests
 
         recording.StopRequestedAt.Should().Be(Now);
     }
+
+    // ================================================================= R5: ko'rinish
+
+    /// <summary>
+    /// 🔴 ENG MUHIM YAGONA TEST: standart qiymat <c>true</c>.
+    ///
+    /// U shunchaki xossani emas, MIGRATSIYA QARORINI qulflaydi. Bu qiymat
+    /// <c>false</c> ga o'zgartirilsa, deploy kunida HAR BIR o'quvchining
+    /// "Dars yozuvlari" bo'limi bo'shab qolardi va buni hech kim
+    /// nosozlikdan ajrata olmasdi. Sabab batafsil
+    /// <c>SessionRecording.IsVisibleToStudents</c> izohida.
+    /// </summary>
+    [Fact]
+    public void New_IsVisibleToStudents_SoExistingBehaviourIsPreserved()
+    {
+        var recording = New();
+
+        recording.IsVisibleToStudents.Should().BeTrue();
+        recording.VisibilityChangedById.Should().BeNull();
+        recording.VisibilityChangedAt.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Yashirish HAR QANDAY holatda ishlaydi — hali boshlanmagan yozuvda ham.
+    /// Bu <see cref="ShowToStudents_OnUnfinishedRecording_Throws"/> bilan
+    /// ATAYLAB assimetrik: "ko'rsatma" deyishning yo'li hech qachon yopiq
+    /// bo'lmasligi kerak.
+    /// </summary>
+    [Fact]
+    public void HideFromStudents_WorksInAnyState_BecauseItIsTheConsentEscapeHatch()
+    {
+        var recording = New();
+
+        recording.HideFromStudents(actorId: 7, Now);
+
+        recording.IsVisibleToStudents.Should().BeFalse();
+        recording.VisibilityChangedById.Should().Be(7);
+        recording.VisibilityChangedAt.Should().Be(Now);
+        recording.UpdatedAt.Should().Be(Now);
+    }
+
+    /// <summary>
+    /// ★ <c>Test.Publish()</c> DAGI AYNI NAQSH: u bo'sh testni, bu esa
+    /// tayyor bo'lmagan yozuvni rad etadi. Aks holda ro'yxatda bosilganda
+    /// DOIM xato beradigan qator paydo bo'lardi.
+    /// </summary>
+    [Fact]
+    public void ShowToStudents_OnUnfinishedRecording_Throws()
+    {
+        var recording = New();
+        recording.HideFromStudents(actorId: 7, Now);
+
+        var act = () => recording.ShowToStudents(actorId: 7, Now);
+
+        act.Should().Throw<DomainException>();
+        recording.IsVisibleToStudents.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ShowToStudents_OnCompletedRecording_RecordsWhoReopenedIt()
+    {
+        var recording = New();
+        recording.MarkCompleted("recordings/x.mp4", 10, 20, Now, Now);
+        recording.HideFromStudents(actorId: 7, Now);
+
+        recording.ShowToStudents(actorId: 9, Now.AddHours(1));
+
+        recording.IsVisibleToStudents.Should().BeTrue();
+
+        // Kim qayta ochgani SAQLANADI: "o'quv bo'limi yopganini faqat
+        // o'quv bo'limi ochadi" qoidasi AYNAN shu maydonga tayanadi.
+        recording.VisibilityChangedById.Should().Be(9);
+        recording.VisibilityChangedAt.Should().Be(Now.AddHours(1));
+    }
+
+    /// <summary>
+    /// Yashirilgan yozuv <c>IsPlayable</c> BO'LIB QOLADI.
+    ///
+    /// ★ BU ATAYLAB: <c>IsPlayable</c> — "fayl omborda bormi" degan TEXNIK
+    /// savol, ko'rinish esa SIYOSAT. Ikkalasini bitta xossaga yig'ish
+    /// yashirilgan yozuvni xodim uchun ham ochilmaydigan qilib qo'yardi —
+    /// holbuki o'quv bo'limi aynan uni ko'rib, xulosa yozishi kerak.
+    /// </summary>
+    [Fact]
+    public void HideFromStudents_DoesNotAffectIsPlayable_BecauseStaffStillNeedIt()
+    {
+        var recording = New();
+        recording.MarkCompleted("recordings/x.mp4", 10, 20, Now, Now);
+
+        recording.HideFromStudents(actorId: 7, Now);
+
+        recording.IsPlayable.Should().BeTrue();
+    }
 }

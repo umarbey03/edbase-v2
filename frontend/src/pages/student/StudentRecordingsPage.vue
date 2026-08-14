@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import {
+  fetchRecordingSection,
   formatRecordingDuration,
   formatRecordingSize,
   recordingItemTitle,
@@ -42,6 +44,34 @@ import { AppIcon, BaseBadge, BaseButton, DataStatus } from '@/shared/ui'
  * ichida o'zgarishsiz ko'rsatiladi — jonli tekshirilgan xatti-harakat.
  */
 const list = useRecordingList()
+
+/* ==========================================================================
+   R5 — BO'LIM YOPILGAN HOLATI
+   ========================================================================== */
+
+/**
+ * 🔴 KIRISH KARTOCHKASINI YASHIRISH YETARLI EMAS.
+ *
+ * "O'quv" ekranidagi kartochka bo'lim yopilganda chizilmaydi
+ * (`StudentLearnPage`), LEKIN bu sahifaga BOSHQA yo'llar bilan ham
+ * kelish mumkin: xatcho'p, brauzer tarixi, orqaga tugmasi. Shunda
+ * o'quvchi bo'sh ro'yxat va "Bu guruhda hali yozuv yo'q" degan matnni
+ * ko'rardi — bu YOLG'ON: yozuvlar bor, ular vaqtincha yopilgan.
+ *
+ * ★ SHU SABABLI ALOHIDA MATN: "hali yozuv yo'q" va "bo'lim yopilgan" —
+ * ikki xil holat va o'quvchi ular orasidagi farqni bilishi kerak
+ * (birinchisida kutadi, ikkinchisida o'quv bo'limiga murojaat qiladi).
+ *
+ * ⚠️ Bu MASLAHAT, chegara emas: yozuvni ochish serverda mustaqil
+ * tekshiriladi (`/recordings/{id}/link` -> 403).
+ */
+const sectionQuery = useQuery({
+  queryKey: ['recordings', 'section'],
+  queryFn: ({ signal }) => fetchRecordingSection({ signal }),
+})
+
+/** Xato bo'lsa OCHIQ deb hisoblanadi — tarmoq nosozligi bo'limni yopmasin. */
+const sectionOpen = computed(() => sectionQuery.data.value?.visible ?? true)
 
 const playingId = ref<number | null>(null)
 const playingTitle = ref('')
@@ -125,7 +155,18 @@ function play(recordingId: number, title: string): void {
       />
     </div>
 
+    <!--
+      Bo'lim yopilgan — bu BO'SH ro'yxat emas, boshqa holat (izohga qarang).
+    -->
+    <p
+      v-if="!sectionOpen"
+      class="rounded-[15px] border border-line bg-ink-900 px-5 py-8 text-center text-[13px] text-slate-400"
+    >
+      Dars yozuvlari hozircha yopiq. Savol bo‘lsa o‘quv bo‘limiga murojaat qiling.
+    </p>
+
     <DataStatus
+      v-else
       :pending="list.isPending.value"
       :error="list.errorMessage.value"
       :empty="list.items.value.length === 0"

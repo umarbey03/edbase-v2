@@ -3,7 +3,7 @@ import type { ComputedRef, Ref } from 'vue'
 
 import { isGroupedWith, startsNewDay } from '@/entities/message'
 import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
-import type { GroupChatMessageDto } from '@/shared/types'
+import type { GroupChatAttachmentDto, GroupChatMessageDto } from '@/shared/types'
 
 /** Render uchun tayyor qator. */
 export interface GroupChatRow {
@@ -17,6 +17,15 @@ export interface GroupChatRow {
   /** Avatar + ism ko'rsatilsinmi (ketma-ket xabarlar guruhlanadi). */
   showHeader: boolean
   isOwn: boolean
+  /**
+   * R16b · biriktirmalar (biriktirmasiz xabarda BO'SH massiv).
+   *
+   * ★ `?? []` SHU YERDA bir marta bajariladi: DTO'da maydon `| null`
+   * (hub orqali eski shakl kelishi mumkin), qator esa render uchun
+   * TAYYOR bo'lishi kerak — komponentda har chizishda null-tekshiruv
+   * yozilmasin.
+   */
+  attachments: readonly GroupChatAttachmentDto[]
 }
 
 /**
@@ -61,6 +70,7 @@ export function useGroupChatRows(
           va server uni har bir qabul qiluvchi uchun alohida bo'yay olmaydi.
         */
         isOwn: message.senderId === currentUserId.value,
+        attachments: message.attachments ?? [],
       })
     }
 

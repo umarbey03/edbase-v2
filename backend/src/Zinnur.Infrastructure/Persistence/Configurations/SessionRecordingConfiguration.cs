@@ -41,6 +41,43 @@ public sealed class SessionRecordingConfiguration : IEntityTypeConfiguration<Ses
         // o'zgarsa esa `RecordingStatus` izohidagi ogohlantirish ishlaydi.
         builder.Property(r => r.Status).HasConversion<int>();
 
+        // ============================================================
+        // 🔴 R5 — KO'RINISH BAYROG'I VA MAVJUD QATORLAR
+        //
+        // `HasDefaultValue(true)` MAJBURIY: usiz migratsiya `NOT NULL`
+        // ustunni `false` bilan to'ldirardi va deploy kunida BARCHA eski
+        // yozuvlar o'quvchilardan yo'qolardi. Qaror va uning sababi
+        // `SessionRecording.IsVisibleToStudents` izohida.
+        //
+        // ★ `HasSentinel(true)` — `UserConfiguration` dagi `IsActive`
+        //   TUZOG'INI AYNAN SHU YERDA YOPADI. EF qiymat "sentinel" ga
+        //   teng bo'lsa ustunni INSERT'dan tashlab yuboradi. Sentinel
+        //   standart holda CLR default (`false`) bo'lardi, ya'ni
+        //   ATAYLAB `false` qilib yaratilgan qator bazada `true` bo'lib
+        //   qolardi — jimgina yolg'on. Sentinel `true` bo'lgach mantiq
+        //   teskari va TO'G'RI bo'ladi: `true` tashlanadi (baza defaulti
+        //   ayni `true`), `false` esa DOIM ochiq yoziladi.
+        //
+        // ⚠️ `UserConfiguration` dagi izoh "HasDefaultValue ishlatmang"
+        //   deydi — u EF 9 dagi `HasSentinel` dan OLDIN yozilgan va
+        //   o'sha yerda mavjud qatorlarni to'ldirish talabi yo'q edi.
+        //   Bu yerda talab bor, shuning uchun tuzoq chetlab o'tilmaydi,
+        //   OSHKORA yopiladi.
+        // ============================================================
+        builder.Property(r => r.IsVisibleToStudents)
+            .HasDefaultValue(true)
+            .HasSentinel(true);
+
+        // Ko'rinishni oxirgi o'zgartirgan xodim — `User` ga ishora,
+        // navigatsiyasiz. `Restrict`: `RequestedBy` bilan AYNI qoida —
+        // "kim yopdi" degan javob xodim o'chirilsa ham yo'qolmasin, chunki
+        // aynan shu javobga qarab ustozning qayta ochishi to'siladi
+        // (`IRecordingService` dagi ustunlik qoidasi).
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(r => r.VisibilityChangedById)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Hisoblanuvchi xossalar — ustun EMAS (domain mantiqi).
         builder.Ignore(r => r.IsPlayable);
         builder.Ignore(r => r.IsFinished);

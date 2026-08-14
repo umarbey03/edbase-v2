@@ -752,8 +752,11 @@ function formatPercent(value: number | null): string {
       @close="detailRow = null"
     >
       <p class="text-xs text-slate-400">
-        Yakuniy ball uchta mezonning o‘rtachasi. “—” — shu oyda bu mezon
-        bo‘yicha ma’lumot yo‘q (nol emas).
+        <!-- R24 dan keyin mezon TO'RTTA, lekin son ATAYLAB yozilmadi:
+             "—" bo'lgan mezon o'rtachaga umuman kirmaydi, ya'ni aniq
+             son har oy o'zgarib turadi va yolg'on gapirardi. -->
+        Yakuniy ball mezonlarning o‘rtachasi. “—” — shu oyda bu mezon
+        bo‘yicha ma’lumot yo‘q (nol emas) va u o‘rtachaga kirmaydi.
       </p>
 
       <dl

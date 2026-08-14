@@ -1,5 +1,10 @@
 import { lookup } from '@/shared/lib/lookup'
-import type { RecordingDto, RecordingListItemDto, RecordingStatusName } from '@/shared/types'
+import type {
+  RecordingDto,
+  RecordingListItemDto,
+  RecordingStatusName,
+  SessionReviewVerdictName,
+} from '@/shared/types'
 
 export type Recording = RecordingDto
 export type RecordingListItem = RecordingListItemDto
@@ -41,6 +46,62 @@ export function recordingStatusLabel(status: string | null): string {
 export function recordingStatusTone(status: string | null): RecordingTone {
   if (status === null) return 'neutral'
   return lookup(STATUS_TONES, status, 'neutral')
+}
+
+/* ==========================================================================
+   R29 — SIFAT NAZORATI NISHONI (eski ilovadan tiklandi)
+   ========================================================================== */
+
+/**
+ * ★ BU MATNLAR ESKI ILOVADAN AYNAN OLINDI: "Ko'rilmagan / Tasdiqlandi /
+ * Muammo bor". Ular `RecordingCard.vue` izohida TARIXIY yozuv sifatida
+ * saqlanib qolgan edi — v2 da nishon olib tashlangan, chunki backendda
+ * na maydon, na endpoint bor edi. Endi ikkalasi ham bor va matnlar
+ * O'YLAB TOPILMADI: xodimlar aynan shu uch so'zga o'rgangan.
+ *
+ * ⚠️ UCH HOLAT, LEKIN TO'RT MANBA HOLATI:
+ *   • tahlil YO'Q (`hasReview === false`)      -> "Ko'rilmagan"
+ *   • tahlil bor, xulosasiz (`NotReviewed`)    -> "Ko'rilmagan"
+ *   • `Approved`                               -> "Tasdiqlandi"
+ *   • `HasIssue`                               -> "Muammo bor"
+ * Birinchi ikkitasi FOYDALANUVCHI UCHUN bir xil ("hali xulosa yo'q"),
+ * shuning uchun ular bitta yorliqni beradi.
+ */
+const REVIEW_LABELS: Record<SessionReviewVerdictName, string> = {
+  NotReviewed: 'Ko‘rilmagan',
+  Approved: 'Tasdiqlandi',
+  HasIssue: 'Muammo bor',
+}
+
+const REVIEW_TONES: Record<SessionReviewVerdictName, RecordingTone> = {
+  NotReviewed: 'neutral',
+  Approved: 'success',
+  HasIssue: 'danger',
+}
+
+/**
+ * Nishon yorlig'i. `null` (tahlil yo'q) ham "Ko'rilmagan" beradi — sabab
+ * yuqorida.
+ */
+export function reviewVerdictLabel(verdict: string | null): string {
+  if (verdict === null) return REVIEW_LABELS.NotReviewed
+  return lookup(REVIEW_LABELS, verdict, verdict)
+}
+
+export function reviewVerdictTone(verdict: string | null): RecordingTone {
+  if (verdict === null) return 'neutral'
+  return lookup(REVIEW_TONES, verdict, 'neutral')
+}
+
+/**
+ * Nishon UMUMAN chiziladimi.
+ *
+ * 🔴 O'QUVCHIDA HECH QACHON: server unga `hasReview: false` va
+ * `reviewStatus: null` beradi, ya'ni bu funksiya `false` qaytaradi.
+ * Chegara SERVERDA — bu yerda faqat uning natijasi o'qiladi.
+ */
+export function hasQualityReview(recording: Recording): boolean {
+  return recording.hasReview
 }
 
 /** Yozuv hali tugamagan — ro'yxat avtomatik yangilanib turishi kerak. */

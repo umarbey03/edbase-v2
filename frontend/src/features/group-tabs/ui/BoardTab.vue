@@ -58,8 +58,9 @@ function percentText(value: number | null): string {
         @retry="board.refetch()"
       >
         <!--
-          Telefon: kartochka. Oltita ustunning hammasi saqlanadi — o'rin va
-          ism birinchi qatorda, uchta mezon esa pastda uch ustunli setkada.
+          Telefon: kartochka. Jadvalning HAMMA ustuni saqlanadi — o'rin va
+          ism birinchi qatorda, mezonlar esa pastda ikki ustunli setkada
+          (R24 gacha uchta mezon va uch ustun edi).
           "Jami" ATAYLAB tepada, mezonlar bilan bir qatorda emas: reyting
           ro'yxatida ko'z avval o'rinni, keyin yakuniy ballni qidiradi.
 
@@ -89,7 +90,13 @@ function percentText(value: number | null): string {
               </span>
             </div>
 
-            <dl class="mt-2.5 grid grid-cols-3 gap-2 border-t border-line pt-2.5 text-center">
+            <!--
+              ★ R24 dan keyin mezon TO'RTTA — setka `grid-cols-2` ga
+              o'tdi, `grid-cols-4` ga EMAS: 375px ekranda to'rtta ustunda
+              "Dars bahosi" yorlig'i ikki qatorga sinib, kartochkalar
+              balandligi bir-biridan farq qilib qolardi.
+            -->
+            <dl class="mt-2.5 grid grid-cols-2 gap-2 border-t border-line pt-2.5 text-center">
               <div>
                 <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
                   Davomat
@@ -114,6 +121,14 @@ function percentText(value: number | null): string {
                   {{ percentText(row.testPercent) }}
                 </dd>
               </div>
+              <div>
+                <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                  Dars bahosi
+                </dt>
+                <dd class="mt-0.5 text-[13px] tabular-nums text-slate-400">
+                  {{ percentText(row.lessonPercent) }}
+                </dd>
+              </div>
             </dl>
           </li>
         </ul>
@@ -131,6 +146,8 @@ function percentText(value: number | null): string {
                 <th>Davomat</th>
                 <th>Vazifa</th>
                 <th>Test</th>
+                <!-- R24 · dars bahosi — reytingning to'rtinchi mezoni. -->
+                <th>Dars bahosi</th>
                 <th>Jami</th>
               </tr>
             </thead>
@@ -159,6 +176,9 @@ function percentText(value: number | null): string {
                 </td>
                 <td class="tabular-nums text-slate-400">
                   {{ percentText(row.testPercent) }}
+                </td>
+                <td class="tabular-nums text-slate-400">
+                  {{ percentText(row.lessonPercent) }}
                 </td>
                 <td class="font-bold tabular-nums text-slate-100">
                   {{ row.total }}

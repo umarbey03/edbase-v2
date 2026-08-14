@@ -244,7 +244,26 @@ internal static class WorldBuilder
     public static async Task<TestUser> CreateUserAsync(
         HttpClient admin, UserRole role, string prefix)
     {
-        var email = $"{prefix}-{Guid.NewGuid():N}"[..20] + "@zinnur.uz";
+        /*
+          🔴 KESISH PREFIKSGA QO'LLANADI, TASODIFIY QISMGA EMAS.
+
+          Ilgari bu qator `$"{prefix}-{Guid...}"[..20]` edi — ya'ni 20 belgi
+          prefiks BILAN BIRGA sanalardi. Uzun prefiksli testda ("izoh-…",
+          "staff-responsibility-…") tasodifiy qismdan atigi 2–3 belgi qolardi
+          va umumiy dev bazasida yozuvlar to'plangach email TO'QNASHARDI:
+          `POST /users` → 409 "Bu email allaqachon ro'yxatda", test esa 201
+          kutardi.
+
+          ★ Bu "flaky test" bo'lib ko'rinardi — ba'zi yurishlarda o'tib,
+          ba'zisida yiqilardi — chunki natija baza tarixiga bog'liq edi.
+          Sabab kodda emas, AYNAN shu kesishda.
+
+          Endi prefiks 8 belgigacha qisqaradi va GUID'dan doim 11 belgi
+          qoladi (16^11 ≈ 1.7·10^13 variant), ya'ni to'qnashuv amalda
+          bo'lmaydi. Email uzunligi o'zgarmadi — 20 + domen.
+        */
+        var slug = prefix.Length <= 8 ? prefix : prefix[..8];
+        var email = $"{slug}-{Guid.NewGuid():N}"[..20] + "@zinnur.uz";
 
         var response = await admin.PostAsJsonAsync("/api/v1/users", new
         {

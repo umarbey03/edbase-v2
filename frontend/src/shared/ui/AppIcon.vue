@@ -143,6 +143,13 @@ const PATHS: Record<IconName, string> = {
 
   // Orqaga o'tish (drawer ichidagi ko'p qadamli oqim) — `chevron-right` mirror'i.
   'chevron-left': 'M15 18l-6-6 6-6',
+
+  /*
+    R35/R36 — bildirishnoma qo'ng'iroqchasi: qo'ng'iroq tanasi + tili.
+    Pastdagi kichik yoy ("tili") ATAYLAB alohida bo'lak: usiz shakl 20px
+    da oddiy gumbazga o'xshab, `home` ikonkasi bilan chalkashardi.
+  */
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
 }
 </script>
 

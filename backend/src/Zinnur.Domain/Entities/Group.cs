@@ -1,6 +1,7 @@
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Exceptions;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Domain.Entities;
 
@@ -27,6 +28,35 @@ public class Group : BaseEntity
     public long? CourseId { get; set; }
 
     public Course? Course { get; set; }
+
+    /* ===== R21b · GURUH KATEGORIYASI =====
+
+       ★ NEGA ALOHIDA BLOK: bu faylga bir necha tarmoq AYNI vaqtda tegmoqda.
+       Mavjud maydonlar orasiga qistirilgan qator merge paytida to'qnashuv
+       beradi, uzluksiz blok esa bermaydi. */
+
+    /// <summary>
+    /// O'quv YO'NALISHI ("ATF", "Grammatika", "CEFR", "IELTS") — R21b.
+    ///
+    /// 🔴 <c>null</c> RUXSAT ETILADI VA BU MAJBURIY: talab kelganda bazada
+    /// allaqachon 33 ta guruh bor edi va ularning birortasida kategoriya
+    /// yo'q. Majburiy qilinsa migratsiya standart qiymat o'ylab topishga
+    /// majbur bo'lardi — ya'ni 33 guruh YOLG'ON yorliq olardi va uni
+    /// keyin qo'lda tozalash kerak bo'lardi.
+    ///
+    /// ⚠️ <see cref="CourseId"/> BILAN ARALASHTIRILMASIN: kurs — KONTENT
+    /// (modul/dars/gating), bu esa YORLIQ. To'liq chegara va ular
+    /// TAKRORLANIB qolishi mumkinligi haqidagi ochiq savol
+    /// <see cref="GroupCategory"/> sinfi izohida.
+    ///
+    /// Kategoriya o'chirilsa FK <c>ON DELETE SET NULL</c> qiladi: guruh
+    /// o'chib ketmaydi, shunchaki yorliqsiz qoladi (<c>GroupConfiguration</c>).
+    /// </summary>
+    public long? CategoryId { get; set; }
+
+    public GroupCategory? Category { get; set; }
+
+    /* ===== /R21b ===== */
 
     /// <summary>
     /// ========================================================================
@@ -107,6 +137,91 @@ public class Group : BaseEntity
 
     /// <summary>Darslar LiveKit orqali yozib olinsinmi.</summary>
     public bool RecordEnabled { get; set; }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// SHU GURUHNING YOZUVLARI O'QUVCHILARGA KO'RINADIMI (talab R5)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// ★ <see cref="RecordEnabled"/> NING TABIIY JUFTI, LEKIN BOSHQA
+    /// SAVOLGA JAVOB BERADI va ularni aralashtirish jiddiy xato bo'lardi:
+    ///
+    ///   • <c>RecordEnabled</c> — "dars YOZIB OLINSINMI" (Egress ishga
+    ///     tushadimi). O'chirilsa fayl UMUMAN yaratilmaydi.
+    ///   • bu bayroq — "yozilgan fayl O'QUVCHIGA ko'rsatilsinmi". Yozuv
+    ///     baribir olinadi va o'quv bo'limi uni ko'radi.
+    ///
+    /// Ya'ni ikkinchisi arxivni saqlab, ko'rinishni yopish imkonini
+    /// beradi — aynan R5 so'ragan narsa. Birinchisi bilan yopilsa arxiv
+    /// ham yo'qolardi va qaror QAYTARIB BO'LMAYDIGAN bo'lardi.
+    ///
+    /// ── NIMA UCHUN GURUH DARAJASI KERAK ─────────────────────────────────
+    ///
+    /// O'quv bo'limi amalda AYNAN guruh bilan ishlaydi ("ustozi
+    /// almashgan guruh", "qayta o'qitilayotgan oqim"). Bu kalitsiz bitta
+    /// guruhni yopishning ikki yo'li qolardi: global sozlamani o'chirish
+    /// (butun markazni yopardi) yoki o'nlab yozuvni birma-bir yopish.
+    ///
+    /// ★ STANDART <c>true</c> — bugungi xulq. Sabab batafsil
+    /// <c>SessionRecording.IsVisibleToStudents</c> izohida (u ham
+    /// <c>true</c>).
+    /// </summary>
+    public bool RecordingsVisibleToStudents { get; set; } = true;
+
+    /* ===== R33 + R40 · KIM MAS'UL — O'QUV BO'LIMI TANLAYDI =====
+
+       Alohida blok — bu faylga bir necha tarmoq parallel tegmoqda.
+
+       ★ QOIDANING O'ZI BU YERDA EMAS: u <c>StaffResponsibility</c> da,
+         chunki uni IKKI servis (baholash va yozishma) o'qiydi va uchinchi
+         nusxa paydo bo'lishi kerak emas. Bu yerda faqat SAQLASH.
+
+       ★ NIMA UCHUN GURUH DARAJASI — ikkala talab uchun ham. Shtat birligi
+         AYNAN guruh: "bu guruhda kurator kuchli, savollarni u oladi",
+         "bu oqimda ustoz o'zi baholaydi". KURS vazifasi esa
+         (<c>Assignment.ModuleLessonId</c>) o'nlab guruhga tegishli va
+         ularning har birida BOSHQA-BOSHQA odam o'tiradi — bayroq faqat
+         vazifada bo'lsa bitta tanlov hammasini birdan hal qilib qo'yardi.
+
+       ★ IKKI ALOHIDA USTUN, BITTA UMUMIY EMAS: markaz ularni amalda
+         ALOHIDA taqsimlaydi (savollarga kurator, baholashga ustoz) va
+         standart qiymatlari ham HAR XIL bo'lishi SHART — pastdagi
+         izohlarga qarang. */
+
+    /// <summary>
+    /// R33 — bu guruhning topshirilgan ishlarini KIM tekshiradi.
+    ///
+    /// ★ STANDART <see cref="GroupStaffRole.Both"/> — BUGUNGI xatti-harakat
+    /// (<c>AssignmentService.StudentIdsOfStaff</c> ustoz va kuratorni bitta
+    /// OR ga qo'shadi). Ya'ni migratsiyadan keyin baholashda BIRORTA narsa
+    /// o'zgarmaydi; o'quv bo'limi guruhni ochib tanlagandagina o'zgaradi.
+    ///
+    /// ⚠️ <c>Academic</c>/<c>Admin</c> BU USTUNGA BO'YSUNMAYDI — ular
+    /// ustozning xatosini tuzatadi (sabab <c>AssignmentService</c> dagi
+    /// ruxsat jadvalida). Bu ustun faqat <c>Teacher</c>/<c>Assistant</c>
+    /// uchun.
+    /// </summary>
+    public GroupStaffRole AssignmentGraderRole { get; set; } = GroupStaffRole.Both;
+
+    /// <summary>
+    /// R40 — bu guruh o'quvchilarining darsga oid savollariga KIM javob
+    /// beradi (shaxsiy yozishma suhbatdoshi).
+    ///
+    /// ★ STANDART <see cref="GroupStaffRole.Assistant"/> — BUGUNGI
+    /// xatti-harakat: <c>CuratorDirectory</c> faqat kurator o'rindig'iga
+    /// qaraydi va ustoz <c>/ustoz/savollar</c> da bo'sh ro'yxat ko'radi.
+    /// Standart <c>Both</c> bo'lganda MIGRATSIYA KUNIYOQ har bir ustozning
+    /// pochtasiga butun guruh oqib kelardi.
+    ///
+    /// 🔴 <see cref="GroupStaffRole.Both"/> TANLANSA o'quvchida IKKITA
+    /// suhbatdosh bo'ladi (ustoz va kurator) — ya'ni ikkita ALOHIDA
+    /// yozishma. Bu ONGLI narx va uning xavfsizlik tomoni yaxshi:
+    /// <c>DirectMessage</c> kaliti <c>(StudentId, StaffId)</c> bo'lgani
+    /// uchun ustoz kuratorning yozishmasini KO'RA OLMAYDI va aksincha.
+    /// </summary>
+    public GroupStaffRole QuestionResponderRole { get; set; } = GroupStaffRole.Assistant;
+
+    /* ===== /R33 + R40 ===== */
 
     public ICollection<GroupMember> Members { get; set; } = new List<GroupMember>();
 

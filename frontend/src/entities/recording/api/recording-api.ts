@@ -4,6 +4,7 @@ import type {
   RecordingLinkDto,
   RecordingListItemDto,
   RecordingLiveStatusDto,
+  RecordingSectionDto,
 } from '@/shared/types'
 
 import type { RecordingRange } from '../model/types'
@@ -118,4 +119,47 @@ export function startRecording(sessionId: number): Promise<RecordingDto> {
  */
 export function stopRecording(sessionId: number): Promise<RecordingDto> {
   return http.post<RecordingDto>(`${SESSIONS_BASE}/${sessionId}/recordings/stop`)
+}
+
+/**
+ * `PATCH /api/v1/recordings/{id}/visibility` — yozuvni o'quvchilarga
+ * ochadi yoki yashiradi (talab R5).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ * 🔴 IKKI XATO JAVOBI IKKI XIL MA'NOGA EGA VA ULAR ARALASHTIRILMASIN:
+ *
+ *   • `403` — RUXSAT. Ikki sababi bor va ikkalasi ham server matnida
+ *     ochiq yozilgan: (a) begona guruhning darsi; (b) yozuvni O'QUV
+ *     BO'LIMI yopgan va uni faqat o'quv bo'limi qayta ocha oladi
+ *     ("eng qattig'i yutadi" qoidasi — `IRecordingService.SetVisibilityAsync`).
+ *   • `409` — HOLAT. Tayyor bo'lmagan yozuvni ochib bo'lmaydi
+ *     (`SessionRecording.ShowToStudents`, `Test.Publish()` bilan AYNI naqsh).
+ *
+ * ⚠️ YASHIRISH HECH QACHON `403`/`409` BERMAYDI (o'z guruhida): u
+ * roziligning zaxira chiqishi va har qanday holatda ishlashi shart.
+ * ════════════════════════════════════════════════════════════════════════
+ */
+export function updateRecordingVisibility(
+  recordingId: number,
+  visible: boolean,
+): Promise<RecordingDto> {
+  return http.patch<RecordingDto>(`${RECORDINGS_BASE}/${recordingId}/visibility`, { visible })
+}
+
+/**
+ * `GET /api/v1/recordings/section` — "yozuvlar bo'limi menga ochiqmi" (R5).
+ *
+ * ★ FAQAT O'QUVCHI INTERFEYSI UCHUN: "O'quv" ekranidagi kirish kartochkasi
+ * shu javobga qarab chiziladi. Xodimga har doim `{ visible: true }`.
+ *
+ * ⚠️ BU RUXSAT SO'ROVI EMAS, MASLAHAT. Server ro'yxat va havola
+ * yo'llarini bundan MUSTAQIL tekshiradi — klient `true` deb ishonsa ham
+ * yopilgan yozuvni ocha olmaydi.
+ */
+export function fetchRecordingSection(
+  options?: { signal?: AbortSignal },
+): Promise<RecordingSectionDto> {
+  return http.get<RecordingSectionDto>(`${RECORDINGS_BASE}/section`, {
+    signal: options?.signal,
+  })
 }

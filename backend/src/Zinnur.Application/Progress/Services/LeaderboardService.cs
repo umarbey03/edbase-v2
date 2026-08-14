@@ -319,7 +319,8 @@ public sealed class LeaderboardService(
     // ================================================================= hisob
 
     /// <summary>
-    /// Butun jadval — BESHTA agregat so'rov, guruh hajmidan qat'i nazar.
+    /// Butun jadval — OLTITA agregat so'rov, guruh hajmidan qat'i nazar
+    /// (R24 dan keyin: oldin beshta edi).
     ///
     /// Eski tizim ham shu qoidada ishlardi, lekin har mezonni alohida
     /// funksiyada hisoblab, o'quvchilar ro'yxatini har safar qayta
@@ -418,6 +419,45 @@ public sealed class LeaderboardService(
 
         var testByStudent = testRows.ToDictionary(r => r.StudentId, r => r.Ratio);
 
+        // ---------------------------------------------------------- 6) dars baholari (R24)
+        //
+        // ★ QAMROV DAVOMAT MEZONINIKIGA O'XSHASH, LEKIN AYNI EMAS —
+        //   farqlar ataylab:
+        //
+        //     • OY `Session.ScheduledStart` BO'YICHA, `GradedAt` bo'yicha
+        //       EMAS (vazifa mezonidan FARQI). Baho DARSGA tegishli, ya'ni
+        //       iyul darsining bahosi avgustda qo'yilsa ham IYULGA kiradi.
+        //       Aks holda ustoz oy oxirida bir yo'la baholaganda butun
+        //       guruhning bali keyingi oyga sakrab o'tardi.
+        //
+        //     • DARS TURI CHEKLANMAGAN (davomat maxrajidan FARQI): kurator
+        //       darsiga qo'yilgan baho ham ustozning bahosi kabi haqiqiy.
+        //       Davomatda `Teacher` filtri MAXRAJ uchun kerak edi ("nechta
+        //       dars o'tildi"), bu yerda esa maxraj yo'q — o'rtacha faqat
+        //       MAVJUD baholardan olinadi.
+        //
+        //     • BEKOR QILINGAN dars CHIQARILADI: u o'tilmagan, ya'ni
+        //       bahosi (agar bekor qilishdan oldin qo'yilgan bo'lsa)
+        //       endi ma'nosiz.
+        //
+        // 🔴 "BAHOSI YO'Q DARS" 0 EMAS — u o'rtachaga UMUMAN KIRMAYDI.
+        //    Aks holda ustoz faqat ba'zi darslarni baholaganda (odatiy
+        //    holat) qolgan hammasi nol bo'lib, dars mezoni butun guruhni
+        //    pastga tortardi.
+        var lessonGradeRows = await db.LessonGrades.AsNoTracking()
+            .Where(g => studentIds.Contains(g.StudentId)
+                     && g.Session!.GroupId == groupId
+                     && g.Session.Status != SessionStatus.Cancelled
+                     && g.Session.ScheduledStart >= startUtc
+                     && g.Session.ScheduledStart < endUtc)
+            .GroupBy(g => g.StudentId)
+            .Select(g => new RatioRow(
+                g.Key,
+                g.Average(x => x.Score / (x.MaxScore ?? LessonGrade.DefaultMaxScore))))
+            .ToListAsync(ct);
+
+        var lessonByStudent = lessonGradeRows.ToDictionary(r => r.StudentId, r => r.Ratio);
+
         // ---------------------------------------------------------- yig'ish
         var scores = members.ConvertAll(member => new LeaderboardScore(
             member.StudentId,
@@ -438,6 +478,10 @@ public sealed class LeaderboardService(
 
             TestPercent: testByStudent.TryGetValue(member.StudentId, out var test)
                 ? LeaderboardScore.PercentFromRatio(test)
+                : null,
+
+            LessonPercent: lessonByStudent.TryGetValue(member.StudentId, out var lesson)
+                ? LeaderboardScore.PercentFromRatio(lesson)
                 : null));
 
         var ranked = LeaderboardRanking.Rank(scores);
@@ -450,19 +494,20 @@ public sealed class LeaderboardService(
             r.Score.AttendancePercent,
             r.Score.AssignmentPercent,
             r.Score.TestPercent,
-            IsMe: false)).ToList();
+            IsMe: false,
+            r.Score.LessonPercent)).ToList();
 
         return new CachedLeaderboard(members.Count, rows);
     }
 
     /// <summary>
     /// ====================================================================
-    /// MARKAZ JADVALI — TO'RTTA AGREGAT SO'ROV, GURUHLAR SONIDAN QAT'I NAZAR
+    /// MARKAZ JADVALI — BESHTA AGREGAT SO'ROV, GURUHLAR SONIDAN QAT'I NAZAR
     /// ====================================================================
     ///
     /// MURAKKABLIK: qamrov 2 so'rov (o'quvchilar + a'zoliklar) + shu yerda
-    /// 4 so'rov = JAMI 6 ta borish-kelish. O'quvchi soniga ham, GURUH
-    /// soniga ham bog'liq EMAS.
+    /// 5 so'rov = JAMI 7 ta borish-kelish (R24 dan keyin; oldin 6 edi).
+    /// O'quvchi soniga ham, GURUH soniga ham bog'liq EMAS.
     ///
     /// ── 🔴 NIMA UCHUN GURUH JADVALLARINI QO'SHIB YUBORISH TANLANMADI ─────
     ///
@@ -612,6 +657,31 @@ public sealed class LeaderboardService(
 
         var testByStudent = testRows.ToDictionary(r => r.StudentId, r => r.Ratio);
 
+        // ---------------------------------------------------- 5) dars baholari (R24)
+        //
+        // ★ GURUH JADVALIDAGI SHARTNING AYNAN TARJIMASI, faqat "shu guruh"
+        //   o'rniga "shu markazning guruhlari".
+        //
+        // ★ KALIT — FAQAT O'QUVCHI, (guruh, o'quvchi) JUFTLIGI EMAS
+        //   (davomatdan FARQI). Sabab: bu mezonda MAXRAJ YO'Q — u
+        //   o'rtacha FOIZ, ya'ni ikki guruhda o'qiydigan o'quvchining
+        //   ikkala guruhdagi baholari birga o'rtachalanadi va bu to'g'ri.
+        //   Davomatda esa maxraj ASOSIY guruhniki edi, shuning uchun u
+        //   yerda juftlik shart edi.
+        var lessonGradeRows = await db.LessonGrades.AsNoTracking()
+            .Where(g => studentIds.Contains(g.StudentId)
+                     && groupIds.Contains(g.Session!.GroupId)
+                     && g.Session.Status != SessionStatus.Cancelled
+                     && g.Session.ScheduledStart >= startUtc
+                     && g.Session.ScheduledStart < endUtc)
+            .GroupBy(g => g.StudentId)
+            .Select(g => new RatioRow(
+                g.Key,
+                g.Average(x => x.Score / (x.MaxScore ?? LessonGrade.DefaultMaxScore))))
+            .ToListAsync(ct);
+
+        var lessonByStudent = lessonGradeRows.ToDictionary(r => r.StudentId, r => r.Ratio);
+
         // ---------------------------------------------------- yig'ish
         var scores = new List<LeaderboardScore>(audience.Students.Count);
 
@@ -639,6 +709,9 @@ public sealed class LeaderboardService(
                     : null,
                 TestPercent: testByStudent.TryGetValue(student.StudentId, out var test)
                     ? LeaderboardScore.PercentFromRatio(test)
+                    : null,
+                LessonPercent: lessonByStudent.TryGetValue(student.StudentId, out var lesson)
+                    ? LeaderboardScore.PercentFromRatio(lesson)
                     : null));
         }
 
@@ -655,7 +728,8 @@ public sealed class LeaderboardService(
             r.Score.AttendancePercent,
             r.Score.AssignmentPercent,
             r.Score.TestPercent,
-            IsMe: false)).ToList();
+            IsMe: false,
+            r.Score.LessonPercent)).ToList();
 
         return new CachedLeaderboard(audience.Students.Count, rows);
     }

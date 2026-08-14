@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import { ANSWER_FORMAT_OPTIONS } from '@/entities/assignment'
 import type { AnswerFormatName } from '@/entities/assignment'
+import type { GroupStaffRoleName } from '@/shared/types'
 import { BaseField } from '@/shared/ui'
 
 import { validateAssignmentForm } from '../model/assignment-form'
@@ -33,9 +34,38 @@ const props = withDefaults(
     submitted?: boolean
     /** Maydonlar o'chirilganmi (saqlash davom etayotganda). */
     disabled?: boolean
+    /**
+     * R33 — "Kim tekshiradi" tanlovi ko'rsatiladimi.
+     *
+     * ★ FAQAT GURUH vazifasida `true`. Kurs vazifasi o'nlab guruhga
+     *   taalluqli va ularning har birida boshqa xodim ishlaydi — server
+     *   u yerda 409 beradi, shuning uchun tanlov UMUMAN chizilmaydi.
+     *   Ko'rsatib, keyin xato berish eng yomon variant bo'lardi.
+     */
+    showGraderRole?: boolean
   }>(),
-  { submitted: false, disabled: false },
+  { submitted: false, disabled: false, showGraderRole: false },
 )
+
+/**
+ * R33 — tekshiruvchi variantlari.
+ *
+ * ★ "Guruh sozlamasi" ALOHIDA va BIRINCHI variant (`null`), "Ikkalasi ham"
+ *   emas. Farqi muhim: `null` guruh sozlamasiga ERGASHADI (o'quv bo'limi
+ *   guruhni keyin o'zgartirsa vazifa ham o'zgaradi), `Both` esa uni QOTIRIB
+ *   qo'yadi. Bitta variantga qo'shib yuborilsa "meros" tushunchasi
+ *   yo'qolardi.
+ */
+const GRADER_ROLE_OPTIONS: readonly { value: GroupStaffRoleName | null; label: string }[] = [
+  { value: null, label: 'Guruh sozlamasi bo‘yicha' },
+  { value: 'Teacher', label: 'Ustoz' },
+  { value: 'Assistant', label: 'Kurator' },
+  { value: 'Both', label: 'Ikkalasi ham' },
+]
+
+function selectGraderRole(raw: string): void {
+  patch({ graderRole: raw === '' ? null : (raw as GroupStaffRoleName) })
+}
 
 const emit = defineEmits<{ 'update:modelValue': [value: AssignmentFormState] }>()
 
@@ -165,6 +195,44 @@ const shown = computed(() => ({
             />
           </label>
         </div>
+      </BaseField>
+    </div>
+
+    <!--
+      ============================================================
+      R33 — SHU VAZIFANI KIM TEKSHIRADI
+      ============================================================
+
+      Loyiha egasi: *"vazifalarni tekshirishni dynamic qilish kerak, o'quv
+      bo'limi tanlaydi kurator yoki teacher tekshirishi kerakligini"*.
+
+      ⚠️ TANLOV BAHOLASH NAVBATINI KO'CHIRADI: tanlanmagan xodim javoblar
+      ro'yxatini UMUMAN ko'rmaydi (server `ListSubmissionsAsync` ni ham shu
+      qoida bilan filtrlaydi — aks holda u bajarib bo'lmaydigan navbat
+      ko'rardi). O'quv bo'limi va admin esa har doim baholay oladi — ular
+      ustozning xatosini tuzatishi kerak.
+    -->
+    <div
+      v-if="props.showGraderRole"
+      class="mt-3"
+    >
+      <BaseField
+        label="Kim tekshiradi"
+        hint="O‘quv bo‘limi va admin har doim tekshira oladi — bu tanlov ustoz va kuratorga tegishli."
+      >
+        <select
+          class="zn-input"
+          :value="props.modelValue.graderRole ?? ''"
+          :disabled="props.disabled"
+          @change="selectGraderRole(($event.target as HTMLSelectElement).value)"
+        >
+          <option
+            v-for="option in GRADER_ROLE_OPTIONS"
+            :key="option.label"
+            :value="option.value ?? ''"
+            v-text="option.label"
+          />
+        </select>
       </BaseField>
     </div>
   </div>

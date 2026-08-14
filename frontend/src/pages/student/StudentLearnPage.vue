@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
+import { fetchRecordingSection } from '@/entities/recording'
 import {
   countsTowardProgress,
   useStudentCourse,
@@ -25,6 +27,36 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  *   o'quvchi qayta o'rganishga majbur bo'lardi.
  */
 const course = useStudentCourse()
+
+/* ==========================================================================
+   R5 — "DARS YOZUVLARI" KIRISH KARTOCHKASI DINAMIK
+   ========================================================================== */
+
+/**
+ * Loyiha egasi: *"dars yozuvlari qismi student uchun dynamic bo'lishi
+ * kerak … ko'rinish yoki ko'rinmasligi, entire part of records"*.
+ *
+ * 🔴 KARTOCHKA HAM YASHIRILISHI SHART, FAQAT RO'YXAT EMAS. Bo'lim
+ * yopilganda kartochka qolsa, o'quvchi uni bosib ABADIY BO'SH sahifaga
+ * tushardi va buni ilovaning nosozligi deb o'ylardi — ya'ni sozlamani
+ * yoqqan xodim o'zi bilmagan holda "buzuq" ekran yasagan bo'lardi.
+ *
+ * ★ NEGA ALOHIDA SO'ROV, RO'YXATNI O'QIB KO'RISH EMAS: bo'sh ro'yxat
+ * IKKI xil ma'noga ega — "yopilgan" va "hali yozuv yo'q". Ikkinchisida
+ * kartochka QOLISHI kerak (ertaga yozuv paydo bo'ladi), birinchisida esa
+ * yo'q. Ro'yxat bu ikkisini ajrata olmaydi, bu endpoint esa aynan shu
+ * savolga javob beradi.
+ *
+ * ⚠️ XATO BO'LSA KARTOCHKA KO'RSATILADI (`?? true`): tarmoq nosozligi
+ * o'quvchidan bo'limni olib qo'ymasin. Eng yomon holatda u bo'sh sahifa
+ * ko'radi — bu kartochkaning "sababsiz yo'qolishi" dan ancha yaxshi.
+ */
+const sectionQuery = useQuery({
+  queryKey: ['recordings', 'section'],
+  queryFn: ({ signal }) => fetchRecordingSection({ signal }),
+})
+
+const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? true)
 
 /** Ochiq modul id'si. Boshida — hozirgi dars turgan modul. */
 const openModuleId = ref<number | null>(null)
@@ -414,6 +446,7 @@ function plannedCount(lessons: CourseLessonDto[]): number {
           kirish nuqtasi ham shu yerda. Pastki 5 tab TEGILMAGAN.
         -->
         <RouterLink
+          v-if="recordingsVisible"
           :to="{ name: 'student-recordings' }"
           class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
         >

@@ -116,14 +116,31 @@ public class GroupChatMessage : BaseEntity
     /// </summary>
     public UserRole SenderRole { get; set; }
 
+    /// <summary>
+    /// Xabar matni.
+    ///
+    /// ⚠️ R16b DAN KEYIN BO'SH SATR BO'LISHI MUMKIN — lekin FAQAT
+    /// biriktirmasi bor xabarda (izohsiz surat, Telegram'dagi kabi).
+    /// Ustun NOT NULL bo'lib qoladi; sabab va butun qaror
+    /// <see cref="MessageText.NormalizeOptional"/> izohida.
+    /// </summary>
     public required string Body { get; set; }
 
     public DateTimeOffset SentAt { get; set; }
 
+    /// <summary>
+    /// Biriktirilgan fayllar (rasm / ovoz / hujjat) — R16b.
+    ///
+    /// ★ Xabar bilan BITTA tranzaksiyada tug'iladi, ya'ni "egasiz
+    /// biriktirma" holati yo'q (sabab <see cref="GroupChatAttachment"/> da).
+    /// </summary>
+    public ICollection<GroupChatAttachment> Attachments { get; set; } =
+        new List<GroupChatAttachment>();
+
     // ---------------------------------------------------------------- xatti-harakat
 
     /// <summary>
-    /// Yangi xabar yaratadi: matn tozalanadi, bo'sh rad etiladi, uzuni
+    /// Yangi MATNLI xabar: matn tozalanadi, bo'sh rad etiladi, uzuni
     /// surrogat juftlikni BUZMASDAN qirqiladi (<see cref="MessageText"/>).
     ///
     /// ★ YANGI NORMALIZATSIYA YOZILMADI — mavjud <see cref="MessageText"/>
@@ -131,6 +148,11 @@ public class GroupChatMessage : BaseEntity
     /// to'g'ri kelgan xabar yolg'iz surrogat qoldirib, Postgres'da
     /// <c>U+FFFD</c> ga aylanardi. Qoida ikki nusxa bo'lsa himoya bittasida
     /// unutilardi.
+    ///
+    /// 🔴 BO'SH MATN AVVALGIDEK RAD ETILADI. Biriktirmali xabar uchun
+    /// ALOHIDA fabrika bor (<see cref="CreateWithAttachments"/>) — shu
+    /// tufayli "bo'sh matnga ruxsat" yumshatilishi FAQAT o'sha yo'lda
+    /// amal qiladi va bu yo'lga sizib o'ta olmaydi.
     /// </summary>
     /// <param name="now">Joriy vaqt — ARGUMENT (Domain soatni bilmaydi).</param>
     public static GroupChatMessage Create(
@@ -140,6 +162,69 @@ public class GroupChatMessage : BaseEntity
         string? senderName,
         UserRole senderRole,
         string? body,
+        DateTimeOffset now) =>
+        Build(
+            groupId, channel, senderId, senderName, senderRole,
+            MessageText.Normalize(body, MaxBodyLength), now);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// BIRIKTIRMALI XABAR (R16b) — MATN IXTIYORIY
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 SHU YERDA VA FAQAT SHU YERDA bo'sh matnga ruxsat beriladi, va u
+    /// SHARTSIZ emas: <paramref name="attachmentCount"/> kamida 1 bo'lishi
+    /// kerak. Ya'ni Domain invarianti "xabarda MAZMUN bo'lishi shart"
+    /// bo'lib qoladi, faqat mazmun endi matn YOKI fayl bo'lishi mumkin.
+    /// To'liq asoslash: <see cref="MessageText.NormalizeOptional"/> izohi.
+    ///
+    /// ⚠️ BIRIKTIRMALARNING O'ZI BU YERDA QO'SHILMAYDI — faqat SONI
+    /// tekshiriladi. Sabab: biriktirma yaratish uchun ombor kaliti kerak,
+    /// u esa faqat fayl R2 ga yozilgandan KEYIN ma'lum bo'ladi. Domain esa
+    /// omborni bilmaydi. Shuning uchun use-case avval fayllarni saqlaydi,
+    /// sonini shu metodga aytadi va qatorlarni <c>Attachments</c> ga
+    /// qo'shadi — hammasi bitta <c>SaveChanges</c> ichida.
+    /// </summary>
+    public static GroupChatMessage CreateWithAttachments(
+        long groupId,
+        GroupChatChannel channel,
+        long senderId,
+        string? senderName,
+        UserRole senderRole,
+        string? body,
+        int attachmentCount,
+        DateTimeOffset now)
+    {
+        if (attachmentCount <= 0)
+        {
+            throw new DomainException(
+                "Biriktirmasiz xabarda matn bo'lishi shart.");
+        }
+
+        if (attachmentCount > GroupChatAttachment.MaxPerMessage)
+        {
+            throw new DomainException(
+                $"Bitta xabarga ko'pi bilan {GroupChatAttachment.MaxPerMessage} ta fayl "
+                + "biriktiriladi.");
+        }
+
+        return Build(
+            groupId, channel, senderId, senderName, senderRole,
+            MessageText.NormalizeOptional(body, MaxBodyLength), now);
+    }
+
+    /// <summary>
+    /// Ikkala fabrikaning UMUMIY o'zagi: matndan TASHQARI barcha
+    /// tekshiruvlar. Nusxalansa, bir kuni ulardan birida "kanal ma'lummi"
+    /// yoki "muallif bormi" tekshiruvi tushib qolardi.
+    /// </summary>
+    private static GroupChatMessage Build(
+        long groupId,
+        GroupChatChannel channel,
+        long senderId,
+        string? senderName,
+        UserRole senderRole,
+        string body,
         DateTimeOffset now)
     {
         if (groupId <= 0)
@@ -158,7 +243,7 @@ public class GroupChatMessage : BaseEntity
             SenderId = senderId,
             SenderName = TrimName(senderName),
             SenderRole = senderRole,
-            Body = MessageText.Normalize(body, MaxBodyLength),
+            Body = body,
             SentAt = now,
             CreatedAt = now,
         };

@@ -1,13 +1,30 @@
 import { http } from '@/shared/api'
+import type { DownloadedFile } from '@/shared/api'
 import type {
   GroupChatChannelName,
   GroupChatMessageDto,
   GroupChatPageDto,
   GroupChatReadResultDto,
   GroupChatThreadDto,
+  GroupTypeName,
 } from '@/shared/types'
 
 import { GROUP_CHAT_PAGE_SIZE } from '../model/types'
+
+/** R38 · "Chatlar" ro'yxati filtri (guruh turi va yo'nalishi). */
+export interface GroupChatThreadParams {
+  /**
+   * Guruh TURI.
+   *
+   * ⚠️ `'Curator'` YUBORILMAYDI — server 400 qaytaradi. Kurator turidagi
+   * guruhning alohida chati yo'q va u bu ro'yxatda hech qachon ko'rinmaydi
+   * (server qoidasi, to'rt joyda takrorlangan). Tanlagichda ham faqat
+   * `Group` va `Individual` bo'ladi.
+   */
+  type?: Exclude<GroupTypeName, 'Curator'>
+  /** O'quv yo'nalishi (kategoriya Id'si). */
+  categoryId?: number
+}
 
 /**
  * `GET /api/v1/group-chat/threads` — "Chatlar" ro'yxati.
@@ -15,12 +32,24 @@ import { GROUP_CHAT_PAGE_SIZE } from '../model/types'
  * ★ Element (guruh, KANAL) juftligi: o'quvchida bitta guruh ikki qator bo'lib
  * keladi (Ustoz chati + Kurator chati), ustozda esa faqat bittasi — server
  * kimga qaysi kanal ochiqligini o'zi hal qiladi. Klient bu ro'yxatni
- * filtrlamaydi va to'ldirmaydi.
+ * to'ldirmaydi.
+ *
+ * 🔴 R38 · FILTR SERVERGA PARAMETR SIFATIDA YUBORILADI, ro'yxat ustida
+ * `Array.filter` bilan EMAS. Server ro'yxatni saralagandan KEYIN 200 qatorda
+ * kesadi (`GroupChatService.MaxThreads`), ya'ni mijozdagi filtr kesilgandan
+ * keyingi guruhlarni UMUMAN ko'rmasdi: 201-o'rindagi guruh filtrga to'liq mos
+ * kelsa ham natijada chiqmasdi. Bu UX nuqsoni emas, MA'LUMOT YO'QOLISHI.
  */
-export function fetchGroupChatThreads(options?: {
-  signal?: AbortSignal
-}): Promise<GroupChatThreadDto[]> {
+export function fetchGroupChatThreads(
+  params: GroupChatThreadParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<GroupChatThreadDto[]> {
   return http.get<GroupChatThreadDto[]>('/api/v1/group-chat/threads', {
+    // ★ Query nomlari camelCase — `GroupChatThreadQuery` maydonlari bilan
+    //   AYNAN bir xil. (`fetchGroups` da BOSH HARF ishlatiladi, chunki u
+    //   yerdagi Swagger shakli boshqa; ikkalasi ham ASP.NET uchun ishlaydi,
+    //   lekin bu yerda server DTO'si bilan bir xil yozuv aniqroq.)
+    query: { type: params.type, categoryId: params.categoryId },
     signal: options?.signal,
   })
 }
@@ -93,4 +122,29 @@ export function markGroupChatRead(
     channel,
     upToMessageId,
   })
+}
+
+/* ==========================================================================
+   R16b · BIRIKTIRMALAR (rasm / ovoz / hujjat)
+   ========================================================================== */
+
+/**
+ * `GET /api/v1/group-chat/attachments/{id}` — biriktirmaning BAYTLARI.
+ *
+ * ★ NAQSH `fetchSubmissionFile` BILAN AYNI: endpoint `Authorization` talab
+ * qiladi, brauzer esa `<img src>` / `<audio src>` so'rovlarida uni
+ * YUBORMAYDI. Shuning uchun fayl `Blob` sifatida olinadi va
+ * `URL.createObjectURL` bilan ko'rsatiladi.
+ *
+ * 🔴 TO'G'RIDAN-TO'G'RI `src` GA QO'YIB BO'LMAYDI — har safar 401 kelardi.
+ */
+export function fetchGroupChatAttachment(
+  attachmentId: number,
+  options?: { signal?: AbortSignal },
+): Promise<DownloadedFile> {
+  return http.download(
+    `/api/v1/group-chat/attachments/${attachmentId}`,
+    `fayl-${attachmentId}`,
+    { signal: options?.signal, headers: { Accept: '*/*' } },
+  )
 }

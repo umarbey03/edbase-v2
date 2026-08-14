@@ -94,4 +94,86 @@ public class LeaderboardScoreTests
 
         score.Total.Should().Be(75m);
     }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       R24 · TO'RTINCHI MEZON — DARS BAHOSI
+
+       Qo'shilishning eng katta xavfi — ORQAGA MOSLIK: bu funksiyani
+       ishlatmaydigan guruhning bali BIR ZARRA ham o'zgarmasligi kerak.
+       Quyidagi birinchi ikkita test aynan shuni qotiradi.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /// <summary>
+    /// ★ ORQAGA MOSLIK: dars bahosi yo'q oyda yakuniy ball AVVALGIDEK
+    /// qoladi. Mezon `null` bo'lgani uchun o'rtachaga umuman kirmaydi.
+    /// </summary>
+    [Fact]
+    public void LessonCriterion_WhenAbsent_DoesNotChangeExistingTotals()
+    {
+        LeaderboardScore.Combine(90m, 60m, 30m, lesson: null)
+            .Should().Be(LeaderboardScore.Combine(90m, 60m, 30m));
+
+        LeaderboardScore.Combine(80m, null, null, lesson: null).Should().Be(80m);
+    }
+
+    /// <summary>
+    /// ★ ESKI CHAQIRUVLAR (uch argument) ham AYNAN avvalgi natijani
+    /// beradi — to'rtinchi parametr standart `null`.
+    /// </summary>
+    [Fact]
+    public void Combine_WithThreeArguments_StillAveragesThreeCriteria()
+    {
+        LeaderboardScore.Combine(90m, 60m, 30m).Should().Be(60m);
+    }
+
+    /// <summary>To'rtala mezon ham bor — TENG vaznda o'rtachalanadi.</summary>
+    [Fact]
+    public void AllFourCriteria_AveragedEqually()
+    {
+        LeaderboardScore.Combine(100m, 80m, 60m, 40m).Should().Be(70m);
+    }
+
+    /// <summary>
+    /// ★ FAQAT DARS BAHOSI bor holat: oy boshida ustoz baho qo'ydi, lekin
+    /// hali dars o'tilmagan, vazifa ham, test ham berilmagan. Yakuniy ball
+    /// AYNAN o'sha foiz — 25 (100/4) EMAS.
+    /// </summary>
+    [Fact]
+    public void OnlyLessonCriterion_IsTheWholeScore()
+    {
+        LeaderboardScore.Combine(null, null, null, 100m).Should().Be(100m);
+    }
+
+    /// <summary>
+    /// HAQIQIY nol farqlanadi: "darsga 0 qo'yildi" (0%) va "dars bahosi
+    /// umuman yo'q" (`null`) — boshqa-boshqa holat.
+    /// </summary>
+    [Fact]
+    public void LessonCriterion_ExplicitZero_DiffersFromNull()
+    {
+        LeaderboardScore.Combine(90m, null, null, 0m).Should().Be(45m);
+        LeaderboardScore.Combine(90m, null, null, null).Should().Be(90m);
+    }
+
+    /// <summary>Yozuv darajasida ham to'rtinchi mezon hisobga olinadi.</summary>
+    [Fact]
+    public void Total_IncludesLessonPercent()
+    {
+        var score = new LeaderboardScore(1, "Ali", 100m, null, 50m, LessonPercent: 30m);
+
+        score.Total.Should().Be(60m);
+    }
+
+    /// <summary>
+    /// ★ YOZUVDA MAYDON KO'RSATILMASA — mezon YO'Q (0 emas). Pozitsion
+    /// standart qiymat aynan shu ma'noni beradi.
+    /// </summary>
+    [Fact]
+    public void Total_WithoutLessonPercent_MatchesThreeCriteriaScore()
+    {
+        var score = new LeaderboardScore(1, "Ali", 100m, null, 50m);
+
+        score.LessonPercent.Should().BeNull();
+        score.Total.Should().Be(75m);
+    }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Messaging.Dtos;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -29,6 +30,12 @@ namespace Zinnur.Application.Messaging.Services;
 public sealed class DirectMessageService(
     IApplicationDbContext db,
     ICuratorDirectory curators,
+    // ===== R40 · «KETMA-KETLIK BO'YICHA» =====
+    //
+    // Gating savol YOZISHDA tekshiriladi: ochilmagan dars haqida savol
+    // berish sur'at nazorati atrofidan aylanib o'tish yo'li bo'lardi
+    // (batafsil — `SendAsync` ichida).
+    IGatingService gating,
     TimeProvider clock) : IDirectMessageService
 {
     /// <summary>Suhbatlar ro'yxatidagi oxirgi xabar ko'chirmasining uzunligi.</summary>
@@ -49,37 +56,67 @@ public sealed class DirectMessageService(
             : await StaffConversationsAsync(user, ct);
     }
 
+    /// <summary>
+    /// O'quvchining suhbatlari.
+    ///
+    /// ════════════════════════════════════════════════════════════════════
+    /// R40 — RO'YXAT ENDI BIR NECHTA QATOR BO'LISHI MUMKIN
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Ilgari bu yerda ANIQ BITTA qator bo'lardi (kurator). Endi guruhning
+    /// <c>QuestionResponderRole</c> sozlamasi <c>Both</c> bo'lsa ustoz ham
+    /// qo'shiladi, ya'ni o'quvchida IKKI suhbat bo'ladi.
+    ///
+    /// ★ TARTIB SERVERDA HAL QILINADI (`ResolveRespondersAsync`) — asosiy
+    /// suhbatdosh doim birinchi. Frontend ro'yxatni qayta saralamaydi:
+    /// aks holda "kimga yozish kerak" degan qaror ikki joyda bo'lardi.
+    ///
+    /// ★ STANDART SOZLAMADA (`Assistant`) natija BUGUNGIDEK — bitta qator
+    /// yoki bo'sh ro'yxat. Ya'ni migratsiyadan keyin o'quvchi ekranida
+    /// hech narsa o'zgarmaydi.
+    /// </summary>
     private async Task<IReadOnlyList<ConversationDto>> StudentConversationsAsync(
         User student, CancellationToken ct)
     {
-        var curator = await curators.ResolveCuratorAsync(student.Id, ct);
+        var responders = await curators.ResolveRespondersAsync(student.Id, ct);
 
-        // Kurator biriktirilmagan — bo'sh ro'yxat, XATO EMAS. Frontend
+        // Xodim biriktirilmagan — bo'sh ro'yxat, XATO EMAS. Frontend
         // "Sizga hali kurator biriktirilmagan" deb ko'rsatadi.
-        if (curator is null) return [];
+        if (responders.Count == 0) return [];
 
+        var staffIds = responders.Select(u => u.Id).ToList();
+
+        // ★ BITTA AGREGAT SO'ROV, suhbat boshiga bittadan EMAS: ikki
+        // suhbatda ikki so'rov ko'p emas, lekin naqsh xodim tomonidagi
+        // bilan bir xil qolsin — u yerda 200 ta suhbat bo'ladi.
         var stats = await db.DirectMessages.AsNoTracking()
-            .Where(m => m.StudentId == student.Id && m.StaffId == curator.Id)
+            .Where(m => m.StudentId == student.Id && staffIds.Contains(m.StaffId))
             .GroupBy(m => m.StaffId)
             .Select(g => new ThreadStats(
                 g.Key,
                 g.Max(m => m.Id),
                 g.Count(m => m.SenderId != student.Id && !m.ReadByStudent)))
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
 
-        var last = await LoadLastMessagesAsync(stats is null ? [] : [stats.LastMessageId], ct);
+        var statsByPeer = stats.ToDictionary(s => s.PeerId);
 
-        return
-        [
-            BuildConversation(
-                peerId: curator.Id,
-                peerName: curator.FullName,
-                peerRole: curator.Role,
+        var last = await LoadLastMessagesAsync(stats.ConvertAll(s => s.LastMessageId), ct);
+
+        return responders.Select(peer =>
+        {
+            var threadStats = statsByPeer.GetValueOrDefault(peer.Id);
+
+            return BuildConversation(
+                peerId: peer.Id,
+                peerName: peer.FullName,
+                peerRole: peer.Role,
                 groupName: null,
-                stats: stats,
-                last: stats is null ? null : last.GetValueOrDefault(stats.LastMessageId),
-                viewerId: student.Id),
-        ];
+                stats: threadStats,
+                last: threadStats is null
+                    ? null
+                    : last.GetValueOrDefault(threadStats.LastMessageId),
+                viewerId: student.Id);
+        }).ToList();
     }
 
     private async Task<IReadOnlyList<ConversationDto>> StaffConversationsAsync(
@@ -206,6 +243,25 @@ public sealed class DirectMessageService(
 
             if (!exists)
                 throw Invalid(nameof(request.ModuleLessonId), "Bunday dars topilmadi.");
+
+            // ═══════════════════════════════════════════════════════════
+            // R40 — «KETMA-KETLIK BO'YICHA BO'LSIN»
+            //
+            // Loyiha egasining talabidagi shu ibora savolning O'ZIGA ham
+            // tegishli: o'quvchi HALI OCHILMAGAN dars haqida savol bera
+            // olmasligi kerak. Aks holda sur'at nazorati (gating) atrofidan
+            // aylanib o'tish yo'li ochilardi — dars matni va topshiriqlari
+            // savol-javob orqali oldindan oshkor bo'lardi.
+            //
+            // ★ FAQAT O'QUVCHIGA: xodim javob yozayotganda AYNI kontekstni
+            //   qaytaradi va uning uchun gating umuman qo'llanmaydi
+            //   (`GetLessonGateAsync` o'quvchi bo'yicha ishlaydi).
+            //
+            // ⚠️ ARZON YO'L: `GetLessonGateAsync` butun daraxtni qurmaydi
+            //   va so'rov davomida keshlanadi.
+            // ═══════════════════════════════════════════════════════════
+            if (pair.ViewerIsStudent)
+                await gating.EnsureLessonUnlockedAsync(pair.StudentId, lessonId, ct);
         }
 
         // Domain qoidasi: matn tozalanadi, bo'sh rad etiladi, o'qilgan
@@ -262,6 +318,110 @@ public sealed class DirectMessageService(
         return new MarkReadResultDto(marked, 0);
     }
 
+    // ================================================================= dars savollari
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// R40 — DARS SAVOLLARI NAVBATI (xodim ko'rinishi)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// ★ RUXSAT SHU YERDA QAYTA TEKSHIRILMAYDI va bu XATO EMAS: filtr
+    /// `StaffId == userId`, ya'ni so'rovning O'ZI ko'ruvchini o'z
+    /// juftliklari bilan cheklaydi. Xodim boshqa birovning yozishmasini
+    /// ko'rish uchun o'sha yozishmaning XODIM tomoni bo'lishi kerak
+    /// bo'lardi. `ResolvePairAsync` esa suhbat KALITINI chiqarish uchun
+    /// kerak — bu yerda kalit allaqachon ma'lum.
+    ///
+    /// ⚠️ Shu sababli ro'yxatda BIRIKTIRUV BEKOR QILINGAN eski suhbatlar
+    /// ham ko'rinadi (kurator guruhdan olib tashlangan bo'lsa). Bu bugungi
+    /// xatti-harakat bilan bir xil emas, lekin ONGLI: navbat — yozilgan
+    /// savollar tarixi, va yozilgan savol biriktiruv o'zgargani uchun
+    /// yo'qolib ketmasligi kerak. Suhbatni OCHISH esa avvalgidek
+    /// `ResolvePairAsync` dan o'tadi, ya'ni javob yozish uchun mas'uliyat
+    /// SAQLANGAN bo'lishi shart.
+    ///
+    /// TARTIB: javobsizlar tepada, ular ichida ESKISI birinchi — ya'ni
+    /// eng uzoq kutgan savol birinchi bo'ladi ("ketma-ketlik bo'yicha").
+    /// </summary>
+    public async Task<IReadOnlyList<LessonQuestionDto>> ListLessonQuestionsAsync(
+        long userId, int take, CancellationToken ct = default)
+    {
+        var user = await LoadUserAsync(userId, ct);
+
+        // O'quvchi hech qachon `StaffId` bo'lmaydi, ya'ni natija baribir
+        // bo'sh bo'lardi. Ochiq 403 esa "bu ekran senga emas" deb aytadi.
+        if (user.Role == UserRole.Student)
+            throw new ForbiddenException("Dars savollari navbati faqat xodim uchun.");
+
+        take = take <= 0 ? DefaultTake : Math.Min(take, MaxTake);
+
+        // ★ FAQAT O'QUVCHI YOZGAN xabarlar: xodimning o'z javobi ham
+        // `ModuleLessonId` bilan saqlanadi (u kontekstni qaytaradi), lekin
+        // u SAVOL emas — navbatda o'z javobingni ko'rish ma'nosiz bo'lardi.
+        var rows = db.DirectMessages.AsNoTracking()
+            .Where(m => m.StaffId == userId
+                     && m.ModuleLessonId != null
+                     && m.SenderId == m.StudentId);
+
+        /*
+          🔴 TARTIB DTO'DAN OLDIN HISOBLANADI — VA BU MAJBURIY.
+
+          Avvalgi ko'rinishda `Select(... new LessonQuestionDto(...))` dan
+          KEYIN `OrderBy(q => q.Answered)` yozilgan edi. `Answered` — DTO
+          konstruktoriga uzatilgan ICHMA-ICH so'rov natijasi, ya'ni EF uni
+          SQL `ORDER BY` ga o'gira olmaydi va butun so'rov
+          "could not be translated" bilan **500** qaytarardi.
+
+          ★ Yechim: `Answered` anonim turga chiqariladi, saralash O'SHA
+          maydon bo'yicha bajariladi va DTO eng oxirida yig'iladi. Bu
+          bosqichlarning hammasi bitta SQL'ga tushadi — mijoz tomonda
+          baholash (`AsEnumerable`) YO'Q, ya'ni `Take(take)` ham serverda
+          qoladi va butun jadval o'qilmaydi.
+
+          ★ `OrderBy(bool)`: `false` (javobsiz) — `0`, ya'ni TEPADA. Talab
+          aynan shu ("javobsizlar tepada").
+        */
+        var items = await rows
+            .Select(m => new
+            {
+                Message = m,
+
+                // "Javob berilganmi" — AYNI juftlikda shu savoldan KEYIN
+                // xodim yozgan xabar bormi. Ichma-ich so'rov asosiy
+                // `(StudentId, StaffId, Id)` indeksidan o'qiladi.
+                Answered = db.DirectMessages.Any(r => r.StudentId == m.StudentId
+                                                   && r.StaffId == m.StaffId
+                                                   && r.SenderId == m.StaffId
+                                                   && r.Id > m.Id),
+            })
+            .OrderBy(x => x.Answered)
+            .ThenBy(x => x.Message.SentAt)
+            .ThenBy(x => x.Message.Id)
+            .Take(take)
+            .Select(x => new LessonQuestionDto(
+                x.Message.Id,
+                x.Message.StudentId,
+                x.Message.Student!.FullName,
+                null,
+                x.Message.ModuleLessonId!.Value,
+                x.Message.ModuleLesson!.Name,
+                x.Message.Body,
+                x.Message.SentAt,
+                x.Answered,
+                x.Message.ReadByStaff))
+            .ToListAsync(ct);
+
+        if (items.Count == 0) return items;
+
+        // Guruh nomi ALOHIDA so'rovda — proyeksiya ichida bo'lsa har savol
+        // uchun bittadan ichma-ich `SELECT` ketardi, bir o'quvchining esa
+        // o'nlab savoli bo'ladi.
+        var groupNames = await GroupNamesAsync(
+            items.ConvertAll(q => q.PeerId).Distinct().ToList(), ct);
+
+        return items.ConvertAll(q => q with { GroupName = groupNames.GetValueOrDefault(q.PeerId) });
+    }
+
     // ================================================================= ruxsat
 
     /// <summary>
@@ -285,13 +445,35 @@ public sealed class DirectMessageService(
 
         if (user.Role == UserRole.Student)
         {
-            var curator = await curators.ResolveCuratorAsync(user.Id, ct)
-                ?? throw new NotFoundException("Kurator", peerId);
+            // ═══════════════════════════════════════════════════════════
+            // 🔴 R40 — TENGLIK O'RNIGA TO'PLAMGA TEGISHLILIK
+            //
+            // Ilgari bu yerda `curator.Id != peerId` turardi, ya'ni
+            // o'quvchida bitta ruxsat etilgan suhbatdosh bor deb
+            // hisoblanardi. Endi ular bir nechta bo'lishi mumkin
+            // (`Group.QuestionResponderRole == Both`).
+            //
+            // ★ DARVOZA KUCHINI YO'QOTMADI: ro'yxat o'sha `StaffResponsibility`
+            //   qoidasidan keladi, ya'ni "o'zi tanlagan istalgan xodim"
+            //   EMAS. Ro'yxatdan tashqaridagi har qanday `peerId` — 403.
+            //
+            // ★ VA IKKI SUHBAT BIR-BIRIDAN YOPIQ: kalit
+            //   `(StudentId, StaffId)` bo'lgani uchun ustoz kuratorning
+            //   yozishmasini so'rasa o'z juftligini oladi, o'zganikini
+            //   emas. Aynan shu sabab `DirectMessage.cs` dagi eski tizim
+            //   sizib chiqishi (shaxsiy savol butun sinfga ko'rinib
+            //   qolgani) bu yerda TAKRORLANMAYDI.
+            // ═══════════════════════════════════════════════════════════
+            var responders = await curators.ResolveRespondersAsync(user.Id, ct);
 
-            if (curator.Id != peerId)
-                throw new ForbiddenException("Bu suhbatga ruxsatingiz yo'q.");
+            if (responders.Count == 0)
+                throw new NotFoundException("Kurator", peerId);
 
-            return new ConversationPair(user.Id, curator.Id, ViewerIsStudent: true, curator.FullName);
+            var peerStaff = responders.FirstOrDefault(u => u.Id == peerId)
+                ?? throw new ForbiddenException("Bu suhbatga ruxsatingiz yo'q.");
+
+            return new ConversationPair(
+                user.Id, peerStaff.Id, ViewerIsStudent: true, peerStaff.FullName);
         }
 
         // XODIM. Ruxsat ROLGA emas, BIRIKTIRUVGA qarab beriladi: kim

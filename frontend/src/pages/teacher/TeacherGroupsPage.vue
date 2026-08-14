@@ -13,6 +13,12 @@ import { fetchGroups, groupDisplayName, GROUP_SEARCH_MIN } from '@/entities/grou
 */
 import { groupCuratorLabel, groupWeekdaysLabel } from '@/entities/group/model/types'
 import GroupCard from '@/entities/group/ui/GroupCard.vue'
+/*
+  ★ CHUQUR IMPORT EMAS, BARREL — `entities/group-category` SHU to'lqinda
+  yaratilgan yangi papka, ya'ni uning `index.ts` iga boshqa agent tegmayapti
+  va konflikt xavfi yo'q (yuqoridagi `entities/group` bilan farqi shu).
+*/
+import { fetchGroupCategories, groupCategoryLabel } from '@/entities/group-category'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { formatClock } from '@/shared/lib/datetime'
@@ -95,6 +101,19 @@ const activeFilter = ref<'' | 'true' | 'false'>('true')
 */
 const typeFilter = ref<GroupTypeName | ''>('')
 
+/*
+  ★ R21b · YO'NALISH FILTRI (kategoriya). `''` — "Barcha yo'nalishlar".
+
+  Talab: *"guruh category bo'yicha ... bu category parametr sifatida guruh
+  uchun qo'shilishi kerak"*. Ustoz uchun bu R21a dagi tur/holat filtrlari
+  bilan bir qatorda turadi — uchalasi ham AYNI savolga javob beradi:
+  "qaysi guruhlarimni ko'rmoqchiman".
+
+  ★ `<select>` qiymati DOIM satr, shuning uchun holat ham satr sifatida
+  saqlanadi va so'rovga `Number(...)` bilan uzatiladi.
+*/
+const categoryFilter = ref('')
+
 const page = ref(1)
 
 const PAGE_SIZE = 20
@@ -113,24 +132,50 @@ const effectiveSearch = computed(() =>
 )
 
 // Filtr o'zgarsa 5-sahifada qolib ketmaslik uchun boshiga qaytariladi.
-watch([effectiveSearch, typeFilter, activeFilter], () => {
+watch([effectiveSearch, typeFilter, activeFilter, categoryFilter], () => {
   page.value = 1
 })
 
 const groupsQuery = useQuery({
-  queryKey: ['groups', 'mine', effectiveSearch, typeFilter, activeFilter, page],
+  queryKey: ['groups', 'mine', effectiveSearch, typeFilter, activeFilter, categoryFilter, page],
   queryFn: ({ signal }) =>
     fetchGroups(
       {
         search: effectiveSearch.value,
         type: typeFilter.value === '' ? undefined : typeFilter.value,
         isActive: activeFilter.value === '' ? undefined : activeFilter.value === 'true',
+        /*
+          🔴 SERVERDA FILTRLANADI (qidiruv bilan AYNI sabab, yuqoridagi
+          2-band): ro'yxat `PAGE_SIZE = 20` bilan sahifalangan, ya'ni
+          mijozdagi filtr FAQAT joriy sahifani ko'rardi va 21-guruh mos
+          kelsa ham "Guruh topilmadi" degan yolg'on javob berardi.
+        */
+        categoryId: categoryFilter.value === '' ? undefined : Number(categoryFilter.value),
         page: page.value,
         pageSize: PAGE_SIZE,
       },
       { signal },
     ),
 })
+
+/*
+  Filtr tanlagichi uchun lug'at — FAQAT FAOL yo'nalishlar.
+
+  ★ `ManageGroupsPage` DAN FARQI ATAYLAB: u yerda arxivlanganlar ham
+  ko'rsatiladi ("IELTS ni arxivladik — unda nechta guruh qolgan?" — bu o'quv
+  bo'limining savoli). Ustozga esa arxiv yorliqlari shovqin: u bugun
+  o'qitayotgan guruhlarini saralaydi.
+
+  ⚠️ Chekinish: ustozning guruhida ARXIVLANGAN yo'nalish turgan bo'lsa, uni
+  tanlagich orqali filtrlab bo'lmaydi. Bu qabul qilindi — yorliq jadvalda
+  baribir KO'RINADI (`groupCategoryLabel`), ya'ni ma'lumot yashirilmaydi.
+*/
+const categoriesQuery = useQuery({
+  queryKey: ['group-categories', 'active'],
+  queryFn: ({ signal }) => fetchGroupCategories({ isActive: true }, { signal }),
+})
+
+const categories = computed(() => categoriesQuery.data.value ?? [])
 
 const groups = computed(() => groupsQuery.data.value?.items ?? [])
 const total = computed(() => groupsQuery.data.value?.total ?? 0)
@@ -148,7 +193,13 @@ const totalPages = computed(() => groupsQuery.data.value?.totalPages ?? 1)
 */
 const isDefaultFilter = computed(
   () =>
-    effectiveSearch.value === undefined && typeFilter.value === '' && activeFilter.value === 'true',
+    effectiveSearch.value === undefined &&
+    typeFilter.value === '' &&
+    // R21b · yangi filtr ham SHU ro'yxatga qo'shildi: aks holda yo'nalish
+    // tanlangan holatda bo'sh natija "Guruh biriktirilmagan" deb
+    // ko'rsatilardi va ustoz filtrni aybdor deb o'ylamasdi.
+    categoryFilter.value === '' &&
+    activeFilter.value === 'true',
 )
 
 const errorMessage = computed(() =>
@@ -241,6 +292,26 @@ function openGroup(groupId: number): void {
           Individual
         </option>
       </select>
+      <!--
+        R21b · YO'NALISH filtri (ATF, Grammatika, CEFR, IELTS).
+        ★ Faqat FAOL yo'nalishlar — sabab skriptdagi izohda.
+      -->
+      <select
+        v-model="categoryFilter"
+        class="zn-input w-auto min-w-[128px] flex-none text-[13px]"
+        aria-label="Yo‘nalish bo‘yicha filtr"
+      >
+        <option value="">
+          Barcha yo‘nalishlar
+        </option>
+        <option
+          v-for="category in categories"
+          :key="category.id"
+          :value="String(category.id)"
+        >
+          {{ category.name }}
+        </option>
+      </select>
     </div>
 
     <p
@@ -291,6 +362,14 @@ function openGroup(groupId: number): void {
             <thead>
               <tr>
                 <th>Guruh nomi</th>
+                <!--
+                  R21b · YO'NALISH ustuni. Loyiha egasi sanagan yetti
+                  ustunga SAKKIZINCHI qo'shildi va u NOMDAN keyin turadi:
+                  filtrlangan ro'yxatda "nima bo'yicha filtrladim" savoliga
+                  javob qatorning o'zida ko'rinishi kerak, aks holda
+                  tanlagichga qayta qarash kerak bo'lardi.
+                -->
+                <th>Yo‘nalish</th>
                 <th>Vaqti</th>
                 <th>Kunlari</th>
                 <th>Davomiyligi</th>
@@ -308,6 +387,10 @@ function openGroup(groupId: number): void {
                 <td
                   class="font-medium text-slate-100"
                   v-text="groupDisplayName(group)"
+                />
+                <td
+                  class="text-slate-400"
+                  v-text="groupCategoryLabel(group)"
                 />
                 <td
                   class="tabular-nums text-slate-400"

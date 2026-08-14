@@ -12,6 +12,7 @@ using Zinnur.Application;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.GroupChat.Services;
 using Zinnur.Application.Jobs;
+using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Recordings.Jobs;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Infrastructure;
@@ -65,6 +66,15 @@ builder.Services.AddScoped<ILiveSessionNotifier, LiveSessionNotifier>();
 // SignalR amalga oshirilishi shu yerda. SCOPED, chunki uni chaqiradigan
 // `GroupChatService` ham scoped (`DbContext` ga bog'langan).
 builder.Services.AddScoped<IGroupChatNotifier, GroupChatNotifier>();
+
+// Bildirishnoma kanali (R35/R36) — o'sha naqsh: port `Application` da,
+// SignalR amalga oshirilishi shu yerda. SCOPED, chunki uni chaqiradigan
+// `AssignmentService` ham scoped.
+//
+// 🔴 BU REPOZITORIYDAGI YAGONA `Clients.User(...)` YO'LI: mavjud ikki hub
+//    xonaga (`Clients.Group`) yuboradi, bu esa ODAMGA. Batafsil sabab va
+//    identifikator qanday aniqlanishi — `NotificationHub` izohida.
+builder.Services.AddScoped<INotificationNotifier, NotificationNotifier>();
 
 // Notifikatsiya navbati (FAZA 5.2): outbox yozuvchisi, tezlik chegarasi va
 // fon worker'i. Xabar biznes tranzaksiyasi bilan BIRGA yoziladi, yuborish
@@ -476,6 +486,20 @@ app.MapHub<LiveClassHub>("/hubs/live");
 // Auth uchun qo'shimcha kod KERAK EMAS: yuqoridagi `OnMessageReceived`
 // `/hubs` bilan boshlanadigan HAR yo'l uchun query'dagi tokenni qabul qiladi.
 app.MapHub<GroupChatHub>("/hubs/group-chat");
+
+// Bildirishnomalar (R35/R36) — UCHINCHI hub.
+//
+// ★ AUTH KODI YANA KERAK EMAS (yuqoridagi `OnMessageReceived` `/hubs` bilan
+//   boshlanadigan HAR yo'lni qamrab oladi), LEKIN bu yerda YANA BIR
+//   sozlamaga tayanish bor: ulanish egasi `Clients.User(...)` uchun
+//   SignalR ning standart `DefaultUserIdProvider` i orqali
+//   `ClaimTypes.NameIdentifier` claim'idan aniqlanadi. Maxsus
+//   `IUserIdProvider` ATAYLAB ro'yxatdan o'tkazilmagan: standarti
+//   allaqachon to'g'ri claim'ni o'qiydi (tokendagi `sub` shu turga
+//   xaritalanadi — yuqoridagi `TokenValidationParameters` izohi), o'z
+//   provayderimiz esa xuddi shu qatorni takrorlab, kelajakda claim
+//   nomi o'zgarganda IKKI joyni tuzatishni talab qilardi.
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Sog'liq tekshiruvi: /health — tirikmi, /health/ready — xizmat ko'rsatishga tayyormi
 app.MapHealthChecks("/health", new HealthCheckOptions

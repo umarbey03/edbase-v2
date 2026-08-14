@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
 import { fetchCourses } from '@/entities/course'
+import { fetchGroupCategories, groupCategoryOptionLabel } from '@/entities/group-category'
 import {
   createGroup,
   fetchCuratorCandidates,
@@ -231,6 +232,33 @@ const missingCourseOption = computed(() => {
   if (current?.courseId == null) return null
   if (courses.value.some((item) => item.id === current.courseId)) return null
   return { id: current.courseId, name: `${current.courseName ?? 'Kurs'} (arxiv)` }
+})
+
+/* ===== R21b · O'QUV YO'NALISHLARI (kategoriyalar) =====
+
+   Kurslar bilan AYNI naqsh va AYNI sabab: tanlagichda faqat FAOL
+   kategoriyalar turadi, lekin guruhda ARXIVLANGAN kategoriya bo'lsa u
+   ro'yxatga qaytariladi — aks holda `PUT` (to'liq almashtirish) saqlashda
+   yorliqni JIMGINA uzib yuborardi.
+
+   ★ Kesh kaliti `['group-categories', 'active']` — boshqaruv paneli
+   (`GroupCategoryManagerDrawer`) `['group-categories']` prefiksi bo'yicha
+   invalidatsiya qiladi, ya'ni yangi kategoriya qo'shilishi bilan bu
+   tanlagich ham yangilanadi. */
+const categoriesQuery = useQuery({
+  queryKey: ['group-categories', 'active'],
+  queryFn: ({ signal }) => fetchGroupCategories({ isActive: true }, { signal }),
+  enabled: staffEnabled,
+})
+
+const categories = computed(() => categoriesQuery.data.value ?? [])
+
+/** Guruhdagi kategoriya ro'yxatda yo'q (arxivlangan) — tushib qolmasin. */
+const missingCategoryOption = computed(() => {
+  const current = server.value
+  if (current?.categoryId == null) return null
+  if (categories.value.some((item) => item.id === current.categoryId)) return null
+  return { id: current.categoryId, name: `${current.categoryName ?? 'Yo‘nalish'} (arxiv)` }
 })
 
 /*
@@ -708,6 +736,42 @@ const serverVideoStartLabel = computed(() => {
           </BaseField>
         </div>
 
+        <!--
+          R21b · O'QUV YO'NALISHI.
+          ⚠️ "Kurs" bo'limidagi tanlagich BILAN ARALASHTIRILMASIN: kurs
+          KONTENT beradi (modullar, darslar, gating), bu esa faqat YORLIQ.
+          Hint aynan shuni aytadi — aks holda xodim ikkalasini bir xil
+          narsa deb o'ylab, bittasini to'ldirmay ketardi.
+        -->
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <BaseField
+            label="Yo‘nalish (kategoriya)"
+            hint="Guruhni saralash uchun yorliq: ATF, Grammatika, CEFR, IELTS. Kurs kontentiga ta’sir qilmaydi."
+          >
+            <select
+              v-model="forms.basic.categoryId"
+              class="zn-input"
+            >
+              <option :value="null">
+                Tanlanmagan
+              </option>
+              <option
+                v-if="missingCategoryOption !== null"
+                :value="missingCategoryOption.id"
+              >
+                {{ missingCategoryOption.name }}
+              </option>
+              <option
+                v-for="item in categories"
+                :key="item.id"
+                :value="item.id"
+              >
+                {{ groupCategoryOptionLabel(item) }}
+              </option>
+            </select>
+          </BaseField>
+        </div>
+
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
           <BaseField label="Ustoz">
             <select
@@ -745,6 +809,78 @@ const serverVideoStartLabel = computed(() => {
           </BaseField>
         </div>
 
+        <!--
+          ============================================================
+          R33 + R40 — KIM MAS'UL (o'quv bo'limi tanlaydi)
+          ============================================================
+
+          Loyiha egasi ikki marta AYNI narsani so'radi: *"vazifalarni
+          tekshirishni dynamic qilish kerak, o'quv bo'limi tanlaydi kurator
+          yoki teacher tekshirishi kerakligini"* (R33) va *"javob berish
+          dostupi dynamic bo'lsin, o'quv bo'limi tarafidan tayinlanishi
+          kerak"* (R40).
+
+          ★ IKKI TANLOV, BITTA QATOR — va ular ATAYLAB ustma-ust turadi:
+            markaz ularni birga o'ylaydi ("kuratorga savollarni beraylik,
+            baholashni ustozda qoldiraylik"). Turli bo'limlarga bo'linsa
+            bu bog'liqlik ko'rinmasdi.
+
+          ★ HAR IKKALASINING STANDARTI — BUGUNGI XATTI-HARAKAT, lekin ular
+            HAR XIL: baholashda ustoz ham, kurator ham; savollarda faqat
+            kurator. Shuning uchun bitta kalitga birlashtirilmadi.
+
+          ⚠️ BO'SH O'RINDIQNI TANLASH SERVERDA 400 BERADI (guruhga kurator
+            biriktirilmagan bo'lsa "Kurator" ni tanlab bo'lmaydi) — xato
+            shu kartochka ustida ko'rinadi.
+        -->
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <BaseField
+            label="Vazifalarni kim tekshiradi"
+            hint="O‘quv bo‘limi va admin har doim tekshira oladi."
+          >
+            <select
+              v-model="forms.basic.assignmentGraderRole"
+              class="zn-input"
+            >
+              <option value="Both">
+                Ustoz va kurator
+              </option>
+              <option value="Teacher">
+                Faqat ustoz
+              </option>
+              <option value="Assistant">
+                Faqat kurator
+              </option>
+            </select>
+          </BaseField>
+          <!--
+            🔴 "Ikkalasi ham" TANLANSA O'QUVCHIDA IKKI SUHBAT bo'ladi
+            (ustoz bilan va kurator bilan) — bu ONGLI natija, tasodif emas.
+            Ularning yozishmalari bir-biridan YOPIQ: suhbat kaliti
+            `(o'quvchi, xodim)` juftligi, ya'ni ustoz kuratorning
+            yozishmasini ko'ra olmaydi.
+          -->
+          <BaseField
+            label="Savollarga kim javob beradi"
+            hint="“Ustoz va kurator” — o‘quvchida ikkita alohida suhbat bo‘ladi."
+          >
+            <select
+              v-model="forms.basic.questionResponderRole"
+              class="zn-input"
+            >
+              <option value="Assistant">
+                Faqat kurator
+              </option>
+              <option value="Teacher">
+                Faqat ustoz
+              </option>
+              <option value="Both">
+                Ustoz va kurator
+              </option>
+            </select>
+          </BaseField>
+        </div>
+
         <div class="mt-3 flex flex-wrap gap-x-6">
           <label class="flex min-h-11 items-center gap-2.5 text-sm text-slate-300">
             <input
@@ -753,6 +889,23 @@ const serverVideoStartLabel = computed(() => {
               class="size-4 accent-brand-500"
             >
             Darslarni yozib olish
+          </label>
+          <!--
+            R5. ⚠️ YUQORIDAGI KALITDAN ALOHIDA VA BU ATAYLAB: "yozib olish"
+            o'chirilsa fayl UMUMAN yaratilmaydi, bu esa faqat o'quvchidan
+            yashiradi — yozuv olinadi va o'quv bo'limi uni ko'raveradi.
+            Ikkalasini bitta kalitga birlashtirish arxivni yo'q qilardi.
+          -->
+          <label
+            class="flex min-h-11 items-center gap-2.5 text-sm text-slate-300"
+            title="O‘chirilsa yozuvlar baribir olinadi, lekin o‘quvchilar ularni ko‘rmaydi."
+          >
+            <input
+              v-model="forms.basic.recordingsVisibleToStudents"
+              type="checkbox"
+              class="size-4 accent-brand-500"
+            >
+            Yozuvlar o‘quvchilarga ochiq
           </label>
           <label class="flex min-h-11 items-center gap-2.5 text-sm text-slate-300">
             <input

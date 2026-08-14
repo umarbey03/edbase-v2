@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { RecordingCard, recordingItemTitle } from '@/entities/recording'
+import { RecordingCard, recordingItemTitle, updateRecordingVisibility } from '@/entities/recording'
 import { useRecordingList } from '@/features/recording-list/model/useRecordingList'
 import RecordingPlayerModal from '@/features/recording-player/ui/RecordingPlayerModal.vue'
+import { SessionReviewModal } from '@/features/session-review'
+import { toUserMessage } from '@/shared/api'
 import { AppIcon, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
 /**
@@ -52,6 +54,54 @@ function play(recordingId: number): void {
 
 function closePlayer(): void {
   playingId.value = null
+}
+
+/* ==========================================================================
+   R29 — SIFAT TAHLILI
+   ========================================================================== */
+
+/**
+ * Ochiq tahlil oynasi: `null` — yopiq.
+ *
+ * ⚠️ BU YOZUV ID'SI EMAS, DARS ID'SI. Tahlil DARSGA bog'langan (sabab:
+ * `SessionReview` entity'si izohi) — qayta yozib olingan darsda ikkita
+ * yozuv bo'lsa ham, ikkalasi AYNI tahlilni ochadi.
+ */
+const reviewSessionId = ref<number | null>(null)
+const reviewTitle = ref('')
+
+function openReview(sessionId: number): void {
+  const item = list.items.value.find((row) => row.recording.sessionId === sessionId)
+  reviewTitle.value = item === undefined ? '' : recordingItemTitle(item)
+  reviewSessionId.value = sessionId
+}
+
+/* ==========================================================================
+   R5 — KO'RINISH KALITI
+   ========================================================================== */
+
+/**
+ * Amaldagi so'rov xatosi (403 / 409).
+ *
+ * ★ NEGA ALOHIDA XABAR MAYDONI, `alert()` EMAS: server SABABNI yozadi va
+ * u foydalanuvchiga kerak. Ikki eng muhim holat:
+ *   • `403` — yozuvni O'QUV BO'LIMI yopgan, ustoz qayta ocha olmaydi;
+ *   • `409` — yozuv hali tayyor emas.
+ * Ikkalasi ham "tugma ishlamadi" emas, TUSHUNTIRISH talab qiladi.
+ */
+const visibilityError = ref<string | null>(null)
+
+async function toggleVisibility(recordingId: number, visible: boolean): Promise<void> {
+  visibilityError.value = null
+  try {
+    await updateRecordingVisibility(recordingId, visible)
+    // ★ Ro'yxat SERVERDAN qayta o'qiladi, mahalliy qiymat qo'lda
+    //   o'zgartirilmaydi: ko'rinish uchta kalitning ko'paytmasi va
+    //   mijozda uni "hisoblab" qo'yish jimgina yolg'on bo'lardi.
+    list.refetch()
+  } catch (cause) {
+    visibilityError.value = toUserMessage(cause)
+  }
 }
 </script>
 
@@ -127,6 +177,23 @@ function closePlayer(): void {
     </template>
 
     <!--
+      R5: ko'rinish so'rovining xatosi. Serverning matni O'ZGARISHSIZ
+      ko'rsatiladi — u sababni aniq aytadi ("o'quv bo'limi yopgan",
+      "yozuv hali tayyor emas").
+
+      ⚠️ BU BLOK PASTDAGI `v-if`/`v-else` ZANJIRIDAN TASHQARIDA turishi
+         SHART: zanjir ichiga tushsa `DataStatus` dagi `v-else` unga
+         bog'lanib qolardi va xato bo'lmaganda RO'YXAT UMUMAN
+         chizilmasdi.
+    -->
+    <p
+      v-if="visibilityError !== null"
+      class="mb-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200"
+      role="alert"
+      v-text="visibilityError"
+    />
+
+    <!--
       Oraliq xatosi — serverga so'rov yubormasdan. Matn AYNAN serverdagidek
       ("Oraliq 92 kundan oshmasin.") — ikki xil ta'rif chalkashtirardi.
     -->
@@ -158,7 +225,10 @@ function closePlayer(): void {
           :title="recordingItemTitle(item)"
           :group-name="showGroupFilter ? (item.groupName ?? '') : ''"
           :scheduled-start="item.scheduledStart"
+          staff
           @play="play"
+          @review="openReview"
+          @visibility="toggleVisibility"
         />
       </div>
     </DataStatus>
@@ -167,6 +237,17 @@ function closePlayer(): void {
       :recording-id="playingId"
       :title="playingTitle"
       @close="closePlayer"
+    />
+
+    <!--
+      R29. `@saved` da ro'yxat qayta o'qiladi: nishon SERVER ma'lumotidan
+      chizilishi kerak, mahalliy taxmindan emas.
+    -->
+    <SessionReviewModal
+      :session-id="reviewSessionId"
+      :title="reviewTitle"
+      @close="reviewSessionId = null"
+      @saved="list.refetch()"
     />
   </BaseCard>
 </template>

@@ -8,11 +8,12 @@ import {
   assignmentTitle,
   fetchMyAssignments,
 } from '@/entities/assignment'
+import SubmissionFeedbackFiles from '@/entities/assignment/ui/SubmissionFeedbackFiles.vue'
 import SubmitAssignmentDialog from '@/features/assignment-submit/ui/SubmitAssignmentDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { StudentAssignmentDto } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseButton, DataStatus } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseButton, BaseModal, DataStatus } from '@/shared/ui'
 import StudentSubHeader from '@/widgets/student-shell/ui/StudentSubHeader.vue'
 
 /**
@@ -40,8 +41,25 @@ const rows = computed(() =>
     formats: answerFormatsLabel(item.allowedFormats),
     feedback: item.mySubmission?.feedback ?? null,
     fileCount: item.mySubmission?.files?.length ?? 0,
+    /**
+     * R37 · USTOZ tekshirishda biriktirgan fayllar.
+     *
+     * ★ SHU YERDA `?? []` bir marta bajariladi: shablonda har kartochka
+     * uchun null-tekshiruv yozilmasin.
+     */
+    feedbackFiles: item.mySubmission?.feedbackFiles ?? [],
   })),
 )
+
+/**
+ * Kattalashtirilgan rasm (R37: *"tekshirishda rasmni katta ekranda ko'rish
+ * mumkin bo'lsin"*).
+ *
+ * ★ TALAB IKKI TOMONGA TEGISHLI: ustoz o'quvchining rasmini
+ * (`GradeDialog`), o'quvchi esa ustoz qo'ygan tuzatish rasmini katta
+ * ko'rishi kerak. Ikkinchisi ilgari UMUMAN yo'q edi.
+ */
+const zoomUrl = ref<string | null>(null)
 
 const errorMessage = computed(() =>
   assignmentsQuery.error.value !== null ? toUserMessage(assignmentsQuery.error.value) : null,
@@ -251,6 +269,24 @@ function handleSubmitted(): void {
           </p>
 
           <!--
+            ★ R37 · USTOZ BIRIKTIRGAN FAYLLAR (tuzatilgan varaq, namuna
+            talaffuz, PDF sharh). O'chirish tugmasi YO'Q — bu ustozning
+            sharhi, o'quvchining javobi emas.
+          -->
+          <div
+            v-if="row.feedbackFiles.length > 0"
+            class="mt-2"
+          >
+            <h3 class="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              Ustoz biriktirgan fayllar
+            </h3>
+            <SubmissionFeedbackFiles
+              :files="row.feedbackFiles"
+              @zoom="(url) => (zoomUrl = url)"
+            />
+          </div>
+
+          <!--
             ★ `flex flex-col` + `@2xl:mt-auto`: ko'p ustunli setkada bir
             satrdagi kartochkalar teng balandlikka cho'ziladi, tugma esa
             matn tugagan joyda "osilib" qolardi — endi u kartochka
@@ -295,5 +331,23 @@ function handleSubmitted(): void {
       @close="submitting = null"
       @submitted="handleSubmitted"
     />
+
+    <!--
+      Kattalashtirilgan rasm — `GradingQueueOverlay` va `GradeDialog` dagi
+      AYNI naqsh (`BaseModal wide` + `max-h-[75dvh] object-contain`).
+    -->
+    <BaseModal
+      :open="zoomUrl !== null"
+      title="Rasm"
+      wide
+      @close="zoomUrl = null"
+    >
+      <img
+        v-if="zoomUrl !== null"
+        :src="zoomUrl"
+        alt="Kattalashtirilgan rasm"
+        class="mx-auto max-h-[75dvh] w-auto rounded-lg object-contain"
+      >
+    </BaseModal>
   </div>
 </template>

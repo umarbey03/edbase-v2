@@ -11,8 +11,10 @@ import {
 } from '@/entities/group-chat'
 import { MAX_RENDERED_MESSAGES } from '@/entities/message'
 import { isApiError, toUserMessage } from '@/shared/api'
+import type { UploadProgress } from '@/features/lesson-media'
 import type { GroupChatChannelName, GroupChatMessageDto, HubStatus } from '@/shared/types'
 
+import { sendGroupChatAttachments } from '../lib/send-chat-attachments'
 import { hubErrorText, useGroupChatHub } from './useGroupChatHub'
 
 /**
@@ -77,8 +79,19 @@ export interface UseGroupChatRoomResult {
   /** 429 dan keyin qolgan kutish vaqti (sekund). 0 — bloklanmagan. */
   cooldownSeconds: Ref<number>
   canSend: ComputedRef<boolean>
+  /** Fayl yuborilayotgani (0…100). `null` — yuklash ketmayapti. */
+  uploadPercent: Ref<number | null>
   loadOlder: () => Promise<number>
   send: (body: string) => Promise<boolean>
+  /**
+   * R16b · FAYL(LAR) BILAN xabar yuborish — REST orqali.
+   *
+   * ★ ALOHIDA METOD, `send` ga argument QO'SHILGANI EMAS: transporti
+   * BOSHQA (hub emas, `multipart` REST) va bekor qilinishi mumkin.
+   * Bittasiga birlashtirilsa, chaqiruvchi "fayl bor-yo'qligiga qarab
+   * qaysi yo'l ishlaydi" degan yashirin qoidani bilishi kerak bo'lardi.
+   */
+  sendWithFiles: (files: readonly File[], body: string) => Promise<boolean>
   markRead: () => void
   retry: () => void
   dismissNotice: () => void
@@ -93,6 +106,7 @@ export function useGroupChatRoom(options: UseGroupChatRoomOptions): UseGroupChat
   const isLoadingOlder = ref(false)
   const isSending = ref(false)
   const cooldownSeconds = ref(0)
+  const uploadPercent = ref<number | null>(null)
 
   /** Birlashtirish kaliti — reaktiv EMAS (Vue'ga ko'rsatilmaydi). */
   let seenIds = new Set<number>()
@@ -407,6 +421,76 @@ export function useGroupChatRoom(options: UseGroupChatRoomOptions): UseGroupChat
     }
   }
 
+  /**
+   * ════════════════════════════════════════════════════════════════════════
+   * R16b · FAYL BILAN YUBORISH — HUB EMAS, REST
+   * ════════════════════════════════════════════════════════════════════════
+   *
+   * 🔴 `send` DA "AVVAL HUB" QOIDASI SHU YERGA KO'CHIRILMAYDI va bu
+   * ONGLI: hub metodining tanasi SATR (`SendMessage(groupId, channel,
+   * body)`). Faylni base64 qilib satrga solish 10 MB ni ~13 MB ga
+   * aylantirardi va SignalR freym chegarasidan oshgan xabar butun
+   * ULANISHNI uzadi — ya'ni rasm yuborishga urinish chatning O'ZINI
+   * o'ldirardi.
+   *
+   * ★ MATNLI YO'L TEGILMADI: `send` avvalgidek hub'ni afzal ko'radi
+   * (bitta uzatish, javob darhol) va hub yo'q bo'lsa REST'ga tushadi.
+   * Ya'ni reconciliation qoidasi bitta jumla: <b>biriktirma bor -> REST,
+   * yo'q -> hub</b>.
+   *
+   * ★ IKKALASI HAM AYNI XABAR BUDJETIDA: server biriktirmali so'rovda ham
+   * `EnsureNotFloodingAsync` ni chaqiradi, ustiga esa qat'iyroq YUKLASH
+   * budjetini qo'yadi. Shuning uchun bu yerdagi 429 ishlovi `send`
+   * dagining AYNAN nusxasi — foydalanuvchi ikki xil xatti-harakat
+   * ko'rmasin.
+   */
+  async function sendWithFiles(files: readonly File[], body: string): Promise<boolean> {
+    const groupId = options.groupId.value
+    if (groupId === null || files.length === 0 || !canSend.value) return false
+
+    isSending.value = true
+    uploadPercent.value = 0
+
+    try {
+      const channel = activeChannel.value ?? options.channel.value ?? undefined
+
+      const sent = await sendGroupChatAttachments({
+        groupId,
+        files,
+        body,
+        channel,
+        onProgress: (progress: UploadProgress) => {
+          uploadPercent.value = progress.percent
+        },
+      })
+
+      // Broadcast allaqachon kelgan bo'lsa `seenIds` uni tashlaydi.
+      appendMessages([sent])
+      notice.value = null
+      void queryClient.invalidateQueries({ queryKey: ['group-chat', 'threads'] })
+      return true
+    } catch (error) {
+      /*
+        ⚠️ `uploadWithProgress` FAQAT `ApiError` (yoki bekor qilish)
+        tashlaydi — hub yo'li yo'q, ya'ni bu yerda matn bo'yicha chegara
+        aniqlashga (`GROUP_CHAT_RATE_LIMIT_MARKER`) HOJAT YO'Q: status kodi
+        va `Retry-After` har doim bor.
+      */
+      if (isApiError(error)) {
+        notice.value = error.userMessage
+        if (error.status === 429) {
+          startCooldown(error.retryAfterSeconds ?? GROUP_CHAT_RATE_WINDOW_SECONDS)
+        }
+      } else {
+        notice.value = toUserMessage(error)
+      }
+      return false
+    } finally {
+      isSending.value = false
+      uploadPercent.value = null
+    }
+  }
+
   function retry(): void {
     void pageQuery.refetch()
     const groupId = options.groupId.value
@@ -438,8 +522,10 @@ export function useGroupChatRoom(options: UseGroupChatRoomOptions): UseGroupChat
     isSending,
     cooldownSeconds,
     canSend,
+    uploadPercent,
     loadOlder,
     send,
+    sendWithFiles,
     markRead,
     retry,
     dismissNotice,

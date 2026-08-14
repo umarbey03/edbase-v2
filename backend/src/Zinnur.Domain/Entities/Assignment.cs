@@ -1,6 +1,7 @@
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Exceptions;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Domain.Entities;
 
@@ -73,6 +74,34 @@ public class Assignment : BaseEntity
     /// </summary>
     public string? ImageKey { get; set; }
 
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// R33 — SHU VAZIFANI KIM TEKSHIRADI (guruh sozlamasidan ISTISNO)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// <c>null</c> — istisno YO'Q, guruhning o'z sozlamasi ishlaydi
+    /// (<c>Group.AssignmentGraderRole</c>). Bu STANDART va migratsiyadan
+    /// keyin barcha mavjud vazifalar aynan shunday bo'ladi.
+    ///
+    /// ── NIMA UCHUN GURUH USTUNI BOR TURIB YANA BITTASI ──────────────────
+    ///
+    /// Loyiha egasi AYNAN "vazifalarni tekshirishni" dedi, ya'ni eng
+    /// so'zma-so'z o'qishda tanlov VAZIFADA bo'lishi kerak. Amalda ham
+    /// bunday ehtiyoj bor: guruhni odatda ustoz baholaydi, lekin AYNAN
+    /// shu talaffuz mashqini kurator eshitishi kerak.
+    ///
+    /// 🔴 LEKIN KURS VAZIFASIDA TAQIQLANGAN (<see cref="Validate"/>).
+    /// Kurs vazifasi (<see cref="ModuleLessonId"/> to'ldirilgan) o'nlab
+    /// guruhga taalluqli va ularning har birida boshqa-boshqa shtat
+    /// o'tiradi. Bitta bayroq HAMMASINI birdan hal qilib qo'yardi — ya'ni
+    /// o'quv bo'limi guruhlarga qo'ygan tanlovini bexosdan bekor qilardi
+    /// va buni hech qayerda ko'rmasdi. Shuning uchun bu yerda 400 beriladi,
+    /// jimgina "e'tiborsiz qoldirish" emas: jimgina yechim eng yomoni —
+    /// tanlov saqlanadi, ekranda ko'rinadi, lekin HECH NIMAGA ta'sir
+    /// qilmasdi.
+    /// </summary>
+    public GroupStaffRole? GraderRole { get; set; }
+
     public long? CreatedById { get; set; }
 
     /// <summary>
@@ -117,6 +146,15 @@ public class Assignment : BaseEntity
         if (hasGroup == hasLesson)
             throw new DomainException(
                 "Vazifa YOKI guruhga, YOKI kurs darsiga biriktirilishi kerak — ikkalasiga emas.");
+
+        // R33 — sabab `GraderRole` izohida (kurs vazifasi o'nlab guruhga tegadi).
+        if (GraderRole is not null && !hasGroup)
+        {
+            throw new DomainException(
+                "Kurs vazifasiga alohida tekshiruvchi tayinlanmaydi — u barcha "
+                + "guruhlarga taalluqli va har guruhda boshqa xodim ishlaydi. "
+                + "Tekshiruvchini GURUH sozlamasidan tanlang.");
+        }
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 export {
+  fetchGroupChatAttachment,
   fetchGroupChatPage,
   fetchGroupChatThreads,
   markGroupChatRead,

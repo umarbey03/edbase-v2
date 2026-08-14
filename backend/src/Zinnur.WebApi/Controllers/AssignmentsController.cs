@@ -44,7 +44,8 @@ namespace Zinnur.WebApi.Controllers;
 [Produces("application/json")]
 public sealed class AssignmentsController(
     IAssignmentService assignments,
-    IAssignmentAttachmentService attachments) : ControllerBase
+    IAssignmentAttachmentService attachments,
+    ISubmissionFeedbackFileService feedbackFiles) : ControllerBase
 {
     // ================================================================= xodim
 
@@ -359,6 +360,107 @@ public sealed class AssignmentsController(
     public async Task<IActionResult> DeleteAttachment(long attachmentId, CancellationToken ct)
     {
         await attachments.DeleteAsync(attachmentId, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    // ================================================================= R37: tekshiruv fayllari
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// USTOZ TEKSHIRISHDA FAYL BIRIKTIRADI (R37)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// `multipart/form-data`, maydon nomi — `file`. Rasm / ovoz / PDF.
+    ///
+    /// ★ NIMA UCHUN `POST /grade` MULTIPART'GA AYLANTIRILMADI: u bugun
+    /// JSON qabul qiladi va `Consumes("multipart/form-data")` qo'shilishi
+    /// bilan HAR BIR mavjud chaqiruv **415** olardi. To'liq asoslash
+    /// (uchta sabab) <see cref="ISubmissionFeedbackFileService"/> izohida.
+    ///
+    /// ★ BAHODAN MUSTAQIL: faylni baho qo'yishdan OLDIN ham, KEYIN ham
+    /// biriktirish mumkin. Ular bir tranzaksiyada bo'lishi SHART EMAS —
+    /// baho ham, fayl ham mustaqil ravishda ma'noga ega.
+    ///
+    /// RUXSAT: baholash bilan AYNI (<see cref="GradeRoles"/> + javob
+    /// darajasidagi tekshiruv servis ichida: ustoz faqat O'Z o'quvchisini).
+    /// </summary>
+    [HttpPost("~/api/v1/submissions/{id:long}/feedback-files")]
+    [Authorize(Roles = GradeRoles)]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxAttachmentRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAttachmentRequestBytes)]
+    [ProducesResponseType<SubmissionFeedbackFileDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<SubmissionFeedbackFileDto>> UploadFeedbackFile(
+        long id, IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            throw MediaResponse.MissingFile();
+
+        await using var stream = file.OpenReadStream();
+
+        var created = await feedbackFiles.UploadAsync(
+            id,
+            new LessonAssetUpload(
+                file.FileName,
+
+                // Klient AYTGAN tur faqat XATO XABARI uchun uzatiladi.
+                file.ContentType,
+                stream,
+                file.Length),
+            CurrentUserId,
+            ct);
+
+        return StatusCode(StatusCodes.Status201Created, created);
+    }
+
+    /// <summary>
+    /// Tekshiruv faylini OQIM bilan beradi (`Range` qo'llab-quvvatlanadi).
+    ///
+    /// 🔴 RUXSAT — JAVOBNI KO'RISH huquqi, ya'ni O'QUVCHI HAM OLADI. Bu
+    /// R37 talabining MOHIYATI: ustoz biriktirgan tuzatish o'quvchiga
+    /// yetib borishi kerak. Rol atributi ATAYLAB yo'q — qoida ROLGA emas,
+    /// javobning EGALIGIGA bog'liq (begona o'quvchi baribir 403 oladi).
+    ///
+    /// ⚠️ FRONTEND UCHUN: brauzer `&lt;img src&gt;` bilan `Authorization`
+    /// yubormaydi — `http.download()` orqali `Blob` olinadi (o'quvchi
+    /// javob fayllaridagi AYNI naqsh).
+    /// </summary>
+    [HttpGet("~/api/v1/submissions/feedback-files/{fileId:long}")]
+    [Produces("application/octet-stream")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status206PartialContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status416RangeNotSatisfiable)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> DownloadFeedbackFile(long fileId, CancellationToken ct)
+    {
+        var download = await feedbackFiles.OpenAsync(
+            fileId, MediaResponse.RawRange(Request.Headers.Range), CurrentUserId, ct);
+
+        return await MediaResponse.WriteAsync(this, download, ct);
+    }
+
+    /// <summary>
+    /// Tekshiruv faylini o'chiradi (bazadan, so'ng ombordan).
+    ///
+    /// ⚠️ O'QUVCHI O'CHIRA OLMAYDI — bu ustozning sharhi, o'quvchining
+    /// javobi emas.
+    /// </summary>
+    [HttpDelete("~/api/v1/submissions/feedback-files/{fileId:long}")]
+    [Authorize(Roles = GradeRoles)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteFeedbackFile(long fileId, CancellationToken ct)
+    {
+        await feedbackFiles.DeleteAsync(fileId, CurrentUserId, ct);
         return NoContent();
     }
 

@@ -8,6 +8,7 @@ import { env, hubUrlFor } from '@/shared/config/env'
 import { GroupChatHubEvent, GroupChatHubMethod } from '@/shared/types'
 import type {
   GroupChatAccessDto,
+  GroupChatAttachmentDto,
   GroupChatChannelName,
   GroupChatMessageDto,
   HubStatus,
@@ -126,11 +127,58 @@ function toAccess(payload: unknown): GroupChatAccessDto | null {
   }
 }
 
+/**
+ * R16b · biriktirmalar ro'yxati.
+ *
+ * ★ SHAKLGA MOS KELMAGAN ELEMENT JIMGINA TASHLANADI, butun xabar EMAS.
+ *
+ * 🔴 Nima uchun aynan shunday: bu tekshiruv realtime yo'lida turadi va
+ * butun xabarni rad etish "xabar umuman kelmadi" degani — foydalanuvchi
+ * savol yozadi, javob berilgan, lekin ekranda hech nima yo'q. Bitta
+ * tanilmagan biriktirmani tashlab, matnni ko'rsatish ANIQ yaxshiroq:
+ * eng yomon holatda rasm ko'rinmaydi va sahifa yangilanganda (REST yo'li)
+ * o'z joyiga tushadi.
+ *
+ * ⚠️ `kind` NOMA'LUM bo'lsa element tashlanadi (`Document` ga tushirilmaydi):
+ * "hujjat" deb ko'rsatilgan rasm foydalanuvchini chalg'itardi.
+ */
+function asAttachments(value: unknown): GroupChatAttachmentDto[] {
+  if (!Array.isArray(value)) return []
+
+  const result: GroupChatAttachmentDto[] = []
+
+  for (const item of value) {
+    if (!isRecord(item)) continue
+
+    const { id, kind, contentType, fileName, sizeBytes, durationSec } = item
+
+    if (typeof id !== 'number') continue
+    if (kind !== 'Image' && kind !== 'Audio' && kind !== 'Document') continue
+
+    result.push({
+      id,
+      kind,
+      contentType: typeof contentType === 'string' ? contentType : 'application/octet-stream',
+      fileName: typeof fileName === 'string' && fileName.length > 0 ? fileName : null,
+      sizeBytes: typeof sizeBytes === 'number' ? sizeBytes : 0,
+      durationSec: typeof durationSec === 'number' ? durationSec : null,
+    })
+  }
+
+  return result
+}
+
 function toMessage(payload: unknown): GroupChatMessageDto | null {
   if (!isRecord(payload)) return null
   const { id, groupId, senderId, senderName, senderRole, body, sentAt } = payload
   const channel = asChannel(payload['channel'])
   if (typeof id !== 'number' || typeof groupId !== 'number' || channel === null) return null
+  /*
+    ⚠️ `body` HAMON `string` BO'LISHI SHART, lekin endi BO'SH bo'lishi
+    mumkin (R16b: izohsiz surat). Ilgari bu yerda uzunlik tekshiruvi
+    YO'Q edi — ya'ni o'zgarish kerak bo'lmadi va bu TASODIF emas: server
+    ustunni NOT NULL saqlaydi, faqat bo'sh qiymatga ruxsat berdi.
+  */
   if (typeof senderId !== 'number' || typeof body !== 'string') return null
   return {
     id,
@@ -149,6 +197,7 @@ function toMessage(payload: unknown): GroupChatMessageDto | null {
         : 'Student',
     body,
     sentAt: typeof sentAt === 'string' ? sentAt : new Date().toISOString(),
+    attachments: asAttachments(payload['attachments']),
   }
 }
 

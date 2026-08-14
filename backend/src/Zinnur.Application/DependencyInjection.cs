@@ -9,10 +9,12 @@ using Zinnur.Application.GroupChat.Services;
 using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Messaging.Services;
+using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.SessionReviews.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.StudentNotes.Services;
 using Zinnur.Application.Tests.Services;
@@ -61,6 +63,12 @@ public static class DependencyInjection
         // `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi.
         services.AddScoped<IAttendanceService, AttendanceService>();
 
+        // R24 — DARS BAHOSI. Davomat servisidan ALOHIDA, lekin AYNI ruxsat
+        // qoidasi bilan (sabab `ILessonGradeService` izohida). SCOPED:
+        // baho va uning audit izi AYNI `DbContext` kuzatuvchisida to'planib,
+        // BITTA `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi.
+        services.AddScoped<ILessonGradeService, LessonGradeService>();
+
         services.AddScoped<IUserService, UserService>();
 
         // ---------------------------------------------------------------- WAVE 1
@@ -81,6 +89,14 @@ public static class DependencyInjection
         services.AddScoped<IStudentNoteService, StudentNoteService>();
 
         services.AddScoped<IGroupService, GroupService>();
+
+        /* ===== R21b · GURUH KATEGORIYALARI LUG'ATI =====
+
+           SCOPED — `DbContext` ga tayanadi (loyihadagi barcha use-case'lar
+           kabi). `IGroupService` dan ALOHIDA interfeys, sabab
+           `IGroupCategoryService` izohida: guruh servisi allaqachon 1100
+           qatordan oshgan va lug'atning hayot sikli butunlay boshqa. */
+        services.AddScoped<IGroupCategoryService, GroupCategoryService>();
 
         // Jadval servisi guruh servisidan ALOHIDA: uni fon vazifasi
         // (muddati o'tgan darslarni yopish) ham chaqiradi.
@@ -129,6 +145,12 @@ public static class DependencyInjection
         //    to'liq ishlaydi.
         services.AddScoped<ILessonAssetService, LessonAssetService>();
         services.AddScoped<IAssignmentAttachmentService, AssignmentAttachmentService>();
+
+        // R37: USTOZ tekshirishda biriktiradigan fayllar. AYNI sabablar
+        // bilan SCOPED va ALOHIDA interfeys — u ham `IMediaStorage` bilan
+        // oqim orqali ishlaydi va ruxsat uchun `IAssignmentService` ning
+        // ikki darvozasini chaqiradi (qoida ikkinchi nusxada YOZILMASIN).
+        services.AddScoped<ISubmissionFeedbackFileService, SubmissionFeedbackFileService>();
 
         // ---------------------------------------------------------------- FAZA 4.3
         //
@@ -231,6 +253,18 @@ public static class DependencyInjection
         services.AddScoped<IRecordingService, RecordingService>();
         services.AddScoped<IRecordingWebhookHandler, RecordingWebhookHandler>();
 
+        // DARS SIFATI TAHLILI (R29 / R30). Scoped — yuqoridagi AYNI sabab
+        // (port orqali `DbContext`).
+        //
+        // ★ `IRecordingService` GA QO'SHILMADI, GARCHI NISHON O'SHA
+        //   RO'YXATDA KO'RINSA HAM: tahlil DARSGA tegishli, yozuvga emas,
+        //   va uning ruxsat qoidasi TESKARI (o'quvchi yozuvni ko'radi,
+        //   tahlilni hech qachon). Ikkalasi bitta servisda bo'lsa, o'sha
+        //   servis ichida ikki xil auditoriya qoidasi yonma-yon turardi va
+        //   birini ikkinchisi bilan adashtirish faqat vaqt masalasi
+        //   bo'lardi (sabab batafsil `ISessionReviewService` izohida).
+        services.AddScoped<ISessionReviewService, SessionReviewService>();
+
         // AVTOMATIK YOZUV NAVBATI (2026-08-13).
         //
         // 🔴 SCOPED BO'LISHI SHART — VA BU TASODIF EMAS. Navbat qatorini
@@ -246,6 +280,24 @@ public static class DependencyInjection
         //   halqani TUZILISH bilan imkonsiz qiladi: navbat dars servisini
         //   umuman bilmaydi.
         services.AddScoped<IAutoRecordingScheduler, AutoRecordingScheduler>();
+
+        /* ===== R35/R36 · ILOVA ICHIDAGI BILDIRISHNOMA =====
+
+           ★ NEGA ALOHIDA BLOK OXIRDA: bu faylga bir necha tarmoq AYNI
+           vaqtda qo'shmoqda. */
+
+        // QO'NG'IROQCHA RO'YXATI. SCOPED — so'rov umriga bog'langan
+        // `DbContext` ga tayanadi (barcha use-case'lar bilan bir xil).
+        //
+        // ⚠️ `INotificationOutbox` (Telegram navbati) BU YERDA EMAS: u
+        //    Infrastructure amalga oshirilishiga muhtoj va
+        //    `NotificationsSetup.AddZinnurNotifications` da ro'yxatga
+        //    olinadi. `INotificationNotifier` esa WebApi'da (SignalR).
+        //    Ya'ni bildirishnomaning uch yo'li uch xil qatlamda ulanadi —
+        //    va bu to'g'ri: ularning bog'liqliklari ham turlicha.
+        services.AddScoped<INotificationFeed, NotificationFeed>();
+
+        /* ===== /R35/R36 ===== */
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

@@ -82,6 +82,32 @@ public static class TelegramTemplates
     /// <summary>Tushunilmagan matnga javob.</summary>
     public const string Help = "bot_help";
 
+    /* ===== R35/R36 · BIZNES HODISASI =====
+
+       ★ NEGA ALOHIDA BLOK: bu faylga bir necha tarmoq AYNI vaqtda qo'shadi. */
+
+    /// <summary>
+    /// Uy vazifasi tekshirildi (baho qo'yildi).
+    ///
+    /// 🔴 BU FAYLDAGI BIRINCHI SHABLON — VA U BOT JAVOBI EMAS.
+    ///
+    /// Bugungacha (<see cref="LoginCode"/> dan tashqari) hamma kalit
+    /// Telegram'ning O'Z yangilanishiga javob edi: o'quvchi yozadi — bot
+    /// javob beradi. Bu esa PLATFORMADAGI hodisa: ustoz brauzerda tugma
+    /// bosadi, o'quvchi Telegram'da xabar oladi. Ya'ni R35 dan boshlab bu
+    /// sinf "bot javoblari" emas, "chiquvchi xabarlar" ro'yxati.
+    ///
+    /// ★ TUGMASIZ (<see cref="MarkupFor"/> da ro'yxatdan tashqari, ya'ni
+    /// <c>None</c>): «Ilovani ochish» tugmasi bu yerda foydali BO'LARDI,
+    /// lekin u Mini App'ni BOSH SAHIFADA ochadi — vazifa sahifasida emas.
+    /// "Ochdim, lekin kerakli joyni o'zim qidirdim" tajribasi tugmaning
+    /// va'dasini buzardi. Chuqur havola (deep link) qo'shilganda bu qaror
+    /// qayta ko'rib chiqiladi.
+    /// </summary>
+    public const string SubmissionGraded = "submission_graded";
+
+    /* ===== /R35/R36 ===== */
+
     // ---------------------------------------------------------------- tugmalar
 
     /// <summary>
@@ -217,6 +243,59 @@ public static class TelegramTemplates
     public static string HelpText() =>
         "Men ro'yxatdan o'tishga yordam beraman.\n\n"
         + "Boshlash uchun <b>/start</b> buyrug'ini yuboring.";
+
+    /* ===== R35/R36 · BIZNES HODISASI ===== */
+
+    /// <summary>
+    /// «Vazifangiz tekshirildi» xabari.
+    ///
+    /// ★ HAR FOYDALANUVCHI QIYMATI <see cref="NotificationText.Parameter"/>
+    /// ORQALI: vazifa sarlavhasi va ustozning izohi — ikkalasi ham ODAM
+    /// yozgan matn. Ustoz izohida bitta <c>&lt;</c> bo'lsa (masalan
+    /// "javob &lt; 5 bo'lishi kerak edi") Telegram butun so'rovni
+    /// <c>400 can't parse entities</c> bilan rad etardi va xabar UMUMAN
+    /// yetib bormasdi.
+    ///
+    /// ★ BALL <c>NotificationTemplates.FormatScore</c> ORQALI: u
+    /// <c>InvariantCulture</c> ni majburlaydi. <c>Score</c> va
+    /// <c>MaxScore</c> — <c>decimal</c>, ya'ni server madaniyati
+    /// <c>uz-UZ</c>/<c>ru-RU</c> bo'lsa o'nlik ajratgich VERGUL bo'lardi.
+    /// Ball SERVER hisoblagan son, foydalanuvchi matni emas — shuning
+    /// uchun u <c>Parameter</c> dan O'TKAZILMAYDI (ekranlanadigan belgi
+    /// bo'lishi mumkin emas).
+    ///
+    /// ★ IZOH BO'LMASA — SATR HAM YO'Q. Bo'sh "💬" satri o'quvchida
+    /// "ustoz nimadir yozganu, ko'rinmayapti" degan taassurot qoldirardi.
+    /// </summary>
+    /// <param name="assignmentTitle">Vazifa sarlavhasi (bo'sh bo'lishi mumkin).</param>
+    /// <param name="score">Qo'yilgan ball.</param>
+    /// <param name="maxScore">Maksimal ball.</param>
+    /// <param name="feedback">Ustozning izohi (bo'lmasligi mumkin).</param>
+    public static string SubmissionGradedText(
+        string? assignmentTitle, decimal score, decimal maxScore, string? feedback)
+    {
+        var title = NotificationText.Parameter(assignmentTitle);
+        var head = title.Length == 0 ? "Vazifa" : title;
+
+        var text = "✅ <b>Vazifangiz tekshirildi</b>\n\n"
+            + $"📝 {head}\n"
+            + $"⭐️ Baho: <b>{NotificationTemplates.FormatScore(score)}</b> / "
+            + $"{NotificationTemplates.FormatScore(maxScore)}";
+
+        // Izoh UZUNROQ chegara oladi (500): u xabarning eng qimmat qismi va
+        // 200 belgi ustozning odatiy izohini o'rtasidan kesardi. Umumiy 4096
+        // chegarasidan hamon ancha uzoq.
+        var note = NotificationText.Parameter(feedback, FeedbackMaxLength);
+
+        if (note.Length > 0) text += $"\n\n💬 {note}";
+
+        return text;
+    }
+
+    /// <summary>Izoh uchun chegara (<see cref="SubmissionGradedText"/> parametri).</summary>
+    private const int FeedbackMaxLength = 500;
+
+    /* ===== /R35/R36 ===== */
 }
 
 /// <summary>

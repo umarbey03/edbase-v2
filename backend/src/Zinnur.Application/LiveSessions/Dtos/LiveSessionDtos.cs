@@ -138,7 +138,31 @@ public sealed record SessionStatsDto(
     int? ActualMinutes,
     int StudentCount,
     int AttendedCount,
-    bool IsHost);
+    bool IsHost,
+
+    /// <summary>
+    /// Bu darsda o'quv bo'limining sifat tahlili bormi (R30).
+    ///
+    /// ★ NIMA UCHUN JADVAL QATORIDA: "Darslarim" da tahlilni ochadigan
+    /// tugma turadi va u FAQAT tahlil bor darsda ma'noli. Bu maydonsiz
+    /// tugma har qatorda ko'rinardi va aksariyatida bo'sh oyna ochardi —
+    /// yoki klient har qator uchun alohida so'rov yuborardi (N+1, 20
+    /// qatorlik sahifada 20 ta so'rov). Serverda esa bu AYNI `SELECT`
+    /// ichidagi korrelyatsion so'rov — yuqoridagi ikki sanoq bilan AYNI
+    /// naqsh.
+    ///
+    /// 🔴 BU JADVAL O'QUVCHIGA UMUMAN BERILMAYDI
+    /// (<c>GetStatsAsync</c> ning birinchi qatori), ya'ni tahlil borligi
+    /// haqidagi ishora ham unga yetib bormaydi.
+    /// </summary>
+    bool HasReview,
+
+    /// <summary>
+    /// Tahlil xulosasi (<c>NotReviewed</c> / <c>Approved</c> / <c>HasIssue</c>)
+    /// yoki <c>null</c> — tahlil yo'q. ATAYLAB SATR (enum raqami emas) —
+    /// <c>RecordingDto.Status</c> bilan AYNI sabab.
+    /// </summary>
+    string? ReviewStatus);
 
 /// <summary>
 /// Darslar jadvali filtri (R31). Barcha maydonlar ixtiyoriy.

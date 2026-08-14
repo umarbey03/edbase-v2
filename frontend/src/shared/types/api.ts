@@ -151,6 +151,60 @@ export interface SessionStatsDto {
   /** `Present` + `Late` + `Partial`. Yozuvi yo'q o'quvchi sanalmaydi. */
   attendedCount: number
   isHost: boolean
+  /**
+   * Bu darsda o'quv bo'limining sifat tahlili bormi (R30).
+   *
+   * ★ "Tahlil" tugmasi FAQAT shu bayroq `true` bo'lganda chiziladi:
+   * aks holda ustoz har qatorda tugma ko'rib, aksariyatida bo'sh oyna
+   * ochardi. Serverda bu AYNI `SELECT` ichidagi korrelyatsion so'rov,
+   * ya'ni qo'shimcha so'rov YO'Q.
+   *
+   * 🔴 Bu jadval o'quvchiga UMUMAN berilmaydi (server 403).
+   */
+  hasReview: boolean
+  /** Xulosa yoki `null` — tahlil yo'q. */
+  reviewStatus: SessionReviewVerdictName | null
+}
+
+/**
+ * Dars sifati tahlilining xulosasi (R29 / R30).
+ *
+ * ★ UCHTA HOLAT ESKI ILOVADAN TIKLANDI: "Ko'rilmagan / Tasdiqlandi /
+ * Muammo bor" (`RecordingCard.vue` izohidagi tarixiy yozuv). `NotReviewed`
+ * — QORALAMA: xodim tahlilni yozdi, lekin xulosani hali chiqarmadi.
+ * "Tahlil umuman yo'q" holati esa alohida — u `hasReview: false` bilan
+ * ifodalanadi va nishonda AYNI "Ko'rilmagan" ni beradi.
+ */
+export type SessionReviewVerdictName = 'NotReviewed' | 'Approved' | 'HasIssue'
+
+/**
+ * `GET /api/v1/live-sessions/{id}/review` javobi.
+ *
+ * ⚠️ TAHLIL YO'Q BO'LSA SERVER `200` VA JSON `null` QAYTARADI — 404 emas.
+ * "Hali yozilmagan" normal holat; 404 bo'lsa modal har ochilishida qizil
+ * ogohlantirish ko'rsatardi.
+ *
+ * 🔴 O'QUVCHI BU MANZILGA UMUMAN KIRA OLMAYDI (`403`) — chegara serverda,
+ * tugmani yashirishda emas.
+ */
+export interface SessionReviewDto {
+  id: number
+  sessionId: number
+  verdict: SessionReviewVerdictName
+  body: string
+  authorId: number
+  /** Xulosani yozgan xodim — ustoz uchun "kim aytdi" savoliga javob. */
+  authorName: string
+  /** ★ QULAYLIK, RUXSAT EMAS: haqiqiy qoida serverda va u har yozishda qayta tekshiriladi. */
+  canEdit: boolean
+  createdAt: string
+  updatedAt: string | null
+}
+
+/** `PUT /api/v1/live-sessions/{id}/review` tanasi (UPSERT). */
+export interface SaveSessionReviewRequest {
+  verdict: SessionReviewVerdictName
+  body: string
 }
 
 /** Frontend LiveKit'ga AYNAN shu bilan ulanadi (SPEC 5). */
@@ -218,12 +272,35 @@ export type AttemptStatusName = 'InProgress' | 'Submitted'
 /** `TestKind` enum. */
 export type TestKindName = 'Lesson' | 'Competition'
 
+/**
+ * `GroupStaffRole` (R33 + R40) — guruhning IKKI xodim o'rindig'idan qaysi
+ * biri mas'ul. Server enum'i JSON'da SATR bo'lib keladi.
+ *
+ * ★ `UserRoleName` BILAN ARALASHTIRILMASIN: u foydalanuvchining ROLI
+ * (`Student`, `Admin` ham bor), bu esa guruhdagi MAS'ULIYAT o'rni va
+ * uning atigi uchta qiymati bor.
+ */
+export type GroupStaffRoleName = 'Both' | 'Teacher' | 'Assistant'
+
 export interface GroupDto {
   id: number
   name: string | null
   type: GroupTypeName
   courseId: number | null
   courseName: string | null
+  /* ===== R21b · GURUH KATEGORIYASI ===== */
+  /**
+   * O'quv YO'NALISHI ("ATF", "Grammatika", "CEFR", "IELTS").
+   * `null` — yorliq qo'yilmagan (mavjud guruhlarning aksariyati shunday).
+   *
+   * ⚠️ `courseId` BILAN ARALASHTIRILMASIN: kurs — KONTENT (modul/dars/gating),
+   * bu esa faqat YORLIQ. Server tomondagi to'liq chegara `GroupCategory`
+   * sinfi izohida.
+   */
+  categoryId: number | null
+  /** Kategoriya nomi. `categoryId` `null` bo'lsa bu ham `null` (server kafolati). */
+  categoryName: string | null
+  /* ===== /R21b ===== */
   /* ===== WAVE 2 · GURUH (wave2/groups) ===== */
   /**
    * Video darslar QAYSI kurs darsidan boshlanadi. `null` — guruh kursni
@@ -254,6 +331,29 @@ export interface GroupDto {
   durationMinutes: number
   isActive: boolean
   recordEnabled: boolean
+  /**
+   * Shu guruhning yozuvlari o'quvchilarga ko'rinadimi (R5).
+   *
+   * ⚠️ `recordEnabled` BILAN ARALASHTIRILMASIN: u "dars YOZIB OLINSINMI",
+   * bu esa "yozilgan fayl o'quvchiga KO'RSATILSINMI". Ikkinchisi o'chiq
+   * bo'lsa yozuv baribir olinadi va o'quv bo'limi uni ko'raveradi.
+   */
+  recordingsVisibleToStudents: boolean
+  /* ===== R33 + R40 · KIM MAS'UL ===== */
+  /**
+   * R33 — bu guruhning topshirilgan ishlarini KIM tekshiradi.
+   * Standart `'Both'` = bugungi xatti-harakat (ustoz ham, kurator ham).
+   */
+  assignmentGraderRole: GroupStaffRoleName
+  /**
+   * R40 — bu guruh o'quvchilarining savollariga KIM javob beradi.
+   * Standart `'Assistant'` = bugungi xatti-harakat (faqat kurator).
+   *
+   * 🔴 `'Both'` bo'lsa o'quvchida IKKI suhbat bo'ladi (ustoz va kurator) —
+   * `GET /messages/conversations` ikki qator qaytaradi.
+   */
+  questionResponderRole: GroupStaffRoleName
+  /* ===== /R33 + R40 ===== */
   memberCount: number
   sessionCount: number
   createdAt: string
@@ -325,6 +425,15 @@ export interface AssignmentDto {
   gradedCount: number
   createdAt: string
   updatedAt: string | null
+  /**
+   * R33 — SHU vazifaning tekshiruvchisi. `null` — guruh sozlamasi ishlaydi
+   * (`GroupDto.assignmentGraderRole`).
+   *
+   * ★ Faqat GURUH vazifasida to'ldiriladi: kurs vazifasi o'nlab guruhga
+   * taalluqli va ularning har birida boshqa xodim ishlaydi, shuning uchun
+   * server u yerda 409 beradi.
+   */
+  graderRole: GroupStaffRoleName | null
 }
 
 export interface SubmissionFileDto {
@@ -333,6 +442,26 @@ export interface SubmissionFileDto {
   kind: string
   sizeBytes: number
   contentType: string | null
+}
+
+/**
+ * R37 · USTOZ tekshirishda biriktirgan fayl.
+ *
+ * 🔴 `SubmissionFileDto` BILAN ARALASHTIRILMASIN: u o'quvchining javobi, bu
+ * esa tekshiruvchining javobi. Ular boshqa-boshqa jadvaldan keladi va yuklab
+ * olish manzillari ham boshqa (`/submissions/files/{id}` va
+ * `/submissions/feedback-files/{id}`).
+ */
+export interface SubmissionFeedbackFileDto {
+  id: number
+  submissionId: number
+  kind: AttachmentKindName
+  contentType: string
+  /** Ustoz bergan nom (tozalangan). */
+  fileName: string | null
+  sizeBytes: number
+  createdById: number | null
+  createdAt: string
 }
 
 /** O'quvchining O'Z topshirig'i (`assignments/mine` ichida). */
@@ -349,6 +478,8 @@ export interface StudentSubmissionDto {
   resubmitNote: string | null
   isLate: boolean
   files: SubmissionFileDto[] | null
+  /** R37 · ustoz tekshirishda biriktirgan fayllar. */
+  feedbackFiles: SubmissionFeedbackFileDto[] | null
 }
 
 /**
@@ -396,6 +527,8 @@ export interface SubmissionDto {
   resubmitNote: string | null
   isLate: boolean
   files: SubmissionFileDto[] | null
+  /** R37 · ustoz tekshirishda biriktirgan fayllar. */
+  feedbackFiles: SubmissionFeedbackFileDto[] | null
 }
 
 export interface GradeSubmissionRequest {
@@ -423,6 +556,8 @@ export interface CreateAssignmentRequest {
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
   imageKey: string | null
+  /** R33 — tekshiruvchi. `null` = guruh sozlamasi (eng ko'p uchraydigan holat). */
+  graderRole: GroupStaffRoleName | null
 }
 
 /**
@@ -448,6 +583,8 @@ export interface UpdateAssignmentRequest {
   dueAt: string | null
   allowedFormats: AnswerFormatsValue
   imageKey: string | null
+  /** R33 — tekshiruvchi. `null` = guruh sozlamasi (eng ko'p uchraydigan holat). */
+  graderRole: GroupStaffRoleName | null
 }
 
 /** `POST /api/v1/submissions/{id}/reopen` tanasi. `note` O'QUVCHIGA ko'rinadi. */
@@ -799,10 +936,44 @@ export interface GroupWriteRequest {
    */
   videoStartLessonId?: number | null
   /* ===== /WAVE 2 · GURUH ===== */
+  /* ===== R21b · GURUH KATEGORIYASI ===== */
+  /**
+   * O'quv yo'nalishi (kategoriya Id'si).
+   *
+   * 🔴 HAR DOIM YUBORILSIN: bu PUT = TO'LIQ ALMASHTIRISH. Yuborilmasa server
+   * `null` yozadi va guruh yorlig'ini JIMGINA yo'qotadi — aynan shu tuzoq
+   * loyihada bir marta ishlagan (kurs uzilib butun guruhda gating
+   * `NotInCourse` bo'lgan). Formada u `buildPayload` orqali uchala
+   * bo'limdan yig'iladi, ya'ni bitta bo'limni saqlash boshqasini
+   * o'chirmaydi (`features/group-form/model/group-sections.ts`).
+   */
+  categoryId?: number | null
+  /* ===== /R21b ===== */
   teacherId?: number | null
   assistantId?: number | null
   curatorGroupId?: number | null
   recordEnabled: boolean
+  /**
+   * R5. 🔴 HAR DOIM YUBORILSIN: bu PUT semantikasi — yuborilmagan maydon
+   * server tomonda standart qiymatga tushadi. Server standarti `true`
+   * (ya'ni tushib qolgan maydon yozuvlarni YOPMAYDI), lekin formadagi
+   * joriy qiymat baribir uzatilishi kerak, aks holda tahrirlash har
+   * safar kalitni `true` ga qaytarardi.
+   */
+  recordingsVisibleToStudents: boolean
+  /**
+   * R33 — tekshiruvchi. 🔴 HAR DOIM YUBORILSIN (PUT semantikasi).
+   * Server standarti `'Both'` = bugungi xatti-harakat.
+   */
+  assignmentGraderRole: GroupStaffRoleName
+  /**
+   * R40 — savollarga javob beruvchi. 🔴 HAR DOIM YUBORILSIN.
+   *
+   * Server standarti `'Assistant'` = bugungi xatti-harakat. Standart
+   * `'Both'` bo'lganda maydonni yubormagan klient guruh savollarini
+   * JIMGINA ustozga ham ochib yuborardi.
+   */
+  questionResponderRole: GroupStaffRoleName
   isActive: boolean
 }
 
@@ -848,6 +1019,45 @@ export interface MoveMemberRequest {
 export interface MoveMemberResponse {
   left: GroupMemberDto
   arrived: GroupMemberDto
+}
+
+/* ==========================================================================
+   R21b · GURUH KATEGORIYALARI (o'quv yo'nalishlari lug'ati)
+   ========================================================================== */
+
+/**
+ * `GET /api/v1/group-categories` elementi.
+ *
+ * ★ SAHIFALANMAYDI — server ATAYLAB `PagedResult` emas, oddiy massiv
+ * qaytaradi: bu lug'at tanlagichlarni to'ldiradi va u YAXLIT kerak
+ * (sahifalangan bo'lsa 26-band jimgina tushib qolardi).
+ */
+export interface GroupCategoryDto {
+  id: number
+  name: string | null
+  position: number
+  isActive: boolean
+  /**
+   * Shu kategoriyaga biriktirilgan guruhlar soni.
+   *
+   * 🔴 O'CHIRISHDAN OLDIN KO'RSATILISHI SHART: server bunday kategoriyani
+   * o'chirtirmaydi (409), chunki bazadagi FK `SET NULL` bo'lib, o'chirish
+   * o'nlab guruhning yorlig'ini JIMGINA yo'q qilardi.
+   */
+  groupCount: number
+  createdAt: string
+  updatedAt: string | null
+}
+
+/**
+ * `POST /group-categories` va `PUT /group-categories/{id}` uchun YAGONA shakl.
+ *
+ * ★ Backendda ikkita record bo'lsa ham (`Create...` / `Update...`) ular
+ * maydon-maydon AYNAN bir xil — `GroupWriteRequest` bilan AYNI mulohaza.
+ */
+export interface GroupCategoryWriteRequest {
+  name: string
+  isActive: boolean
 }
 
 /** `GET /api/v1/groups/{id}/curator-candidates` elementi. */
@@ -1035,7 +1245,7 @@ export interface LeaderboardRowDto {
   studentId: number
   studentName: string | null
   rank: number
-  /** Yakuniy ball 0..100 — uch mezon o'rtachasi. */
+  /** Yakuniy ball 0..100 — MAVJUD mezonlar o'rtachasi (`null` mezon kirmaydi). */
   total: number
   /** `null` — shu oyda o'tilgan dars yo'q. */
   attendancePercent: number | null
@@ -1044,6 +1254,17 @@ export interface LeaderboardRowDto {
   /** `null` — shu oyda topshirilgan test yo'q. */
   testPercent: number | null
   isMe: boolean
+  /**
+   * R24 · DARS bahosi foizi. `null` — shu oyda dars bahosi yo'q.
+   *
+   * ★ `assignmentPercent` BILAN ARALASHTIRILMAYDI: u topshirilgan
+   * ISHNING bahosi, bu esa DARSNING bahosi.
+   *
+   * Maydon `isMe` DAN KEYIN — server DTO'sidagi tartibning aynan
+   * nusxasi (u yerda ham oxirgi, sabab: yozuv Redis'da JSON bo'lib
+   * saqlanadi va o'rtaga qo'shilgan maydon eski keshni surib yuborardi).
+   */
+  lessonPercent: number | null
 }
 
 export interface GroupLeaderboardDto {
@@ -1165,6 +1386,31 @@ export interface SendDirectMessageRequest {
 export interface MarkReadResultDto {
   markedCount: number
   unreadCount: number
+}
+
+/* ==========================================================================
+   R40 · DARS SAVOLLARI NAVBATI (`GET /api/v1/messages/lesson-questions`)
+   ==========================================================================
+
+   ★ YANGI XABAR TURI EMAS: bu AYNI shaxsiy yozishmaning filtrlangan
+   ko'rinishi (`moduleLessonId` to'ldirilgan xabarlar). Har qator `peerId`
+   beradi va u MAVJUD suhbat endpointlariga olib boradi — ikkinchi chat
+   tizimi qurilmagan.
+   ========================================================================== */
+
+export interface LessonQuestionDto {
+  messageId: number
+  /** O'quvchi Id'si — suhbatni ochish uchun `peerId` sifatida ishlatiladi. */
+  peerId: number
+  peerName: string | null
+  groupName: string | null
+  moduleLessonId: number
+  moduleLessonName: string | null
+  body: string
+  sentAt: string
+  /** Shu savoldan KEYIN xodim javob yozganmi. Navbat tartibi shunga tayanadi. */
+  answered: boolean
+  read: boolean
 }
 
 /* ==========================================================================
@@ -1765,9 +2011,41 @@ export interface GroupChatMessageDto {
   senderId: number
   senderName: string
   senderRole: UserRoleName
+  /**
+   * ⚠️ R16b DAN KEYIN BO'SH SATR BO'LISHI MUMKIN — izohsiz surat
+   * (Telegram'dagi kabi). `null` HECH QACHON kelmaydi: server ustunni
+   * NOT NULL saqlaydi va bo'sh matnni faqat BIRIKTIRMASI BOR xabarda
+   * ruxsat etadi.
+   */
   body: string
   /** ISO-8601. */
   sentAt: string
+  /**
+   * R16b · biriktirilgan fayllar. Biriktirmasiz xabarda BO'SH massiv.
+   *
+   * ⚠️ `| null` — hub orqali kelgan eski shakldan himoya: realtime payload
+   * `useGroupChatHub` da maydonma-maydon tekshiriladi va noma'lum shakl
+   * rad etiladi, lekin tur darajasida ham "bo'lmasligi mumkin" deb
+   * belgilanadi (loyihadagi barcha massiv maydonlaridagi AYNI kelishuv).
+   */
+  attachments: GroupChatAttachmentDto[] | null
+}
+
+/**
+ * R16b · chat xabariga biriktirilgan BITTA fayl.
+ *
+ * 🔴 `objectKey` YO'Q va bo'lmaydi: baytlar
+ * `GET /api/v1/group-chat/attachments/{id}` orqali, oqimni O'QISH ruxsatidan
+ * qaytadan o'tib olinadi.
+ */
+export interface GroupChatAttachmentDto {
+  id: number
+  kind: AttachmentKindName
+  contentType: string
+  /** Ko'rsatiladigan nom (tozalangan). Hujjat uchun MUHIM. */
+  fileName: string | null
+  sizeBytes: number
+  durationSec: number | null
 }
 
 /** `GET /groups/{id}/messages` javobi. */
@@ -1803,6 +2081,24 @@ export interface GroupChatThreadDto {
   lastMessageSenderName: string | null
   lastMessageAt: string | null
   unreadCount: number
+  /* ===== R38 · CHAT FILTRI UCHUN QO'SHIMCHA USTUNLAR ===== */
+  /**
+   * GURUH turi.
+   *
+   * ⚠️ `channel` BILAN ARALASHTIRILMASIN — u SUHBATDOSHNI bildiradi
+   * ("Ustoz chati" / "Kurator chati") va guruh turiga umuman bog'liq emas.
+   *
+   * ⚠️ HECH QACHON `'Curator'` BO'LMAYDI: kurator TURIDAGI guruhning
+   * alohida chati yo'q va u bu ro'yxatga umuman tushmaydi (server qoidasi,
+   * to'rt joyda). Shuning uchun filtr tanlagichida ham faqat `Group` va
+   * `Individual` bo'ladi.
+   */
+  groupType: GroupTypeName
+  /** O'quv yo'nalishi (R21b). `null` — yorliqsiz guruh. */
+  categoryId: number | null
+  /** Kategoriya nomi. `categoryId` `null` bo'lsa bu ham `null`. */
+  categoryName: string | null
+  /* ===== /R38 ===== */
 }
 
 /** Hub'dagi `JoinThread` javobi. ★ OBYEKT, massiv EMAS (jonli tekshirildi). */
@@ -1871,6 +2167,38 @@ export interface RecordingDto {
   /** Oxirgi xato matni (masalan egress rad etgani). `null` — xato yo'q. */
   error: string | null
   createdAt: string
+  /**
+   * SHU yozuvning ko'rinish kaliti (R5) — XODIM interfeysidagi tugma
+   * holati.
+   *
+   * ⚠️ "O'quvchi buni ko'radi" DEGANI EMAS: amaldagi ko'rinish uchta
+   * kalitning ko'paytmasi (global sozlama × guruh × shu bayroq).
+   * O'quvchiga kelgan ro'yxatda u har doim `true` bo'ladi — ko'rinmaydigan
+   * yozuv ro'yxatga umuman tushmaydi.
+   */
+  isVisibleToStudents: boolean
+  /**
+   * Bu DARSDA o'quv bo'limining sifat tahlili bormi (R29).
+   *
+   * 🔴 O'QUVCHIGA HAR DOIM `false`: tahlil undan yopiq va uning BORLIGI
+   * haqidagi ishora ham berilmaydi (server tomonda kesiladi).
+   */
+  hasReview: boolean
+  /** Tahlil xulosasi yoki `null` — tahlil yo'q. */
+  reviewStatus: SessionReviewVerdictName | null
+}
+
+/**
+ * `GET /api/v1/recordings/section` javobi (R5).
+ *
+ * ★ NEGA ALOHIDA ENDPOINT: o'quvchining "O'quv" ekranida yozuvlar bo'limiga
+ * KIRISH KARTOCHKASI turadi. Bo'lim yopilganda kartochka qolsa, o'quvchi
+ * uni bosib abadiy bo'sh sahifaga tushardi. Ro'yxatning O'ZI bu savolga
+ * javob bera olmaydi: bo'sh ro'yxat "yopilgan" ni ham, "hali yozuv yo'q" ni
+ * ham bildiradi va bu ikki holat foydalanuvchi uchun butunlay boshqacha.
+ */
+export interface RecordingSectionDto {
+  visible: boolean
 }
 
 /** `GET /api/v1/recordings` qaytaradigan qator: yozuv + qaysi dars/guruh. */
@@ -2217,8 +2545,22 @@ export interface LessonAssetDto {
   createdAt: string
 }
 
-/** `AttachmentKind` enum — vazifa shartiga biriktirilgan fayl turi. */
-export type AssignmentAttachmentKindName = 'Image' | 'Audio' | 'Document'
+/**
+ * `AttachmentKind` enum — biriktirilgan faylning turi.
+ *
+ * ★ BITTA TUR, UCH ISHLATUVCHI: vazifa sharti, chat biriktirmasi (R16b) va
+ * ustozning tekshiruv fayli (R37). Server uchalasida ham AYNI `AttachmentKind`
+ * enum'ini yuboradi — uchta bir xil union e'lon qilish ulardan biri
+ * yangilanmay qolishiga olib kelardi.
+ */
+export type AttachmentKindName = 'Image' | 'Audio' | 'Document'
+
+/**
+ * @deprecated Yangi kodda `AttachmentKindName` ishlatilsin — nomi turkumni
+ * vazifaga bog'lab qo'yadi, holbuki u umumiy. Alias mavjud importlar
+ * buzilmasin uchun saqlangan.
+ */
+export type AssignmentAttachmentKindName = AttachmentKindName
 
 /**
  * Vazifa SHARTIGA biriktirilgan bitta fayl.
@@ -2257,3 +2599,65 @@ export interface LessonAssetUploadFields {
 }
 
 /* ===== /WAVE 2 · KURS/DARS ===== */
+
+/* ===== R35/R36 · BILDIRISHNOMA ==========================================
+
+   ★ NEGA ALOHIDA BLOK OXIRDA (yuqoridagi WAVE 2 bloklari bilan AYNI
+   sabab): bu faylga bir necha tarmoq ayni vaqtda qo'shadi va alifbo
+   bo'yicha aralashtirilgan qatorlar merge paytida to'qnashuv beradi.  */
+
+/** `NotificationKind` enum — hodisa turi (ikonka va o'tish yo'li shundan). */
+export type NotificationKindName = 'SubmissionGraded'
+
+/**
+ * Qo'ng'iroqchadagi bitta qator.
+ *
+ * 🔴 `body` — SOF MATN, HTML EMAS. Uni `v-html` bilan chizish TAQIQLANADI:
+ * ichida ustozning izohi bor, ya'ni foydalanuvchi yozgan matn. Telegram
+ * yo'lidagi xabar ekranlangan HTML, LEKIN u umuman boshqa jadvalda
+ * (`MessageOutbox`) va bu yerga hech qachon tushmaydi.
+ */
+export interface NotificationDto {
+  id: number
+  kind: NotificationKindName
+  title: string
+  body: string
+  /**
+   * Bosilganda qayerga o'tish. Ma'nosi `kind` ga bog'liq:
+   * `SubmissionGraded` uchun — javob (`submission`) Id'si.
+   */
+  entityId: number | null
+  read: boolean
+  createdAt: string
+}
+
+/**
+ * Bildirishnomalar sahifasi — KURSORLI sahifalash (`MessagePageDto` bilan
+ * AYNI shakl, ataylab).
+ */
+export interface NotificationPageDto {
+  /** YANGIDAN ESKIGA tartibda. */
+  items: NotificationDto[]
+  hasMore: boolean
+  /** Keyingi sahifa uchun `?beforeId=`. `hasMore=false` bo'lsa `null`. */
+  nextBeforeId: number | null
+  /** ★ UMUMIY o'qilmaganlar soni — sahifadagi emas. */
+  unreadCount: number
+}
+
+export interface NotificationUnreadDto {
+  unreadCount: number
+}
+
+/** `markedCount` — takroriy so'rovda `0` (idempotent). */
+export interface NotificationReadResultDto {
+  markedCount: number
+  unreadCount: number
+}
+
+/** `ids` berilmasa — BARCHA o'qilmaganlar. */
+export interface MarkNotificationsReadRequest {
+  ids?: number[]
+}
+
+/* ===== /R35/R36 · BILDIRISHNOMA ===== */

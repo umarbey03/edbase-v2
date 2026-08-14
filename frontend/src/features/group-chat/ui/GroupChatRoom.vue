@@ -3,9 +3,11 @@ import { computed, ref, toRef, watch } from 'vue'
 
 import { channelLabel, channelTone, GROUP_CHAT_BODY_MAX } from '@/entities/group-chat'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { formatFileSize } from '@/shared/lib/text'
 import type { GroupChatChannelName } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseSpinner, DataStatus } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseModal, BaseSpinner, DataStatus } from '@/shared/ui'
 
+import { CHAT_ATTACHMENT_MAX_FILES } from '../lib/send-chat-attachments'
 import { useGroupChatRoom } from '../model/useGroupChatRoom'
 import { useGroupChatRows } from '../model/useGroupChatRows'
 import { useGroupChatScroll } from '../model/useGroupChatScroll'
@@ -159,9 +161,87 @@ const input = ref<HTMLTextAreaElement | null>(null)
 
 const trimmed = computed(() => draft.value.trim())
 
+/* ------------------------------- biriktirmalar ----------------------------- */
+
+/**
+ * ★ R16b · TANLANGAN, LEKIN HALI YUBORILMAGAN FAYLLAR.
+ *
+ * 🔴 FAYLLAR SERVERGA FAQAT "YUBORISH" BOSILGANDA KETADI — tanlanganda
+ * EMAS. Sabab server tomonida: xabar va biriktirmalar BITTA tranzaksiyada
+ * yoziladi, ya'ni "yukladim, keyin fikrimdan qaytdim" degan holat ombordа
+ * pul turadigan YETIM obyekt qoldirmaydi (batafsil: backend
+ * `GroupChatAttachment` izohi).
+ *
+ * ⚠️ NARXI OCHIQ: progress FAYL BOSHIGA emas, butun so'rov bo'yicha
+ * ko'rinadi va "yozayotganda fonda yuklab turish" yo'q. Telegram'dan
+ * farqi shu.
+ */
+const pendingFiles = ref<File[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const attachmentError = ref<string | null>(null)
+
+function pickFiles(): void {
+  fileInput.value?.click()
+}
+
+function onFilesChosen(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const chosen = Array.from(input.files ?? [])
+
+  /*
+    Bir xil faylni ikki marta tanlash mumkin bo'lsin uchun `value` DARHOL
+    tozalanadi: aks holda brauzer o'sha faylni qayta tanlaganda `change`
+    hodisasi umuman chiqmasdi.
+  */
+  input.value = ''
+
+  if (chosen.length === 0) return
+
+  const room = pendingFiles.value.length + chosen.length
+  if (room > CHAT_ATTACHMENT_MAX_FILES) {
+    attachmentError.value = `Bitta xabarga ko‘pi bilan ${CHAT_ATTACHMENT_MAX_FILES} ta fayl.`
+    return
+  }
+
+  attachmentError.value = null
+  pendingFiles.value = [...pendingFiles.value, ...chosen]
+}
+
+function removeFile(index: number): void {
+  pendingFiles.value = pendingFiles.value.filter((_, position) => position !== index)
+  attachmentError.value = null
+}
+
+const hasFiles = computed(() => pendingFiles.value.length > 0)
+
+/**
+ * Yuborish mumkinmi.
+ *
+ * ★ IKKI HOLAT: matn bilan YOKI fayl bilan. Fayl bo'lsa MATN SHART EMAS —
+ * bu R16b ning aynan mohiyati (izohsiz surat, Telegram'dagi kabi) va
+ * server ham shu invariantni saqlaydi ("matn bo'sh bo'lsa kamida bitta
+ * biriktirma").
+ */
 const canSubmit = computed(
-  () => trimmed.value.length > 0 && trimmed.value.length <= GROUP_CHAT_BODY_MAX && room.canSend.value,
+  () =>
+    (trimmed.value.length > 0 || hasFiles.value)
+    && trimmed.value.length <= GROUP_CHAT_BODY_MAX
+    && room.canSend.value,
 )
+
+/* --------------------------------- lightbox -------------------------------- */
+
+/**
+ * Kattalashtirilgan rasm.
+ *
+ * ★ ICHMA-ICH `BaseModal` XAVFSIZ (2026-08-11 refaktoridan keyin):
+ * `useModalHost` ESC uchun QATLAM STEKINI yuritadi va faqat eng tepadagi
+ * qatlamni yopadi. Ilgari har oyna `document` ga o'z tinglovchisini
+ * qo'yardi va ESC ikkala qatlamni birga yopardi — aynan shu sabab
+ * `GradeDialog` da kattalashtirish O'CHIRIB qo'yilgan edi.
+ */
+const zoomUrl = ref<string | null>(null)
 
 /**
  * Belgilar sanog'i FAQAT chegaraga yaqinlashganda ko'rinadi.
@@ -172,16 +252,32 @@ const showCounter = computed(() => draft.value.length > GROUP_CHAT_BODY_MAX - 20
 
 async function submit(): Promise<void> {
   if (!canSubmit.value) return
+
   const body = trimmed.value
-  // Maydonni DARHOL bo'shatamiz: yuborish davomida foydalanuvchi keyingisini
-  // yozishi mumkin. Xato bo'lsa matn `notice` da ko'rinadi.
+  const files = pendingFiles.value
+
+  /*
+    Maydonlarni DARHOL bo'shatamiz: yuborish davomida foydalanuvchi
+    keyingisini yozishi mumkin. Xato bo'lsa hammasi QAYTARILADI — aks holda
+    yozilgani ham, tanlangan fayl ham yo'qolardi.
+  */
   draft.value = ''
-  const ok = await room.send(body)
+  pendingFiles.value = []
+  attachmentError.value = null
+
+  /*
+    ★ YO'L TANLASH — YAGONA JOY: biriktirma bor -> REST (`sendWithFiles`),
+    yo'q -> hub afzal ko'riladigan `send`. Sabab `sendWithFiles` izohida
+    (SignalR fayl tashiy olmaydi).
+  */
+  const ok = files.length > 0 ? await room.sendWithFiles(files, body) : await room.send(body)
+
   if (!ok) {
-    // Yuborilmagan matnni QAYTARAMIZ — aks holda yozilgani yo'qolardi.
     draft.value = body
+    pendingFiles.value = files
     return
   }
+
   scroll.jumpToBottom()
 }
 
@@ -320,6 +416,8 @@ watch(
             :is-own="row.isOwn"
             :show-header="row.showHeader"
             :role="row.senderRole"
+            :attachments="row.attachments"
+            @zoom="(url) => (zoomUrl = url)"
           />
         </template>
       </DataStatus>
@@ -334,6 +432,67 @@ watch(
       :text="room.notice.value"
       @dismiss="room.dismissNotice()"
     />
+
+    <!-- ====================== Tanlangan fayllar (R16b) ====================== -->
+    <!--
+      Fayllar YUBORILGUNCHA shu yerda turadi. Ular hali serverga ketmagan —
+      "Yuborish" bosilganda xabar bilan BITTA so'rovda ketadi (sabab
+      `pendingFiles` izohida).
+    -->
+    <div
+      v-if="pendingFiles.length > 0 || attachmentError !== null"
+      class="mt-2 shrink-0"
+    >
+      <p
+        v-if="attachmentError !== null"
+        class="mb-1.5 text-[11px] text-rose-400"
+        role="alert"
+        v-text="attachmentError"
+      />
+      <ul class="flex flex-wrap gap-1.5">
+        <li
+          v-for="(file, index) in pendingFiles"
+          :key="`${file.name}:${index}`"
+          class="flex max-w-full items-center gap-1.5 rounded-full border border-line bg-ink-900 py-1 pl-2.5 pr-1"
+        >
+          <AppIcon
+            name="paperclip"
+            :size="12"
+          />
+          <span
+            class="min-w-0 max-w-40 truncate text-[11.5px] text-slate-300"
+            v-text="file.name"
+          />
+          <span
+            class="shrink-0 text-[10.5px] tabular-nums text-dim"
+            v-text="formatFileSize(file.size)"
+          />
+          <button
+            type="button"
+            class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+            title="Olib tashlash"
+            aria-label="Faylni olib tashlash"
+            @click="removeFile(index)"
+          >
+            <AppIcon
+              name="close"
+              :size="12"
+            />
+          </button>
+        </li>
+      </ul>
+
+      <!-- Yuklash progressi — BUTUN so'rov bo'yicha (izohi `pendingFiles` da). -->
+      <div
+        v-if="room.uploadPercent.value !== null"
+        class="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-800"
+      >
+        <div
+          class="h-full rounded-full bg-brand-500 transition-[width]"
+          :style="{ width: `${room.uploadPercent.value}%` }"
+        />
+      </div>
+    </div>
 
     <!-- ============================ Yozish paneli =========================== -->
     <form
@@ -350,6 +509,35 @@ watch(
         :target="input"
         :max-length="GROUP_CHAT_BODY_MAX"
       />
+
+      <!--
+        ★ R16b · FAYL BIRIKTIRISH. Emojidan KEYIN va matn maydonidan OLDIN —
+        Telegram'dagi tartib (qo'shimchalar chapda, yuborish o'ngda).
+
+        `accept` — TAVSIYA, tekshiruv EMAS: haqiqiy tur serverda SEHRLI
+        BAYTLARDAN aniqlanadi (`.jpg` deb nomlangan EXE 400 oladi). Bu yerda
+        u faqat telefon galereyasini to'g'ri ochish uchun.
+      -->
+      <input
+        ref="fileInput"
+        class="hidden"
+        type="file"
+        multiple
+        accept="image/*,audio/*,application/pdf"
+        @change="onFilesChosen"
+      >
+      <button
+        type="button"
+        class="tap-target flex size-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+        title="Fayl biriktirish"
+        aria-label="Fayl biriktirish"
+        @click="pickFiles"
+      >
+        <AppIcon
+          name="paperclip"
+          :size="18"
+        />
+      </button>
 
       <div class="min-w-0 flex-1">
         <label
@@ -420,5 +608,26 @@ watch(
         />
       </button>
     </form>
+
+    <!--
+      Kattalashtirilgan rasm. `GradingQueueOverlay` dagi AYNI naqsh:
+      `BaseModal wide` + `max-h-[75dvh] object-contain`.
+
+      ★ ICHMA-ICH OYNA XAVFSIZ: `useModalHost` ESC steki faqat eng
+      tepadagi qatlamni yopadi (izohi `zoomUrl` ustida).
+    -->
+    <BaseModal
+      :open="zoomUrl !== null"
+      title="Rasm"
+      wide
+      @close="zoomUrl = null"
+    >
+      <img
+        v-if="zoomUrl !== null"
+        :src="zoomUrl"
+        alt="Kattalashtirilgan rasm"
+        class="mx-auto max-h-[75dvh] w-auto rounded-lg object-contain"
+      >
+    </BaseModal>
   </div>
 </template>

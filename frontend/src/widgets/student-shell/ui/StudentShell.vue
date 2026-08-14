@@ -4,6 +4,7 @@ import { RouterView, useRouter } from 'vue-router'
 
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { useNotificationHub } from '@/features/notifications'
 import { markMiniAppLogout } from '@/features/telegram-auth'
 import { closeMiniApp, isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { useNow } from '@/shared/lib/use-now'
@@ -50,6 +51,21 @@ const now = useNow()
 const schedule = useStudentSchedule(now)
 
 const profileOpen = ref(false)
+
+/*
+  ★ BILDIRISHNOMA KANALI KARKAS DARAJASIDA OCHILADI (R35/R36).
+
+  Qo'ng'iroqchaning O'ZI (`NotificationBell`) hub'ga ULANMAYDI — u faqat
+  TanStack Query keshidan o'qiydi. Sabab: ulanish ilova bo'ylab YAGONA
+  bo'lishi kerak, qo'ng'iroqcha esa bir necha joyda chizilishi mumkin
+  (xodim karkasida — mobil sarlavha va yon menyu). Har komponent o'zi
+  ulansa, bitta foydalanuvchi bir necha WebSocket ushlab turardi.
+
+  Karkas — to'g'ri joy: u foydalanuvchi tizimda bo'lgan butun vaqt
+  mount holatida turadi va rol o'zgarganda (o'quvchi -> xodim) tabiiy
+  ravishda unmount bo'lib, ulanishni yopadi.
+*/
+useNotificationHub()
 
 /*
   ★ TEMA `<html>` GA QO'YILADI, karkas `<div>` iga EMAS.

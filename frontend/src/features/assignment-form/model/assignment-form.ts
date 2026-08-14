@@ -1,7 +1,12 @@
 import { parseAnswerFormats, serializeAnswerFormats } from '@/entities/assignment'
 import type { AnswerFormatName } from '@/entities/assignment'
 import { fromDateTimeLocalInput, toDateTimeLocalInput } from '@/shared/lib/datetime'
-import type { AssignmentDto, CreateAssignmentRequest, UpdateAssignmentRequest } from '@/shared/types'
+import type {
+  AssignmentDto,
+  CreateAssignmentRequest,
+  GroupStaffRoleName,
+  UpdateAssignmentRequest,
+} from '@/shared/types'
 
 /**
  * ========================================================================
@@ -50,6 +55,27 @@ export interface AssignmentFormState {
    * birinchi tahrirlashdayoq yo'qolardi.
    */
   imageKey: string | null
+  /**
+   * R33 — SHU vazifani kim tekshiradi. `null` — guruh sozlamasi ishlaydi
+   * (eng ko'p uchraydigan holat va standart).
+   *
+   * 🔴 FAQAT GURUH vazifasida ma'noli: kurs vazifasi o'nlab guruhga
+   * taalluqli va ularning har birida boshqa xodim ishlaydi, shuning uchun
+   * server u yerda 409 beradi. Forma buni `graderRoleApplies` bilan
+   * to'sadi — foydalanuvchi tanlab, keyin xato ko'rishi kerak emas.
+   */
+  graderRole: GroupStaffRoleName | null
+}
+
+/**
+ * Tekshiruvchi tanlovi SHU nishonda ko'rsatiladimi.
+ *
+ * ★ Bitta joyda — `AssignmentFormDialog` ham, `LessonAssignmentSection`
+ *   ham shuni o'qiydi. Ikkinchisi DOIM kurs darsi bilan ishlaydi, ya'ni
+ *   u yerda tanlov hech qachon chizilmaydi.
+ */
+export function graderRoleApplies(target: AssignmentTargetIds): boolean {
+  return target.groupId !== null
 }
 
 export function createAssignmentFormState(assignment: AssignmentDto | null): AssignmentFormState {
@@ -61,6 +87,7 @@ export function createAssignmentFormState(assignment: AssignmentDto | null): Ass
     formats:
       assignment !== null ? parseAnswerFormats(assignment.allowedFormats) : [...DEFAULT_FORMATS],
     imageKey: assignment?.imageKey ?? null,
+    graderRole: assignment?.graderRole ?? null,
   }
 }
 
@@ -130,6 +157,7 @@ export function buildUpdateRequest(state: AssignmentFormState): UpdateAssignment
     dueAt: fromDateTimeLocalInput(state.dueLocal),
     allowedFormats: serializeAnswerFormats(state.formats),
     imageKey: state.imageKey,
+    graderRole: state.graderRole,
   }
 }
 
@@ -178,6 +206,11 @@ export function changedAssignmentFields(
   */
   const before = serializeAnswerFormats(parseAnswerFormats(assignment.allowedFormats))
   if (before !== next.allowedFormats) changes.push('Javob formatlari')
+
+  // R33 — tekshiruvchi almashishi baholash NAVBATINI ko'chiradi, ya'ni bu
+  // tasdiq oynasida ALBATTA ko'rinishi kerak: ustoz ochiq turgan ishini
+  // yo'qotishi mumkin.
+  if ((assignment.graderRole ?? null) !== (next.graderRole ?? null)) changes.push('Tekshiruvchi')
 
   return changes
 }

@@ -8,6 +8,7 @@ using Zinnur.Application.Scheduling.Dtos;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Application.Groups.Services;
 
@@ -56,6 +57,16 @@ public sealed class GroupService(
         if (query.IsActive is { } isActive)
             rows = rows.Where(g => g.IsActive == isActive);
 
+        /* ===== R21b · KATEGORIYA FILTRI =====
+
+           ★ MAVJUDLIK TEKSHIRILMAYDI (ataylab): yo'q kategoriya so'ralsa
+           natija BO'SH ro'yxat bo'ladi, 404 emas. Bu GET ro'yxat so'rovi —
+           u hech qachon 404 bermasligi kerak (`ListCuratorCandidatesAsync`
+           bilan AYNI mulohaza). Qo'shimcha `EXISTS` so'rovi esa har
+           sahifalashda bekorga ketardi. */
+        if (query.CategoryId is { } categoryId)
+            rows = rows.Where(g => g.CategoryId == categoryId);
+
         rows = ApplySearch(rows, query.Search);
 
         // Ikkita so'rov (COUNT + sahifa) — `Total` bo'lmasa frontend paginator
@@ -93,6 +104,7 @@ public sealed class GroupService(
         RequireKnownType(request.Type);
 
         await EnsureCourseExistsAsync(request.CourseId, ct);
+        await EnsureCategoryExistsAsync(request.CategoryId, ct);
         await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
         await EnsureVideoStartLessonAsync(request.CourseId, request.VideoStartLessonId, ct);
 
@@ -101,6 +113,7 @@ public sealed class GroupService(
             Name = name,
             Type = request.Type,
             CourseId = request.CourseId,
+            CategoryId = request.CategoryId,
             VideoStartLessonId = request.VideoStartLessonId,
             TeacherId = request.TeacherId,
             AssistantId = request.AssistantId,
@@ -111,10 +124,15 @@ public sealed class GroupService(
             StartTime = request.StartTime,
             DurationMinutes = request.DurationMinutes,
             RecordEnabled = request.RecordEnabled,
+            RecordingsVisibleToStudents = request.RecordingsVisibleToStudents,
+            AssignmentGraderRole = request.AssignmentGraderRole,
+            QuestionResponderRole = request.QuestionResponderRole,
             IsActive = request.IsActive,
         };
 
         await EnsureCuratorLinkAsync(group, request.CuratorGroupId, ct);
+
+        await EnsureResponsibleSeatsFilledAsync(group, ct);
 
         // Domain qoidasi (kun soni, davomiylik, kurator mas'uli va h.k.).
         // Buzilsa DomainException -> HTTP 409.
@@ -176,6 +194,7 @@ public sealed class GroupService(
         RequireKnownType(request.Type);
 
         await EnsureCourseExistsAsync(request.CourseId, ct);
+        await EnsureCategoryExistsAsync(request.CategoryId, ct);
         await EnsureStaffAsync(request.TeacherId, request.AssistantId, ct);
         await EnsureCuratorLinkAsync(group, request.CuratorGroupId, ct);
 
@@ -217,6 +236,14 @@ public sealed class GroupService(
         group.Name = name;
         group.Type = request.Type;
         group.CourseId = request.CourseId;
+
+        // 🔴 R21b · PUT = TO'LIQ ALMASHTIRISH. Yuborilmagan `categoryId`
+        // shu qatorda `null` bo'lib yoziladi va guruh yorlig'ini YO'QOTADI.
+        // Bu — `RecordingsVisibleToStudents` va `VideoStartLessonId` bilan
+        // AYNI tuzoq; frontendda u `buildPayload` (uchala bo'limdan yig'ish)
+        // bilan yopilgan.
+        group.CategoryId = request.CategoryId;
+
         group.VideoStartLessonId = request.VideoStartLessonId;
         group.TeacherId = request.TeacherId;
         group.AssistantId = request.AssistantId;
@@ -227,9 +254,20 @@ public sealed class GroupService(
         group.StartTime = request.StartTime;
         group.DurationMinutes = request.DurationMinutes;
         group.RecordEnabled = request.RecordEnabled;
+        group.RecordingsVisibleToStudents = request.RecordingsVisibleToStudents;
+
+        // 🔴 R33 + R40 · PUT = TO'LIQ ALMASHTIRISH — yuqoridagi `categoryId`
+        // bilan AYNI tuzoq. Ikkala maydonning standartlari ATAYLAB bugungi
+        // xatti-harakat qilib tanlangan (`Both` va `Assistant`), ya'ni eski
+        // klient ularni yubormasa ham hech narsa buzilmaydi.
+        group.AssignmentGraderRole = request.AssignmentGraderRole;
+        group.QuestionResponderRole = request.QuestionResponderRole;
+
         group.IsActive = request.IsActive;
 
         group.ValidateScheduleRule();
+
+        await EnsureResponsibleSeatsFilledAsync(group, ct);
 
         var summary = await ApplyScheduleDecisionAsync(
             group, scheduleChanged, hostChanged, nameChanged, ct);
@@ -875,6 +913,34 @@ public sealed class GroupService(
             throw new NotFoundException(nameof(Course), courseId);
     }
 
+    /* ===== R21b · KATEGORIYA MAVJUDMI ===== */
+
+    /// <summary>
+    /// Kategoriya bazada bormi.
+    ///
+    /// ★ 404 (400 EMAS) — <see cref="EnsureCourseExistsAsync"/> bilan AYNI
+    /// naqsh va AYNI sabab: bu murojaat tanasidagi "yaroqsiz qiymat" emas,
+    /// MAVJUD BO'LMAGAN resursga havola. Loyihada guruhning FK'lari uchun
+    /// qoida shu (kurs, ustoz, kurator guruhi — hammasi 404).
+    ///
+    /// ⚠️ FAOLLIK TEKSHIRILMAYDI (ataylab): arxivlangan kategoriya bilan
+    /// guruhni SAQLASH mumkin bo'lishi SHART. Aks holda o'quv bo'limi
+    /// "IELTS" yorlig'ini arxivlagan zahoti, o'sha yorliqdagi 40 guruhning
+    /// birortasini ham tahrirlab bo'lmay qolardi (PUT to'liq almashtirish,
+    /// ya'ni forma joriy kategoriyani qaytarib yuboradi va 400 olardi).
+    /// Tanlagichdan chiqarib tashlash — UI ning ishi (`isActive=true`
+    /// filtri), server esa mavjud bog'lanishni buzmaydi.
+    /// </summary>
+    private async Task EnsureCategoryExistsAsync(long? categoryId, CancellationToken ct)
+    {
+        if (categoryId is null) return;
+
+        if (!await db.GroupCategories.AsNoTracking().AnyAsync(c => c.Id == categoryId, ct))
+            throw new NotFoundException(nameof(GroupCategory), categoryId);
+    }
+
+    /* ===== /R21b ===== */
+
     /// <summary>
     /// ========================================================================
     /// ★ VIDEO BOSHLANISH DARSI GURUHNING KURSIGA TEGISHLIMI
@@ -989,6 +1055,109 @@ public sealed class GroupService(
     }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// R33 + R40 — «TANLANGAN O'RINDIQ BO'SHMI» TEKSHIRUVI
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 NIMA UCHUN: <c>TeacherId</c> ham, <c>AssistantId</c> ham NULL
+    /// bo'lishi mumkin. "Savollarga kurator javob bersin" deb qo'yilgan,
+    /// lekin kuratori yo'q guruhda o'quvchi HECH KIMGA yoza olmasdi va
+    /// ekranda sababsiz "kurator biriktirilmagan" ko'rinardi — o'quv
+    /// bo'limi esa sozlamani SAQLAGAN deb o'ylab yurardi.
+    ///
+    /// ★ TEKSHIRUV BILVOSITA YO'LNI HAM HISOBGA OLADI: o'rindiqda odam
+    /// bo'lishi shart emas — u BOG'LANGAN kurator guruhidan kelishi ham
+    /// mumkin (<c>StaffResponsibility</c> dagi qoidaning aynan o'zi).
+    /// Faqat to'g'ridan-to'g'ri maydonlar tekshirilsa, kurator guruhi
+    /// orqali to'g'ri sozlangan guruh 400 olardi.
+    ///
+    /// ★ QO'SHIMCHA SO'ROV FAQAT KERAK BO'LGANDA: to'g'ridan-to'g'ri
+    /// o'rindiq to'la bo'lsa bazaga umuman borilmaydi (odatiy hol).
+    /// </summary>
+    private async Task EnsureResponsibleSeatsFilledAsync(Group group, CancellationToken ct)
+    {
+        long? curatorGroupTeacherId = null;
+        long? curatorGroupAssistantId = null;
+
+        if (group.CuratorGroupId is { } curatorGroupId
+            && (group.TeacherId is null || group.AssistantId is null))
+        {
+            var linked = await db.Groups.AsNoTracking()
+                .Where(g => g.Id == curatorGroupId)
+                .Select(g => new { g.TeacherId, g.AssistantId })
+                .FirstOrDefaultAsync(ct);
+
+            curatorGroupTeacherId = linked?.TeacherId;
+            curatorGroupAssistantId = linked?.AssistantId;
+        }
+
+        var hasTeacher = group.TeacherId is not null || curatorGroupTeacherId is not null;
+        var hasAssistant = group.AssistantId is not null || curatorGroupAssistantId is not null;
+
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        Check(
+            group.AssignmentGraderRole,
+            nameof(UpdateGroupRequest.AssignmentGraderRole),
+            "tekshiruvchi");
+
+        /*
+          🔴 SAVOLGA JAVOB BERUVCHI TEKSHIRILMAYDI — VA BU ATAYLAB.
+
+          Ikki ustun bir xil ko'rinadi, lekin ularning "xodim yo'q" holati
+          BUTUNLAY BOSHQACHA tugaydi:
+
+            • TEKSHIRUVCHI yo'q  → topshirilgan ish OSILIB QOLADI. Hech kim
+              baho qo'ya olmaydi va o'quvchi kutib o'tiraveradi. Shuning
+              uchun yuqoridagi `Check` o'z o'rnida.
+
+            • SAVOLGA JAVOB BERUVCHI yo'q → o'quvchida shaxsiy suhbatdosh
+              bo'lmaydi. Bu BUGUNGI XULQNING O'ZI: `CuratorDirectory
+              .ResolveCuratorAsync` faqat `AssistantId` ga qaraydi va
+              kurator biriktirilmagan guruhda hozir ham `null` qaytaradi —
+              o'quvchi "chat yo'q" holatini ko'radi. Hech narsa yo'qolmaydi.
+
+          ★ NEGA BU XATO EDI: ustun standarti `Assistant` (bugungi
+          yo'naltirishni saqlash uchun — to'g'ri qaror). Lekin uni bu yerda
+          tekshirish KURATORSIZ GURUH YARATISHNI butunlay to'sib qo'ydi:
+          foydalanuvchi bu qiymatni TANLAMAGAN ham edi, u standart bo'lib
+          kelgan. Integratsion testlarda 100 dan ortiq yiqilish shundan.
+          Yuqoridagi `Both` uchun yozilgan izoh AYNI shu xavfni nazarda
+          tutgan — standart qiymat uni chetlab o'tgan.
+
+          ★ Standartni `Both` ga o'zgartirish YECHIM EMAS: u holda savollar
+          ustozga ham yo'naltirilardi va bu o'quvchilar uchun ko'rinadigan
+          xulq o'zgarishi bo'lardi (bugun ustoz shaxsiy savol olmaydi).
+        */
+
+        if (errors.Count > 0) throw new ValidationException(errors);
+
+        void Check(GroupStaffRole role, string field, string what)
+        {
+            var missing = role switch
+            {
+                GroupStaffRole.Teacher => !hasTeacher,
+                GroupStaffRole.Assistant => !hasAssistant,
+
+                // `Both` — kamida bittasi bo'lsa yetadi. Ikkalasi ham
+                // bo'sh guruh esa mavjud holat (hali xodim biriktirilmagan)
+                // va uni bu yerda taqiqlash guruh YARATISHNI to'sib
+                // qo'yardi — shtat odatda keyinroq biriktiriladi.
+                _ => false,
+            };
+
+            if (!missing) return;
+
+            errors[field] =
+            [
+                role == GroupStaffRole.Teacher
+                    ? $"Guruhga ustoz biriktirilmagan — uni {what} qilib tanlab bo'lmaydi."
+                    : $"Guruhga kurator biriktirilmagan — uni {what} qilib tanlab bo'lmaydi.",
+            ];
+        }
+    }
+
+    /// <summary>
     /// Unikal indeks buzilishini tushunarli 409 ga aylantiradi.
     /// Tekshiruv bilan yozuv orasida boshqa so'rov ulgurib qolishi mumkin —
     /// indeks oxirgi (va ishonchli) himoya.
@@ -1029,6 +1198,12 @@ public sealed class GroupService(
             g.CourseId,
             g.Course == null ? null : g.Course.Name,
 
+            // R21b · KATEGORIYA. Navigatsiya orqali (`LEFT JOIN`) — kursdagi
+            // bilan AYNI naqsh, ya'ni ro'yxatning har qatori uchun alohida
+            // so'rov ketmaydi.
+            g.CategoryId,
+            g.Category == null ? null : g.Category.Name,
+
             // VIDEO BOSHLANISH NUQTASI. Nomlar ichki `SELECT` bilan olinadi —
             // navigatsiya property'si ataylab yo'q (sabab: `GroupConfiguration`).
             // UI ikkisini "3-modul · 2-dars" ko'rinishida birga ko'rsatadi,
@@ -1052,6 +1227,11 @@ public sealed class GroupService(
             g.DurationMinutes,
             g.IsActive,
             g.RecordEnabled,
+            g.RecordingsVisibleToStudents,
+
+            // R33 + R40 — guruh ustunlari (izohi `Group` entity'sida).
+            g.AssignmentGraderRole,
+            g.QuestionResponderRole,
 
             // KURATOR guruhida a'zolar bevosita yo'q — ular bog'langan ustoz
             // guruhlaridan sanaladi. Ikki shart bitta ifodada: oddiy guruhda
@@ -1070,6 +1250,18 @@ public sealed class GroupService(
         p.Type,
         p.CourseId,
         p.CourseName,
+
+        // ★ R21b · ATAYLAB NOMLI ARGUMENT (qolganlari pozitsion).
+        //
+        // `GroupDto` — POZITSION record va bu yerda ketma-ket TO'RTTA
+        // `long? / string?` juftligi turibdi (kurs, kategoriya, video dars).
+        // Yangi juftlikni bir pozitsiya adashtirib qo'yish KOMPILYATSIYA
+        // XATOSI bermasdi — turlar mos tushardi va kategoriya nomi kurs
+        // ustuniga jimgina o'tib ketardi. Nomli argument buni
+        // KOMPILYATOR tekshiradigan holatga aylantiradi.
+        CategoryId: p.CategoryId,
+        CategoryName: p.CategoryName,
+
         p.VideoStartLessonId,
         p.VideoStartLessonName,
         p.VideoStartModuleName,
@@ -1089,6 +1281,16 @@ public sealed class GroupService(
         p.DurationMinutes,
         p.IsActive,
         p.RecordEnabled,
+        p.RecordingsVisibleToStudents,
+
+        // ★ NOMLI ARGUMENT — `CategoryId` dagi bilan AYNI sabab: bu yerda
+        // ketma-ket IKKI `GroupStaffRole` turadi va ularni almashtirib
+        // qo'yish KOMPILYATSIYA XATOSI bermasdi. Natijada baholash
+        // sozlamasi savollarga, savollar sozlamasi baholashga o'tib
+        // ketardi — va buni faqat foydalanuvchi sezardi.
+        AssignmentGraderRole: p.AssignmentGraderRole,
+        QuestionResponderRole: p.QuestionResponderRole,
+
         p.MemberCount,
         p.SessionCount,
         p.CreatedAt,
@@ -1126,6 +1328,8 @@ public sealed class GroupService(
         GroupType Type,
         long? CourseId,
         string? CourseName,
+        long? CategoryId,
+        string? CategoryName,
         long? VideoStartLessonId,
         string? VideoStartLessonName,
         string? VideoStartModuleName,
@@ -1142,6 +1346,9 @@ public sealed class GroupService(
         int DurationMinutes,
         bool IsActive,
         bool RecordEnabled,
+        bool RecordingsVisibleToStudents,
+        GroupStaffRole AssignmentGraderRole,
+        GroupStaffRole QuestionResponderRole,
         int MemberCount,
         int SessionCount,
         DateTimeOffset CreatedAt,

@@ -197,7 +197,22 @@ public sealed class LiveSessionService(
                 db.Attendances.Count(a => a.SessionId == s.Id
                     && (a.Status == AttendanceStatus.Present
                      || a.Status == AttendanceStatus.Late
-                     || a.Status == AttendanceStatus.Partial))))
+                     || a.Status == AttendanceStatus.Partial)),
+
+                // R30: DARS TAHLILI BORMI va xulosasi qanday.
+                //
+                // ★ AYNI `SELECT` ichida, `UX_SessionReviews_SessionId`
+                //   indeksi bo'yicha — yuqoridagi ikki sanoq bilan AYNI
+                //   naqsh va AYNI sabab (N+1 dan qochish).
+                //
+                // ⚠️ Bu yerda RUXSAT tekshirilmaydi va kerak ham emas:
+                //    so'rovning O'ZI `ScopeByRole` bilan cheklangan, ya'ni
+                //    ustoz faqat o'z guruhlarining darslarini ko'radi, va
+                //    o'quvchi bu metodga UMUMAN kira olmaydi (yuqorida 403).
+                db.SessionReviews
+                    .Where(r => r.SessionId == s.Id)
+                    .Select(r => (SessionReviewVerdict?)r.Verdict)
+                    .FirstOrDefault()))
             .ToListAsync(ct);
 
         var mapped = items.ConvertAll(row => new SessionStatsDto(
@@ -221,7 +236,9 @@ public sealed class LiveSessionService(
             LiveSession.ActualMinutesOf(row.ActualStart, row.ActualEnd),
             row.StudentCount,
             row.AttendedCount,
-            IsHost(user, row.HostId, row.TeacherId, row.AssistantId)));
+            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            row.ReviewVerdict is not null,
+            row.ReviewVerdict?.ToString()));
 
         return new PagedResult<SessionStatsDto>(mapped, page, pageSize, total);
     }
@@ -536,7 +553,8 @@ public sealed class LiveSessionService(
         DateTimeOffset? ActualStart,
         DateTimeOffset? ActualEnd,
         int StudentCount,
-        int AttendedCount);
+        int AttendedCount,
+        SessionReviewVerdict? ReviewVerdict);
 
     /// <summary>Kalendar so'rovining tor proyeksiyasi (butun entity tortilmaydi).</summary>
     private sealed record CalendarRow(

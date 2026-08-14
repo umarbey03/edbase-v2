@@ -37,6 +37,13 @@ internal sealed record GroupChatMessageResponse(
     string Body,
     DateTimeOffset SentAt);
 
+/// <summary>
+/// "Chatlar" ro'yxatining bitta qatori.
+///
+/// ★ <c>GroupType</c> — SATR (yuqoridagi umumiy qoida): API enum'ni
+/// <c>"Group"</c> / <c>"Individual"</c> ko'rinishida qaytaradi. Kurator
+/// TURIDAGI guruh bu ro'yxatda HECH QACHON ko'rinmaydi.
+/// </summary>
 internal sealed record GroupChatThreadResponse(
     long GroupId,
     string GroupName,
@@ -45,7 +52,11 @@ internal sealed record GroupChatThreadResponse(
     string? LastMessagePreview,
     string? LastMessageSenderName,
     DateTimeOffset? LastMessageAt,
-    int UnreadCount);
+    int UnreadCount,
+    /* ===== R38 · filtr uchun qo'shilgan ustunlar ===== */
+    string GroupType,
+    long? CategoryId,
+    string? CategoryName);
 
 internal sealed record GroupChatReadResponse(
     long GroupId,
@@ -94,17 +105,39 @@ internal static class GroupChatApi
         return (await response.Content.ReadFromJsonAsync<GroupChatPageResponse>())!;
     }
 
+    /// <summary>
+    /// "Chatlar" ro'yxati.
+    /// </summary>
+    /// <param name="type">R38 filtri: <c>Group</c> yoki <c>Individual</c>.</param>
+    /// <param name="categoryId">R38 filtri: o'quv yo'nalishi.</param>
     public static async Task<IReadOnlyList<GroupChatThreadResponse>> ThreadsAsync(
-        HttpClient client)
+        HttpClient client, GroupType? type = null, long? categoryId = null)
     {
         ArgumentNullException.ThrowIfNull(client);
 
-        var response = await client.GetAsync(new Uri($"{Root}/threads", UriKind.Relative));
+        var response = await client.GetAsync(ThreadsUrl(type, categoryId));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
 
         return (await response.Content
             .ReadFromJsonAsync<IReadOnlyList<GroupChatThreadResponse>>())!;
+    }
+
+    /// <summary>
+    /// R38 · ro'yxat manzili (filtr bilan). Ajratilgan, chunki 400 kutadigan
+    /// testlar javob KODINI tekshiradi va yuqoridagi metod 200 talab qiladi.
+    /// </summary>
+    public static Uri ThreadsUrl(GroupType? type = null, long? categoryId = null)
+    {
+        var url = $"{Root}/threads";
+        var query = new List<string>(2);
+
+        if (type is { } value) query.Add($"type={value}");
+        if (categoryId is { } id) query.Add($"categoryId={id}");
+
+        if (query.Count > 0) url += "?" + string.Join('&', query);
+
+        return new Uri(url, UriKind.Relative);
     }
 
     public static async Task<GroupChatMessageResponse> SendAsync(

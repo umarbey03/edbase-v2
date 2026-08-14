@@ -16,6 +16,32 @@ namespace Zinnur.Application.Recordings.Dtos;
 /// Nega chiqmagani (faqat xodimga ko'rsatiladi). O'quvchiga bu maydon
 /// ko'rsatilmaydi — unga faqat "yozuv yo'q" degani muhim.
 /// </param>
+/// <param name="IsVisibleToStudents">
+/// SHU yozuvning ko'rinish bayrog'i (R5).
+///
+/// ⚠️ "O'quvchi buni ko'radi" DEGANI EMAS: amaldagi ko'rinish uchta
+/// kalitning ko'paytmasi (global sozlama × guruh × shu bayroq). Bu maydon
+/// faqat XODIM interfeysidagi kalitning holatini ko'rsatadi —
+/// o'quvchiga yuboriladigan javobda u har doim <c>true</c> bo'ladi,
+/// chunki ko'rinmaydigan yozuv ro'yxatga UMUMAN tushmaydi.
+/// </param>
+/// <param name="HasReview">
+/// Bu darsda o'quv bo'limining tahlili bormi (R29).
+///
+/// ★ NIMA UCHUN YOZUV DTO'SIDA, GARCHI TAHLIL DARSGA BOG'LANGAN BO'LSA
+/// HAM: ro'yxat AYNAN yozuv kartochkalaridan iborat va nishon o'sha
+/// kartochkada chiziladi. Maydon bo'lmasa klient har kartochka uchun
+/// alohida so'rov yuborardi (N+1) — 30 ta yozuvli sahifada 30 ta so'rov.
+/// Server tomonda esa bu BITTA korrelyatsion so'rov.
+///
+/// 🔴 O'QUVCHIGA HAR DOIM <c>false</c> / <c>null</c>. Tahlil undan
+/// yopiq va u haqda "bor" degan ishora ham berilmaydi.
+/// </param>
+/// <param name="ReviewStatus">
+/// Tahlil xulosasi (<c>NotReviewed</c> / <c>Approved</c> / <c>HasIssue</c>)
+/// yoki <c>null</c> — tahlil yo'q. Eski ilovadagi uch holatli nishon
+/// AYNAN shu ikki maydondan tiklanadi.
+/// </param>
 public sealed record RecordingDto(
     long Id,
     long SessionId,
@@ -27,7 +53,39 @@ public sealed record RecordingDto(
     long? SizeBytes,
     int Attempts,
     string? Error,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool IsVisibleToStudents,
+    bool HasReview,
+    string? ReviewStatus);
+
+/// <summary>
+/// Yozuvning o'quvchilarga ko'rinishini o'zgartirish (R5).
+/// </summary>
+/// <param name="Visible">
+/// <c>true</c> — ochish, <c>false</c> — yashirish.
+///
+/// ⚠️ Ochish TAYYOR bo'lmagan yozuvda rad etiladi (409) — domain qoidasi
+/// <c>SessionRecording.ShowToStudents</c> da. Yashirish esa HAR QANDAY
+/// holatda ishlaydi.
+/// </param>
+public sealed record UpdateRecordingVisibilityRequest(bool Visible);
+
+/// <summary>
+/// "Dars yozuvlari bo'limi umuman ochiqmi" — O'QUVCHI interfeysi uchun.
+///
+/// ★ NIMA UCHUN ALOHIDA ENDPOINT KERAK BO'LDI: o'quvchining "O'quv"
+/// ekranida yozuvlar bo'limiga KIRISH KARTOCHKASI turadi
+/// (<c>StudentLearnPage.vue</c>). Bo'lim yopilganda kartochka qolsa,
+/// o'quvchi uni bosib abadiy bo'sh sahifaga tushardi va buni nosozlik deb
+/// o'ylardi. Ro'yxat endpointining O'ZI bu savolga javob bera olmaydi:
+/// bo'sh ro'yxat "yopilgan" ni ham, "hali yozuv yo'q" ni ham bildiradi va
+/// bu ikki holat foydalanuvchi uchun BUTUNLAY boshqacha.
+/// </summary>
+/// <param name="Visible">
+/// Bo'lim ochiqmi. Xodim uchun HAR DOIM <c>true</c> — global va guruh
+/// kalitlari faqat o'quvchiga tegishli.
+/// </param>
+public sealed record RecordingSectionDto(bool Visible);
 
 /// <summary>
 /// "Dars yozuvlari" ro'yxatining bitta qatori: yozuv + u tegishli bo'lgan

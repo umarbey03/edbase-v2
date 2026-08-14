@@ -129,6 +129,64 @@ public class SessionRecording : BaseEntity
     /// <summary>Nima uchun chiqmagani — XODIM uchun qisqa sabab.</summary>
     public string? Error { get; set; }
 
+    // ---------------------------------------------------------------- R5: ko'rinish
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// BU YOZUV O'QUVCHIGA KO'RINADIMI (talab R5)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Loyiha egasi: *"dars yozuvlari qismi student uchun dynamic bo'lishi
+    /// kerak, o'quv bo'limi va teacher tarafidan manage qilinadi, ko'rinish
+    /// yoki ko'rinmasligi"*.
+    ///
+    /// ── NIMA UCHUN STANDART QIYMAT <c>true</c> ──────────────────────────
+    ///
+    /// 🔴 BU MA'LUMOT QARORI, KOD QARORI EMAS — u MAVJUD qatorlarga ham
+    /// tegadi. <c>false</c> tanlansa, migratsiya kunida HAR BIR o'quvchining
+    /// "Dars yozuvlari" bo'limi BO'SHAB qolardi va buni o'quvchi nosozlikdan
+    /// ajrata olmasdi. Bundan tashqari o'quv bo'limida "hammasini ochish"
+    /// vositasi yo'q — ular yuzlab yozuvni qo'lda ochishga majbur bo'lardi.
+    ///
+    /// ★ TALABNING O'ZI HAM SHUNI AYTADI: unda "yozuvlar yopiq bo'lsin"
+    /// emas, "BOSHQARILADIGAN bo'lsin" deyilgan. Ya'ni bu bayroq — ORQAGA
+    /// QAYTARISH (yopish) vositasi, e'lon qilish darvozasi emas.
+    ///
+    /// ★ AGAR kelajakda "avval tekshirilsin, keyin ochilsin" siyosati
+    /// kerak bo'lsa, uni MIGRATSIYASIZ yoqish mumkin: global
+    /// <c>recordings.visible_to_students</c> sozlamasini o'chirib qo'yish
+    /// butun bo'limni bir bosishda yopadi.
+    ///
+    /// ⚠️ BU BAYROQ YAKKA O'ZI YETARLI EMAS. Amaldagi ko'rinish UCHTA
+    /// kalitning MANTIQIY KO'PAYTMASI (eng qattig'i yutadi):
+    ///   global <c>recordings.visible_to_students</c>
+    ///   × <c>Group.RecordingsVisibleToStudents</c>
+    ///   × shu bayroq × <c>Status == Completed</c>.
+    /// Sabab va ustunlik qoidasi <c>IRecordingService</c> izohida.
+    /// </summary>
+    public bool IsVisibleToStudents { get; set; } = true;
+
+    /// <summary>
+    /// Ko'rinishni OXIRGI marta kim o'zgartirgani.
+    ///
+    /// ★ NIMA UCHUN SAQLANADI — BU AUDIT EMAS, QOIDA MANBAI. Ustoz o'quv
+    /// bo'limi YOPGAN yozuvni qayta ocha olmasligi kerak (aks holda
+    /// "muammo bor" deb olib qo'yilgan dars ustozning bir bosishi bilan
+    /// qaytib chiqardi va R29 ning butun ma'nosi yo'qolardi). Buni
+    /// aniqlashning yagona yo'li — oxirgi qaror KIMNIKI ekanini bilish.
+    ///
+    /// <c>null</c> — hech kim tegmagan (tug'ma holat).
+    ///
+    /// ⚠️ ALOHIDA AUDIT JADVALI ATAYLAB QILINMADI (<c>AttendanceAudit</c>
+    /// dan farqli): u yerda "nimadan-nimaga" ma'noli qiymat, bu yerda esa
+    /// "dan" har doim "ga" ning inkori — jadval faqat vaqt va odamni
+    /// takrorlagan bo'lardi.
+    /// </summary>
+    public long? VisibilityChangedById { get; set; }
+
+    /// <summary>Ko'rinish oxirgi marta qachon o'zgartirilgani.</summary>
+    public DateTimeOffset? VisibilityChangedAt { get; set; }
+
     // ---------------------------------------------------------------- hisoblanuvchi
 
     /// <summary>Ko'rish mumkinmi (fayl omborda va kaliti ma'lum).</summary>
@@ -245,6 +303,50 @@ public class SessionRecording : BaseEntity
     public void MarkStopRequested(DateTimeOffset now)
     {
         StopRequestedAt ??= now;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Yozuvni o'quvchilarga OCHADI (talab R5).
+    ///
+    /// ★ HOLAT DARVOZASI — <c>Test.Publish()</c> DAGI AYNI NAQSH: u bo'sh
+    /// testni e'lon qilishni rad etadi, bu esa TAYYOR BO'LMAGAN yozuvni
+    /// ochishni. Sabab bir xil: aks holda ro'yxatda bosilganda doim xato
+    /// beradigan qator paydo bo'lardi va o'quvchi uni tizim nosozligi deb
+    /// o'ylardi.
+    ///
+    /// ⚠️ "Ochish" — RUXSAT, KAFOLAT EMAS: guruh yoki global kalit yopiq
+    /// bo'lsa yozuv baribir ko'rinmaydi (izoh: <see cref="IsVisibleToStudents"/>).
+    /// </summary>
+    public void ShowToStudents(long actorId, DateTimeOffset now)
+    {
+        if (!IsPlayable)
+        {
+            throw new DomainException(
+                "Tayyor bo'lmagan yozuvni o'quvchilarga ochib bo'lmaydi.");
+        }
+
+        IsVisibleToStudents = true;
+        VisibilityChangedById = actorId;
+        VisibilityChangedAt = now;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Yozuvni o'quvchilardan YASHIRADI (talab R5).
+    ///
+    /// 🔴 HOLAT DARVOZASI ATAYLAB YO'Q — <see cref="ShowToStudents"/> dan
+    /// FARQLI. Yashirish har qanday holatda ishlashi SHART: u
+    /// <c>IRecordingService.StopAsync</c> kabi zaxira chiqish, ya'ni "buni
+    /// ko'rsatma" deyishning yo'li hech qachon yopiq bo'lmasligi kerak. Hali
+    /// yozilayotgan darsni oldindan yopib qo'yish ham to'g'ri amal —
+    /// fayl tayyor bo'lgan lahzada u chiqib ketmaydi.
+    /// </summary>
+    public void HideFromStudents(long actorId, DateTimeOffset now)
+    {
+        IsVisibleToStudents = false;
+        VisibilityChangedById = actorId;
+        VisibilityChangedAt = now;
         UpdatedAt = now;
     }
 

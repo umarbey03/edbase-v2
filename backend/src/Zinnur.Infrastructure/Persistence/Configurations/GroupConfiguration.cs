@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Zinnur.Domain.Entities;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Infrastructure.Persistence.Configurations;
 
@@ -23,6 +24,79 @@ public sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
         // ============================================================
 
         builder.Property(g => g.Type).HasConversion<int>();
+
+        // ============================================================
+        // 🔴 R5 — GURUH YOZUVLARINING KO'RINISHI
+        //
+        // `HasDefaultValue(true)` + `HasSentinel(true)` — MAVJUD guruhlar
+        // migratsiyadan keyin ham bugungidek ishlashi uchun, va ATAYLAB
+        // `false` qilib yaratilgan guruh bazada `true` bo'lib qolmasligi
+        // uchun. To'liq sabab `SessionRecordingConfiguration` dagi AYNI
+        // bloklda (u yerda tuzoq batafsil yozilgan).
+        //
+        // ⚠️ `RecordEnabled` ga TEGILMADI: uning standart qiymati `false`
+        //    va u to'g'ri — yozib olish YOQILADIGAN imkoniyat, ko'rinish
+        //    esa OLIB QO'YILADIGAN.
+        // ============================================================
+        builder.Property(g => g.RecordingsVisibleToStudents)
+            .HasDefaultValue(true)
+            .HasSentinel(true);
+
+        /* ===== R33 + R40 · KIM MAS'UL (guruh darajasidagi tanlov) =====
+
+           Alohida blok — bu faylga bir necha tarmoq parallel tegmoqda. */
+
+        // ★ IKKI USTUN — IKKI HAR XIL STANDART, va farq ATAYLAB:
+        // ikkalasi ham BUGUNGI xatti-harakatni saqlab qolishi kerak, bugungi
+        // xatti-harakat esa ikki ishda BOSHQA-BOSHQA.
+        //
+        //   BAHOLASH: bugun ustoz HAM, kurator HAM baholaydi
+        //             (`AssignmentService.StudentIdsOfStaff` — bitta OR).
+        //             Demak standart `Both` = 0.
+        //
+        //   SAVOLLAR: bugun faqat KURATOR javob beradi (`CuratorDirectory`
+        //             boshqa o'rindiqqa umuman qaramaydi), ustoz esa
+        //             `/ustoz/savollar` da bo'sh ro'yxat ko'radi.
+        //             Demak standart `Assistant` = 2.
+
+        // `Both = 0` — CLR standarti bilan bir xil, ya'ni EF qiymatni HAR
+        // DOIM oshkor yozadi va hech qanday sentinel tuzog'i yo'q.
+        builder.Property(g => g.AssignmentGraderRole).HasConversion<int>();
+
+        // 🔴 `HasDefaultValue` + `HasSentinel` JUFTLIGI SHART — sabab
+        // `RecordingsVisibleToStudents` dagi bilan AYNAN bir xil, lekin
+        // oqibati ancha og'ir:
+        //
+        //   • `HasDefaultValue` SIZ migratsiya mavjud guruhlarni `0` (=
+        //     `Both`) bilan to'ldirardi va DEPLOY KUNIYOQ har bir ustozning
+        //     "Savollar" ekraniga butun guruh oqib kelardi — hech kim
+        //     so'ramagan holda, va buni orqaga qaytarish uchun har guruhni
+        //     qo'lda ochish kerak bo'lardi;
+        //
+        //   • `HasSentinel` SIZ esa teskarisi: EF uchun "qo'yilmagan"
+        //     belgisi CLR standarti (0 = `Both`) bo'lib qolardi, ya'ni
+        //     o'quv bo'limi ATAYLAB `Both` tanlagan guruhda ustun INSERT'dan
+        //     tushib qolib, bazaga `Assistant` yozilardi. Tanlov ekranda
+        //     turardi, bazada esa yo'q edi.
+        //
+        // Sentinelni STANDART QIYMATGA teng qilish ikkalasini ham yopadi:
+        // `Assistant` yozilmaydi (baza o'zi qo'yadi), qolgan ikki qiymat
+        // esa doim oshkor yoziladi.
+        builder.Property(g => g.QuestionResponderRole)
+            .HasConversion<int>()
+            .HasDefaultValue(GroupStaffRole.Assistant)
+            .HasSentinel(GroupStaffRole.Assistant);
+
+        // ★ INDEKS QO'SHILMADI va bu ONGLI QAROR.
+        //
+        // Ikkala ustun ham HAR DOIM guruh qatori bilan birga o'qiladi
+        // (`WHERE "TeacherId" = @x AND "AssignmentGraderRole" = 1`) — ya'ni
+        // ular FILTRning yagona ustuni emas, mavjud
+        // `IX_Groups_TeacherId` / `IX_Groups_AssistantId` topgan qatorni
+        // TEKSHIRISH ustuni. Selektivligi ham past (uch qiymat), demak
+        // alohida indeks planner uchun deyarli foydasiz bo'lardi.
+
+        /* ===== /R33 + R40 ===== */
 
         // DARS KUNLARI -> Postgres `integer[]`, JSON EMAS.
         //
@@ -63,6 +137,33 @@ public sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
             .WithMany()
             .HasForeignKey(g => g.CourseId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        /* ===== R21b · GURUH KATEGORIYASI =====
+
+           Alohida blok — bu faylga bir necha tarmoq parallel tegmoqda. */
+
+        // ★ SetNull, Restrict EMAS: kategoriya — YORLIQ, u o'chirilganda
+        // guruhda hech qanday MA'LUMOT yo'qolmaydi (kurs bilan farqi shu:
+        // kurs uzilsa gating butun kursni qulflardi). Restrict bo'lsa o'quv
+        // bo'limi "IELTS" yorlig'ini 40 ta guruhdan birma-bir yechmaguncha
+        // uni umuman o'chira olmasdi — va aksariyat holatda ular ARXIVLASH
+        // (`IsActive = false`) ni xohlaydi, o'chirishni emas.
+        //
+        // Cascade esa halokatli bo'lardi: bitta yorliqni o'chirish 40 ta
+        // guruhni, ular bilan birga jadval, davomat, to'lov va chat tarixini
+        // olib ketardi.
+        builder.HasOne(g => g.Category)
+            .WithMany()
+            .HasForeignKey(g => g.CategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // ★ INDEKS OSHKOR YOZILGAN (fayl uslubi) va u ATAYLAB kerak:
+        // `CategoryId` bo'yicha filtr IKKI joyda ishlaydi — guruhlar ro'yxati
+        // (R21b) va CHATLAR ro'yxati (R38). Ikkinchisi har 30 sekundda qayta
+        // so'raladi, ya'ni bu ustun eng issiq filtrlardan biri.
+        builder.HasIndex(g => g.CategoryId).HasDatabaseName("IX_Groups_CategoryId");
+
+        /* ===== /R21b ===== */
 
         // ============================================================
         // VIDEO DARSLAR BOSHLANISH NUQTASI -> ModuleLessons(Id)

@@ -1,6 +1,7 @@
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
+using Zinnur.Application.Media;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Infrastructure;
@@ -97,9 +98,14 @@ internal static class JobsSetup
         // Ro'yxatda turgan, lekin sozlamada o'chiq vazifa ARZON: u har
         // yurishda bitta sozlama so'rovi qiladi va darhol chiqadi.
         // ================================================================
+        // ⚠️ `IMediaStorage` — R16b BIRIKTIRMALARI uchun: vazifa xabar
+        //    qatorlarini o'chirishdan OLDIN ularning ombordagi obyektlarini
+        //    o'chiradi, aks holda R2'da pul turadigan YETIM obyektlar
+        //    to'planib borardi (sabab `ChatRetentionJob` izohida).
         services.AddScoped<IScheduledJob>(sp => new ChatRetentionJob(
             sp.GetRequiredService<IApplicationDbContext>(),
             sp.GetRequiredService<ISettingsResolver>(),
+            sp.GetRequiredService<IMediaStorage>(),
             sp.GetRequiredService<TimeProvider>(),
             options.ChatRetention,
             sp.GetRequiredService<ILogger<ChatRetentionJob>>()));

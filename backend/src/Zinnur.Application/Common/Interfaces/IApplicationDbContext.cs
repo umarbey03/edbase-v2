@@ -39,6 +39,22 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<AttendanceAudit> AttendanceAudits { get; }
 
+    /// <summary>
+    /// O'quvchining BITTA DARS uchun bahosi (R24).
+    ///
+    /// ★ <see cref="Submissions"/> BILAN ARALASHTIRILMAYDI: u o'quvchi
+    /// TOPSHIRGAN ish, bu esa ustozning dars uchun qo'ygan bahosi —
+    /// topshirilgan ish umuman bo'lmasligi mumkin. Farqi batafsil
+    /// <see cref="LessonGrade"/> sinfi izohida.
+    /// </summary>
+    DbSet<LessonGrade> LessonGrades { get; }
+
+    /// <summary>
+    /// Dars bahosini o'zgartirish izi (kim, qachon, nimadan-nimaga).
+    /// <see cref="AttendanceAudits"/> kabi faqat QO'SHILADI va O'QILADI.
+    /// </summary>
+    DbSet<LessonGradeAudit> LessonGradeAudits { get; }
+
     DbSet<ChatMessage> ChatMessages { get; }
 
     /// <summary>
@@ -62,11 +78,30 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<GroupChatRead> GroupChatReads { get; }
 
+    /// <summary>
+    /// Guruh chati xabariga biriktirilgan fayllar (R16b) — rasm/ovoz/hujjat.
+    ///
+    /// ★ Xabar bilan BITTA tranzaksiyada yaratiladi, ya'ni "egasiz
+    /// biriktirma" holati yo'q; ombordagi obyektni o'chirish esa
+    /// <see cref="Zinnur.Application.Jobs.ChatRetentionJob"/> ning ishi
+    /// (sabab <see cref="GroupChatAttachment"/> izohida).
+    /// </summary>
+    DbSet<GroupChatAttachment> GroupChatAttachments { get; }
+
     // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
 
     DbSet<Assignment> Assignments { get; }
     DbSet<Submission> Submissions { get; }
     DbSet<SubmissionFile> SubmissionFiles { get; }
+
+    /// <summary>
+    /// USTOZ tekshirishda biriktirgan fayllar (R37).
+    ///
+    /// 🔴 <see cref="SubmissionFiles"/> BILAN ARALASHTIRILMAYDI: u
+    /// o'quvchining javobi, bu esa tekshiruvchining javobi. Nima uchun
+    /// bitta jadvalda EMASligi <see cref="SubmissionFeedbackFile"/> izohida.
+    /// </summary>
+    DbSet<SubmissionFeedbackFile> SubmissionFeedbackFiles { get; }
     DbSet<Test> Tests { get; }
     DbSet<TestQuestion> TestQuestions { get; }
     DbSet<TestOption> TestOptions { get; }
@@ -113,6 +148,65 @@ public interface IApplicationDbContext
     /// <c>ILiveKitWebhookLog</c> porti orqali tegadi.
     /// </summary>
     DbSet<SessionRecording> SessionRecordings { get; }
+
+    /* ===== R35/R36 · ILOVA ICHIDAGI BILDIRISHNOMA =====
+
+       ★ NEGA ALOHIDA BLOK: bu faylga bir necha tarmoq AYNI vaqtda qo'shadi.
+       Mavjud bo'limlar orasiga qistirilgan qator merge paytida to'qnashuv
+       beradi, uzluksiz blok esa bermaydi. */
+
+    /// <summary>
+    /// Foydalanuvchining qo'ng'iroqcha ro'yxati (o'qilgan/o'qilmagan).
+    ///
+    /// 🔴 <c>MessageOutbox</c> BILAN ARALASHTIRILMAYDI VA U QAYTA
+    /// ISHLATILMAYDI: navbat jadvali ATAYLAB shu interfeysda YO'Q (u
+    /// yetkazib berish mexanizmi) va uning matni Telegram HTML — Vue
+    /// ro'yxati uchun noto'g'ri shakl. To'liq sabab
+    /// <see cref="Notification"/> sinfi izohida.
+    /// </summary>
+    DbSet<Notification> Notifications { get; }
+
+    /* ===== /R35/R36 ===== */
+
+    /* ===== R29/R30 · DARS SIFATI TAHLILI =====
+
+       Yuqoridagi blok qoidasi bilan AYNI sabab: bu faylga bir necha tarmoq
+       bir vaqtda qo'shmoqda, shuning uchun yangi qator mavjud bo'limlar
+       ORASIGA qistirilmaydi. */
+
+    /// <summary>
+    /// O'quv bo'limining DARS SIFATI bo'yicha xulosasi (R29 / R30).
+    ///
+    /// 🔴 DARSGA bog'langan, YOZUVGA emas — sabab <see cref="SessionReview"/>
+    /// sinfi izohida (qisqasi: bitta darsning bir nechta yozuvi bo'lishi
+    /// mumkin, yozuvi umuman bo'lmasligi ham mumkin, tahlil esa ikkalasidan
+    /// ham omon qolishi kerak).
+    ///
+    /// ⚠️ O'QUVCHIDAN TO'LIQ YOPIQ — bu jadval hech qachon o'quvchi
+    /// ko'radigan javobga proyeksiya qilinmasin (<see cref="StudentNotes"/>
+    /// bilan AYNI qoida va AYNI sabab).
+    /// </summary>
+    DbSet<SessionReview> SessionReviews { get; }
+
+    /* ===== /R29/R30 ===== */
+
+    /* ===== R21b · GURUH KATEGORIYASI =====
+
+       Yuqoridagi bloklar qoidasi bilan AYNI sabab (parallel tarmoqlar). */
+
+    /// <summary>
+    /// Guruhlarning o'quv YO'NALISHI lug'ati ("ATF", "Grammatika", "CEFR",
+    /// "IELTS") — R21b.
+    ///
+    /// ⚠️ <see cref="Courses"/> BILAN ARALASHTIRILMAYDI: kursda MODUL va
+    /// DARSLAR bor (gating shu daraxt bo'yicha hisoblanadi), bu esa faqat
+    /// YORLIQ — o'chirilsa birorta dars ham yo'qolmaydi. Ular takrorlanib
+    /// qolishi mumkinligi haqidagi ochiq savol <see cref="GroupCategory"/>
+    /// sinfi izohida.
+    /// </summary>
+    DbSet<GroupCategory> GroupCategories { get; }
+
+    /* ===== /R21b ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

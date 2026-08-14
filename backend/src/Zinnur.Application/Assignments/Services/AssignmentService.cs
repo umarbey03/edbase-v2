@@ -6,8 +6,13 @@ using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.Gating.Dtos;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Application.Notifications;
+using Zinnur.Application.Notifications.Dtos;
+using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.Telegram;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Application.Assignments.Services;
 
@@ -28,7 +33,16 @@ public sealed class AssignmentService(
     IApplicationDbContext db,
     IGatingService gating,
     ISubmissionStorage storage,
-    TimeProvider clock) : IAssignmentService
+    TimeProvider clock,
+    // ===== R35/R36 · BAHOLASH -> BILDIRISHNOMA =====
+    //
+    // ★ IKKI ALOHIDA YO'L, ATAYLAB: `outbox` — TELEGRAM (biznes
+    //   tranzaksiyasi ichida navbatga yoziladi), `notifier` — brauzerdagi
+    //   ochiq sahifa (kommitdan KEYIN). Ular bir-biriga bog'liq emas:
+    //   Telegram sozlanmagan bo'lsa ham qo'ng'iroqcha ishlaydi, hub
+    //   yiqilsa ham Telegram xabari ketadi.
+    INotificationOutbox outbox,
+    INotificationNotifier notifier) : IAssignmentService
 {
     // ================================================================= o'qish (xodim)
 
@@ -49,7 +63,9 @@ public sealed class AssignmentService(
         // (kurs vazifasi hamma guruhga taalluqli va uni ustoz ham baholaydi).
         if (!CanManageEverything(actor))
         {
-            var staffGroups = StaffGroupIds(actor.Id);
+            // ⚠️ `Access` — RO'YXAT ko'rish "kim tekshiradi" ga bog'liq emas
+            // (baholash tugmasi javob ekranida, va u o'z darvozasidan o'tadi).
+            var staffGroups = StaffGroupIds(actor.Id, StaffDuty.Access);
 
             rows = rows.Where(a => a.ModuleLessonId != null
                                 || (a.GroupId != null && staffGroups.Contains(a.GroupId.Value)));
@@ -210,12 +226,16 @@ public sealed class AssignmentService(
             DueAt = request.DueAt,
             AllowedFormats = request.AllowedFormats,
             ImageKey = Normalize(request.ImageKey),
+            GraderRole = request.GraderRole,
             CreatedById = actor.Id,
         };
 
         // Domain qoidasi: sarlavha, ball, formatlar va "YOKI guruh, YOKI dars".
+        // (R33: kurs vazifasiga tekshiruvchi tayinlanmasligi ham shu yerda.)
         // Buzilsa DomainException -> HTTP 409. Bazada ham `CHECK` bor.
         assignment.Validate();
+
+        await EnsureGraderSeatFilledAsync(assignment, ct);
 
         db.Assignments.Add(assignment);
         await db.SaveChangesAsync(ct);
@@ -247,8 +267,11 @@ public sealed class AssignmentService(
         assignment.DueAt = request.DueAt;
         assignment.AllowedFormats = request.AllowedFormats;
         assignment.ImageKey = Normalize(request.ImageKey);
+        assignment.GraderRole = request.GraderRole;
 
         assignment.Validate();
+
+        await EnsureGraderSeatFilledAsync(assignment, ct);
 
         await db.SaveChangesAsync(ct);
 
@@ -506,9 +529,15 @@ public sealed class AssignmentService(
         // KURS vazifasi barcha guruhlarga taalluqli — ustoz/kurator faqat
         // O'Z o'quvchilarining javoblarini ko'radi (begona guruhning javobi
         // va bahosi oshkor bo'lmasin).
+        //
+        // 🔴 R33: FILTR AYNI `Grading` QOIDASIDAN, `Access` DAN EMAS.
+        // Aks holda tekshiruvchi qilib tayinlanmagan xodim javoblarni
+        // ro'yxatda KO'RARDI, lekin har bosganda 403 olardi — ya'ni
+        // bajarib bo'lmaydigan navbat. Bu eng yomon ko'rinishdagi
+        // nomuvofiqlik: ekran ish bor deydi, server esa yo'q deydi.
         if (!CanManageEverything(actor))
         {
-            var myStudents = StudentIdsOfStaff(actor.Id);
+            var myStudents = StudentIdsOfStaff(actor.Id, StaffDuty.Grading, assignment.GraderRole);
             rows = rows.Where(s => myStudents.Contains(s.StudentId));
         }
 
@@ -532,9 +561,138 @@ public sealed class AssignmentService(
         submission.Grade(
             request.Score, assignment.MaxScore, request.Feedback, actorId, clock.GetUtcNow());
 
+        // ═════════════════════════════════════════════════════════════════
+        // R35/R36 — BILDIRISHNOMA TAYYORLANADI, LEKIN HALI YUBORILMAYDI.
+        //
+        // Bu chaqiruv `SaveChanges` DAN OLDIN turishi SHART: u qo'ng'iroqcha
+        // qatorini va Telegram navbatidagi qatorni AYNI kuzatuvchiga
+        // qo'shadi, ya'ni ular BAHO bilan BITTA tranzaksiyada saqlanadi.
+        // Keyin qo'yilsa "xabar ketdi, baho saqlanmadi" holati mumkin
+        // bo'lardi (`INotificationOutbox` izohidagi eski tizim xatosi).
+        // ═════════════════════════════════════════════════════════════════
+        var pending = await PrepareGradedNotificationAsync(submission, assignment, ct);
+
         await SaveWithConcurrencyGuardAsync(ct);
 
+        // 🔴 REALTIME FAQAT SHU YERDA — KOMMITDAN KEYIN.
+        //
+        // Yuqoriga ko'chirilsa, tranzaksiya orqaga qaytganda o'quvchining
+        // ekranida BAZADA YO'Q baho paydo bo'lardi va u sahifani
+        // yangilamaguncha shunday turardi. Istisno esa `notifier` ICHIDA
+        // yutiladi — sabab `INotificationNotifier` izohida.
+        if (pending is not null)
+        {
+            await notifier.NotificationCreatedAsync(
+                pending.UserId, NotificationFeed.ToDto(pending), ct);
+        }
+
         return Map(await LoadSubmissionRowAsync(submissionId, ct));
+    }
+
+    /// <summary>
+    /// «Vazifa tekshirildi» bildirishnomasini IKKI yo'lga tayyorlaydi:
+    /// qo'ng'iroqcha qatori (baza) va Telegram navbati.
+    ///
+    /// ★ <c>SaveChanges</c> CHAQIRILMAYDI — chaqiruvchi uni o'z
+    /// tranzaksiyasida qiladi (commit-then-send).
+    /// </summary>
+    /// <returns>
+    /// Kuzatuvchiga qo'shilgan qator — kommitdan keyin realtime uchun
+    /// kerak (o'shanda uning <c>Id</c> si to'ldirilgan bo'ladi).
+    /// </returns>
+    private async Task<Notification?> PrepareGradedNotificationAsync(
+        Submission submission, Assignment assignment, CancellationToken ct)
+    {
+        // Baho `Grade()` ichida qo'yilgan, ya'ni bu yerda `null` bo'lishi
+        // mumkin emas. Shunday bo'lsa ham — jimgina chiqamiz: bildirishnoma
+        // yo'qligi baholashni yiqitadigan sabab emas.
+        if (submission.Score is not { } score) return null;
+
+        var now = clock.GetUtcNow();
+
+        // Faqat KERAKLI ikki maydon (butun `User` emas): bu metod
+        // baholashning ISSIQ yo'lida turibdi va ustoz 50 ta ishni ketma-ket
+        // baholaganda har ortiqcha ustun 50 marta o'qiladi.
+        var student = await db.Users.AsNoTracking()
+            .Where(u => u.Id == submission.StudentId)
+            .Select(u => new { u.TelegramId })
+            .FirstOrDefaultAsync(ct);
+
+        // ---------------------------------------------------------------- 1) qo'ng'iroqcha
+        //
+        // ★ AYNI JAVOB UCHUN O'QILMAGAN ESKI QATOR O'CHIRILADI.
+        //
+        // Ustoz bahoni tuzatishi odatiy hol (izohdagi xato, noto'g'ri ball).
+        // Har tuzatish yangi qator yozsa, o'quvchining qo'ng'iroqchasida BIR
+        // vazifa uchun uch-to'rt bir xil yozuv turardi va ularning qaysi
+        // biri OXIRGI ekani ko'rinmasdi. O'qilganlari esa TEGILMAYDI — ular
+        // tarix.
+        //
+        // ⚠️ Bu QO'SHIMCHA so'rov, ya'ni baholashning issiq yo'lida narx bor.
+        // Narx ongli: so'rov `(UserId, ReadAt, CreatedAt)` indeksidan
+        // o'qiladi va o'qilmaganlar soni doim kichik.
+        var stale = await db.Notifications
+            .Where(n => n.UserId == submission.StudentId
+                     && n.Kind == NotificationKind.SubmissionGraded
+                     && n.EntityId == submission.Id
+                     && n.ReadAt == null)
+            .ToListAsync(ct);
+
+        if (stale.Count > 0) db.Notifications.RemoveRange(stale);
+
+        var row = Notification.Create(
+            submission.StudentId,
+            NotificationKind.SubmissionGraded,
+            NotificationTemplates.SubmissionGradedTitle(),
+            NotificationTemplates.SubmissionGradedBody(
+                assignment.Title, score, assignment.MaxScore, submission.Feedback),
+            submission.Id,
+            now);
+
+        db.Notifications.Add(row);
+
+        // ---------------------------------------------------------------- 2) Telegram
+        //
+        // Bog'lanmagan o'quvchiga navbatga yozish MA'NOSIZ: `chat_id` yo'q,
+        // ya'ni qator faqat urinishlar chegarasini yeb, `Failed` bo'lardi.
+        if (student?.TelegramId is { } chatId)
+        {
+            await outbox.EnqueueAsync(
+                new NotificationRequest
+                {
+                    Channel = NotificationChannel.Telegram,
+                    RecipientUserId = submission.StudentId,
+                    RecipientAddress = chatId.ToString(CultureInfo.InvariantCulture),
+                    TemplateKey = TelegramTemplates.SubmissionGraded,
+                    Body = TelegramTemplates.SubmissionGradedText(
+                        assignment.Title, score, assignment.MaxScore, submission.Feedback),
+
+                    // ═══════════════════════════════════════════════════════
+                    // 🔴 KALITDA URINISH RAQAMI BO'LISHI SHART.
+                    //
+                    // `submission_graded:{id}` bo'lsa QAYTA OCHILGAN va qayta
+                    // baholangan javob haqida o'quvchi HECH QACHON ikkinchi
+                    // xabar olmasdi: birinchi kalit bazada qolgan, ya'ni
+                    // ikkinchi navbat yozuvi jimgina rad etilardi. Bu
+                    // "himoya ishladi" emas — MA'LUMOT YO'QOLISHI bo'lardi,
+                    // chunki qayta baholash HAQIQATAN yangi hodisa.
+                    //
+                    // ★ AYNI URINISH ichidagi tuzatish esa TAKROR xabar
+                    //   yubormaydi va bu to'g'ri: Telegram — turtki
+                    //   (intrusive) kanal, bir vazifa uchun uch marta
+                    //   "tekshirildi" deyish spam bo'lardi. Qo'ng'iroqchada
+                    //   esa yuqoridagi o'chirish tufayli DOIM oxirgi holat
+                    //   ko'rinadi — ikki kanalning xatti-harakati ataylab
+                    //   turlicha.
+                    // ═══════════════════════════════════════════════════════
+                    IdempotencyKey = string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"submission_graded:{submission.Id}:{submission.AttemptNumber}"),
+                },
+                ct);
+        }
+
+        return row;
     }
 
     public async Task<SubmissionDto> ReopenAsync(
@@ -670,6 +828,43 @@ public sealed class AssignmentService(
         EnsureCanWrite(actor);
     }
 
+    /// <summary>
+    /// R37: JAVOBNI KO'RISH darvozasi — OSHKOR yo'l (tekshiruv fayllari uchun).
+    ///
+    /// ★ Ichida <c>OpenFileAsync</c> bilan AYNI metod
+    /// (<see cref="EnsureCanReadStudentWorkAsync"/>) chaqiriladi — ya'ni
+    /// o'quvchining ISHIGA kirish qoidasi butun loyihada BITTA joyda
+    /// qoladi.
+    /// </summary>
+    public async Task EnsureCanReadSubmissionAsync(
+        long submissionId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        var ownerId = await db.Submissions.AsNoTracking()
+            .Where(s => s.Id == submissionId)
+            .Select(s => (long?)s.StudentId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(Submission), submissionId);
+
+        await EnsureCanReadStudentWorkAsync(actor, ownerId, ct);
+    }
+
+    /// <summary>
+    /// R37: JAVOBNI BAHOLASH darvozasi — OSHKOR yo'l.
+    ///
+    /// ★ <c>GradeAsync</c> ISHLATADIGAN AYNI yuklovchi
+    /// (<see cref="LoadSubmissionForStaffAsync"/>): "baho qo'yadigan" va
+    /// "tekshiruv fayli qo'yadigan" odam ta'rifi bir-biridan ajralib
+    /// ketmasin. Yuklangan obyekt bu yerda KERAK EMAS — faqat u
+    /// istisno ko'tarmasligi muhim.
+    /// </summary>
+    public async Task EnsureCanGradeSubmissionAsync(
+        long submissionId, long actorId, CancellationToken ct = default)
+    {
+        _ = await LoadSubmissionForStaffAsync(submissionId, actorId, ct);
+    }
+
     /// <summary>O'QISH ruxsati (vazifa kartochkasi, javoblar ro'yxati).</summary>
     private async Task EnsureCanReadAsync(User actor, Assignment assignment, CancellationToken ct)
     {
@@ -732,9 +927,31 @@ public sealed class AssignmentService(
         if (!IsStaff(actor))
             throw new ForbiddenException("Baholashga ruxsatingiz yo'q.");
 
-        return await IsMyStudentAsync(actor.Id, submission.StudentId, ct)
-            ? (submission, assignment)
-            : throw new ForbiddenException("Bu o'quvchi sizning guruhingizda emas.");
+        // ═══════════════════════════════════════════════════════════════
+        // R33 — BAHOLASH DARVOZASI. Bu metod baholash va qayta ochishning
+        // YAGONA yo'li, shu sababli tanlov shu yerda BIR MARTA qo'llanadi.
+        //
+        // 🔴 `Academic`/`Admin` yuqorida allaqachon chiqib ketgan
+        // (`CanManageEverything`) — ular tanlovga BO'YSUNMAYDI. Sabab
+        // ruxsat jadvalidagi izohda: o'quv bo'limi ustozning xatosini
+        // tuzatishi kerak, aks holda noto'g'ri baho tuzatilmas bo'lardi.
+        // ═══════════════════════════════════════════════════════════════
+        var allowed = await IsMyStudentAsync(
+            actor.Id, submission.StudentId, StaffDuty.Grading, assignment.GraderRole, ct);
+
+        if (allowed) return (submission, assignment);
+
+        // XATO MATNI TANLOVGA QARAB: "guruhingizda emas" deyish endi
+        // chalg'itardi — o'quvchi guruhda BOR, faqat tekshiruvchi boshqa.
+        // Xodim sababni bilmasa o'quv bo'limiga "tizim ishlamayapti" deb
+        // murojaat qilardi.
+        var inScope = await IsMyStudentAsync(
+            actor.Id, submission.StudentId, StaffDuty.Access, null, ct);
+
+        throw new ForbiddenException(
+            inScope
+                ? "Bu vazifani boshqa xodim tekshiradi — tekshiruvchini o'quv bo'limi tayinlaydi."
+                : "Bu o'quvchi sizning guruhingizda emas.");
     }
 
     /// <summary>
@@ -771,7 +988,12 @@ public sealed class AssignmentService(
         if (!IsStaff(actor))
             throw new ForbiddenException("Bu faylga ruxsatingiz yo'q.");
 
-        if (!await IsMyStudentAsync(actor.Id, ownerStudentId, ct))
+        // ⚠️ R33: bu yerda ATAYLAB `Access` — "kim BAHOLAYDI" emas, "kim
+        // KO'RADI". Baholash `Grading` ga o'tkazilgan bo'lsa ham, ustoz o'z
+        // guruhidagi javobning rasmini va ovozini ocholishi kerak: aks holda
+        // u darsda nima bo'layotganini umuman bilmasdi, va talab bunday
+        // cheklovni SO'RAMAGAN.
+        if (!await IsMyStudentAsync(actor.Id, ownerStudentId, StaffDuty.Access, null, ct))
             throw new ForbiddenException("Bu o'quvchi sizning guruhingizda emas.");
     }
 
@@ -779,47 +1001,68 @@ public sealed class AssignmentService(
     /// Xodim SHU o'quvchiga mas'ulmi — <see cref="StudentIdsOfStaff"/> ustidan
     /// YAGONA tekshiruv. Baholash ham, fayl o'qish ham shu yerdan o'tadi.
     /// </summary>
-    private async Task<bool> IsMyStudentAsync(long staffId, long studentId, CancellationToken ct) =>
-        await StudentIdsOfStaff(staffId).ContainsAsync(studentId, ct);
+    private async Task<bool> IsMyStudentAsync(
+        long staffId,
+        long studentId,
+        StaffDuty duty,
+        GroupStaffRole? assignmentOverride,
+        CancellationToken ct) =>
+        await StudentIdsOfStaff(staffId, duty, assignmentOverride).ContainsAsync(studentId, ct);
 
     /// <summary>
-    /// Xodim (ustoz/kurator) mas'ul bo'lgan o'quvchilar — BITTA ifoda, ikki
-    /// joyda ishlatiladi (javoblar filtri va baholash tekshiruvi), shuning
-    /// uchun ular hech qachon ajralib ketmaydi.
+    /// Xodim (ustoz/kurator) mas'ul bo'lgan o'quvchilar — BITTA ifoda,
+    /// bir necha joyda ishlatiladi (javoblar filtri, baholash tekshiruvi,
+    /// fayl o'qish), shuning uchun ular hech qachon ajralib ketmaydi.
     ///
     /// KURATOR ham hisobga olinadi: kurator darsida BOG'LANGAN ustoz
     /// guruhlarining o'quvchilari qatnashadi. Eski tizimda bu havola
     /// hisobga olinmagani uchun (B-8a) kurator o'z o'quvchisining javobini
     /// ko'ra ham, baholay ham olmasdi.
     ///
+    /// ═══════════════════════════════════════════════════════════════════
+    /// R33 (2026-08-14) — QOIDA ENDI <paramref name="duty"/> GA BOG'LIQ
+    /// ═══════════════════════════════════════════════════════════════════
+    ///
+    /// Ilgari bu yerda ustoz va kurator BITTA OR ga qo'shilardi, ya'ni
+    /// "bu vazifani KURATOR tekshirsin" deyishning imkoni yo'q edi.
+    /// Ifodaning O'ZI endi <c>StaffResponsibility</c> da — AYNI ifodani
+    /// yozishma servisi ham o'qiydi (R40), shu sababli ikki ruxsat
+    /// hech qachon ajralib ketmaydi.
+    ///
+    /// ⚠️ <see cref="StaffDuty.Access"/> tarmog'i — bugungi ifodaning
+    /// AYNAN o'zi (o'rindiqni ajratmaydi). Fayl o'qish va ro'yxatlar
+    /// ATAYLAB shunda qoladi: R33 "kim TEKSHIRADI" ni so'radi, "kim
+    /// KO'RADI" ni emas.
+    ///
     /// `IQueryable` qaytaradi — chaqiruvchi uni ichma-ich so'rov sifatida
     /// ishlatadi (`WHERE ... IN (SELECT ...)`), ya'ni ID'lar ilovaga
     /// tortilmaydi.
     /// </summary>
-    private IQueryable<long> StudentIdsOfStaff(long staffId) =>
-        db.GroupMembers
+    /// <param name="assignmentOverride">
+    /// Vazifa darajasidagi istisno (<c>Assignment.GraderRole</c>).
+    /// <c>null</c> — guruh sozlamasi o'qiladi.
+    /// </param>
+    private IQueryable<long> StudentIdsOfStaff(
+        long staffId, StaffDuty duty, GroupStaffRole? assignmentOverride = null)
+    {
+        var groupIds = StaffGroupIds(staffId, duty, assignmentOverride);
+
+        return db.GroupMembers
             .AsNoTracking()
-            .Where(m => m.Status == MemberStatus.Active
-                     && (m.Group!.TeacherId == staffId
-                      || m.Group.AssistantId == staffId
-                      || (m.Group.CuratorGroup != null
-                          && (m.Group.CuratorGroup.TeacherId == staffId
-                           || m.Group.CuratorGroup.AssistantId == staffId))))
+            .Where(m => m.Status == MemberStatus.Active && groupIds.Contains(m.GroupId))
             .Select(m => m.StudentId);
+    }
 
     /// <summary>Xodim mas'ul bo'lgan guruhlar (ichma-ich so'rov sifatida).</summary>
-    private IQueryable<long> StaffGroupIds(long staffId) =>
+    private IQueryable<long> StaffGroupIds(
+        long staffId, StaffDuty duty, GroupStaffRole? assignmentOverride = null) =>
         db.Groups
             .AsNoTracking()
-            .Where(g => g.TeacherId == staffId
-                     || g.AssistantId == staffId
-                     || (g.CuratorGroup != null
-                         && (g.CuratorGroup.TeacherId == staffId
-                          || g.CuratorGroup.AssistantId == staffId)))
+            .Where(StaffResponsibility.Predicate(staffId, duty, assignmentOverride))
             .Select(g => g.Id);
 
     private async Task<bool> IsStaffOfGroupAsync(long staffId, long groupId, CancellationToken ct) =>
-        await StaffGroupIds(staffId).ContainsAsync(groupId, ct);
+        await StaffGroupIds(staffId, StaffDuty.Access).ContainsAsync(groupId, ct);
 
     /// <summary>
     /// Vazifa o'quvchiga TEGISHLIMI: guruh vazifasi bo'lsa — o'z guruhi,
@@ -879,6 +1122,56 @@ public sealed class AssignmentService(
         }
 
         return ids;
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// R33 — «TANLANGAN O'RINDIQ BO'SHMI» TEKSHIRUVI (yaratish/tahrirlash)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 NIMA UCHUN KERAK: <c>Group.AssistantId</c> NULL bo'lishi mumkin.
+    /// "Kurator tekshirsin" deb qo'yilgan, lekin kuratori yo'q guruhda
+    /// topshirilgan ish EGASIZ qolardi — o'quvchi javobini yuborgan,
+    /// ustoz esa ro'yxatda ko'rmaydi va hech kim baholay olmaydi. Xato
+    /// FAQAT o'quvchi shikoyat qilganda bilinardi.
+    ///
+    /// ★ IKKI QATLAM, IKKI XIL VAZIFA — va ular BIR-BIRINI ALMASHTIRMAYDI:
+    ///
+    ///   • SHU YERDA — 400. O'quv bo'limi bo'sh o'rindiqni TANLAY olmaydi,
+    ///     xato yaratish paytida, tushunarli matn bilan chiqadi.
+    ///
+    ///   • <c>StaffResponsibility</c> ichidagi ZAXIRA YO'L — keyin buzilgan
+    ///     sozlama uchun. Vazifa to'g'ri yaratilgan, keyin kurator guruhdan
+    ///     olib tashlangan bo'lsa hech qanday validatsiya yordam bermaydi:
+    ///     o'sha payt ish allaqachon topshirilgan. Shunda baholash
+    ///     ikkinchi o'rindiqqa o'tadi.
+    ///
+    /// Bittasi yetmaydi: faqat validatsiya bo'lsa keyingi o'zgarish ishni
+    /// egasiz qoldirardi, faqat zaxira yo'l bo'lsa o'quv bo'limi
+    /// "kuratorga berdim" deb o'ylab, aslida ustozga bergan bo'lardi.
+    /// </summary>
+    private async Task EnsureGraderSeatFilledAsync(Assignment assignment, CancellationToken ct)
+    {
+        if (assignment.GraderRole is not { } role) return;
+
+        // `Validate()` allaqachon kafolatladi: istisno FAQAT guruh vazifasida.
+        if (assignment.GroupId is not { } groupId) return;
+
+        var filled = await db.Groups.AsNoTracking()
+            .Where(g => g.Id == groupId)
+            .AnyAsync(StaffResponsibility.HasSeat(role), ct);
+
+        if (filled) return;
+
+        throw new ValidationException(new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            [nameof(CreateAssignmentRequest.GraderRole)] =
+            [
+                role == GroupStaffRole.Teacher
+                    ? "Bu guruhga ustoz biriktirilmagan — tekshiruvchi qilib tanlab bo'lmaydi."
+                    : "Bu guruhga kurator biriktirilmagan — tekshiruvchi qilib tanlab bo'lmaydi.",
+            ],
+        });
     }
 
     // ================================================================= ichki yordamchi
@@ -1046,7 +1339,8 @@ public sealed class AssignmentService(
             db.Submissions.Count(s => s.AssignmentId == a.Id),
             db.Submissions.Count(s => s.AssignmentId == a.Id && s.Status == SubmissionStatus.Graded),
             a.CreatedAt,
-            a.UpdatedAt));
+            a.UpdatedAt,
+            a.GraderRole));
 
     /// <summary>
     /// Entity kolleksiyasidan DTO ro'yxati (o'quvchi yo'li `Include` bilan
@@ -1090,6 +1384,19 @@ public sealed class AssignmentService(
                 .OrderBy(f => f.Id)
                 .Select(f => new SubmissionFileDto(
                     f.Id, f.ObjectKey, f.Kind, f.SizeBytes, f.ContentType))
+                .ToList(),
+
+            // R37: USTOZ biriktirgan fayllar — ALOHIDA jadvaldan.
+            //
+            // ★ SHU YERDA proyeksiyaga qo'shildi, alohida so'rov bilan
+            // EMAS: baholash ro'yxati bir necha o'nlab javobni qaytaradi va
+            // har biri uchun alohida so'rov klassik N+1 bo'lardi. EF buni
+            // bitta `LEFT JOIN` ga aylantiradi.
+            s.FeedbackFiles
+                .OrderBy(f => f.Id)
+                .Select(f => new SubmissionFeedbackFileDto(
+                    f.Id, f.SubmissionId, f.Kind, f.ContentType, f.FileName,
+                    f.SizeBytes, f.CreatedById, f.CreatedAt))
                 .ToList()));
 
     /// <summary>
@@ -1102,11 +1409,13 @@ public sealed class AssignmentService(
     private static SubmissionDto Map(SubmissionRow row) => new(
         row.Id, row.AssignmentId, row.StudentId, row.StudentName, row.Text, row.Status,
         row.Score, Percent(row), row.Feedback, row.GradedById, row.GradedAt, row.SubmittedAt,
-        row.AttemptNumber, row.AllowResubmit, row.ResubmitNote, row.IsLate, row.Files);
+        row.AttemptNumber, row.AllowResubmit, row.ResubmitNote, row.IsLate, row.Files,
+        row.FeedbackFiles);
 
     private static StudentSubmissionDto MapStudent(SubmissionRow row) => new(
         row.Id, row.Status, row.Text, row.Score, Percent(row), row.Feedback, row.SubmittedAt,
-        row.AttemptNumber, row.AllowResubmit, row.ResubmitNote, row.IsLate, row.Files);
+        row.AttemptNumber, row.AllowResubmit, row.ResubmitNote, row.IsLate, row.Files,
+        row.FeedbackFiles);
 
     // ---------------------------------------------------------------- doimiylar va ichki turlar
 
@@ -1130,5 +1439,6 @@ public sealed class AssignmentService(
         string? ResubmitNote,
         bool IsLate,
         decimal MaxScore,
-        List<SubmissionFileDto> Files);
+        List<SubmissionFileDto> Files,
+        List<SubmissionFeedbackFileDto> FeedbackFiles);
 }

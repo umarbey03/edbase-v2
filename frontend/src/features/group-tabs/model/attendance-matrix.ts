@@ -1,7 +1,5 @@
-import type { AttendanceRowDto, SessionAttendanceDto } from '@/entities/attendance'
-
 /**
- * Davomat matritsasi — eski `#att-grid` (`loadAttendance()`).
+ * DARS KESIMIDAGI MATRITSA — eski `#att-grid` (`loadAttendance()`).
  *
  * ★ MA'LUMOT SHAKLI BOSHQACHA: eski server BUTUN guruh matritsasini bitta
  * javobda berardi, v2 endpointi esa DARS kesimida ishlaydi
@@ -9,7 +7,26 @@ import type { AttendanceRowDto, SessionAttendanceDto } from '@/entities/attendan
  * varaqdan shu yerda YIG'ILADI, ustunlar soni esa ataylab cheklanadi:
  * 8 oylik guruhda 69 dars bor va hammasi uchun 69 ta so'rov yuborish
  * mumkin emas.
+ *
+ * ★ FUNKSIYALAR UMUMIY (R24 dan keyin): "Davomat" va "Baholar" tablari
+ * AYNI shakldagi matritsani quradi (qator — o'quvchi, ustun — dars,
+ * varaqlar `sessionId` kesimida). Ikkinchi nusxa yozilsa, ikki jadval
+ * bir kun kelib boshqa-boshqa o'quvchilar ro'yxatini ko'rsatib qolardi
+ * — shuning uchun bu yerdagi uchala funksiya ham STRUKTURAL turlar
+ * ustida ishlaydi va ikkala varaq turini ham qabul qiladi.
  */
+
+/** Varaqning matritsa uchun kerak bo'lgan YAGONA qismi. */
+interface MatrixSheet<TRow> {
+  sessionId: number
+  rows: TRow[] | null
+}
+
+/** Qatorning matritsa uchun kerak bo'lgan YAGONA qismi. */
+interface MatrixRowLike {
+  studentId: number
+  studentName: string | null
+}
 
 /** Bir ekranda ochiladigan ustunlar (darslar) soni. */
 export const ATTENDANCE_WINDOW = 10
@@ -55,7 +72,9 @@ export interface MatrixStudent {
  * o'quvchi faqat AYRIM darslarda uchraydi — shuning uchun birlashma
  * oxirida qayta saralanadi, aks holda u ro'yxat o'rtasiga tushib qolardi.
  */
-export function collectStudents(sheets: readonly SessionAttendanceDto[]): MatrixStudent[] {
+export function collectStudents<TRow extends MatrixRowLike>(
+  sheets: readonly MatrixSheet<TRow>[],
+): MatrixStudent[] {
   const map = new Map<number, string>()
   for (const sheet of sheets) {
     for (const row of sheet.rows ?? []) {
@@ -68,10 +87,10 @@ export function collectStudents(sheets: readonly SessionAttendanceDto[]): Matrix
 }
 
 /** `sessionId:studentId` -> qator. */
-export function indexRows(
-  sheets: readonly SessionAttendanceDto[],
-): Map<string, AttendanceRowDto> {
-  const map = new Map<string, AttendanceRowDto>()
+export function indexRows<TRow extends MatrixRowLike>(
+  sheets: readonly MatrixSheet<TRow>[],
+): Map<string, TRow> {
+  const map = new Map<string, TRow>()
   for (const sheet of sheets) {
     for (const row of sheet.rows ?? []) {
       map.set(`${sheet.sessionId}:${row.studentId}`, row)

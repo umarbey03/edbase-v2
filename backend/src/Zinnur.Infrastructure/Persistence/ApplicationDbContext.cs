@@ -41,6 +41,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<AttendanceAudit> AttendanceAudits => Set<AttendanceAudit>();
 
+    public DbSet<LessonGrade> LessonGrades => Set<LessonGrade>();
+
+    public DbSet<LessonGradeAudit> LessonGradeAudits => Set<LessonGradeAudit>();
+
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
@@ -51,6 +55,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<GroupChatRead> GroupChatReads => Set<GroupChatRead>();
 
+    public DbSet<GroupChatAttachment> GroupChatAttachments => Set<GroupChatAttachment>();
+
     // ---------------------------------------------------------------- FAZA 3: o'quv jarayoni
 
     public DbSet<Assignment> Assignments => Set<Assignment>();
@@ -58,6 +64,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Submission> Submissions => Set<Submission>();
 
     public DbSet<SubmissionFile> SubmissionFiles => Set<SubmissionFile>();
+
+    public DbSet<SubmissionFeedbackFile> SubmissionFeedbackFiles => Set<SubmissionFeedbackFile>();
 
     public DbSet<Test> Tests => Set<Test>();
 
@@ -102,6 +110,48 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// (<c>IFinanceSettingsStore</c>) — sabab <see cref="AppSetting"/> da.
     /// </summary>
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
+    /* ===== R35/R36 · ILOVA ICHIDAGI BILDIRISHNOMA =====
+
+       ★ NEGA ALOHIDA BLOK: bu faylga bir necha tarmoq AYNI vaqtda qo'shadi
+       (R24, R5/R29/R30, R21b/R38). Mavjud bo'limlar orasiga qistirilgan
+       qator merge paytida to'qnashuv beradi, uzluksiz blok esa bermaydi. */
+
+    /// <summary>
+    /// Qo'ng'iroqcha ro'yxati. <see cref="MessageOutbox"/> DAN FARQLI o'laroq
+    /// <c>IApplicationDbContext</c> DA OCHIQ — sabab <see cref="Notification"/>
+    /// sinfi izohida: bu YETKAZIB BERISH mexanizmi emas, o'quvchi ekranda
+    /// ko'radigan BIZNES ma'lumoti (<see cref="SessionRecordings"/> bilan
+    /// bir xil mezon).
+    /// </summary>
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    /* ===== /R35/R36 ===== */
+
+    /* ===== R29/R30 · DARS SIFATI TAHLILI =====
+
+       Yuqoridagi blok qoidasi bilan AYNI sabab (parallel tarmoqlar). */
+
+    /// <summary>
+    /// O'quv bo'limining dars sifati xulosasi. DARSGA bog'langan, yozuvga
+    /// emas — sabab <see cref="SessionReview"/> sinfi izohida.
+    /// </summary>
+    public DbSet<SessionReview> SessionReviews => Set<SessionReview>();
+
+    /* ===== /R29/R30 ===== */
+
+    /* ===== R21b · GURUH KATEGORIYASI =====
+
+       Yuqoridagi bloklar qoidasi bilan AYNI sabab (parallel tarmoqlar). */
+
+    /// <summary>
+    /// O'quv yo'nalishlari lug'ati ("ATF", "Grammatika", "CEFR", "IELTS").
+    /// <see cref="Course"/> bilan chegarasi — <see cref="GroupCategory"/>
+    /// sinfi izohida.
+    /// </summary>
+    public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
+
+    /* ===== /R21b ===== */
 
     // ---------------------------------------------------------------- FAZA 5.2: notifikatsiya
 

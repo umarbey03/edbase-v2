@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { reviewVerdictLabel, reviewVerdictTone } from '@/entities/recording'
 import { fetchSessionStats, sessionStatusLabel, sessionStatusTone } from '@/entities/session'
+import { SessionReviewModal } from '@/features/session-review'
 import { toUserMessage } from '@/shared/api'
 import { formatWeekdayDateTime } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
@@ -106,6 +108,37 @@ function sessionTitleOf(row: SessionStatsDto): string {
 function openSession(sessionId: number): void {
   void router.push({ name: 'live-room', params: { sessionId: String(sessionId) } })
 }
+
+/* ==========================================================================
+   R30 — "O'ZIMNING DARS TAHLILIM"
+   ========================================================================== */
+
+/**
+ * Loyiha egasi: *"darslarim bo'limida qo'shimcha button orqali teacher
+ * o'zining dars tahlilini ko'ra olsin modal window orqali"*.
+ *
+ * ★ NEGA AYNAN SHU JADVAL: u "darsim QANDAY o'tdi?" degan savolga javob
+ * beradi (yuqoridagi sarlavha izohi) — sifat tahlili ham AYNI savolning
+ * davomi. Yuqoridagi `SessionBoard` esa "hozir nima qilay?" ga javob
+ * beradi va u o'quv bo'limi sahifasi bilan BO'LISHILADI, ya'ni tugma u
+ * yerga qo'yilsa akademik ko'rinishga ham chiqib ketardi.
+ *
+ * ★ TUGMA FAQAT `hasReview` BO'LGANDA CHIZILADI: aks holda ustoz har
+ * qatorda tugma ko'rib, aksariyatida bo'sh oyna ochardi. Bayroq AYNI
+ * so'rovda keladi (server tomonda korrelyatsion so'rov), ya'ni qo'shimcha
+ * chaqiruv YO'Q.
+ *
+ * ⚠️ USTOZ TAHRIRLAY OLMAYDI — u sifat nazoratining OBYEKTI. Oyna buni
+ * `canEdit: false` orqali biladi va tahrirlash tugmasini chizmaydi;
+ * haqiqiy chegara esa SERVERDA (`403`).
+ */
+const reviewSessionId = ref<number | null>(null)
+const reviewTitle = ref('')
+
+function openReview(row: SessionStatsDto): void {
+  reviewTitle.value = sessionTitleOf(row)
+  reviewSessionId.value = row.id
+}
 </script>
 
 <template>
@@ -192,6 +225,23 @@ function openSession(sessionId: number): void {
               <span class="tabular-nums">{{ durationLabel(row) }}</span>
             </div>
           </dl>
+
+          <!-- R30: tahlil FAQAT yozilgan darsda ko'rinadi. -->
+          <button
+            v-if="row.hasReview"
+            type="button"
+            class="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-1.5 text-xs font-semibold text-brand-500 transition-colors hover:bg-brand-500/10"
+            @click="openReview(row)"
+          >
+            <AppIcon
+              name="clipboard"
+              :size="13"
+            />
+            Dars tahlili
+            <BaseBadge :tone="reviewVerdictTone(row.reviewStatus)">
+              {{ reviewVerdictLabel(row.reviewStatus) }}
+            </BaseBadge>
+          </button>
         </li>
       </ul>
 
@@ -211,6 +261,7 @@ function openSession(sessionId: number): void {
                 <th>O‘quvchi</th>
                 <th>Qatnashgan</th>
                 <th>Davomiyligi</th>
+                <th>Tahlil</th>
                 <th />
               </tr>
             </thead>
@@ -253,6 +304,29 @@ function openSession(sessionId: number): void {
                   class="tabular-nums text-slate-400"
                   v-text="durationLabel(row)"
                 />
+                <!--
+                  R30. Tahlil YO'Q bo'lsa katak BO'SH qoladi ("—" ham
+                  emas): "hali ko'rilmagan" — normal holat va uni har
+                  qatorda takrorlash jadvalni shovqinga to'ldirardi.
+                -->
+                <td>
+                  <button
+                    v-if="row.hasReview"
+                    type="button"
+                    class="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-brand-500/10"
+                    title="O‘quv bo‘limining sifat tahlilini ochish"
+                    @click="openReview(row)"
+                  >
+                    <BaseBadge :tone="reviewVerdictTone(row.reviewStatus)">
+                      {{ reviewVerdictLabel(row.reviewStatus) }}
+                    </BaseBadge>
+                    <AppIcon
+                      name="chevron-right"
+                      :size="12"
+                      class="text-dim"
+                    />
+                  </button>
+                </td>
                 <td>
                   <button
                     type="button"
@@ -287,5 +361,15 @@ function openSession(sessionId: number): void {
         @update:page="page = $event"
       />
     </DataStatus>
+
+    <!--
+      R30. `@saved` bu yerda TINGLANMAYDI: ustoz tahlilni o'zgartira
+      olmaydi (server `403`), ya'ni ro'yxatni qayta o'qishning sababi yo'q.
+    -->
+    <SessionReviewModal
+      :session-id="reviewSessionId"
+      :title="reviewTitle"
+      @close="reviewSessionId = null"
+    />
   </section>
 </template>

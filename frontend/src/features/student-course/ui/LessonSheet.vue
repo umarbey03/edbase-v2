@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { askAboutLesson } from '@/entities/direct-message'
 import type { CourseLessonDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseModal } from '@/shared/ui'
 
@@ -33,6 +34,35 @@ const description = computed(() => props.lesson?.description ?? '')
 function go(routeName: string): void {
   emit('close')
   void router.push({ name: routeName })
+}
+
+/**
+ * ============================================================================
+ * R40 · «BU DARS BO'YICHA SAVOL BERISH»
+ * ============================================================================
+ *
+ * Loyiha egasi: *"savollar qismida darslarda video darslardan kelgan savollar
+ * bo'ladi"*. Server buni ALLAQACHON qo'llab-quvvatlaydi
+ * (`DirectMessage.moduleLessonId`) va nishon ikkala chat ekranida chizilgan —
+ * faqat uni to'ldiradigan tugma yo'q edi, shuning uchun prod'da har bir
+ * nishon `null` bo'lib turardi. Mana o'sha tugma.
+ *
+ * ★ SAVOL SHU YERDA YOZILMAYDI, chatga OLIB BORILADI: yozishmaning o'zi
+ *   (tarix, o'qildi belgisi, emoji, kun ajratgichlari) allaqachon bitta
+ *   ekranda. Bu yerga ikkinchi yozish maydoni qo'yilsa u shu narsalarning
+ *   hammasini qaytadan talab qilardi — ya'ni ikkinchi chat.
+ *
+ * ★ QULFLANGAN DARSDA TUGMA YO'Q (`unlocked` sharti shablonda): server ham
+ *   buni rad etadi (`EnsureLessonUnlockedAsync` — "ketma-ketlik bo'yicha"
+ *   talabi). Tugmani ko'rsatib, keyin 403 berish eng yomon variant bo'lardi.
+ *   Bu yerdagi shart — QULAYLIK, himoya SERVERDA.
+ */
+function askQuestion(): void {
+  const lesson = props.lesson
+  if (lesson === null) return
+
+  askAboutLesson(lesson.id, lesson.name)
+  go('student-chat')
 }
 </script>
 
@@ -123,6 +153,27 @@ function go(routeName: string): void {
         >
           Bu darsga kontent hali qo‘shilmagan
         </p>
+
+        <!--
+          R40 — dars bo'yicha savol. Tugma DOIM oxirgi va DOIM ikkilamchi
+          ko'rinishda: asosiy amal — vazifa/test topshirish, savol esa
+          o'quvchi TIQILIB QOLGANDA bosadigan yordam yo'li.
+        -->
+        <BaseButton
+          v-if="props.lesson.unlocked"
+          variant="ghost"
+          size="lg"
+          block
+          @click="askQuestion"
+        >
+          <template #icon>
+            <AppIcon
+              name="chat"
+              :size="16"
+            />
+          </template>
+          Bu dars bo‘yicha savol berish
+        </BaseButton>
       </div>
     </div>
   </BaseModal>

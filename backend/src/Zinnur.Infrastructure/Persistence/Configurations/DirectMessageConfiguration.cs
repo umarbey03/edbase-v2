@@ -84,5 +84,50 @@ public sealed class DirectMessageConfiguration : IEntityTypeConfiguration<Direct
         builder.HasIndex(m => new { m.StudentId, m.StaffId })
             .HasFilter("""NOT "ReadByStudent" """)
             .HasDatabaseName("IX_DirectMessages_UnreadByStudent");
+
+        /* ===== R40 · DARS SAVOLLARI NAVBATI ===== */
+
+        // ============================================================
+        // ★ INDEKS 1 — XODIMNING DARS SAVOLLARI NAVBATI (QISMAN).
+        //
+        // So'rov: "menga kelgan, DARSGA bog'langan savollar, vaqt
+        // bo'yicha" —
+        //   WHERE "StaffId" = @s AND "ModuleLessonId" IS NOT NULL
+        //   ORDER BY "Id" DESC LIMIT 50
+        //
+        // Bu ustun bugungacha HECH QAYERDA filtrlanmagan va shuning
+        // uchun indekssiz edi (`docs/ISH_REJASI_2026-08-13.md` §4.6).
+        // Indekssiz bu so'rov butun yozishma jadvalini skanerlardi —
+        // u esa markazdagi eng katta jadvallardan biri.
+        //
+        // QISMAN (partial): xabarlarning KATTA QISMI umumiy savol
+        // (`ModuleLessonId IS NULL`) va ular bu navbatga hech qachon
+        // kirmaydi. Filtr ularni indeksdan butunlay chiqarib tashlaydi
+        // — indeks kichik va issiq bo'lib qoladi (ayni sabab
+        // yuqoridagi "o'qilmaganlar" indekslarida ham).
+        // ============================================================
+        builder.HasIndex(m => new { m.StaffId, m.Id })
+            .HasFilter(""" "ModuleLessonId" IS NOT NULL""")
+            .HasDatabaseName("IX_DirectMessages_LessonQuestions");
+
+        // ============================================================
+        // ★ INDEKS 2 — `ModuleLessonId` NING O'ZI (to'liq).
+        //
+        // IKKI ish qiladi va ikkinchisi muhimroq:
+        //   1) "shu dars bo'yicha savollar" (dars kartochkasi);
+        //   2) 🔴 `ON DELETE SET NULL` — dars o'chirilganda Postgres unga
+        //      ishora qiluvchi HAR BIR qatorni izlaydi. Indekssiz bitta
+        //      darsni o'chirish butun `DirectMessages` jadvali bo'ylab
+        //      ketma-ket skan qilardi va o'quv bo'limi darsni o'chirmoqchi
+        //      bo'lganda so'rov qotib qolardi.
+        //
+        // QISMAN QILINMADI (1-indeksdan farqi): FK tekshiruvi `NULL`
+        // qatorlarni ham ko'rishi mumkin bo'lgan yo'lda ishlaydi va
+        // qisman indeksga tayanmaydi.
+        // ============================================================
+        builder.HasIndex(m => m.ModuleLessonId)
+            .HasDatabaseName("IX_DirectMessages_ModuleLessonId");
+
+        /* ===== /R40 ===== */
     }
 }

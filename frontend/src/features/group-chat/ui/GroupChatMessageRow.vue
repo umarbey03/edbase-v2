@@ -2,7 +2,10 @@
 import { computed } from 'vue'
 
 import { roleLabel, roleTone } from '@/entities/user'
+import type { GroupChatAttachmentDto } from '@/shared/types'
 import { BaseAvatar, BaseBadge } from '@/shared/ui'
+
+import ChatAttachment from './ChatAttachment.vue'
 
 /**
  * Guruh chatining bitta qatori — eski ilovadagi `.mrow` / `.mbub` tuzilishi:
@@ -24,9 +27,25 @@ const props = withDefaults(
     /** Ketma-ket xabarlarda avatar va ism takrorlanmaydi. */
     showHeader: boolean
     role: string
+    /**
+     * R16b · biriktirmalar.
+     *
+     * ⚠️ YUQORIDAGI "FAQAT PRIMITIV PROP'LAR" QOIDASIDAN ONGLI CHEKINISH.
+     * Sabab: biriktirmalar RO'YXAT va uni primitivga aylantirishning
+     * ishonchli yo'li yo'q (id'larni satrga yopishtirish `kind` va nomni
+     * yo'qotardi). Narx CHEKLANGAN: massiv havolasi FAQAT xabar obyekti
+     * almashganda o'zgaradi (`useGroupChatRows` `computed` — har render'da
+     * yangi obyekt yasamaydi), ya'ni qayta chizish soni oshmaydi. Sukut
+     * qiymati BO'SH massiv — ro'yxatning katta qismi biriktirmasiz va
+     * ular uchun hech nima chizilmaydi.
+     */
+    attachments?: readonly GroupChatAttachmentDto[]
   }>(),
-  { role: '' },
+  { role: '', attachments: () => [] },
 )
+
+/** Rasm kattalashtirilishi so'raldi — oynani ota komponent chizadi. */
+const emit = defineEmits<{ zoom: [url: string] }>()
 
 const roleText = computed(() => (props.role.length > 0 ? roleLabel(props.role) : ''))
 const tone = computed(() => roleTone(props.role))
@@ -98,9 +117,28 @@ const showRole = computed(() => props.role === 'Teacher' || props.role === 'Assi
           ustozga ko'rinadi — ya'ni saqlangan XSS uchun mukammal joy bo'lardi.
         -->
         <p
+          v-if="props.body.length > 0"
           class="whitespace-pre-wrap break-words text-sm leading-relaxed"
           v-text="props.body"
         />
+
+        <!--
+          ★ R16b · BIRIKTIRMALAR. Matn BO'SH bo'lishi mumkin (izohsiz surat,
+          Telegram'dagi kabi) — shuning uchun yuqoridagi `<p>` da `v-if` bor.
+          Bo'sh `<p>` qoldirilsa, rasm ustida sababsiz bo'sh qator turardi.
+        -->
+        <div
+          v-if="props.attachments.length > 0"
+          class="mt-0.5"
+          :class="props.body.length > 0 ? 'mt-1.5' : ''"
+        >
+          <ChatAttachment
+            v-for="item in props.attachments"
+            :key="item.id"
+            :attachment="item"
+            @zoom="(url) => emit('zoom', url)"
+          />
+        </div>
 
         <!--
           Vaqt. O'z xabarimda oltin fon ustida turadi, shuning uchun rang

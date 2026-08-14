@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import { navItemsForRole, roleLabel, roleTone } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { NotificationBell } from '@/features/notifications'
 import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
 
 /**
@@ -70,6 +71,25 @@ const panelLabel = computed(() =>
           v-text="panelLabel"
         />
       </div>
+
+      <!--
+        R35/R36 — qo'ng'iroqcha DESKTOP yon menyusining tepasida.
+
+        🔴 `hidden lg:flex` SHART: bu komponent IKKI joyda chiziladi —
+        desktopdagi doimiy ustunda va telefondagi drawer'da. Drawer
+        versiyasida qo'ng'iroqcha ko'rsatilsa, u `AppShell` sarlavhasidagi
+        qo'ng'iroqcha bilan IKKILANARDI (ikkalasi ham telefonda). Bu klass
+        uni faqat desktopga qoldiradi, ya'ni har o'lchamda AYNAN BITTA
+        qo'ng'iroqcha ko'rinadi.
+
+        ★ Panel CHAPGA tekislanadi: yon menyu ekranning chap chekkasida,
+        o'ngga tekislangan panel menyuning tor ustunidan chiqib, kontent
+        ustiga noto'g'ri tomondan tushardi.
+      -->
+      <NotificationBell
+        align="left"
+        class="ml-auto hidden shrink-0 lg:flex"
+      />
     </div>
 
     <!-- Menyu (eski `.nav`) -->

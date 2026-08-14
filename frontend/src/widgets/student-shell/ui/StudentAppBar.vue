@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { NotificationBell } from '@/features/notifications'
 import { canJoin, sessionState } from '@/features/student-schedule/model/useStudentSchedule'
 import type { LiveSessionDto } from '@/shared/types'
 import { AppIcon } from '@/shared/ui'
@@ -116,6 +117,22 @@ function handleNextClick(): void {
         />
         <span v-text="isLive ? 'Jonli' : countdown" />
       </button>
+
+      <!--
+        R35/R36 — bildirishnoma qo'ng'iroqchasi.
+
+        ★ "KEYINGI DARS" CHIPI BILAN AVATAR ORASIDA. Chip vaqtga bog'liq
+        va u YO'Q bo'lishi mumkin (`v-if`), ya'ni qo'ng'iroqcha undan
+        oldinga qo'yilsa panel elementlari kun davomida joy almashib
+        turardi. Avatar esa DOIM bor — ya'ni qo'ng'iroqcha o'ng chekkadan
+        HAR DOIM bir xil masofada qoladi va barmoq uni "ko'r-ko'rona"
+        topa oladi.
+
+        ★ Panel O'NGGA tekislanadi (standart `align`): qo'ng'iroqcha
+        ekranning o'ng chekkasiga yaqin, chapga tekislangan panel
+        ko'rinish maydonidan chiqib ketardi.
+      -->
+      <NotificationBell />
 
       <!--
         Profil avatari. Gradient TOKENLARDA: ilgari `#f5b731 -> #22d3ee`

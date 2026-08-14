@@ -16,7 +16,8 @@ namespace Zinnur.WebApi.Controllers;
 [Produces("application/json")]
 public sealed class LiveSessionsController(
     ILiveSessionService sessions,
-    IAttendanceService attendance) : ControllerBase
+    IAttendanceService attendance,
+    ILessonGradeService grades) : ControllerBase
 {
     /// <summary>Foydalanuvchining yaqin darslari (roli bo'yicha filtrlanadi).</summary>
     [HttpGet]
@@ -167,6 +168,84 @@ public sealed class LiveSessionsController(
         CancellationToken ct) =>
         Ok(await attendance.UpdateAsync(id, studentId, request, CurrentUserId, ct));
 
+    /* ═══════════════════════════════════════════════════════════════════
+       R24 · DARS BAHOSI — "baholar har bitta darsga qo'yiladi"
+
+       ★ MARSHRUT DAVOMATNIKI BILAN AYNI SHAKLDA (`/{id}/grades`,
+       `/{id}/grades/{studentId}`): ustoz paneli ikkala matritsani ham
+       BIR XIL naqsh bilan yig'adi (ustunlar oynasi -> har dars uchun
+       bitta varaq).
+
+       ⚠️ `/api/v1/assignments/{id}/submissions` BILAN ARALASHTIRILMAYDI —
+       u VAZIFA bahosi (topshirilgan ishning bahosi), bu esa DARS bahosi.
+       Farqi `LessonGrade` sinfi izohida.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /// <summary>
+    /// Dars bo'yicha BAHO VARAG'I: guruhning har bir o'quvchisi bitta qator.
+    /// Bahosi yo'q o'quvchi ham qaytadi (<c>score: null</c>).
+    ///
+    /// RUXSAT: davomat varag'i BILAN AYNI — o'quv bo'limi/admin, guruh
+    /// ustozi/kuratori, bog'langan kurator guruhi xodimi, darsning hosti.
+    /// O'QUVCHI — 403.
+    /// </summary>
+    [HttpGet("{id:long}/grades")]
+    [Authorize(Roles = AttendanceRoles)]
+    [ProducesResponseType<SessionLessonGradesDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SessionLessonGradesDto>> Grades(
+        long id, CancellationToken ct) =>
+        Ok(await grades.GetSessionGradesAsync(id, CurrentUserId, ct));
+
+    /// <summary>
+    /// Bitta o'quvchining shu darsdagi bahosini qo'yadi yoki qayta yozadi.
+    ///
+    /// ★ PUT — TO'LIQ ALMASHTIRISH: <c>comment</c> yuborilmasa avvalgi izoh
+    /// O'CHADI. Qator hali bo'lmasa YARATILADI (upsert).
+    ///
+    /// <c>maxScore</c> yuborilmasa standart shkala ishlatiladi (javobdagi
+    /// <c>defaultMaxScore</c>). Har chaqiruv AUDIT izi qoldiradi.
+    /// </summary>
+    /// <response code="400">Ball berilmagan, manfiy, maxrajdan katta yoki izoh 500 belgidan uzun.</response>
+    /// <response code="404">Dars yo'q yoki o'quvchi bu darsning guruhiga tegishli emas.</response>
+    /// <response code="409">Dars BEKOR QILINGAN yoki qator bir vaqtda ikki joydan o'zgardi.</response>
+    [HttpPut("{id:long}/grades/{studentId:long}")]
+    [Authorize(Roles = AttendanceRoles)]
+    [ProducesResponseType<LessonGradeRowDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LessonGradeRowDto>> UpsertGrade(
+        long id,
+        long studentId,
+        [FromBody] UpsertLessonGradeRequest request,
+        CancellationToken ct) =>
+        Ok(await grades.UpsertAsync(id, studentId, request, CurrentUserId, ct));
+
+    /// <summary>
+    /// Bahoni butunlay OLIB TASHLAYDI.
+    ///
+    /// ★ "0 QO'YISH" BILAN ARALASHTIRILMAYDI: 0 — reytingga to'liq
+    /// kiradigan haqiqiy baho, o'chirilgan baho esa umuman hisobga
+    /// olinmaydi. Bu yo'lsiz adashib qo'yilgan bahoni tuzatishning yagona
+    /// usuli o'quvchiga 0 yozib qo'yish bo'lardi.
+    ///
+    /// IDEMPOTENT: bahosi yo'q katak uchun ham 204.
+    /// </summary>
+    [HttpDelete("{id:long}/grades/{studentId:long}")]
+    [Authorize(Roles = AttendanceRoles)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteGrade(
+        long id, long studentId, CancellationToken ct)
+    {
+        await grades.DeleteAsync(id, studentId, CurrentUserId, ct);
+        return NoContent();
+    }
+
     /// <summary>Chatning oxirgi xabarlari (sahifa ochilganda bir marta yuklanadi).</summary>
     [HttpGet("{id:long}/messages")]
     [ProducesResponseType<IReadOnlyList<ChatMessageDto>>(StatusCodes.Status200OK)]
@@ -180,7 +259,13 @@ public sealed class LiveSessionsController(
             CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Davomat varag'iga umuman kira oladigan rollar (DARVOZA).
+    /// Dars varaqlariga (DAVOMAT va R24 dagi BAHO) umuman kira oladigan
+    /// rollar (DARVOZA).
+    ///
+    /// ★ IKKALA VARAQ UCHUN BITTA DOIMIY — ataylab: ular bir ekranning
+    /// ikki tabi va ro'yxatlar ayrilsa ustoz bir tabni ko'rib
+    /// ikkinchisida 403 olardi. Nom tarixiy sabab bilan "Attendance"
+    /// bo'lib qoldi.
     ///
     /// ★ `Student` ATAYLAB YO'Q: o'quvchi o'z davomatini o'zgartira olsa,
     /// davomat foizi, reyting va ogohlantirishlar ma'nosini yo'qotardi.

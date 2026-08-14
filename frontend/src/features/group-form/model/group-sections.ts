@@ -1,5 +1,11 @@
 import { formatClock } from '@/shared/lib/datetime'
-import type { DayOfWeekName, GroupDto, GroupTypeName, GroupWriteRequest } from '@/shared/types'
+import type {
+  DayOfWeekName,
+  GroupDto,
+  GroupStaffRoleName,
+  GroupTypeName,
+  GroupWriteRequest,
+} from '@/shared/types'
 
 /**
  * GURUH FORMASINI UCH BO'LIMGA AJRATISH — sof mantiq (Vue'ga bog'liq emas).
@@ -32,10 +38,37 @@ export type GroupSectionKey = 'basic' | 'schedule' | 'course'
 export interface BasicSectionForm {
   name: string
   type: GroupTypeName
+  /**
+   * R21b · o'quv YO'NALISHI ("ATF", "CEFR", "IELTS"). `null` — yorliqsiz.
+   *
+   * ★ NEGA `basic` BO'LIMIDA, `course` DA EMAS: bu KURS EMAS. Kurs bo'limi
+   * kontentni (kurs daraxti + video boshlanish darsi) boshqaradi va ular
+   * bir-biriga bog'liq; kategoriya esa kursi umuman yo'q guruhda ham
+   * ma'noli. `course` ga qo'yilsa "kurs biriktirilmagan" holatda tanlagich
+   * o'chirilgan bo'lib ko'rinardi.
+   */
+  categoryId: number | null
   teacherId: number | null
   assistantId: number | null
   curatorGroupId: number | null
   recordEnabled: boolean
+  /**
+   * R5. ⚠️ `recordEnabled` BILAN ARALASHTIRILMASIN: u "dars YOZIB
+   * OLINSINMI", bu esa "yozilgan fayl o'quvchiga KO'RSATILSINMI".
+   */
+  recordingsVisibleToStudents: boolean
+  /* ===== R33 + R40 · KIM MAS'UL =====
+
+     ★ NEGA `basic` BO'LIMIDA: ikkala tanlov ham SHTATGA tegishli va
+       shtat (ustoz, kurator, kurator guruhi) aynan shu bo'limda turadi.
+       Foydalanuvchi kuratorni tanlaydi va DARHOL "u nima qiladi" ni ham
+       belgilaydi — ikki bo'limga bo'linsa u ikkinchisini ochishni
+       unutardi va tanlov standart holida qolardi. */
+
+  /** R33 — topshirilgan ishni kim tekshiradi. Standart `'Both'`. */
+  assignmentGraderRole: GroupStaffRoleName
+  /** R40 — dars savollariga kim javob beradi. Standart `'Assistant'`. */
+  questionResponderRole: GroupStaffRoleName
   isActive: boolean
 }
 
@@ -91,10 +124,28 @@ export function basicFrom(group: GroupDto | null): BasicSectionForm {
   return {
     name: group?.name ?? '',
     type: group?.type ?? 'Group',
+
+    // R21b. `?? null` — YANGI guruhda ham, DTO'siz holatda ham yorliqsiz
+    // boshlanadi (server standarti ham `null`).
+    categoryId: group?.categoryId ?? null,
     teacherId: group?.teacherId ?? null,
     assistantId: group?.assistantId ?? null,
     curatorGroupId: group?.curatorGroupId ?? null,
     recordEnabled: group?.recordEnabled ?? false,
+
+    // 🔴 STANDART `true` — YANGI guruhda ham, DTO'siz holatda ham.
+    //    `false` bo'lsa yangi guruhning yozuvlari hech kim so'ramagan
+    //    holda yopiq bo'lardi (server standarti ham `true`).
+    recordingsVisibleToStudents: group?.recordingsVisibleToStudents ?? true,
+
+    // 🔴 STANDARTLAR SERVERNIKI BILAN AYNAN BIR XIL va ular ATAYLAB
+    //    HAR XIL: `Both` — baholashning bugungi holati (ustoz ham,
+    //    kurator ham), `Assistant` — savollarning bugungi holati (faqat
+    //    kurator). Bu yerda ikkalasini `Both` qilib qo'yish yangi
+    //    guruhning savollarini hech kim so'ramagan holda ustozga ham
+    //    ochib yuborardi.
+    assignmentGraderRole: group?.assignmentGraderRole ?? 'Both',
+    questionResponderRole: group?.questionResponderRole ?? 'Assistant',
     isActive: group?.isActive ?? true,
   }
 }
@@ -130,10 +181,29 @@ export function buildPayload(forms: GroupSectionForms): GroupWriteRequest {
   return {
     name: forms.basic.name.trim(),
     type: forms.basic.type,
+
+    /*
+      🔴 R21b — SHU QATOR BU FAYLNING BUTUN MA'NOSI. `PUT` TO'LIQ
+      ALMASHTIRISH: `categoryId` yuborilmasa server uni `null` qilib
+      yozadi va guruh yorlig'ini JIMGINA yo'qotadi. Ya'ni "Jadval" yoki
+      "Kurs" bo'limini saqlash har safar kategoriyani o'chirib yuborardi
+      va buni hech kim sezmasdi — filtr keyinroq bo'sh natija bergandagina
+      bilinardi. Payload uchala bo'limdan yig'ilgani uchun bunday bo'lmaydi.
+    */
+    categoryId: forms.basic.categoryId,
     teacherId: forms.basic.teacherId,
     assistantId: forms.basic.assistantId,
     curatorGroupId: forms.basic.curatorGroupId,
     recordEnabled: forms.basic.recordEnabled,
+    recordingsVisibleToStudents: forms.basic.recordingsVisibleToStudents,
+
+    // 🔴 R33 + R40 — `categoryId` bilan AYNI tuzoq: yuborilmasa server
+    //    standartni yozadi. `questionResponderRole` da bu ayniqsa
+    //    xavfli emas (server standarti bugungi holat), lekin joriy
+    //    qiymat baribir uzatilishi shart — aks holda "Ikkalasi ham"
+    //    tanlangan guruh har tahrirda kuratorga qaytarilardi.
+    assignmentGraderRole: forms.basic.assignmentGraderRole,
+    questionResponderRole: forms.basic.questionResponderRole,
     isActive: forms.basic.isActive,
 
     startDate: forms.schedule.startDate,
@@ -199,10 +269,14 @@ export function changedFieldLabels(
     const prev = base.basic
     if (next.name.trim() !== prev.name.trim()) labels.push('Guruh nomi')
     if (next.type !== prev.type) labels.push('Guruh turi')
+    if (next.categoryId !== prev.categoryId) labels.push('Yo‘nalish (kategoriya)')
     if (next.teacherId !== prev.teacherId) labels.push('Ustoz')
     if (next.assistantId !== prev.assistantId) labels.push('Kurator')
     if (next.curatorGroupId !== prev.curatorGroupId) labels.push('Kurator guruhi')
     if (next.recordEnabled !== prev.recordEnabled) labels.push('Darslarni yozib olish')
+    if (next.recordingsVisibleToStudents !== prev.recordingsVisibleToStudents) {
+      labels.push('Yozuvlar o‘quvchilarga ochiq')
+    }
     if (next.isActive !== prev.isActive) labels.push('Guruh statusi')
     return labels
   }

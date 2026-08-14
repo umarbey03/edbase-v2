@@ -209,6 +209,19 @@ internal static partial class JobLog
         Message = "Chat tarixini tozalash o'chiq (`chat.retention_enabled`) — o'tkazib yuborildi.")]
     internal static partial void RetentionDisabled(ILogger logger);
 
+    /// <summary>
+    /// 🔴 QAYTARIB BO'LMAYDIGAN XARAJAT: baza qatori o'chdi, ombordagi
+    /// obyekt esa qoldi. Kalitlar AYNAN shu qatorda yozilgan — operator
+    /// uchun bu YAGONA iz (batafsil `ChatRetentionJob` da).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6443,
+        Level = LogLevel.Warning,
+        Message = "Chat biriktirmalarining {Count} ta obyekti ombordan O'CHIRILMADI — YETIM "
+                  + "qoldi (baza qatorlari o'chirildi). keys={Keys}")]
+    internal static partial void ChatAttachmentsOrphaned(
+        ILogger logger, int count, string keys);
+
     // ---------------------------------------------------------------- umumiy
 
     [LoggerMessage(

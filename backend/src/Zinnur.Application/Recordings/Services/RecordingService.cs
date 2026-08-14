@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Exceptions;
@@ -6,6 +7,8 @@ using Zinnur.Application.LiveSessions.Dtos;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Recordings.Dtos;
+using Zinnur.Application.Settings;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -39,6 +42,7 @@ public sealed class RecordingService(
     ILiveKitEgress egress,
     IRecordingStorage storage,
     IPaymentBlockService paymentBlock,
+    ISettingsResolver settings,
     TimeProvider clock,
     ILogger<RecordingService> logger) : IRecordingService
 {
@@ -89,7 +93,7 @@ public sealed class RecordingService(
         // bosilsa) ikkinchi egress BOSHLANMAYDI — u alohida fayl yozib,
         // ikkalasi ham tarmoq va disk yeb qo'yardi.
         if (existing is not null)
-            return Map(existing);
+            return await MapWithReviewAsync(existing, ct).ConfigureAwait(false);
 
         var now = clock.GetUtcNow();
 
@@ -117,7 +121,7 @@ public sealed class RecordingService(
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        return Map(recording);
+        return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -151,7 +155,7 @@ public sealed class RecordingService(
 
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-            return Map(recording);
+            return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
         }
 
         // ⚠️ To'xtatish DARHOL fayl degani emas: yakuniy holat webhook
@@ -167,7 +171,7 @@ public sealed class RecordingService(
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        return Map(recording);
+        return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -209,15 +213,21 @@ public sealed class RecordingService(
 
         var isStaff = await IsStaffAsync(actorId, ct).ConfigureAwait(false);
 
-        var rows = await db.SessionRecordings
-            .AsNoTracking()
-            .Where(r => r.SessionId == sessionId)
-            .Where(r => isStaff || r.Status == RecordingStatus.Completed)
+        // 🔴 R5: bo'lim global sozlama bilan yopilgan bo'lsa, o'quvchi
+        //    uchun ro'yxat BO'SH. Xodimga hech qanday cheklov yo'q.
+        if (!isStaff && !await SectionOpenAsync(ct).ConfigureAwait(false))
+            return [];
+
+        var rows = await ApplyVisibility(
+                db.SessionRecordings.AsNoTracking().Where(r => r.SessionId == sessionId),
+                isStaff)
             .OrderByDescending(r => r.Id)
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        return rows.ConvertAll(r => Map(r, isStaff));
+        var verdicts = await LoadVerdictsAsync(rows, isStaff, ct).ConfigureAwait(false);
+
+        return rows.ConvertAll(r => Map(r, isStaff, verdicts));
     }
 
     /// <inheritdoc />
@@ -246,20 +256,18 @@ public sealed class RecordingService(
 
         var isStaff = await IsStaffAsync(actorId, ct).ConfigureAwait(false);
 
-        var rows = await db.SessionRecordings
-            .AsNoTracking()
-            .Where(r => sessionIds.Contains(r.SessionId))
+        // 🔴 R5: global kalit o'chiq bo'lsa o'quvchi uchun bo'lim YO'Q.
+        if (!isStaff && !await SectionOpenAsync(ct).ConfigureAwait(false))
+            return [];
 
-            // ★ O'QUVCHIGA FAQAT TAYYOR YOZUV KO'RINADI.
-            //
-            //   Unga "urinish yiqildi" degan qator hech narsa bermaydi:
-            //   u baribir hech narsa qila olmaydi, lekin ro'yxat "buzuq"
-            //   ko'rinardi. Xodimga esa AKSINCHA — aynan o'sha qatorlar
-            //   "nega bu darsning yozuvi yo'q?" degan savolga javob.
-            .Where(r => isStaff || r.Status == RecordingStatus.Completed)
+        var rows = await ApplyVisibility(
+                db.SessionRecordings.AsNoTracking().Where(r => sessionIds.Contains(r.SessionId)),
+                isStaff)
             .OrderByDescending(r => r.Id)
             .ToListAsync(ct)
             .ConfigureAwait(false);
+
+        var verdicts = await LoadVerdictsAsync(rows, isStaff, ct).ConfigureAwait(false);
 
         var items = new List<RecordingListItemDto>(rows.Count);
 
@@ -268,7 +276,7 @@ public sealed class RecordingService(
             var session = sessions[row.SessionId];
 
             items.Add(new RecordingListItemDto(
-                Map(row, isStaff),
+                Map(row, isStaff, verdicts),
                 session.GroupId,
                 session.GroupName,
                 session.Title,
@@ -320,7 +328,40 @@ public sealed class RecordingService(
         //   bloklanmaydi (`CreateJoinTokenAsync` bilan bir xil qoida).
         // ═══════════════════════════════════════════════════════════════
         if (await RoleOfAsync(actorId, ct).ConfigureAwait(false) == UserRole.Student)
+        {
+            // ═══════════════════════════════════════════════════════════
+            // 🔴 R5 — KO'RINISH DARVOZASI: TO'LOVDAN OLDIN, AYNI JOYDA
+            //
+            // ★ NIMA UCHUN AYNAN SHU YERDA VA NIMA UCHUN RO'YXAT YETMAYDI:
+            //   ro'yxat yashirilgan yozuvni bermaydi, LEKIN o'quvchi
+            //   yozuv Id'sini ALLAQACHON bilishi mumkin — kecha ochiq
+            //   sahifada turgan, xatcho'pga solingan yoki oddiygina
+            //   brauzer tarixida qolgan. Faqat ro'yxatni filtrlash
+            //   "ko'rinmasin" ni emas, "izlash biroz qiyinroq bo'lsin" ni
+            //   anglatardi. Havola berilgandan keyin esa serverning "yo'q"
+            //   deyishiga imkon YO'Q: brauzer to'g'ridan-to'g'ri omborga
+            //   boradi (pastdagi to'lov darvozasi bilan AYNI mulohaza).
+            //
+            // ★ TARTIB ATAYLAB: KO'RINISH — TO'LOVDAN OLDIN. Yopilgan
+            //   yozuvni so'ragan qarzdor o'quvchiga "qarzingiz bor" deyish
+            //   ikki marta noto'g'ri bo'lardi — qarzini to'lasa ham yozuv
+            //   ochilmasdi.
+            //
+            // 🔴 XABAR MATNI TO'LOV XABARIDAN ATAYLAB BOShQAcha: ular ikki
+            //    XIL nosozlik va pleyer ikkalasini bir xil ko'rsatsa,
+            //    o'quvchi yopilgan darsni "qarz" deb tushunib, buxgalteriyaga
+            //    borardi. Matn serverdan keladi va `toUserMessage` uni
+            //    o'zgarishsiz ko'rsatadi — ya'ni farq FRONTENDDA emas, SHU
+            //    YERDA tug'iladi.
+            // ═══════════════════════════════════════════════════════════
+            if (!await IsVisibleToStudentAsync(recording, ct).ConfigureAwait(false))
+            {
+                throw new ForbiddenException(
+                    "Bu dars yozuvi hozircha yopilgan. Savol bo'lsa o'quv bo'limiga murojaat qiling.");
+            }
+
             await paymentBlock.EnsureAllowedAsync(actorId, PaymentBlockScope.Video, ct).ConfigureAwait(false);
+        }
 
         if (!storage.IsConfigured)
         {
@@ -336,7 +377,267 @@ public sealed class RecordingService(
         return new RecordingLinkDto(url.ToString(), clock.GetUtcNow().Add(ttl));
     }
 
+    /// <inheritdoc />
+    public async Task<RecordingDto> SetVisibilityAsync(
+        long recordingId, bool visible, long actorId, CancellationToken ct = default)
+    {
+        var recording = await db.SessionRecordings
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == recordingId, ct)
+            .ConfigureAwait(false)
+            ?? throw new NotFoundException(nameof(SessionRecording), recordingId);
+
+        // Ruxsat — darsning O'ZI orqali (a'zo o'quvchi ham o'tadi, shuning
+        // uchun pastda rol darvozasi ALOHIDA turadi).
+        await liveSessions.GetAsync(recording.SessionId, actorId, ct).ConfigureAwait(false);
+
+        var role = await RoleOfAsync(actorId, ct).ConfigureAwait(false);
+
+        // 🔴 O'quvchi o'z darsini KO'RA oladi, lekin ko'rinishni BOSHQARA
+        //    olmaydi. Controller atributi ham shuni aytadi — bu ikkinchi
+        //    qatlam (hub yoki kelajakdagi boshqa chaqiruvchi atributdan
+        //    o'tmaydi).
+        if (role == UserRole.Student)
+            throw new ForbiddenException("Yozuv ko'rinishini faqat xodimlar boshqaradi.");
+
+        var now = clock.GetUtcNow();
+
+        if (visible)
+        {
+            await EnsureCanRevealAsync(recording, role, ct).ConfigureAwait(false);
+            recording.ShowToStudents(actorId, now);
+        }
+        else
+        {
+            // ★ YASHIRISHDA HECH QANDAY USTUNLIK TEKSHIRUVI YO'Q — bu
+            //   "eng qattig'i yutadi" qoidasining to'g'ridan-to'g'ri
+            //   natijasi: HAR IKKALA tomon ham yopa oladi.
+            recording.HideFromStudents(actorId, now);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<RecordingSectionDto> GetSectionAsync(
+        long actorId, CancellationToken ct = default)
+    {
+        // Xodim uchun bo'lim HECH QACHON yopilmaydi: global va guruh
+        // kalitlari o'quvchiga qaratilgan, arxiv esa xodimga har doim
+        // kerak ("nega bu darsning yozuvi yo'q?").
+        if (await IsStaffAsync(actorId, ct).ConfigureAwait(false))
+            return new RecordingSectionDto(true);
+
+        if (!await SectionOpenAsync(ct).ConfigureAwait(false))
+            return new RecordingSectionDto(false);
+
+        // ★ GLOBAL KALIT YOQIQ BO'LSA HAM O'QUVCHINING HAMMA GURUHI
+        //   YOPIQ BO'LISHI MUMKIN — bunda ham kartochka ko'rsatilmaydi.
+        //   So'rov `IX_GroupMembers_*` bo'yicha faol a'zoliklarni oladi va
+        //   qatorlarni YUKLAMAYDI (`AnyAsync`).
+        var anyOpenGroup = await db.GroupMembers
+            .AsNoTracking()
+            .AnyAsync(
+                m => m.StudentId == actorId
+                  && m.Status == MemberStatus.Active
+                  && m.Group!.RecordingsVisibleToStudents,
+                ct)
+            .ConfigureAwait(false);
+
+        return new RecordingSectionDto(anyOpenGroup);
+    }
+
     // ================================================================= ichki
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 R5 — USTUNLIK QOIDASI: "OCHISH" ENG QATTIQ AMAL
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Talab ikkala tomonni ham boshqaruvchi qilib belgilaydi ("o'quv
+    /// bo'limi VA teacher tarafidan"), lekin ular BIR-BIRIGA ZID qaror
+    /// qilganda nima bo'lishini AYTMAYDI. Tanlangan qoida:
+    ///
+    ///   • YASHIRISH — ikkala tomon ham, har doim, shartsiz;
+    ///   • OCHISH — o'quv bo'limi yopganini FAQAT o'quv bo'limi ochadi.
+    ///
+    /// ★ NIMA UCHUN "OXIRGI YOZGAN YUTADI" EMAS: o'quv bo'limi yozuvni
+    /// odatda AYNI R29 sababi bilan yopadi ("darsda muammo bor, bu
+    /// yozuv tarqalmasin"). Oxirgi yozgan yutsa, ustoz bir bosish bilan
+    /// uni qaytarib ochardi — ya'ni sifat nazoratining yagona amaliy
+    /// vositasi kuchsiz maslahatga aylanardi.
+    ///
+    /// ★ NIMA UCHUN AKSINCHA EMAS (ustoz yopganini faqat ustoz ochsin):
+    /// o'quv bo'limi — eskalatsiya nuqtasi. Ustoz ta'tilda bo'lsa,
+    /// ishdan ketgan bo'lsa yoki oddiygina xato bosgan bo'lsa, tuzata
+    /// oladigan kimdir QOLISHI shart.
+    ///
+    /// ⚠️ NARXI: ustoz o'zi yopgan yozuvni ochishi mumkin, lekin
+    /// hamkasbi yopganini emas — bu ham ONGLI (kim yopgan bo'lsa, sababni
+    /// ham o'sha biladi).
+    ///
+    /// ★ Rol so'rovi FAQAT SHU YO'LDA bajariladi (yozuvni ochish — nodir
+    /// amal), ya'ni o'qish yo'llariga hech qanday narx qo'shmaydi.
+    /// </summary>
+    private async Task EnsureCanRevealAsync(
+        SessionRecording recording, UserRole role, CancellationToken ct)
+    {
+        if (role is UserRole.Academic or UserRole.Admin) return;
+
+        // Hech kim tegmagan yoki allaqachon ochiq — to'sadigan narsa yo'q.
+        if (recording.IsVisibleToStudents || recording.VisibilityChangedById is not { } lastId)
+            return;
+
+        var closedByManagement = await db.Users
+            .AsNoTracking()
+            .AnyAsync(
+                u => u.Id == lastId
+                  && (u.Role == UserRole.Academic || u.Role == UserRole.Admin),
+                ct)
+            .ConfigureAwait(false);
+
+        if (closedByManagement)
+        {
+            throw new ForbiddenException(
+                "Bu yozuvni o'quv bo'limi yopgan — uni faqat o'quv bo'limi qayta ocha oladi.");
+        }
+    }
+
+    /// <summary>
+    /// "Dars yozuvlari bo'limi umuman ochiqmi" — GLOBAL kalit
+    /// (<c>recordings.visible_to_students</c>).
+    ///
+    /// ⚠️ HAR SO'ROVDA O'QILADI, ishga tushishda emas: `ISettingsResolver`
+    /// keshdan javob beradi, ya'ni narxi sezilmaydi, lekin paneldan
+    /// o'zgartirilgan qiymat DARHOL kuchga kiradi. Aks holda panel
+    /// "saqlandi" derdi-yu, o'quvchilarda hech nima o'zgarmasdi —
+    /// registrdagi eng qattiq qoida shu turdagi jimgina yolg'onni
+    /// taqiqlaydi.
+    ///
+    /// ★ NOTO'G'RI QIYMAT (`"ha"`, bo'sh satr) — OCHIQ deb o'qiladi.
+    ///   Buzuq sozlama butun bo'limni jimgina o'chirib qo'ymasin: bu
+    ///   bayroq YOPISH uchun ATAYLAB bosiladi, tasodifan emas.
+    /// </summary>
+    private async Task<bool> SectionOpenAsync(CancellationToken ct)
+    {
+        var resolved = await settings.ResolveAsync(SectionSetting, ct).ConfigureAwait(false);
+
+        return !SettingValueParser.TryReadBool(resolved.Value, out var enabled) || enabled;
+    }
+
+    private static readonly SettingDefinition SectionSetting =
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsVisibleToStudents, out var d)
+            ? d
+            : throw new InvalidOperationException(
+                "`recordings.visible_to_students` registrda topilmadi.");
+
+    /// <summary>
+    /// O'quvchi ko'radigan yozuvlar filtri — UCHTA shartning ko'paytmasi.
+    ///
+    /// ★ O'QUVCHIGA FAQAT TAYYOR YOZUV KO'RINADI (eski qoida, o'zgarmadi):
+    ///   unga "urinish yiqildi" degan qator hech narsa bermaydi. Xodimga
+    ///   esa AKSINCHA — aynan o'sha qatorlar "nega bu darsning yozuvi
+    ///   yo'q?" degan savolga javob.
+    ///
+    /// ★ R5 QO'SHGANI: guruh kaliti va yozuvning O'Z kaliti. Global kalit
+    ///   bu yerda EMAS — u so'rovdan oldin qaraladi va butun ro'yxatni
+    ///   bo'sh qaytaradi (bazaga borish shart emas).
+    ///
+    /// ⚠️ `Session!.Group!` — ikkala navigatsiya ham NOT NULL FK
+    ///   (`SessionRecordings -> LiveSessions -> Groups`, ikkalasi ham
+    ///   Cascade), ya'ni bu `INNER JOIN` ga tushadi va hech qanday qator
+    ///   "yo'qolib qolmaydi".
+    /// </summary>
+    private static IQueryable<SessionRecording> ApplyVisibility(
+        IQueryable<SessionRecording> query, bool isStaff) =>
+        isStaff
+            ? query
+            : query.Where(r =>
+                r.Status == RecordingStatus.Completed
+                && r.IsVisibleToStudents
+                && r.Session!.Group!.RecordingsVisibleToStudents);
+
+    /// <summary>
+    /// BITTA yozuv o'quvchiga ko'rinadimi — havola yo'li uchun.
+    ///
+    /// 🔴 Bu <see cref="ApplyVisibility"/> ning AYNI qoidasi, lekin bitta
+    /// qator uchun. Ikki ta'rif ajralib ketmasligi kerak: ro'yxatda
+    /// ko'rinmaydigan yozuv havolasi ham berilmasin va aksincha.
+    /// (<c>Status</c> shartini chaqiruvchi allaqachon tekshirgan —
+    /// <c>IsPlayable</c> darvozasi yuqorida.)
+    /// </summary>
+    private async Task<bool> IsVisibleToStudentAsync(
+        SessionRecording recording, CancellationToken ct)
+    {
+        if (!recording.IsVisibleToStudents) return false;
+
+        if (!await SectionOpenAsync(ct).ConfigureAwait(false)) return false;
+
+        return await db.LiveSessions
+            .AsNoTracking()
+            .Where(s => s.Id == recording.SessionId)
+            .Select(s => s.Group!.RecordingsVisibleToStudents)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Ro'yxatdagi darslarning tahlil xulosalari — BITTA so'rov bilan (R29).
+    ///
+    /// 🔴 O'QUVCHIGA UMUMAN SO'RALMAYDI: tahlil undan yopiq va uning
+    /// BORLIGI haqidagi ishora ham berilmaydi (<c>SessionReview</c> izohi).
+    /// Ya'ni bu — nafaqat tejash, balki chegaraning O'ZI.
+    ///
+    /// ★ N+1 YO'Q: 30 ta yozuvli sahifa uchun bitta `WHERE SessionId IN (…)`
+    ///   so'rovi va u `UX_SessionReviews_SessionId` indeksiga tushadi.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<long, SessionReviewVerdict>> LoadVerdictsAsync(
+        List<SessionRecording> rows, bool isStaff, CancellationToken ct)
+    {
+        if (!isStaff || rows.Count == 0)
+            return ReadOnlyDictionary<long, SessionReviewVerdict>.Empty;
+
+        var sessionIds = rows.Select(r => r.SessionId).Distinct().ToArray();
+
+        var pairs = await db.SessionReviews
+            .AsNoTracking()
+            .Where(r => sessionIds.Contains(r.SessionId))
+            .Select(r => new { r.SessionId, r.Verdict })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return pairs.ToDictionary(p => p.SessionId, p => p.Verdict);
+    }
+
+    /// <summary>
+    /// Bitta yozuv -> DTO, tahlil xulosasi bilan.
+    ///
+    /// ★ FAQAT XODIM YO'LLARIDA CHAQIRILADI (boshlash, to'xtatish,
+    ///   ko'rinishni o'zgartirish) — ularning hammasi rol darvozasidan
+    ///   o'tgan. Ro'yxatlar bu metodni ISHLATMAYDI: ular xulosalarni
+    ///   BITTA to'plamli so'rov bilan oladi (<see cref="LoadVerdictsAsync"/>),
+    ///   aks holda har qator uchun alohida so'rov ketardi.
+    ///
+    /// ⚠️ Amalda bu so'rov deyarli har doim bo'sh qaytadi: dars endi
+    ///    boshlanayotganda tahlil hali yozilmagan bo'ladi. Shunga qaramay
+    ///    u O'TKAZIB YUBORILMAYDI — DTO'ning bir yo'lda to'g'ri, boshqa
+    ///    yo'lda "har doim `false`" bo'lishi jimgina yolg'on bo'lardi va
+    ///    kelajakda kimdir bu javobga ishonib qolardi.
+    /// </summary>
+    private async Task<RecordingDto> MapWithReviewAsync(
+        SessionRecording recording, CancellationToken ct)
+    {
+        var verdict = await db.SessionReviews
+            .AsNoTracking()
+            .Where(r => r.SessionId == recording.SessionId)
+            .Select(r => (SessionReviewVerdict?)r.Verdict)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        return Map(recording, includeError: true, verdict);
+    }
 
     /// <summary>
     /// Darsni yuklaydi VA huquqni tekshiradi.
@@ -376,7 +677,20 @@ public sealed class RecordingService(
     private async Task<bool> IsStaffAsync(long actorId, CancellationToken ct) =>
         await RoleOfAsync(actorId, ct).ConfigureAwait(false) != UserRole.Student;
 
-    private static RecordingDto Map(SessionRecording r, bool includeError = true) => new(
+    /// <summary>
+    /// Yozuv -> DTO.
+    /// </summary>
+    /// <param name="includeError">
+    /// Xato sababi ICHKI tafsilot (Egress xabari) — faqat xodimga.
+    /// </param>
+    /// <param name="verdict">
+    /// Darsning tahlil xulosasi yoki <c>null</c>. 🔴 O'QUVCHI yo'lida bu
+    /// DOIM <c>null</c> bo'ladi — chaqiruvchi uni umuman so'ramaydi
+    /// (<see cref="LoadVerdictsAsync"/>), ya'ni "tahlil bor" degan ishora
+    /// ham o'quvchiga yetib bormaydi.
+    /// </param>
+    private static RecordingDto Map(
+        SessionRecording r, bool includeError, SessionReviewVerdict? verdict) => new(
         r.Id,
         r.SessionId,
         r.Status.ToString(),
@@ -387,7 +701,21 @@ public sealed class RecordingService(
         r.SizeBytes,
         r.Attempts,
         includeError ? r.Error : null,
-        r.CreatedAt);
+        r.CreatedAt,
+        r.IsVisibleToStudents,
+        verdict is not null,
+        verdict?.ToString());
+
+    private static RecordingDto Map(
+        SessionRecording r,
+        bool includeError,
+        IReadOnlyDictionary<long, SessionReviewVerdict> verdicts) =>
+        Map(
+            r,
+            includeError,
+            verdicts.TryGetValue(r.SessionId, out var verdict)
+                ? verdict
+                : null);
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });

@@ -9,9 +9,10 @@ import {
   threadKey,
   threadSubtitle,
 } from '@/entities/group-chat'
+import { fetchGroupCategories } from '@/entities/group-category'
 import { toUserMessage } from '@/shared/api'
 import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
-import type { GroupChatThreadDto } from '@/shared/types'
+import type { GroupChatThreadDto, GroupTypeName } from '@/shared/types'
 import { AppIcon, BaseAvatar, BaseBadge, DataStatus } from '@/shared/ui'
 
 /**
@@ -50,20 +51,73 @@ const props = withDefaults(
      * yozilgan.
      */
     selectedKey?: string | null
+    /**
+     * ════════════════════════════════════════════════════════════════════
+     * R38 — GURUH TURI VA YO'NALISHI BO'YICHA FILTR
+     * ════════════════════════════════════════════════════════════════════
+     *
+     * Talab: *"chatlar qismga ham filter qo'shilishi kerak, guruh tur va
+     * kategoriyalar bo'yicha"*.
+     *
+     * ★ `searchable` KABI IXTIYORIY VA SUKUT BO'YICHA O'CHIQ. Yoqilgan
+     * yagona joy — ustoz/kurator "Chatlar" hubi (`TeacherGroupChatsPage`),
+     * ya'ni AYNAN qidiruv yoqilgan joy va AYNI sabab bilan: filtr o'nlab
+     * guruhi bor xodim uchun ma'noli.
+     *
+     * 🔴 O'QUVCHI SAHIFASIDA ATAYLAB O'CHIQ (`StudentChatPage`): u 1–3
+     * guruhda bo'ladi, ya'ni ro'yxatda 2–6 qator turadi va ikkita tanlagich
+     * ularning yarmidan ko'p joyni egallardi. Chap ustun u yerda 340px va
+     * unda kurator DM'ining "pin qilingan" bo'limi ham bor. Server
+     * `/group-categories` yo'lini o'quvchiga umuman ochmagan (403), ya'ni
+     * bu qaror BACKEND bilan ham izchil — birini yoqish ikkinchisini ham
+     * o'zgartirishni talab qiladi.
+     */
+    filterable?: boolean
   }>(),
   {
     searchable: false,
     emptyTitle: 'Guruh topilmadi',
     emptyText: '',
     selectedKey: null,
+    filterable: false,
   },
 )
 
 const emit = defineEmits<{ open: [GroupChatThreadDto] }>()
 
+/*
+  ══════════════════════════════════════════════════════════════════════
+   R38 · FILTR HOLATI — SERVERGA YUBORILADI
+  ══════════════════════════════════════════════════════════════════════
+
+  🔴 NEGA `threads.value.filter(...)` EMAS: server ro'yxatni saralagandan
+  KEYIN 200 qatorda kesadi (`GroupChatService.MaxThreads`). Mijozdagi filtr
+  faqat SHU 200 qatorni ko'rardi — 201-o'rindagi guruh filtrga to'liq mos
+  kelsa ham natijada UMUMAN chiqmasdi va foydalanuvchi "bunday guruh yo'q"
+  degan YOLG'ON javobni olardi. Bu UX nuqsoni emas, MA'LUMOT YO'QOLISHI.
+
+  Server tomonda filtr `WHERE` ga tushadi, ya'ni kesish FILTRLANGAN
+  to'plamdan boshlanadi — kutilgan xulq aynan shu.
+
+  ⚠️ TUR TANLAGICHIDA `Curator` YO'Q va bo'lishi ham MUMKIN EMAS: kurator
+  turidagi guruhning alohida chati yo'q va server bunday so'rovga 400
+  qaytaradi (u ro'yxatda hech qachon ko'rinmagan).
+*/
+const typeFilter = ref<'' | Exclude<GroupTypeName, 'Curator'>>('')
+const categoryFilter = ref('')
+
 const threadsQuery = useQuery({
-  queryKey: ['group-chat', 'threads'],
-  queryFn: ({ signal }) => fetchGroupChatThreads({ signal }),
+  // ★ Filtrlar KALITGA kiradi: aks holda tanlov o'zgarganda so'rov qayta
+  //   yuborilmasdi va ro'yxat eski javobda qotib qolardi.
+  queryKey: ['group-chat', 'threads', typeFilter, categoryFilter],
+  queryFn: ({ signal }) =>
+    fetchGroupChatThreads(
+      {
+        type: typeFilter.value === '' ? undefined : typeFilter.value,
+        categoryId: categoryFilter.value === '' ? undefined : Number(categoryFilter.value),
+      },
+      { signal },
+    ),
   /*
     Ro'yxat o'zi yangilanib turadi: suhbat OCHIQ bo'lmaganda hub ulanmagan
     va yangi xabar haqida boshqa hech narsa xabar bermaydi. Eski ilova ham
@@ -71,6 +125,22 @@ const threadsQuery = useQuery({
   */
   refetchInterval: 30_000,
 })
+
+/*
+  Yo'nalishlar lug'ati — FAQAT filtr yoqilgan sahifada so'raladi.
+
+  🔴 `enabled` MAJBURIY: o'quvchi sahifasi ham shu komponentni ishlatadi va
+  `/api/v1/group-categories` unga 403 qaytaradi (server bu yo'lni faqat
+  xodimga ochgan). Shartsiz so'ralsa har o'quvchida ekranda hech narsa
+  o'zgarmasdan, konsolda va monitoringda muntazam 403 oqimi paydo bo'lardi.
+*/
+const categoriesQuery = useQuery({
+  queryKey: ['group-categories', 'active'],
+  queryFn: ({ signal }) => fetchGroupCategories({ isActive: true }, { signal }),
+  enabled: computed(() => props.filterable),
+})
+
+const categories = computed(() => categoriesQuery.data.value ?? [])
 
 const threads = computed<GroupChatThreadDto[]>(() => threadsQuery.data.value ?? [])
 
@@ -80,11 +150,21 @@ const error = computed(() =>
 
 const search = ref('')
 
+/*
+  ⚠️ QIDIRUV HAMON MIJOZDA — va u AYNI 200 qatorlik cheklovga tushadi.
+  Bu R38 doirasida O'ZGARTIRILMADI (talab tur va kategoriya haqida), lekin
+  cheklov shu yerda ochiq yozilgan: qidiruvni ham serverga ko'chirish
+  kerak bo'lsa, yo'l tayyor — `fetchGroupChatThreads` ga `search`
+  parametrini qo'shish va bu `computed` ni olib tashlash yetadi.
+*/
 const filtered = computed(() => {
   const query = search.value.trim().toLowerCase()
   if (query.length === 0) return threads.value
   return threads.value.filter((thread) => thread.groupName.toLowerCase().includes(query))
 })
+
+/** Filtr tanlangan holatda bo'sh natija — "guruh yo'q" degani EMAS. */
+const hasActiveFilter = computed(() => typeFilter.value !== '' || categoryFilter.value !== '')
 
 /**
  * Vaqt ustuni: bugungi xabarda SOAT, eskirog'ida SANA.
@@ -125,6 +205,61 @@ function threadTime(thread: GroupChatThreadDto): string {
       >
     </div>
 
+    <!--
+      ══════════════════════════════════════════════════════════════════
+       R38 · TUR VA YO'NALISH FILTRLARI
+      ══════════════════════════════════════════════════════════════════
+
+      🔴 Ikkalasi ham SERVERGA yuboriladi (sabab skriptdagi izohda:
+      ro'yxat 200 qatorda kesiladi va mijozdagi filtr undan keyingi
+      guruhlarni umuman ko'rmasdi).
+
+      ★ Ustun 340px, shuning uchun ikki tanlagich `grid-cols-2` bilan
+      yonma-yon: qator ostiga tushirilsa ro'yxatning ko'rinadigan qismi
+      yana bir qator kamayardi.
+    -->
+    <div
+      v-if="props.filterable"
+      class="mb-3.5 grid max-w-[320px] grid-cols-2 gap-2"
+    >
+      <select
+        v-model="typeFilter"
+        class="zn-input text-[13px]"
+        aria-label="Guruh turi bo‘yicha filtr"
+      >
+        <option value="">
+          Barcha turlar
+        </option>
+        <!--
+          ⚠️ "Kurator guruhi" bandi YO'Q va bo'lishi MUMKIN EMAS: kurator
+          turidagi guruhning alohida chati yo'q, u bu ro'yxatga umuman
+          tushmaydi va server bunday so'rovni 400 bilan rad etadi.
+        -->
+        <option value="Group">
+          Guruh
+        </option>
+        <option value="Individual">
+          Individual
+        </option>
+      </select>
+      <select
+        v-model="categoryFilter"
+        class="zn-input text-[13px]"
+        aria-label="Yo‘nalish bo‘yicha filtr"
+      >
+        <option value="">
+          Barcha yo‘nalishlar
+        </option>
+        <option
+          v-for="category in categories"
+          :key="category.id"
+          :value="String(category.id)"
+        >
+          {{ category.name }}
+        </option>
+      </select>
+    </div>
+
     <DataStatus
       :pending="threadsQuery.isPending.value"
       :error="error"
@@ -132,8 +267,10 @@ function threadTime(thread: GroupChatThreadDto): string {
       :retrying="threadsQuery.isFetching.value"
       :skeleton-rows="3"
       empty-icon="chat"
-      :empty-title="props.emptyTitle"
-      :empty-text="props.emptyText"
+      :empty-title="hasActiveFilter ? 'Filtrga mos chat topilmadi' : props.emptyTitle"
+      :empty-text="
+        hasActiveFilter ? 'Filtrni tozalab ko‘ring — boshqa guruhlar chati saqlanib turibdi.' : props.emptyText
+      "
       @retry="threadsQuery.refetch()"
     >
       <ul class="flex flex-col gap-2.5">
@@ -198,6 +335,24 @@ function threadTime(thread: GroupChatThreadDto): string {
                   dot
                 >
                   {{ channelLabel(thread.channel) }}
+                </BaseBadge>
+                <!--
+                  R38 · YO'NALISH nishoni. Filtrlangan ro'yxatda "nima
+                  bo'yicha filtrladim" savoliga javob qatorning O'ZIDA
+                  ko'rinishi kerak — aks holda tanlagichga qayta qarash
+                  kerak bo'lardi.
+
+                  ★ `neutral` ohang ATAYLAB: kanal nishoni (oltin/moviy)
+                  ASOSIY ajratgich bo'lib qolishi shart — o'quvchida bitta
+                  guruh IKKI qator beradi va ularni FAQAT o'sha nishon
+                  farqlaydi. Ikkinchi rangli nishon uni ko'zdan yashirardi.
+                -->
+                <BaseBadge
+                  v-if="thread.categoryName !== null"
+                  tone="neutral"
+                  size="xs"
+                >
+                  {{ thread.categoryName }}
                 </BaseBadge>
                 <span
                   v-if="thread.unreadCount > 0"

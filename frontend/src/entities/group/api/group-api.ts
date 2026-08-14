@@ -29,6 +29,15 @@ export interface GroupListParams {
   search?: string
   type?: GroupTypeName
   isActive?: boolean
+  /**
+   * R21b · o'quv yo'nalishi bo'yicha filtr.
+   *
+   * ★ FILTR SERVERDA: ro'yxat sahifalangan (`PAGE_SIZE = 20`), ya'ni
+   * mijozdagi filtr FAQAT joriy sahifani ko'rardi va "topilmadi" deb
+   * yolg'on aytardi — aynan shu sabab bilan qidiruv ham serverga
+   * ko'chirilgan edi.
+   */
+  categoryId?: number
   page?: number
   pageSize?: number
 }
@@ -50,6 +59,7 @@ export function fetchGroups(
       Search: params.search,
       Type: params.type,
       IsActive: params.isActive,
+      CategoryId: params.categoryId,
       Page: params.page,
       PageSize: params.pageSize,
     },

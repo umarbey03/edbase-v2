@@ -1,4 +1,5 @@
 using Zinnur.Domain.Enums;
+using Zinnur.Domain.Staffing;
 
 namespace Zinnur.Application.Groups.Dtos;
 
@@ -50,6 +51,22 @@ public sealed record GroupDto(
     GroupType Type,
     long? CourseId,
     string? CourseName,
+
+    /// <summary>
+    /// O'quv YO'NALISHI (R21b). <c>null</c> — yorliq qo'yilmagan (talab
+    /// kelganidagi 33 guruhning holati).
+    ///
+    /// ⚠️ <paramref name="CourseId"/> BILAN ARALASHTIRILMASIN — chegara
+    /// <see cref="Zinnur.Domain.Entities.GroupCategory"/> izohida.
+    /// </summary>
+    long? CategoryId,
+
+    /// <summary>
+    /// Kategoriya nomi. <paramref name="CategoryId"/> <c>null</c> bo'lsa bu
+    /// ham <c>null</c>. Nom bazada JOIN bilan olinadi — ro'yxatning har
+    /// qatori uchun qo'shimcha so'rov ketmaydi (N+1 yo'q).
+    /// </summary>
+    string? CategoryName,
     long? VideoStartLessonId,
     string? VideoStartLessonName,
     string? VideoStartModuleName,
@@ -67,6 +84,29 @@ public sealed record GroupDto(
     int DurationMinutes,
     bool IsActive,
     bool RecordEnabled,
+
+    /// <summary>
+    /// Shu guruhning yozuvlari o'quvchilarga ko'rinadimi (R5).
+    /// ⚠️ <c>RecordEnabled</c> BILAN ARALASHTIRILMASIN — farqi
+    /// <see cref="Zinnur.Domain.Entities.Group.RecordingsVisibleToStudents"/>
+    /// izohida.
+    /// </summary>
+    bool RecordingsVisibleToStudents,
+
+    /* ===== R33 + R40 · KIM MAS'UL ===== */
+
+    /// <summary>
+    /// R33 — bu guruhning topshirilgan ishlarini kim tekshiradi
+    /// (JSON'da SATR: <c>"Both"</c> / <c>"Teacher"</c> / <c>"Assistant"</c>).
+    /// Standart <c>Both</c> — bugungi xatti-harakat.
+    /// </summary>
+    GroupStaffRole AssignmentGraderRole,
+
+    /// <summary>
+    /// R40 — bu guruh o'quvchilarining savollariga kim javob beradi.
+    /// Standart <c>Assistant</c> — bugungi xatti-harakat.
+    /// </summary>
+    GroupStaffRole QuestionResponderRole,
     int MemberCount,
     int SessionCount,
     DateTimeOffset CreatedAt,
@@ -86,12 +126,22 @@ public sealed record GroupDto(
 /// </param>
 /// <param name="Type">Guruh turi bo'yicha filtr.</param>
 /// <param name="IsActive">Arxivlanganlarni ajratish uchun.</param>
+/// <param name="CategoryId">
+/// O'quv yo'nalishi bo'yicha filtr (R21b). <c>null</c> — filtrlanmaydi.
+///
+/// ★ "KATEGORIYASIZ GURUHLAR" uchun alohida qiymat ATAYLAB YO'Q: HTTP
+/// so'rovda "bo'sh" va "berilmagan" ni ajratish uchun sun'iy sentinel
+/// (masalan <c>categoryId=0</c>) kerak bo'lardi va u <c>long?</c> ning
+/// ma'nosini buzardi. Bunday guruhlarni topish ehtiyoji hozircha yo'q —
+/// paydo bo'lsa alohida <c>bool? HasCategory</c> qo'shiladi.
+/// </param>
 /// <param name="Page">Sahifa (1 dan).</param>
 /// <param name="PageSize">Sahifa hajmi (1..100, default 25).</param>
 public sealed record GroupListQuery(
     string? Search = null,
     GroupType? Type = null,
     bool? IsActive = null,
+    long? CategoryId = null,
     int Page = 1,
     int PageSize = 25);
 
@@ -113,7 +163,31 @@ public sealed record CreateGroupRequest(
     long? CuratorGroupId = null,
     bool RecordEnabled = false,
     bool IsActive = true,
-    long? VideoStartLessonId = null);
+    long? VideoStartLessonId = null,
+
+    /// <summary>O'quv yo'nalishi (R21b). <c>null</c> — yorliqsiz guruh.</summary>
+    long? CategoryId = null,
+
+    /// <summary>
+    /// R5. 🔴 STANDART <c>true</c> VA BU MAJBURIY: <c>false</c> bo'lsa,
+    /// maydonni yubormagan har bir klient guruh yozuvlarini JIMGINA yopib
+    /// qo'yardi (bu — PUT semantikasi, pastdagi izohga qarang).
+    /// </summary>
+    bool RecordingsVisibleToStudents = true,
+
+    /// <summary>
+    /// R33 — tekshiruvchi. 🔴 STANDART <c>Both</c> VA BU MAJBURIY: bu
+    /// bugungi xatti-harakat, ya'ni maydonni yubormagan klient hech
+    /// narsani o'zgartirmaydi.
+    /// </summary>
+    GroupStaffRole AssignmentGraderRole = GroupStaffRole.Both,
+
+    /// <summary>
+    /// R40 — savollarga javob beruvchi. 🔴 STANDART <c>Assistant</c> VA
+    /// BU MAJBURIY: standart <c>Both</c> bo'lsa, maydonni yubormagan har
+    /// bir klient guruh savollarini JIMGINA ustozga ham ochib yuborardi.
+    /// </summary>
+    GroupStaffRole QuestionResponderRole = GroupStaffRole.Assistant);
 
 /// <summary>
 /// Guruhni tahrirlash. TO'LIQ shakl (PUT semantikasi): yuborilmagan maydon
@@ -144,7 +218,41 @@ public sealed record UpdateGroupRequest(
     long? CuratorGroupId = null,
     bool RecordEnabled = false,
     bool IsActive = true,
-    long? VideoStartLessonId = null);
+    long? VideoStartLessonId = null,
+
+    /// <summary>
+    /// O'quv yo'nalishi (R21b).
+    ///
+    /// 🔴 BU PUT: yuborilmasa <c>null</c> ga tushadi, ya'ni guruh yorlig'ini
+    /// YO'QOTADI. Tahrirlash formasi joriy qiymatni yuklab, qaytarib
+    /// yuborishi SHART — aynan shu tuzoq loyihada bir marta ishlagan
+    /// (kurs uzilib, butun guruhda gating `NotInCourse` bo'lgan) va u
+    /// frontendda `buildPayload` bilan yopilgan.
+    /// </summary>
+    long? CategoryId = null,
+
+    /// <summary>
+    /// R5. 🔴 STANDART <c>true</c> — sabab yuqoridagi
+    /// <see cref="CreateGroupRequest"/> dagidek, LEKIN BU YERDA U YANADA
+    /// MUHIM: bu PUT, ya'ni maydonni yubormagan eski klient guruh
+    /// yozuvlarini har tahrirda yopib qo'yardi va buni hech kim
+    /// so'ramagan bo'lardi.
+    /// </summary>
+    bool RecordingsVisibleToStudents = true,
+
+    /// <summary>R33 — tekshiruvchi. Standart <c>Both</c> = bugungi xatti-harakat.</summary>
+    GroupStaffRole AssignmentGraderRole = GroupStaffRole.Both,
+
+    /// <summary>
+    /// R40 — savollarga javob beruvchi. Standart <c>Assistant</c> = bugungi
+    /// xatti-harakat.
+    ///
+    /// 🔴 PUT semantikasi bu yerda ayniqsa xavfli: standart <c>Both</c>
+    /// bo'lganda maydonni yubormagan eski klient HAR TAHRIRDA guruh
+    /// savollarini ustozga ham ochib yuborardi va buni hech kim
+    /// so'ramagan bo'lardi.
+    /// </summary>
+    GroupStaffRole QuestionResponderRole = GroupStaffRole.Assistant);
 
 /// <summary>Yaratilgan guruh + generatsiya qilingan darslar soni.</summary>
 public sealed record CreateGroupResponse(

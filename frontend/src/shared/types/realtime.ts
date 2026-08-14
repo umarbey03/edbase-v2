@@ -91,3 +91,37 @@ export const GroupChatHubEvent = {
 } as const
 export type GroupChatHubEventName =
   (typeof GroupChatHubEvent)[keyof typeof GroupChatHubEvent]
+
+/* ==========================================================================
+   BILDIRISHNOMA HUB'I — `/hubs/notifications` (R35/R36).
+
+   🔴 KLIENT -> SERVER METODI YO'Q, VA BU ATAYLAB.
+
+   Yuqoridagi ikki hub'da obuna metodi bor (`JoinSession`, `JoinThread`),
+   chunki ularning qamrovi DARS yoki OQIM — klient qaysi xonaga kirishini
+   aytishi kerak. Bu yerda qamrov ODAM: server ulanish egasini TOKENDAN
+   aniqlaydi (`Clients.User`), ya'ni klient hech nima so'ramaydi va hech
+   qanday xonaga qo'shilmaydi.
+
+   Amaliy oqibat: `onreconnected` da QAYTA OBUNA BO'LISH SHART EMAS —
+   guruh a'zoligi yo'q, ya'ni yo'qoladigan narsa ham yo'q. Guruh chati
+   hub'idan asosiy farq shu.
+
+   ★ "O'qildi" ham bu yerda YO'Q: u HOLATNI o'zgartiradi va REST'da
+   (`POST /api/v1/notifications/read`). Ikki yo'l bo'lsa idempotentlik
+   qoidasi ikki joyda yozilardi.
+   ========================================================================== */
+
+/**
+ * Server -> Klient. Bildirishnoma kanalida tinglanadigan YAGONA hodisa.
+ *
+ * ★ TANASI `NotificationDto` — REST ro'yxatidagi element bilan AYNAN bir
+ * xil tur (`GroupChatMessage` dagi AYNI qaror). Alohida "event" shakli
+ * yasalsa, frontend bitta narsani ikki xil tahlil qilishga majbur bo'lardi
+ * va ular vaqt o'tib ajralib ketardi.
+ */
+export const NotificationHubEvent = {
+  NotificationCreated: 'NotificationCreated',
+} as const
+export type NotificationHubEventName =
+  (typeof NotificationHubEvent)[keyof typeof NotificationHubEvent]

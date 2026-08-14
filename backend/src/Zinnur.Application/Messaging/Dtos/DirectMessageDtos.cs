@@ -70,3 +70,38 @@ public sealed record SendDirectMessageRequest(string? Body, long? ModuleLessonId
 /// <summary>"O'qildi" belgilash natijasi.</summary>
 /// <param name="MarkedCount">Nechta xabar o'qilgan deb belgilandi (idempotent: takrorda 0).</param>
 public sealed record MarkReadResultDto(int MarkedCount, int UnreadCount);
+
+/* ============================================================================
+   R40 · DARS SAVOLLARI NAVBATI
+   ============================================================================
+
+   Loyiha egasi: *"savollar qismida darslarda video darslardan kelgan savollar
+   bo'ladi, ularga javob berish mumkin bo'ladi, bunda ham ketma-ketlik bo'yicha
+   bo'lsin"*.
+
+   ★ BU YANGI XABAR TURI EMAS. Bu — mavjud yozishmaning FILTRLANGAN
+     ko'rinishi: `DirectMessage.ModuleLessonId` to'ldirilgan xabarlar.
+     Alohida jadval yaratilmadi — sabab `IDirectMessageService` izohida.
+   ========================================================================= */
+
+/// <summary>Navbatdagi bitta dars savoli (xodim ko'rinishi).</summary>
+/// <param name="PeerId">
+/// O'quvchi Id'si. Suhbatni ochish uchun MAVJUD endpointga shu yuboriladi
+/// (<c>/conversations/{peerId}/messages</c>) — navbat alohida ekran emas,
+/// yozishmaga KIRISH nuqtasi.
+/// </param>
+/// <param name="Answered">
+/// Shu savoldan KEYIN xodim javob yozganmi. Navbat tartibi shunga tayanadi:
+/// javobsizlar tepada.
+/// </param>
+public sealed record LessonQuestionDto(
+    long MessageId,
+    long PeerId,
+    string PeerName,
+    string? GroupName,
+    long ModuleLessonId,
+    string ModuleLessonName,
+    string Body,
+    DateTimeOffset SentAt,
+    bool Answered,
+    bool Read);

@@ -1,20 +1,25 @@
 export {
   fetchRecordingLink,
   fetchRecordings,
+  fetchRecordingSection,
   fetchSessionRecordings,
   fetchSessionRecordingStatus,
   startRecording,
   stopRecording,
+  updateRecordingVisibility,
 } from './api/recording-api'
 export {
   defaultRecordingRange,
   formatRecordingDuration,
   formatRecordingSize,
+  hasQualityReview,
   isRecordingInProgress,
   recordingItemTitle,
   recordingStatusLabel,
   recordingStatusTone,
   RECORDINGS_MAX_RANGE_DAYS,
+  reviewVerdictLabel,
+  reviewVerdictTone,
   toDateInput,
   validateRecordingRange,
 } from './model/types'

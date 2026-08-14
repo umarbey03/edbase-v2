@@ -205,4 +205,63 @@ public interface IRecordingService
     /// </summary>
     Task<RecordingLinkDto> CreateViewLinkAsync(
         long recordingId, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// YOZUVNI O'QUVCHILARGA OCHADI / YASHIRADI (talab R5)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Loyiha egasi: *"dars yozuvlari qismi student uchun dynamic bo'lishi
+    /// kerak, o'quv bo'limi va teacher tarafidan manage qilinadi"*.
+    ///
+    /// ── UCHTA KALIT, "ENG QATTIG'I YUTADI" ──────────────────────────
+    ///
+    /// Amaldagi ko'rinish — MANTIQIY KO'PAYTMA, ya'ni istalgan bittasi
+    /// yopiq bo'lsa o'quvchi yozuvni ko'rmaydi:
+    ///
+    ///   1) GLOBAL — <c>recordings.visible_to_students</c> sozlamasi.
+    ///      "Butun bo'lim yopilsin" (talabdagi *"entire part of records"*).
+    ///      Migratsiyasiz va admin panelida darhol ko'rinadi.
+    ///   2) GURUH — <c>Group.RecordingsVisibleToStudents</c>. O'quv
+    ///      bo'limi amalda AYNAN guruh bilan ishlaydi.
+    ///   3) YOZUV — <c>SessionRecording.IsVisibleToStudents</c>. Bitta
+    ///      dars uchun (bu metod).
+    ///
+    /// ★ NIMA UCHUN UCHALASI HAM KERAK: ular UCH XIL savolga javob
+    /// beradi va biri ikkinchisining o'rnini bosmaydi. Faqat yozuv
+    /// darajasi bo'lsa, bitta guruhni yopish o'nlab bosish bo'lardi;
+    /// faqat global bo'lsa, bitta darsni yopish uchun butun markazni
+    /// yopish kerak bo'lardi.
+    ///
+    /// ── KIM USTUN (talab bu haqda JIM) ──────────────────────────────
+    ///
+    /// 🔴 YASHIRISH — ikkala tomon ham, shartsiz.
+    /// 🔴 OCHISH — o'quv bo'limi yopganini FAQAT o'quv bo'limi ochadi.
+    ///
+    /// Sabab batafsil <c>RecordingService.EnsureCanRevealAsync</c> da.
+    /// Qisqasi: o'quv bo'limi yozuvni odatda AYNAN sifat muammosi
+    /// (R29) sababli yopadi, ustoz esa uni bir bosishda qaytarib ocha
+    /// olsa, sifat nazoratining yagona amaliy vositasi kuchsiz
+    /// maslahatga aylanardi.
+    ///
+    /// ⚠️ OCHISH faqat TAYYOR yozuvda mumkin (409) — domain qoidasi
+    /// <c>SessionRecording.ShowToStudents</c> da, <c>Test.Publish()</c>
+    /// bilan AYNI naqsh. YASHIRISH esa har qanday holatda ishlaydi.
+    /// </summary>
+    Task<RecordingDto> SetVisibilityAsync(
+        long recordingId, bool visible, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// "Dars yozuvlari bo'limi shu foydalanuvchi uchun ochiqmi" (R5).
+    ///
+    /// ★ NIMA UCHUN ALOHIDA METOD: o'quvchining "O'quv" ekranida bo'limga
+    /// KIRISH KARTOCHKASI turadi. Bo'lim yopilganda kartochka qolsa,
+    /// o'quvchi uni bosib abadiy bo'sh sahifaga tushardi. Ro'yxatning O'ZI
+    /// bu savolga javob bera olmaydi: bo'sh ro'yxat "yopilgan" ni ham,
+    /// "hali yozuv yo'q" ni ham bildiradi.
+    ///
+    /// ⚠️ Xodim uchun HAR DOIM <c>true</c>: kalitlar o'quvchiga qaratilgan,
+    /// arxiv esa xodimga har doim kerak.
+    /// </summary>
+    Task<RecordingSectionDto> GetSectionAsync(long actorId, CancellationToken ct = default);
 }

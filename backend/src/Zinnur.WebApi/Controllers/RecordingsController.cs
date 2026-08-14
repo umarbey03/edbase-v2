@@ -143,6 +143,51 @@ public sealed class RecordingsController(IRecordingService recordings) : Control
         Ok(await recordings.ListAsync(CurrentUserId, from, to, ct));
 
     /// <summary>
+    /// "Dars yozuvlari bo'limi menga ochiqmi" (R5).
+    ///
+    /// ★ ROL DARVOZASI ATAYLAB YO'Q (sinf darajasidagi <c>[Authorize]</c>
+    /// qoladi): javob aynan O'QUVCHIGA kerak — u "O'quv" ekranidagi
+    /// kirish kartochkasini chizish yoki chizmaslikni shu javobga qarab
+    /// hal qiladi. Xodimga esa har doim <c>true</c> qaytadi.
+    ///
+    /// ⚠️ BU RUXSAT ENDPOINTI EMAS, INTERFEYS UCHUN MASLAHAT. Haqiqiy
+    /// chegara ro'yxat va havola yo'llarida (servisda) va u bu javobdan
+    /// MUSTAQIL tekshiriladi — klient <c>true</c> deb ishonsa ham
+    /// yopilgan yozuvni ocha olmaydi.
+    /// </summary>
+    /// <response code="200">Bo'lim ochiqmi.</response>
+    [HttpGet("section")]
+    [ProducesResponseType<RecordingSectionDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<RecordingSectionDto>> Section(CancellationToken ct) =>
+        Ok(await recordings.GetSectionAsync(CurrentUserId, ct));
+
+    /// <summary>
+    /// Yozuvni o'quvchilarga ochadi yoki yashiradi (R5).
+    ///
+    /// ★ ROLLAR <c>HostRoles</c> BILAN AYNI: talab ko'rinishni "o'quv
+    /// bo'limi VA teacher" boshqarishini aytadi, ya'ni darvoza yozuvni
+    /// boshlash darvozasi bilan bir xil. Haqiqiy qoida esa servisda:
+    /// begona guruh darsiga tegib bo'lmaydi va o'quv bo'limi yopgan
+    /// yozuvni ustoz qayta ocha olmaydi (<see cref="IRecordingService.SetVisibilityAsync"/>).
+    /// </summary>
+    /// <response code="200">Yangi holat.</response>
+    /// <response code="403">Ruxsat yo'q yoki yopganini ochishga urinish.</response>
+    /// <response code="409">Tayyor bo'lmagan yozuvni ochishga urinish.</response>
+    [HttpPatch("{id:long}/visibility")]
+    [Authorize(Roles = HostRoles)]
+    [ProducesResponseType<RecordingDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<RecordingDto>> SetVisibility(
+        long id, [FromBody] UpdateRecordingVisibilityRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Ok(await recordings.SetVisibilityAsync(id, request.Visible, CurrentUserId, ct));
+    }
+
+    /// <summary>
     /// Ko'rish uchun MUDDATLI imzolangan havola.
     ///
     /// ══════════════════════════════════════════════════════════════════

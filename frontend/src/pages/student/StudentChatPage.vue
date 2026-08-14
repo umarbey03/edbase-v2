@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, ref, watch } from 'vue'
 
 import {
+  clearLessonQuestionContext,
   conversationSubtitle,
   DM_BODY_MAX,
   fetchConversations,
@@ -10,6 +11,7 @@ import {
   markConversationRead,
   peerRoleLabel,
   sendDirectMessage,
+  useLessonQuestionContext,
   withDayLabels,
 } from '@/entities/direct-message'
 import { threadKey } from '@/entities/group-chat'
@@ -198,12 +200,54 @@ const sendError = ref<string | null>(null)
  */
 const input = ref<HTMLTextAreaElement | null>(null)
 
+/* ====================== R40: DARS KONTEKSTI ====================== */
+
+/**
+ * ★ KONTEKST DARS VARAG'IDAN KELADI (`entities/direct-message`), bu
+ *   sahifada YARATILMAYDI: uni "Bu dars bo'yicha savol berish" tugmasi
+ *   qo'yadi va shu bilan `DirectMessage.moduleLessonId` nihoyat
+ *   to'ldiriladigan bo'ladi (u server tomonda ancha oldin qurilgan, lekin
+ *   birorta ekran uni yubormasdi).
+ */
+const lessonContext = useLessonQuestionContext()
+
+/**
+ * Kontekst bilan kelinganda BIRINCHI suhbat o'zi ochiladi.
+ *
+ * ★ NEGA BIRINCHISI: server suhbatlarni MAS'ULIYAT tartibida qaytaradi —
+ *   savollarga kim javob berishini o'quv bo'limi tanlaydi
+ *   (`Group.questionResponderRole`), va tanlangan xodim ro'yxat boshida
+ *   turadi. Ya'ni "birinchi qator" tasodifiy emas, SERVER QARORI.
+ *   O'quvchi xohlasa ikkinchisiga (agar `Both` bo'lsa) o'zi o'tadi —
+ *   kontekst chip'i o'sha yerda ham saqlanadi.
+ */
+watch(
+  () => [lessonContext.value, conversations.value] as const,
+  ([context, list]) => {
+    if (context === null || activePeer.value !== null || activeThread.value !== null) return
+
+    const first = list[0]
+    if (first !== undefined) openConversation(first)
+  },
+  { immediate: true },
+)
+
 const sendMutation = useMutation({
-  mutationFn: (input: { peerId: number; body: string }) =>
-    sendDirectMessage(input.peerId, { body: input.body }),
+  mutationFn: (input: { peerId: number; body: string; moduleLessonId: number | null }) =>
+    sendDirectMessage(input.peerId, {
+      body: input.body,
+      moduleLessonId: input.moduleLessonId,
+    }),
   onSuccess: () => {
     draft.value = ''
     sendError.value = null
+
+    // 🔴 KONTEKST FAQAT MUVAFFAQIYATDAN KEYIN TOZALANADI. Yuborishdan
+    // oldin tozalansa (yoki `onSettled` da), tarmoq xatosidan keyin
+    // o'quvchi AYNI matnni qayta yuborardi — lekin bu safar darssiz, va
+    // savol navbatga tushmasdi.
+    clearLessonQuestionContext()
+
     void threadQuery.refetch()
     void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
   },
@@ -229,7 +273,12 @@ const showCounter = computed(() => draft.value.length > DM_BODY_MAX - 200)
 function submit(): void {
   const peer = activePeer.value
   if (peer === null || !canSend.value) return
-  sendMutation.mutate({ peerId: peer.peerId, body: draft.value.trim() })
+
+  sendMutation.mutate({
+    peerId: peer.peerId,
+    body: draft.value.trim(),
+    moduleLessonId: lessonContext.value?.lessonId ?? null,
+  })
 }
 
 /**
@@ -692,6 +741,43 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 176px - env(safe-area-inset-botto
             </template>
           </DataStatus>
         </div>
+      </div>
+
+      <!--
+        R40 — DARS KONTEKSTI CHIP'I.
+
+        ★ U YOZISH PANELINING USTIDA turadi, xabarlar ro'yxatida emas:
+          o'quvchi yozayotgan paytda "bu savol qaysi darsga ketyapti" ni
+          KO'RIB turishi kerak. Ro'yxat ichiga qo'yilsa uzun yozishmada
+          skroll bilan yuqoriga chiqib ketardi.
+
+        Yopish tugmasi SHART: o'quvchi darsdan kelib, keyin butunlay
+        boshqa narsa so'rashni xohlashi mumkin — u holda kontekst
+        yolg'on nishon bo'lib qolardi.
+      -->
+      <div
+        v-if="lessonContext !== null"
+        class="mt-3 flex shrink-0 items-center gap-2 rounded-xl border border-brand-500/35 bg-brand-500/10 px-3 py-2"
+      >
+        <AppIcon
+          name="book"
+          :size="14"
+          class="shrink-0 text-brand-400"
+        />
+        <span class="min-w-0 flex-1 truncate text-[12px] font-bold text-brand-300">
+          {{ lessonContext.lessonName }}
+        </span>
+        <button
+          type="button"
+          class="tap-target -mr-1 flex shrink-0 items-center justify-center rounded-lg text-dim transition-colors hover:text-slate-100"
+          aria-label="Dars kontekstini olib tashlash"
+          @click="clearLessonQuestionContext()"
+        >
+          <AppIcon
+            name="close"
+            :size="14"
+          />
+        </button>
       </div>
 
       <!-- Yozish maydoni -->

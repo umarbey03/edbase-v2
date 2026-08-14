@@ -98,3 +98,17 @@ export type IconName =
     bu shakl menyudagi mavjud `grid`/`chart` ikonkalariga o'xshab ketmaydi.
   */
   | 'sliders'
+  /*
+    R35/R36 — BILDIRISHNOMA QO'NG'IROQCHASI.
+
+    ★ NEGA ALOHIDA BLOK OXIRDA: bu faylga bir necha tarmoq AYNI vaqtda
+    qo'shmoqda; ro'yxat o'rtasiga qistirilgan qator merge paytida
+    to'qnashuv beradi, oxiridagi blok esa bermaydi.
+
+    ⚠️ `alert` BILAN ALMASHTIRILMADI: uchburchak ichidagi undov — XATO
+    belgisi (`DataStatus`, forma xatolari shu shakldan foydalanadi).
+    Qo'ng'iroqcha esa neytral: "yangilik bor" degani, "nimadir buzildi"
+    emas. Ikkalasi bir shakl bo'lsa, har baho o'quvchiga xato bo'lib
+    ko'rinardi.
+  */
+  | 'bell'

@@ -19,8 +19,16 @@ public interface IGroupChatService
     ///
     /// O'qilmagani borlar tepada, keyin oxirgi faollik bo'yicha.
     /// </summary>
+    /// <param name="query">
+    /// R38 filtri (guruh turi va kategoriyasi). <c>null</c> — filtrsiz.
+    ///
+    /// 🔴 FILTR SHU YERDA, mijozda EMAS: ro'yxat saralashdan keyin
+    /// <c>MaxThreads</c> da kesiladi va mijozdagi filtr kesilgandan
+    /// KEYINGI guruhlarni umuman ko'rmasdi (batafsil
+    /// <see cref="GroupChatThreadQuery"/> izohida).
+    /// </param>
     Task<IReadOnlyList<GroupChatThreadDto>> ListThreadsAsync(
-        long userId, CancellationToken ct = default);
+        long userId, GroupChatThreadQuery? query = null, CancellationToken ct = default);
 
     /// <summary>
     /// Ruxsatni tekshiradi va oqimni aniqlaydi. Huquq bo'lmasa
@@ -53,6 +61,62 @@ public interface IGroupChatService
         long userId,
         long groupId,
         SendGroupChatMessageRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// FAYL BIRIKTIRILGAN XABAR (R16b) — REST'GA XOS YO'L
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 SIGNALR BU YO'LNI TAKRORLAY OLMAYDI va takrorlashga urinilmadi:
+    /// hub metodi <c>SendMessage(long, GroupChatChannel?, string)</c> —
+    /// tanasi SATR. Baytlarni base64 qilib satrga solish mumkin edi, lekin
+    /// o'shanda 10 MB fayl 13 MB matnga aylanib, hub'ning xabar chegarasidan
+    /// oshib ketardi va butun ULANISH uzilardi (SignalR shunday ishlaydi:
+    /// chegaradan katta freym — ulanishning oxiri). Ya'ni rasm yuborishga
+    /// urinish CHATNI o'ldirardi.
+    ///
+    /// Shu sababli klient uchun qoida: <b>biriktirma bor -> REST, yo'q ->
+    /// hub</b>. Xabarning O'ZI baribir har ikkala yo'lda ham
+    /// <c>IGroupChatNotifier</c> orqali tarqatiladi, ya'ni qarama-qarshi
+    /// tomon farqni SEZMAYDI.
+    ///
+    /// ★ FAYLLAR VA XABAR — BITTA SO'ROV, BITTA TRANZAKSIYA. "Avval yukla,
+    /// id ol, keyin shu id bilan yubor" degan ikki fazali muqobil RAD
+    /// ETILDI: u bekor qilingan har yozishda ombordа pul turadigan YETIM
+    /// obyekt qoldirardi (batafsil <c>GroupChatAttachment</c> izohida).
+    /// </summary>
+    /// <exception cref="Common.Exceptions.ValidationException">
+    /// Fayl yo'q, bo'sh yoki turi qo'llanmaydi.
+    /// </exception>
+    /// <exception cref="Common.Exceptions.PayloadTooLargeException">Hajm chegaradan oshdi.</exception>
+    /// <exception cref="Common.Exceptions.TooManyRequestsException">
+    /// Yuklash budjeti tugadi (xabar budjetidan ALOHIDA — izohi
+    /// amalga oshirishda).
+    /// </exception>
+    Task<GroupChatMessageDto> SendWithAttachmentsAsync(
+        long userId,
+        long groupId,
+        SendGroupChatAttachmentRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Biriktirmani O'QISHGA ochadi (oqim, <c>Range</c> bilan).
+    ///
+    /// 🔴 RUXSAT — OQIMNI O'QISH BILAN AYNI: <c>AuthorizeAsync(userId,
+    /// groupId, channel)</c>. Ya'ni chat rasmini butun <c>(guruh, kanal)</c>
+    /// ko'radi.
+    ///
+    /// ⚠️ VAZIFA JAVOBINING QOIDASI BU YERGA KO'CHIRILMAYDI. U yerda fayl
+    /// faqat EGASI va uning ustoziga ko'rinadi
+    /// (<c>EnsureCanReadStudentWorkAsync</c>); chatda esa "egasi" degan
+    /// tushuncha ruxsatga UMUMAN ta'sir qilmaydi — o'sha qoidani ko'chirsak,
+    /// guruhdoshlar bir-birining rasmini ko'rmay qolardi va chat buzilardi.
+    /// </summary>
+    Task<Courses.Services.LessonAssetDownload> OpenAttachmentAsync(
+        long attachmentId,
+        string? rangeHeader,
+        long userId,
         CancellationToken ct = default);
 
     /// <summary>Oqimni o'qilgan deb belgilaydi (idempotent, faqat oldinga).</summary>

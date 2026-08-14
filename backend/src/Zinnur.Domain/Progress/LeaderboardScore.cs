@@ -16,10 +16,23 @@ namespace Zinnur.Domain.Progress;
 ///     o'qiyotgan o'quvchining ballini iyunda qo'shilgan hech qachon
 ///     quvib yetolmasdi.)
 ///
-///   • Uch mezon, TENG vaznda, har biri 0..100 foiz:
+///   • TO'RT mezon, TENG vaznda, har biri 0..100 foiz:
 ///       – davomat%  = qatnashgan ustoz darslari / o'tilgan ustoz darslari
 ///       – vazifa%   = o'rtacha (baho / maksimal baho)
 ///       – test%     = o'rtacha (ball / maksimal ball)
+///       – dars%     = o'rtacha (dars bahosi / maksimal ball)   ← R24
+///
+///     🔴 TO'RTINCHI MEZON 2026-08-14 DA QO'SHILDI (R24). QARORNING
+///     SABABI: dars bahosi ustozning KUNDALIK baholash quroli
+///     ("bugungi darsga 5") va uni reytingdan chiqarib qoldirish
+///     jimgina yolg'on jadval yasardi — ustoz har kuni baho qo'yadi,
+///     reyting esa ularni umuman ko'rmasdi. Vaznlar TENG qoldi:
+///     dars bahosi vazifa bahosidan na kam, na ko'p ahamiyatli.
+///
+///     ★ ORQAGA MOSLIK BEPUL: dars bahosi yo'q oyda mezon `null`
+///     bo'ladi va quyidagi qoida bo'yicha o'rtachaga UMUMAN KIRMAYDI —
+///     ya'ni bu funksiyani ishlatmaydigan guruhning bali BIR ZARRA
+///     ham o'zgarmaydi.
 ///
 ///   • ★ Yakuniy ball = MAVJUD mezonlar o'rtachasi. Elementi bo'lmagan
 ///     mezon o'rtachaga UMUMAN KIRMAYDI.
@@ -40,23 +53,38 @@ namespace Zinnur.Domain.Progress;
 /// <param name="AttendancePercent">Davomat foizi. <c>null</c> — shu oyda o'tilgan dars YO'Q.</param>
 /// <param name="AssignmentPercent">Vazifa foizi. <c>null</c> — shu oyda baholangan vazifa YO'Q.</param>
 /// <param name="TestPercent">Test foizi. <c>null</c> — shu oyda topshirilgan test YO'Q.</param>
+/// <param name="LessonPercent">
+/// Dars bahosi foizi (R24). <c>null</c> — shu oyda dars bahosi YO'Q.
+///
+/// ★ OXIRGI POZITSIYADA VA STANDART QIYMAT BILAN — ataylab: mavjud
+/// chaqiruvlar (<c>new LeaderboardScore(id, ism, a, b, c)</c>) o'zgarishsiz
+/// kompilyatsiya bo'ladi va yangi mezonni "unutgan" joy jimgina noto'g'ri
+/// ARGUMENTGA emas, `null` ga (ya'ni "mezon yo'q" ga) tushadi.
+/// </param>
 public sealed record LeaderboardScore(
     long StudentId,
     string StudentName,
     decimal? AttendancePercent,
     decimal? AssignmentPercent,
-    decimal? TestPercent)
+    decimal? TestPercent,
+    decimal? LessonPercent = null)
 {
     /// <summary>Foizlar bir xonali kasr bilan saqlanadi (78.4).</summary>
     public const int PercentDecimals = 1;
 
     /// <summary>Yakuniy ball (0..100).</summary>
-    public decimal Total => Combine(AttendancePercent, AssignmentPercent, TestPercent);
+    public decimal Total =>
+        Combine(AttendancePercent, AssignmentPercent, TestPercent, LessonPercent);
 
     /// <summary>
     /// Mavjud mezonlar o'rtachasi. <c>null</c> mezon hisobga OLINMAYDI.
     /// </summary>
-    public static decimal Combine(decimal? attendance, decimal? assignment, decimal? test)
+    /// <param name="lesson">
+    /// Dars bahosi (R24). Standart <c>null</c> — uch mezonli eski
+    /// chaqiruvlar AYNAN avvalgi natijani beradi.
+    /// </param>
+    public static decimal Combine(
+        decimal? attendance, decimal? assignment, decimal? test, decimal? lesson = null)
     {
         var sum = 0m;
         var count = 0;
@@ -64,6 +92,7 @@ public sealed record LeaderboardScore(
         if (attendance is { } a) { sum += a; count++; }
         if (assignment is { } b) { sum += b; count++; }
         if (test is { } c) { sum += c; count++; }
+        if (lesson is { } d) { sum += d; count++; }
 
         return count == 0 ? 0m : Round(sum / count);
     }

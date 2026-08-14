@@ -3,6 +3,7 @@ export type {
   AnswerFormatsValue,
   AssignmentAttachmentDto,
   AssignmentAttachmentKindName,
+  AttachmentKindName,
   AssignmentDto,
   AttemptStatusName,
   AttendanceBucketDto,
@@ -34,12 +35,19 @@ export type {
   GradeSubmissionRequest,
   GroupChatAccessDto,
   GroupChatChannelName,
+  GroupChatAttachmentDto,
   GroupChatMessageDto,
   GroupChatPageDto,
   GroupChatReadResultDto,
   GroupChatThreadDto,
+  /* ===== R21b · guruh kategoriyasi ===== */
+  GroupCategoryDto,
+  GroupCategoryWriteRequest,
+  /* ===== /R21b ===== */
   GroupDto,
   GroupLeaderboardDto,
+  /* ===== R33 + R40 · kim mas'ul ===== */
+  GroupStaffRoleName,
   GroupMemberDto,
   GroupTypeName,
   GroupWriteRequest,
@@ -50,6 +58,7 @@ export type {
   LessonAssetUploadFields,
   LessonKindName,
   LessonLockReasonName,
+  LessonQuestionDto,
   LessonWriteRequest,
   LiveKitJoinDto,
   LiveSessionDto,
@@ -91,6 +100,7 @@ export type {
   RecordingLinkDto,
   RecordingListItemDto,
   RecordingLiveStatusDto,
+  RecordingSectionDto,
   RecordingStatusName,
   RecordPaymentRequest,
   RefreshRequest,
@@ -100,10 +110,13 @@ export type {
   ReversePaymentRequest,
   SaveOptionRequest,
   SaveQuestionRequest,
+  SaveSessionReviewRequest,
   ScheduleChangeSummary,
   ScheduledSessionDto,
   SendDirectMessageRequest,
   SendGroupChatMessageRequest,
+  SessionReviewDto,
+  SessionReviewVerdictName,
   SessionStatusName,
   SessionTypeName,
   SetExemptRequest,
@@ -121,6 +134,7 @@ export type {
   StudentDiscountDto,
   StudentSubmissionDto,
   SubmissionDto,
+  SubmissionFeedbackFileDto,
   SubmissionFileDto,
   SubmissionStatusName,
   SubmitTestRequest,
@@ -180,7 +194,22 @@ export type {
 export type { SessionStatsDto } from './api'
 /* ===== /R31 ===== */
 
+/* ===== R35/R36 · BILDIRISHNOMA =====
+
+   ★ NEGA ALOHIDA BLOK: yuqoridagi bloklar bilan AYNI sabab — bu faylga
+   bir necha tarmoq ayni vaqtda qo'shadi.                              */
+export type {
+  MarkNotificationsReadRequest,
+  NotificationDto,
+  NotificationKindName,
+  NotificationPageDto,
+  NotificationReadResultDto,
+  NotificationUnreadDto,
+} from './api'
+/* ===== /R35/R36 ===== */
+
 export { GroupChatHubEvent, GroupChatHubMethod, HubEvent, HubMethod } from './realtime'
+export { NotificationHubEvent } from './realtime'
 export type {
   GroupChatHubEventName,
   GroupChatHubMethodName,
@@ -188,6 +217,7 @@ export type {
   HubMethodName,
   HubStatus,
   HandRaisedPayload,
+  NotificationHubEventName,
   PresenceChangedPayload,
   PresenceEntry,
   SessionEndedPayload,

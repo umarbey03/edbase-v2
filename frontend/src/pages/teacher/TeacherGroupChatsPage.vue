@@ -150,8 +150,18 @@ const fillHeight = useFillHeight(grid)
           `div` — sahifaning o'zi skrollanadi.
         -->
         <div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1 lg:scrollbar-slim">
+          <!--
+            ★ `filterable` (R38): guruh TURI va YO'NALISHI bo'yicha filtr.
+            AYNAN shu ekranda yoqilgan — u yerda qidiruv ham bor va sabab
+            bir xil: ustoz/kurator o'nlab guruhga ega. O'quvchi sahifasida
+            ataylab o'chiq (sabab `GroupChatThreadList` prop izohida).
+
+            🔴 Filtr SERVERDA ishlaydi: ro'yxat 200 qatorda kesiladi va
+            mijozdagi filtr undan keyingi guruhlarni ko'rmasdi.
+          -->
           <GroupChatThreadList
             searchable
+            filterable
             empty-title="Guruh topilmadi"
             empty-text="Sizga guruh biriktirilgach, uning chati shu yerda ochiladi."
             :selected-key="selectedKey"

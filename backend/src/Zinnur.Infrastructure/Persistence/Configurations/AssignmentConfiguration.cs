@@ -48,6 +48,26 @@ public sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignmen
         // Bayroqlar birlashmasi (Text|Image|Audio) -> int.
         builder.Property(a => a.AllowedFormats).HasConversion<int>();
 
+        /* ===== R33 · SHU VAZIFANING TEKSHIRUVCHISI (guruhdan ISTISNO) ===== */
+
+        // NULL = istisno yo'q, guruh sozlamasi ishlaydi. Shu sababli ustun
+        // `int?` va standart qiymati YO'Q — "tanlanmagan" holat bazada ham
+        // ANIQ ko'rinib turadi. Standartli `NOT NULL` bo'lganda "guruhdan
+        // meros" bilan "ataylab guruh bilan bir xil qilib qo'yildi" ni
+        // ajratib bo'lmasdi, ya'ni guruh sozlamasi keyin o'zgarsa vazifa
+        // unga ERGASHMASDI.
+        builder.Property(a => a.GraderRole).HasConversion<int?>();
+
+        // ★ `CHECK` QO'SHILMADI ("faqat guruh vazifasida"), garchi qo'shni
+        // `CK_Assignments_GroupXorLesson` shunday qilingan bo'lsa ham.
+        // Sabab: u cheklov MA'LUMOT YAXLITLIGI haqida (nishonsiz vazifa
+        // butun tizimni buzadi), bu esa SIYOSAT — ertaga o'quv bo'limi
+        // "kurs vazifasida ham bo'lsin" desa `CHECK` migratsiya talab
+        // qilardi. Qoida `Assignment.Validate()` da va u yagona yozish
+        // yo'lida turibdi.
+
+        /* ===== /R33 ===== */
+
         // Hisoblanuvchi property — ustun emas.
         builder.Ignore(a => a.IsCourseAssignment);
 
