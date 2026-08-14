@@ -51,3 +51,6 @@ migration.sql
 backups/
 *.dump
 *.sql.gz
+
+# Baza dumplari (qo'lda olingan zaxira) — repoga TUSHMASIN.
+.backups/
