@@ -9,9 +9,12 @@ import {
   rankBadge,
   scoreParts,
 } from '@/entities/leaderboard'
+import { fetchMyLessonGrades } from '@/entities/lesson-grade'
 import { currentPeriod, isValidPeriod, periodLabel } from '@/entities/payment'
 import { fetchAttendanceSummary } from '@/entities/progress'
+import { sessionTypeShortLabel } from '@/entities/session'
 import { toUserMessage } from '@/shared/api'
+import { formatDate } from '@/shared/lib/datetime'
 import type { LeaderboardRowDto } from '@/shared/types'
 import { AppIcon, BaseAvatar, BaseSheet, DataStatus } from '@/shared/ui'
 
@@ -346,6 +349,72 @@ watch(effectivePeriod, () => {
 function formatPercent(value: number | null): string {
   return value === null ? '—' : `${Math.round(value)}%`
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   O'ZINING DARS BAHOLARI — "bu foiz qaysi darslardan chiqdi?" (R24)
+
+   ★ NIMA UCHUN AYNAN SHU YERDA: "Dars bahosi" mezoni tafsilot varaqasida
+     bitta YIG'MA foiz bo'lib turardi va uni yoyadigan hech qanday ekran
+     yo'q edi — o'quvchi "4 ball qayerdan chiqdi?" degan savolga javob
+     ololmasdi. Yangi ekran yasash o'rniga javob AYNAN savol tug'iladigan
+     joyga qo'yildi.
+
+   🔴 FAQAT O'Z QATORIDA (`row.isMe`). Server baribir faqat o'zinikini
+     qaytaradi (`studentId` tokendan), lekin BEGONA qatorning varaqasida
+     ro'yxatni ko'rsatish o'quvchini "bu uning baholari" deb aldardi.
+     Ya'ni bu shart maxfiylik uchun emas — TO'G'RI O'QILISH uchun.
+
+   ★ DANGASA: so'rov varaqa O'Z qatorim bilan ochilmaguncha yuborilmaydi.
+     Reyting ro'yxatini varaqlagan o'quvchi bu narxni to'lamaydi.
+
+   ★ OY — JADVALDAGI OY. Aks holda varaqada butun tarix chiqib, tepadagi
+     foiz bilan mos kelmasdi (arxiv oyini ochgan o'quvchi buni darhol
+     sezardi).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const myGradesPeriod = computed(() => effectivePeriod.value ?? currentPeriod())
+
+/**
+ * `2026-08` -> `2026-08-01` .. `2026-08-31`.
+ *
+ * ★ OY OXIRI HISOBLANADI, `31` DEB YOZILMAYDI: fevral va 30 kunlik oylar
+ *   uchun mavjud bo'lmagan sana serverga ketardi. `new Date(y, m, 0)` —
+ *   "keyingi oyning 0-kuni", ya'ni shu oyning oxirgi kuni.
+ */
+const myGradesRange = computed(() => {
+  const [year, month] = myGradesPeriod.value.split('-').map(Number)
+  if (year === undefined || month === undefined) return null
+
+  const lastDay = new Date(year, month, 0).getDate()
+  const mm = String(month).padStart(2, '0')
+
+  return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(lastDay).padStart(2, '0')}` }
+})
+
+const myGradesOpen = computed(() => detailRow.value?.isMe === true)
+
+const myGradesQuery = useQuery({
+  queryKey: ['progress', 'lesson-grades', myGradesPeriod],
+  queryFn: ({ signal }) =>
+    fetchMyLessonGrades(
+      { from: myGradesRange.value?.from, to: myGradesRange.value?.to },
+      { signal },
+    ),
+  enabled: myGradesOpen,
+})
+
+const myGrades = computed(() => myGradesQuery.data.value?.items ?? [])
+
+/**
+ * ★ XATO VARAQANI YIQITMAYDI: dars baholari — QO'SHIMCHA tafsilot,
+ *   varaqaning asosiy mazmuni esa mezonlar ro'yxati (u allaqachon
+ *   yuklangan jadvaldan keladi va hech qanday so'rov talab qilmaydi).
+ *   Shuning uchun xato bir qatorlik matn bo'lib ko'rinadi, `DataStatus`
+ *   emas.
+ */
+const myGradesError = computed(() =>
+  myGradesQuery.error.value !== null ? toUserMessage(myGradesQuery.error.value) : null,
+)
 </script>
 
 <template>
@@ -789,6 +858,93 @@ function formatPercent(value: number | null): string {
           </dd>
         </div>
       </dl>
+
+      <!--
+        ══════════════════════════════════════════════════════════════════
+         O'ZINING DARS BAHOLARI (R24) — yuqoridagi "Dars bahosi" yoyilmasi
+        ══════════════════════════════════════════════════════════════════
+
+        🔴 FAQAT O'Z QATORIDA. Server baribir faqat o'zinikini qaytaradi,
+        lekin begona qatorning varaqasida ro'yxatni ko'rsatish uni "shu
+        odamning baholari" deb O'QITARDI — ya'ni shart to'g'ri o'qilish
+        uchun (sabab skriptdagi izohda).
+
+        Ro'yxat QISQA bo'lishi kutiladi (bir oyda ~8–10 dars), shuning
+        uchun sahifalash ham, "yana ko'rsatish" tugmasi ham yo'q.
+      -->
+      <section
+        v-if="myGradesOpen"
+        class="mt-4"
+      >
+        <h3 class="mb-2 text-[11px] font-bold uppercase tracking-[1.2px] text-dim">
+          Dars baholari — {{ periodLabel(myGradesPeriod) }}
+        </h3>
+
+        <p
+          v-if="myGradesError !== null"
+          class="rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-200"
+          role="alert"
+          v-text="myGradesError"
+        />
+
+        <p
+          v-else-if="myGradesQuery.isPending.value"
+          class="rounded-xl border border-line bg-ink-950 px-3.5 py-2.5 text-xs text-dim"
+        >
+          Yuklanmoqda…
+        </p>
+
+        <!--
+          Bo'sh holat SABABNI aytadi: "0%" bilan aralashmasin — baholanmagan
+          dars o'rtachaga UMUMAN kirmaydi (serverdagi qoida).
+        -->
+        <p
+          v-else-if="myGrades.length === 0"
+          class="rounded-xl border border-line bg-ink-950 px-3.5 py-2.5 text-xs text-dim"
+        >
+          Bu oyda hali dars bahosi qo‘yilmagan.
+        </p>
+
+        <ul
+          v-else
+          class="space-y-2"
+        >
+          <li
+            v-for="grade in myGrades"
+            :key="grade.sessionId"
+            class="rounded-xl border border-line bg-ink-950 px-3.5 py-2.5"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <span class="min-w-0">
+                <span
+                  class="block truncate text-[13px] text-slate-200"
+                  v-text="grade.title ?? sessionTypeShortLabel(grade.type) + ' darsi'"
+                />
+                <span class="text-[11px] text-dim">
+                  {{ formatDate(grade.scheduledStart) }} ·
+                  {{ sessionTypeShortLabel(grade.type) }}
+                </span>
+              </span>
+              <!--
+                Ball VA maxraj birga: "4" o'zi 5 ballikmi yoki 100
+                ballikmi — bilib bo'lmasdi (imtihon darsida shkala
+                boshqacha).
+              -->
+              <span class="shrink-0 text-sm font-bold tabular-nums text-slate-100">
+                {{ grade.score }}<span
+                  class="text-xs font-medium text-dim"
+                >/{{ grade.maxScore }}</span>
+              </span>
+            </div>
+
+            <p
+              v-if="grade.comment !== null"
+              class="mt-1.5 text-[11px] leading-relaxed text-slate-400"
+              v-text="grade.comment"
+            />
+          </li>
+        </ul>
+      </section>
     </BaseSheet>
   </div>
 </template>

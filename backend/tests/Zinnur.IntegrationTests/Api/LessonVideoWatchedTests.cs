@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Gating.Dtos;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.IntegrationTests.Infrastructure;
 
@@ -85,6 +87,71 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         var second = await WatchedAtAsync(world.StudentId, world.FirstLessonId);
 
         second.Should().Be(first, "birinchi ko'rilgan payt o'zgarmaydi");
+    }
+
+    // ================================================================= VIDEO SHARTI
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// ★★ "VIDEOSI BOR" FAKTI BAZADAN KELADI (2026-08-14)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Ilgari `GatingService` bu yerga QOTIB qolgan `false` uzatardi
+    /// (`VideoContentModelled`), ya'ni video sharti HECH QACHON
+    /// tekshirilmasdi — o'quvchi hech narsa ko'rmasdan darsni "tugatgan"
+    /// bo'lardi.
+    ///
+    /// ★ NIMA UCHUN TEST HTTP EMAS, SERVIS DARAJASIDA: aynan EF ifodasi
+    ///   o'zgardi. Servis chaqiruvi HAQIQIY Postgres'ga boradi, ya'ni test
+    ///   yangi `EXISTS` ichki so'rovi SQL'ga TARJIMA BO'LISHINI ham
+    ///   isbotlaydi (tarjima qilinmasa `InvalidOperationException` bo'lardi).
+    /// </summary>
+    [Fact]
+    public async Task Gate_WhenLessonHasVideoAsset_RequiresWatching()
+    {
+        var world = await NewWorldAsync("video-fakt");
+
+        await AddAssetAsync(world.FirstLessonId, LessonAssetKind.Video);
+        await InvalidateGateAsync(world.StudentId);
+
+        var before = await GateAsync(world.StudentId, world.FirstLessonId);
+
+        before.HasVideo.Should().BeTrue("darsda `Kind = Video` asset bor");
+        before.Unlocked.Should().BeTrue("birinchi dars baribir ochiq");
+        before.Completed.Should().BeFalse(
+            "video ko'rilmagan -> dars TUGATILMAGAN (ilgari bu yerda `true` edi)");
+
+        using var student = await ClientAsync(world.StudentEmail);
+
+        (await student.PostAsync(WatchedUri(world.FirstLessonId), content: null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var after = await GateAsync(world.StudentId, world.FirstLessonId);
+
+        after.Completed.Should().BeTrue("video ko'rildi -> dars tugatildi");
+    }
+
+    /// <summary>
+    /// 🔴 IMTIHON DARSINING RASMI VIDEO EMAS.
+    ///
+    /// Rasm ham AYNI `LessonAssets` jadvalida yotadi (`LessonAsset` izohi:
+    /// bitta jadval, ikkita tur). Tur bo'yicha filtr tushib qolsa, imtihon
+    /// darsi "videosi bor, ko'rilmagan" bo'lib ABADIY tugatilmagan qolardi
+    /// va butun zanjirni qulflab qo'yardi — o'quvchi ko'ra olmaydigan
+    /// narsani kutib qolardi.
+    /// </summary>
+    [Fact]
+    public async Task Gate_WhenLessonHasOnlyImageAsset_DoesNotRequireVideo()
+    {
+        var world = await NewWorldAsync("rasm-fakt");
+
+        await AddAssetAsync(world.FirstLessonId, LessonAssetKind.Image);
+        await InvalidateGateAsync(world.StudentId);
+
+        var gate = await GateAsync(world.StudentId, world.FirstLessonId);
+
+        gate.HasVideo.Should().BeFalse("rasm — video emas");
+        gate.Completed.Should().BeTrue("mavjud bo'lmagan shart talab qilinmaydi");
     }
 
     // ================================================================= TAQIQ
@@ -256,6 +323,47 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         var gating = scope.ServiceProvider.GetRequiredService<IGatingService>();
         await gating.InvalidateAsync(studentId);
     }
+
+    /// <summary>
+    /// Darsning gating holatini SERVISDAN o'qiydi (HTTP orqali emas).
+    ///
+    /// ★ HAR SAFAR YANGI SCOPE: `GatingService` so'rov ichida natijani
+    ///   xotirada eslab qoladi (`_snapshot`), ya'ni bitta instansiya bilan
+    ///   "oldin/keyin" farqini umuman ko'ra olmasdik.
+    /// </summary>
+    private async Task<LessonGateDto> GateAsync(long studentId, long lessonId)
+    {
+        using var scope = factory.Services.CreateScope();
+
+        var gating = scope.ServiceProvider.GetRequiredService<IGatingService>();
+        return await gating.GetLessonGateAsync(studentId, lessonId);
+    }
+
+    /// <summary>
+    /// Darsga media qatorini TO'G'RIDAN-TO'G'RI bazaga qo'shadi.
+    ///
+    /// ★ NIMA UCHUN HTTP ORQALI YUKLASH EMAS: yuklash oqimi HAQIQIY
+    ///   ombor (MinIO) talab qiladi va u alohida fixture'da
+    ///   (`LessonMediaFixture`) sinaladi. Bu testga esa faqat QATORNING
+    ///   O'ZI kerak — gating omborga umuman tegmaydi, u `LessonAssets`
+    ///   jadvalidan `EXISTS` o'qiydi.
+    /// </summary>
+    /// <returns>Yozilgan qatorlar soni (analizator aniq turni talab qiladi).</returns>
+    private Task<int> AddAssetAsync(long lessonId, LessonAssetKind kind) =>
+        factory.WithDbAsync(async db =>
+        {
+            db.LessonAssets.Add(new LessonAsset
+            {
+                LessonId = lessonId,
+                Kind = kind,
+                Position = 0,
+                ObjectKey = $"test/{Guid.NewGuid():N}",
+                ContentType = kind == LessonAssetKind.Video ? "video/mp4" : "image/jpeg",
+                SizeBytes = 1024,
+            });
+
+            return await db.SaveChangesAsync();
+        });
 
     private static async Task<long> CreateLessonAsync(
         HttpClient admin, long courseId, long moduleId, string name)

@@ -69,7 +69,6 @@ public class SettingsRegistryTests
     [InlineData("finance.enforce_block")]
     [InlineData("general.time_zone")]
     [InlineData("telegram.api_base_url")]
-    [InlineData("livekit.url")]
     [InlineData("livekit.public_url")]
     [InlineData("storage.key_prefix")]
     public void LockoutCriticalKeys_AreReadOnly(string key)
@@ -112,6 +111,18 @@ public class SettingsRegistryTests
     [InlineData("telegram.bot_username")]
     [InlineData("livekit.api_key")]
     [InlineData("livekit.api_secret")]
+
+    // 🔴 2026-08-14 da `Environment` dan `Database` ga O'TKAZILDI. Uni
+    //    ushlab turgan YAGONA sabab `LiveKitHealthCheck` ning
+    //    `IConfiguration` dan to'g'ridan-to'g'ri o'qishi edi (probe bir
+    //    manzilga, token boshqasiga qarab qolardi); endi ikkalasi ham
+    //    `IRuntimeOptions<LiveKitOptions>` dan oziqlanadi. Bu qator
+    //    o'zgarishni QULFLAYDI: manba yana ajratilsa avval SHU test
+    //    qizarishi kerak.
+    //
+    //    ★ `livekit.public_url` ATAYLAB yuqoridagi (faqat o'qish) ro'yxatda
+    //      qoldi — u sertifikat/DNS bilan juftlashgan.
+    [InlineData("livekit.url")]
     [InlineData("finance.block_threshold")]
     [InlineData("finance.block_scope")]
     public void RotatableKeys_AreRuntimeEditable(string key)

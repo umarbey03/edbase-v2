@@ -294,18 +294,45 @@ public static class SettingsRegistry
             Key = "livekit.url",
             Group = SettingGroup.LiveKit,
             DisplayName = "Ichki manzil",
-            Description = "Backend LiveKit serveriga ulanadigan manzil (Docker tarmog'i ichida).",
+            Description =
+                "Backend LiveKit serveriga ulanadigan manzil (Docker tarmog'ida "
+                + "`http://livekit:7880`). ⚠️ Xato qiymatda jonli dars ochilmaydi va "
+                + "`/health/ready` LiveKit'ni «degraded» deb ko'rsatadi — panel esa "
+                + "ishlab turadi, ya'ni qiymat shu yerdan qaytariladi.",
             Kind = SettingValueKind.Text,
             Format = SettingFormat.Url,
-            Source = SettingSource.Environment,
+
+            // ════════════════════════════════════════════════════════════
+            // 🔴 2026-08-14: `Environment` -> `Database`.
+            // ════════════════════════════════════════════════════════════
+            //
+            // ESKI SABAB VA U QANDAY YOPILDI: kalit muhitga qotirilgan edi,
+            // chunki `LiveKitHealthCheck` manzilni `IConfiguration` dan
+            // TO'G'RIDAN-TO'G'RI o'qirdi — bazadan boshqarilsa probe bir
+            // manzilni, token esa boshqasini ko'rsatib, "sog'lom, lekin
+            // dars ochilmaydi" degan chalg'ituvchi holat paydo bo'lardi.
+            // Endi sog'liq tekshiruvi ham `IRuntimeOptions<LiveKitOptions>`
+            // ni o'qiydi, ya'ni probe va token BITTA kesimning BITTA
+            // maydonidan oziqlanadi va ajrala olmaydi.
+            //
+            // IKKINCHI SABAB ("tarmoq topologiyasi — deploy qarori") ham
+            // qayta ko'rildi: `storage.service_url` AYNI turkumdagi qiymat
+            // (`http://minio:9000`) va u loyiha egasining "ulanish joylari
+            // panel orqali boshqarilsin" talabi bilan allaqachon bazaga
+            // o'tkazilgan. Ikki xil qoida bo'lishi izohsiz qolardi.
+            //
+            // 🔴 NIMA UCHUN QULFLANISH XAVFI YO'Q (`security.*` dan FARQI):
+            // xato qiymat faqat LiveKit'ni o'chiradi — panel, kirish va
+            // qolgan hamma narsa ishlayveradi, ya'ni qiymatni O'SHA
+            // paneldan qaytarib bo'ladi. `livekit.public_url` esa ATAYLAB
+            // muhitda qoldirildi: u sertifikat/DNS bilan juftlashgan.
+            Source = SettingSource.Database,
             ConfigurationKey = "LiveKit:Url",
-            ReadOnlyReason =
-                "Manzil tarmoq TOPOLOGIYASI — u konteynerlar joylashuvi bilan birga o'zgaradi, "
-                + "panel orqali emas. Bundan tashqari AYNI qiymatni sog'liq tekshiruvi "
-                + "(`/health/ready`) to'g'ridan-to'g'ri konfiguratsiyadan o'qiydi: bazadan "
-                + "boshqarilsa, probe bir manzilni, token esa boshqasini ko'rsatib, "
-                + "\"sog'lom, lekin dars ochilmaydi\" degan chalg'ituvchi holat paydo bo'lardi. "
-                + StartupBoundReason,
+
+            // Bo'shatish faqat "standart qiymatga qaytarish" orqali —
+            // bo'sh manzil butun jonli darsni jimgina o'chirardi
+            // (`storage.service_url` dagi AYNI ehtiyot chorasi).
+            MinLength = 1,
         },
 
         new()
@@ -911,6 +938,9 @@ public static class SettingsRegistry
         public const string TelegramWebhookSecret = "telegram.webhook_secret";
         public const string TelegramMiniAppUrl = "telegram.mini_app_url";
         public const string TelegramBotUsername = "telegram.bot_username";
+
+        // 2026-08-14 da paneldan boshqariladigan bo'ldi (sabab registrda).
+        public const string LiveKitUrl = "livekit.url";
 
         public const string LiveKitApiKey = "livekit.api_key";
         public const string LiveKitApiSecret = "livekit.api_secret";

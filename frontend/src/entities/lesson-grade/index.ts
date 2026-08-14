@@ -1,5 +1,6 @@
 export {
   deleteLessonGrade,
+  fetchMyLessonGrades,
   fetchSessionGrades,
   upsertLessonGrade,
 } from './api/lesson-grade-api'
@@ -11,6 +12,8 @@ export {
 } from './model/types'
 export type {
   LessonGradeRowDto,
+  MyLessonGradeDto,
+  MyLessonGradesDto,
   SessionLessonGradesDto,
   UpsertLessonGradeRequest,
 } from './model/types'

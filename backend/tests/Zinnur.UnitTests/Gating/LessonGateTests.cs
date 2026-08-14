@@ -168,6 +168,53 @@ public class LessonGateTests
     }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// ★★ VIDEO SHARTI ZANJIRNI HAQIQATAN TO'XTATADI (2026-08-14)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Qoida (`IsComplete`) o'zgarmadi — o'zgargani `GatingService`:
+    /// ilgari u `HasVideo` o'rniga QOTIB qolgan `false` uzatardi, ya'ni
+    /// bu shoxga hech qachon kirilmasdi. Endi fakt bazadan keladi
+    /// (`LessonAsset`, `Kind = Video`), demak bu ikki test — yoqilgan
+    /// shartning KUZATILADIGAN oqibati: video ko'rilmasa KEYINGI dars
+    /// ochilmaydi.
+    ///
+    /// ★ Sur'at ataylab KATTA (5): ustoz to'sig'i o'chirilgan bo'lsin,
+    ///   aks holda u birinchi bo'lib ishlab, videoning ta'siri ko'rinmay
+    ///   qolardi (`Evaluate_WhenBothRulesFail_ReportsTeacherPaceFirst`).
+    /// </summary>
+    [Fact]
+    public void Evaluate_WhenPreviousLessonVideoNotWatched_LocksNextLesson()
+    {
+        var previous = Empty(1) with { HasVideo = true, VideoWatched = false };
+
+        LessonGate.IsComplete(previous).Should().BeFalse(
+            "videosi bor, lekin ko'rilmagan dars TUGATILMAGAN");
+
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 1, Empty(2), previous, taughtLessonCount: 5);
+
+        unlocked.Should().BeFalse();
+        reason.Should().Be(LessonLockReason.PreviousIncomplete);
+    }
+
+    /// <inheritdoc cref="Evaluate_WhenPreviousLessonVideoNotWatched_LocksNextLesson"/>
+    [Fact]
+    public void Evaluate_WhenPreviousLessonVideoWatched_UnlocksNextLesson()
+    {
+        var previous = Empty(1) with { HasVideo = true, VideoWatched = true };
+
+        LessonGate.IsComplete(previous).Should().BeTrue(
+            "video ko'rildi -> boshqa sharti yo'q dars TUGATILDI");
+
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 1, Empty(2), previous, taughtLessonCount: 5);
+
+        unlocked.Should().BeTrue();
+        reason.Should().BeNull();
+    }
+
+    /// <summary>
     /// Ikki shart ham buzilgan bo'lsa SUR'AT sababi ustun: o'quvchiga
     /// "vazifani topshir" deyish noto'g'ri bo'lardi — dars baribir
     /// ochilmaydi, chunki ustoz unga yetmagan.

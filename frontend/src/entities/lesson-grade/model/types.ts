@@ -60,6 +60,51 @@ export interface SessionLessonGradesDto {
   rows: LessonGradeRowDto[] | null
 }
 
+/* ==========================================================================
+   O'QUVCHINING O'Z BAHOLARI — `GET /api/v1/progress/lesson-grades`
+
+   ★ NIMA UCHUN ALOHIDA TIP, `SessionLessonGradesDto` EMAS: xodim varag'ining
+   birligi — DARS (qatorlar = o'quvchilar), o'quvchi ekraniniki esa —
+   O'QUVCHI (qatorlar = darslar). Server ham aynan shu sababdan ikkita DTO
+   qaytaradi; bu yerda "boshqa o'quvchi" tushunchasi UMUMAN yo'q, ya'ni
+   maxfiylik tipda ham ko'rinib turadi.
+   ========================================================================== */
+
+/** Bitta darsdagi baho — o'quvchining ko'zi bilan. */
+export interface MyLessonGradeDto {
+  sessionId: number
+  groupId: number
+  title: string | null
+  type: SessionTypeName
+  scheduledStart: string
+  score: number
+  /** Amaldagi maxraj (server standartni ham SHU maydonda qaytaradi). */
+  maxScore: number
+  /** Foiz (0..100), bir xona aniqlikda. SERVER hisoblaydi. */
+  percent: number
+  comment: string | null
+  gradedByName: string | null
+  gradedAt: string
+}
+
+/**
+ * `GET /api/v1/progress/lesson-grades` — FAQAT O'ZINING baholari.
+ *
+ * 🔴 Serverga `studentId` YUBORILMAYDI va yuborib ham bo'lmaydi: u tokendan
+ * olinadi. Ya'ni "boshqa o'quvchining bahosini so'rash" degan so'rov shakli
+ * mavjud emas.
+ */
+export interface MyLessonGradesDto {
+  groupIds: number[] | null
+  from: string | null
+  to: string | null
+  defaultMaxScore: number
+  gradedCount: number
+  /** `null` — hali birorta baho yo'q (0% EMAS). */
+  averagePercent: number | null
+  items: MyLessonGradeDto[] | null
+}
+
 /**
  * `PUT /api/v1/live-sessions/{id}/grades/{studentId}` tanasi.
  *

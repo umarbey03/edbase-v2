@@ -197,6 +197,13 @@ public static class DependencyInjection
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
+        // O'QUVCHINING O'Z DARS BAHOLARI (R24 ning o'quvchi tomoni).
+        // ★ XODIM servisidan (`ILessonGradeService`) ALOHIDA: sabab
+        //   `ILessonGradeSummaryService` izohida — u yerdagi ruxsat
+        //   darvozasida o'quvchi ATAYLAB yo'q va uni "ba'zan o'tkazadigan"
+        //   qilish mumkin emas.
+        services.AddScoped<ILessonGradeSummaryService, LessonGradeSummaryService>();
+
         // "Kim kim bilan bog'langan" qoidasi ALOHIDA servisda: uni yozishma
         // ham, kelajakdagi kurator paneli ham ishlatadi. Eski tizimda shu
         // qoida bir necha joyda qo'lda takrorlangan va ba'zisida chala edi.

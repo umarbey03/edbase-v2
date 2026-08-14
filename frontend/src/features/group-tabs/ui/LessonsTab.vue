@@ -102,12 +102,30 @@ const selectedState = computed(() =>
    (sinf atributidagi tartibga EMAS).
    ═══════════════════════════════════════════════════════════════════════ */
 
+/*
+  ★ TUZATILDI (2026-08-14): `assistant` ILGARI `held` BILAN AYNI YASHIL EDI.
+
+  Ular BOSHQA-BOSHQA holat: `held` — dars O'TILGAN (tugagan ish),
+  `assistant` — kuratorning REJADAGI, hali bo'lmagan darsi. Legendaning
+  yashil qatori esa "O'tilgan" deb yozilgan edi, ya'ni kalendarda yashil
+  ko'ringan kurator darsi "o'tilgan" deb O'QILARDI — legenda ikkinchi
+  holat uchun shunchaki YOLG'ON edi.
+
+  Endi kurator darsi KO'K (`sky`): dizayn tizimida bu rang aynan
+  "yordamchi rol, kurator" uchun ajratilgan (`style.css` dagi izoh), ya'ni
+  yangi ma'no o'ylab topilmadi. Natijada rang ↔ ma'no MUNOSABATI BIRMA-BIR:
+    brand  — ustozning rejadagi darsi
+    sky    — kuratorning rejadagi darsi
+    green  — o'tilgan
+    rose   — o'tilmagan yoki hozir jonli
+  va legendada TO'RTTALA qator ham bor.
+*/
 const TONE_CLASS: Record<CalendarEventTone, string> = {
   live: 'border-rose-500/45 bg-rose-500/20 text-rose-400 font-bold',
   held: 'border-green-500/35 bg-green-500/15 text-green-400',
   missed: 'border-rose-500/35 bg-rose-500/12 text-rose-400',
   teacher: 'border-brand-500/35 bg-brand-500/14 text-brand-500',
-  assistant: 'border-green-500/35 bg-green-500/15 text-green-400',
+  assistant: 'border-sky-500/35 bg-sky-500/15 text-sky-400',
 }
 
 /** Katakning chap chekkasidagi chiziq — pill bilan BIR XIL rang oilasi. */
@@ -116,7 +134,7 @@ const ACCENT_CLASS: Record<CalendarEventTone, string> = {
   held: 'border-l-[3px] border-l-green-500',
   missed: 'border-l-[3px] border-l-rose-500',
   teacher: 'border-l-[3px] border-l-brand-500',
-  assistant: 'border-l-[3px] border-l-green-500',
+  assistant: 'border-l-[3px] border-l-sky-500',
 }
 
 /**
@@ -332,7 +350,12 @@ const cells = computed<CalendarCell[]>(() =>
           PILL — bir xil ma'noning ikki xil alifbosi (reja hujjatining
           "yo'l-yo'lakay topilgan xatolar" ro'yxatida ham qayd etilgan).
           Endi namuna katakdagi pill'ning AYNAN o'zi: bir xil fon, bir
-          xil chegara, bir xil radius. Matnlar o'zgarmadi.
+          xil chegara, bir xil radius.
+
+          ★ 2026-08-14: "Rejadagi dars" IKKIGA bo'lindi (ustoz va kurator)
+          — sabab skriptdagi `TONE_CLASS` izohida. Ilgari kurator darsi
+          legendada UMUMAN yo'q edi va yashil rangi tufayli "o'tilgan"
+          deb o'qilardi.
         -->
         <div
           class="mt-3.5 flex flex-wrap gap-4 rounded-lg border border-line bg-ink-950 px-4 py-3 text-xs text-slate-400"
@@ -342,7 +365,14 @@ const cells = computed<CalendarCell[]>(() =>
               class="h-3.5 w-6 shrink-0 rounded-md border"
               :class="TONE_CLASS.teacher"
               aria-hidden="true"
-            />Rejadagi dars
+            />Ustoz darsi (rejada)
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span
+              class="h-3.5 w-6 shrink-0 rounded-md border"
+              :class="TONE_CLASS.assistant"
+              aria-hidden="true"
+            />Kurator darsi (rejada)
           </span>
           <span class="inline-flex items-center gap-1.5">
             <span

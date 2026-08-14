@@ -15,7 +15,9 @@ namespace Zinnur.WebApi.Controllers;
 [Authorize]
 [Produces("application/json")]
 public sealed class ProgressController(
-    IAttendanceSummaryService attendance, IGatingService gating) : ControllerBase
+    IAttendanceSummaryService attendance,
+    ILessonGradeSummaryService lessonGrades,
+    IGatingService gating) : ControllerBase
 {
     /// <summary>
     /// Davomat xulosasi: qatnashgan / qoldirgan / jami va foiz
@@ -36,6 +38,38 @@ public sealed class ProgressController(
         [FromQuery] DateOnly? to,
         CancellationToken ct) =>
         Ok(await attendance.GetMySummaryAsync(CurrentUserId, groupId, from, to, ct));
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// O'QUVCHINING O'Z DARS BAHOLARI (R24 ning yopilmagan yarmi)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// ★ NIMA UCHUN KERAK EDI: R24 bilan ustoz har DARSGA baho qo'yadigan
+    /// bo'ldi, lekin o'quvchi uchun o'z bahosini o'qiydigan endpoint YO'Q
+    /// edi — u faqat reyting ekranidagi YIG'MA <c>lessonPercent</c> ni
+    /// ko'rardi va "bu foiz qaysi darslardan chiqdi?" degan savolga javob
+    /// yo'q edi.
+    ///
+    /// 🔴 FAQAT O'ZINIKI: servis <c>studentId</c> ni PARAMETR sifatida
+    /// qabul qilmaydi — u DOIM tokendan (<c>CurrentUserId</c>) keladi.
+    /// Ya'ni "boshqa o'quvchining bahosini so'rash" degan so'rov shakli
+    /// UMUMAN mavjud emas (davomat endpointidagi AYNI himoya). Xodim
+    /// varag'i butunlay boshqa yo'lda:
+    /// <c>GET /live-sessions/{id}/grades</c>.
+    /// </summary>
+    /// <param name="groupId">Berilmasa — barcha faol guruhlar birga.</param>
+    /// <param name="from">Mahalliy sana (<c>YYYY-MM-DD</c>), KIRADI.</param>
+    /// <param name="to">Mahalliy sana, KIRADI.</param>
+    [HttpGet("lesson-grades")]
+    [ProducesResponseType<MyLessonGradesDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<MyLessonGradesDto>> LessonGrades(
+        [FromQuery] long? groupId,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken ct) =>
+        Ok(await lessonGrades.GetMyGradesAsync(CurrentUserId, groupId, from, to, ct));
 
     // ================================================================= dars progressi
 

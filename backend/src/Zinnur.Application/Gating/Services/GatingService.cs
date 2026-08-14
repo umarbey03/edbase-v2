@@ -281,17 +281,47 @@ public sealed class GatingService(
         lessons.Select(l => new LessonFacts(
             l.Id,
 
-            // VIDEO KONTENTI hali modellashtirilmagan (FAZA 3.1 — R2 ga
-            // yuklash). `ModuleLesson` da video maydoni YO'Q, shuning uchun
-            // "videosi bor" fakti hozir HAMMA dars uchun `false` va video
-            // sharti TALAB QILINMAYDI.
+            // ════════════════════════════════════════════════════════════
+            // VIDEO SHARTI — 2026-08-14 dan YOQIQ.
+            // ════════════════════════════════════════════════════════════
             //
-            // ATAYLAB shunday: mavjud bo'lmagan videoni "ko'rilishi shart"
-            // deb belgilash butun kursni QULFLAB qo'yardi — o'quvchi hech
-            // qachon ko'ra olmaydigan narsani kutib qolardi. FAZA 3.1
-            // kelganda AYNAN shu bitta qator o'zgaradi
-            // (`l.Video != null`), qoida esa (`LessonGate`) tegilmaydi.
-            VideoContentModelled,
+            // Ilgari bu yerda `VideoContentModelled = false` degan QOTIB
+            // qolgan doimiy turardi: video kontenti hali modellashtirilmagan
+            // edi, ya'ni "videosi bor" fakti HAMMA dars uchun `false` bo'lib,
+            // gating'ning video oyog'i (`LessonGate.IsComplete` dagi
+            // `!HasVideo || VideoWatched`) HECH QACHON ishlamasdi —
+            // o'quvchi hech narsa ko'rmasdan darsni "tugatgan" bo'lardi.
+            //
+            // Endi uchala bo'lak ham joyida:
+            //   • kontent  — `LessonAsset` (`Kind = Video`, `Position` bilan
+            //                qismlarga bo'linadi);
+            //   • ijro     — HMAC chiptali pleyer (`LessonAssetsController`);
+            //   • yozuv    — `POST /progress/lessons/{id}/video-watched` ->
+            //                `MarkVideoWatchedAsync` -> `VideoWatchedAt`.
+            //
+            // ★ NIMA UCHUN AYNAN `Kind == Video`: imtihon darsining rasmlari
+            //   ham AYNI jadvalda yotadi (`LessonAsset` izohi). Tur bo'yicha
+            //   filtrsiz imtihon darsi "videosi bor, ko'rilmagan" bo'lib
+            //   ABADIY tugallanmagan qolardi va butun zanjirni qulflardi.
+            //
+            // 🔴 NIMA UCHUN HOZIR XAVFSIZ: yangi serverga, BO'SH baza bilan
+            //   chiqilmoqda (loyiha egasi: "noldan ishlatiladi"). Ishlab
+            //   turgan bazada bu o'zgarish videosi bor har bir darsni bir
+            //   zumda "tugallanmagan" qilib, kursning o'rtasidagi
+            //   o'quvchilarni QULFLAB qo'yardi (reja hujjatidagi 1-savol
+            //   aynan shu edi).
+            //
+            // ★ KESHGA TA'SIRI: bu QO'SHIMCHA korrelyatsion `EXISTS`, ya'ni
+            //   so'rovlar soni O'ZGARMAYDI (N+1 yo'q) va to'rt bekor qilish
+            //   hodisasi ham tegilmadi. Faqat bitta yangi yo'l bor: ustoz
+            //   darsga video QO'SHSA (yoki o'chirsa) fakt o'zgaradi, lekin
+            //   `InvalidateAsync` chaqirilmaydi — kesh o'z TTL'i (60 s)
+            //   bilan eskiradi. ATAYLAB: bu ustoz amali, o'quvchiniki emas,
+            //   ya'ni "kimning keshini tozalash kerak" degan savol butun
+            //   guruhga (yoki kursga) fan-out berardi; bir daqiqalik
+            //   kechikish esa hech kimni qulflab qo'ymaydi.
+            db.LessonAssets.Any(a => a.LessonId == l.Id
+                                  && a.Kind == LessonAssetKind.Video),
 
             db.LessonProgress.Any(p => p.StudentId == studentId
                                     && p.ModuleLessonId == l.Id
@@ -502,9 +532,6 @@ public sealed class GatingService(
     /// zaxira (masalan boshqa instance ma'lumotni o'zgartirgan holat).
     /// </summary>
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
-    /// <summary>FAZA 3.1 kelganda `true` bo'ladi (izoh: <see cref="LessonFactsQuery"/>).</summary>
-    private const bool VideoContentModelled = false;
 
     /// <param name="TaughtLessonCount">Yakunlangan ustoz darslari soni (sur'at).</param>
     /// <param name="VideoStartLessonId">

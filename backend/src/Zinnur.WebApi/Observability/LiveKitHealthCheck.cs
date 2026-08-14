@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Zinnur.Infrastructure.Options;
 
 namespace Zinnur.WebApi.Observability;
 
@@ -18,8 +19,28 @@ namespace Zinnur.WebApi.Observability;
 /// hisobotlar — LiveKit'siz ham ishlaydigan hamma narsa) o'chib qolardi.
 /// Degraded esa: umumiy holat halol ko'rsatiladi, HTTP 200 qaytadi,
 /// konteyner tirik qoladi.
+///
+/// ════════════════════════════════════════════════════════════════════════
+/// ★★ MANZIL <c>IConfiguration</c> DAN EMAS, ISH JARAYONIDAGI SOZLAMADAN
+/// ════════════════════════════════════════════════════════════════════════
+///
+/// Ilgari bu sinf <c>configuration["LiveKit:Url"]</c> ni TO'G'RIDAN-TO'G'RI
+/// o'qirdi va AYNAN shu bitta qator <c>livekit.url</c> ni panelda
+/// tahrirlab bo'lmaydigan qilib turardi: bazadan boshqarilsa probe BIR
+/// manzilni, token esa BOSHQASINI ko'rsatib, "sog'lom, lekin dars
+/// ochilmaydi" degan chalg'ituvchi holat paydo bo'lardi.
+///
+/// Endi manba BITTA — <see cref="IRuntimeOptions{TOptions}"/>, ya'ni
+/// AYNAN <c>LiveKitTokenService</c> va <c>LiveKitEgressClient</c> o'qiydigan
+/// obyekt. Probe va token bir-biridan AJRALA OLMAYDI: ular bitta kesimning
+/// bitta maydonini o'qiydi.
+///
+/// ★ SOVUQ START: kesim hali o'qilmagan bo'lsa <c>Current</c> muhitdagi
+/// (boshlang'ich) qiymatni qaytaradi — ya'ni ilova ko'tarilgan birinchi
+/// soniyalarda probe ham, token ham AYNI o'sha manzilga qaraydi.
 /// </summary>
-internal sealed class LiveKitHealthCheck(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+internal sealed class LiveKitHealthCheck(
+    IHttpClientFactory httpClientFactory, IRuntimeOptions<LiveKitOptions> liveKit)
     : IHealthCheck
 {
     public const string Name = "livekit";
@@ -34,7 +55,12 @@ internal sealed class LiveKitHealthCheck(IHttpClientFactory httpClientFactory, I
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        if (!TryBuildProbeUri(configuration[UrlKey], out var probe))
+        // ⚠️ Kesim BIR MARTA olinadi (`IRuntimeOptions` shartnomasi):
+        //    tekshiruv o'rtasida sozlama yangilansa, xabar va probe
+        //    boshqa-boshqa manzilni ko'rsatib qolardi.
+        var configured = liveKit.Current.Url;
+
+        if (!TryBuildProbeUri(configured, out var probe))
             return HealthCheckResult.Unhealthy($"{UrlKey} sozlanmagan yoki noto'g'ri manzil.");
 
         var failure = context.Registration.FailureStatus;
@@ -63,7 +89,7 @@ internal sealed class LiveKitHealthCheck(IHttpClientFactory httpClientFactory, I
     }
 
     /// <summary>
-    /// <c>LiveKit:Url</c> ni HTTP probe manziliga aylantiradi.
+    /// LiveKit ichki manzilini HTTP probe manziliga aylantiradi.
     ///
     /// NIMA UCHUN ALMASHTIRISH KERAK: sozlamada manzil <c>ws://</c> yoki
     /// <c>wss://</c> bo'lishi mumkin (appsettings.json da aynan shunday).

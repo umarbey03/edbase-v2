@@ -161,16 +161,22 @@ public static class DependencyInjection
         // LIVEKIT — bu yerda tekshiruv ATAYLAB QOLDIRILDI.
         //
         // ★ NIMA UCHUN `Storage`/`Telegram` dan farqli: LiveKit IXTIYORIY
-        //   emas. `LiveKit:Url` — tarmoq topologiyasi, u faqat muhitdan
-        //   keladi (sabab: `RuntimeLiveKitOptions`), ya'ni LiveKit baribir
-        //   deploy bilan sozlanadi. Kalit va sir esa bazadan USTUN o'qiladi
-        //   — panel ularni AYLANTIRISH (rotate) uchun.
+        //   emas — u sozlanmagan bo'lsa jonli dars UMUMAN yo'q, ya'ni
+        //   "yarim sozlangan" holat foydali xizmat bermaydi. Shuning uchun
+        //   MUHIT to'plami ishga tushishda TO'LIQ bo'lishi talab qilinadi.
         //
-        // ⚠️ QABUL QILINGAN CHEKLOV: `LiveKit:ApiKey`/`ApiSecret` muhitda
-        //   BO'LISHI SHART (bo'sh bo'lsa ilova ko'tarilmaydi), garchi amalda
-        //   bazadagi qiymat ustun bo'lsa ham. Buni yumshatish bo'sh kalit
-        //   bilan ko'tarilishga yo'l ochardi — u holda token XATO BERMASDAN
-        //   rad etilardi va buni faqat birinchi dars boshlanganda bilardik.
+        // ⚠️ QABUL QILINGAN CHEKLOV: `LiveKit:Url`/`ApiKey`/`ApiSecret`
+        //   muhitda BO'LISHI SHART (bo'sh bo'lsa ilova ko'tarilmaydi),
+        //   garchi amalda bazadagi qiymat USTUN bo'lsa ham (2026-08-14 dan
+        //   `Url` ham bazadan o'qiladi — sabab `RuntimeLiveKitOptions`).
+        //   Buni yumshatish bo'sh kalit bilan ko'tarilishga yo'l ochardi —
+        //   u holda token XATO BERMASDAN rad etilardi va buni faqat
+        //   birinchi dars boshlanganda bilardik.
+        //
+        //   ★ Bu yerdagi tekshiruv BOSHLANG'ICH (seed) qiymatlarga
+        //     tegishli, ya'ni "sovuq start" holatini qo'riqlaydi: baza hali
+        //     o'qilmagan birinchi soniyalarda ham manzil va kalit haqiqiy
+        //     bo'lsin.
         services.AddOptions<LiveKitOptions>()
             .Bind(configuration.GetSection(LiveKitOptions.SectionName))
             .ValidateDataAnnotations()

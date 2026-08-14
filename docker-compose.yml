@@ -521,6 +521,18 @@ services:
       Cors__AllowedOrigins__0: ${CORS_ORIGIN_0}
       Cors__AllowedOrigins__1: ${CORS_ORIGIN_1}
 
+      # ---- NAMUNAVIY (DEMO) MA'LUMOT --------------------------------------
+      # `true` bo'lsa BO'SH bazaga to'liq namunaviy o'quv markazi yoziladi:
+      # xodimlar, 12 o'quvchi, guruhlar, darslar, davomat, baholar, to'lovlar,
+      # chat va yozuvlar. Tekshirish uchun kirish raqamlari LOGDA jadval
+      # ko'rinishida chiqadi (`docker compose logs api | grep Namunaviy`).
+      #
+      # 🔴 STANDART QIYMAT — `false`, VA U ATAYLAB SHUNDAY. Yoqilgan holda
+      # ham himoya bor: bazada 3 tadan ko'p foydalanuvchi bo'lsa seeder
+      # ISHLAMAYDI va logga xato yozadi (ishlab turgan markazga soxta
+      # o'quvchi tushmasin). Batafsil — `DemoDataSeeder` izohi.
+      Seed__Demo: ${SEED_DEMO:-false}
+
       # ---- OBYEKT OMBORI (vazifa fayllari) --------------------------------
       # DEV: MinIO (yuqoridagi xizmat). PROD: Cloudflare R2 — qiymatlar
       # docker-compose.prod.yml da QAYTA yoziladi, chunki compose overlay'lari

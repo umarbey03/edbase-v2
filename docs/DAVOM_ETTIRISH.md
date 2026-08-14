@@ -64,6 +64,37 @@ Testlarda kirish HTTP orqali EMAS — `ZinnurApiFactory.LoginAsAdminAsync()`
 tokenni to'g'ridan-to'g'ri yasaydi (sabab o'sha faylda). Oqimning O'ZI
 `PhoneLoginEndpointsTests` da to'liq sinaladi.
 
+### 🧪 NAMUNAVIY (DEMO) MA'LUMOT — qo'lda tekshirish uchun
+
+Bo'sh bazada `SEED_DEMO=true` (`.env`) qo'yilsa, ilova ishga tushganda
+TO'LIQ o'quv markazi yoziladi: o'quv bo'limi + 2 ustoz + 2 kurator +
+12 o'quvchi, 5 guruh (jumladan individual, kurator va ARXIV), kurs →
+modul → darslar (bittasida **3 qismli video**), o'tgan/kelgusi/hozir
+boshlanadigan darslar, davomatning BARCHA holati, dars baholari,
+vazifa javoblarining har bir holati, testlar, **chegaradan oshgan
+qarzdor**, chat (ikki kanal + DM + darsga bog'langan savol), yozuvlar
+(yashirilgani va sifat nazorati bilan) va o'qilmagan bildirishnomalar.
+
+```bash
+# Kirish raqamlari jadvali — LOGDA:
+docker compose logs api | grep -A 25 "Namunaviy hisoblar"
+
+# Kirish kodi soxta Telegram ID'ga ketadi, ya'ni telefonga KELMAYDI:
+docker compose exec -T postgres psql -U zinnur -d zinnur -c \
+  "SELECT \"Body\" FROM \"MessageOutbox\" WHERE \"TemplateKey\"='auth_login_code' \
+   ORDER BY \"Id\" DESC LIMIT 1;"
+```
+
+🔴 **Uch qatlamli himoya** (`DemoDataSeeder` izohi): (1) `Seed__Demo`
+oshkor kaliti, standarti `false`; (2) bazada 3 tadan ko'p foydalanuvchi
+bo'lsa seeder ISHLAMAYDI va logga xato yozadi; (3) marker profil
+(`academic@zinnur.uz`) — ikkinchi ishga tushirish hech nima qilmaydi.
+
+⚠️ **VIDEO OCHILMAYDI (404).** Dars videolari va dars yozuvlari faqat
+METAMA'LUMOT sifatida yoziladi (yaroqli MP4 ni kodsiz yasab bo'lmaydi).
+Rasm va hujjat biriktirmalari esa HAQIQATAN omborga yoziladi va
+ochiladi. Batafsil — `DemoMedia.cs` izohi.
+
 ### ⚠️ Образ eskirmaganmi — HAR SAFAR tekshiring
 
 ```bash

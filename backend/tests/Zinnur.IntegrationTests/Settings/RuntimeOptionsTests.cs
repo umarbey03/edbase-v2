@@ -220,13 +220,18 @@ public class RuntimeOptionsTests
     }
 
     /// <summary>
-    /// LiveKit manzillari DEPLOY qarori: ularni sog'liq tekshiruvi
-    /// (`/health/ready`) to'g'ridan-to'g'ri konfiguratsiyadan o'qiydi.
-    /// Bazadan boshqarilsa probe bir manzilni, token esa boshqasini
-    /// ko'rsatib, "sog'lom, lekin dars ochilmaydi" holati paydo bo'lardi.
+    /// ★ 2026-08-14: ICHKI manzil ham bazadan o'qiladi.
+    ///
+    /// Ilgari u muhitga qotirilgan edi, chunki `LiveKitHealthCheck`
+    /// `IConfiguration` dan to'g'ridan-to'g'ri o'qib, probe bir manzilga,
+    /// token esa boshqasiga qarab qolardi. Endi sog'liq tekshiruvi ham
+    /// AYNI shu obyektni o'qiydi, ya'ni ajralish MUMKIN EMAS.
+    ///
+    /// BRAUZER manzili (`PublicUrl`) esa muhitda qoladi — u sertifikat va
+    /// DNS bilan juftlashgan.
     /// </summary>
     [Fact]
-    public void LiveKit_UrlsStayInEnvironment_KeysComeFromDatabase()
+    public void LiveKit_UrlComesFromDatabase_PublicUrlStaysInEnvironment()
     {
         var seed = new LiveKitOptions
         {
@@ -238,17 +243,45 @@ public class RuntimeOptionsTests
 
         var runtime = new FakeRuntimeSettings(Snapshot(1, new()
         {
+            [SettingsRegistry.Keys.LiveKitUrl] = "http://livekit-yangi:7880",
             [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
             [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
         }));
 
         var current = new RuntimeLiveKitOptions(runtime, Options.Create(seed)).Current;
 
-        current.Url.Should().Be("http://livekit:7880");
+        current.Url.Should().Be("http://livekit-yangi:7880", "baza USTUN");
         current.PublicUrl.Should().Be("wss://livekit.zinnur.uz");
 
         current.ApiKey.Should().Be("baza-kalit");
         current.ApiSecret.Should().Be("baza-siri-kamida-32-belgi-0123456789");
+    }
+
+    /// <summary>
+    /// Kesimda manzil YO'Q (yoki bo'sh) bo'lsa MUHITDAGI qiymat ishlaydi.
+    ///
+    /// 🔴 NIMA UCHUN MUHIM: bo'sh manzil sog'liq tekshiruvini `Unhealthy`
+    /// qilib, ilovani sababsiz "nosoz" ko'rsatardi va Egress mijozi
+    /// so'rovni umuman yubora olmasdi.
+    /// </summary>
+    [Fact]
+    public void LiveKit_WithoutDatabaseUrl_FallsBackToEnvironment()
+    {
+        var seed = new LiveKitOptions
+        {
+            Url = "http://livekit:7880",
+            ApiKey = "muhit-kalit",
+            ApiSecret = "muhit-siri-kamida-32-belgi-0123456789",
+        };
+
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitUrl] = "   ",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(seed)).Current;
+
+        current.Url.Should().Be("http://livekit:7880");
     }
 
     // ================================================================= yordamchilar

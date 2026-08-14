@@ -74,11 +74,16 @@ Shu sababli ular ketma-ket bajarilishi kerak: hammasi AYNI
 
 | # | Savol | Nega muhim |
 |---|---|---|
-| 1 | **Gating'da video talabi yoqilsinmi?** | `GatingService` da `VideoContentModelled = false` QOTIB turibdi — ya'ni video talabi HECH QACHON tekshirilmaydi. Yoqish — bir qatorlik o'zgarish, migratsiyasiz. LEKIN videosi bor har bir dars DARHOL "tugallanmagan" bo'ladi va hech kim hali ko'rmagani uchun o'quvchilar hozirgi darsida QULFLANADI |
-| 2 | Arxivlangan guruh reytingi | Bitirgan o'quvchi o'z tarixini KO'RA OLMAYDI: `PrimaryGroupAsync` `IsActive` bo'yicha filtrlaydi, ya'ni `groupId: null` qaytadi va 403 ga ham yetmaydi |
+| 1 | ✅ **HAL QILINDI (2026-08-14) — video talabi YOQILDI** | Egasining qarori: *"yangi serverga qo'yamiz … noldan ishlatiladi"*, ya'ni qulflanib qoladigan o'quvchi YO'Q. `VideoContentModelled` doimiysi olib tashlandi; "videosi bor" fakti endi `LessonAssets` (`Kind = Video`) dan `EXISTS` bilan keladi. So'rovlar soni O'ZGARMADI (N+1 yo'q), kesh va uni bekor qilish hodisalari TEGILMADI. Batafsil sabab — `GatingService.LessonFactsQuery` izohida |
+| 2 | Arxivlangan guruh reytingi | Bitirgan o'quvchi o'z tarixini KO'RA OLMAYDI: `PrimaryGroupAsync` `IsActive` bo'yicha filtrlaydi, ya'ni `groupId: null` qaytadi va 403 ga ham yetmaydi. ⚠️ 2026-08-14 da qo'shilgan `GET /progress/lesson-grades` ham AYNI cheklovga bo'ysunadi (davomat bilan bir xil qoida — ular birga hal qilinishi kerak) |
 | 3 | `SharesGroupAsync` muddati | Ustoz O'ZI O'QITGAN har bir o'quvchining profilini MANGU ko'radi. Tavsiya: TEGILMASIN — izohlar CRUD'i ayni shu darvozadan o'tadi, cheklov qo'yilsa ustoz O'ZI yozgan izohni tahrirlay olmay qoladi |
-| 4 | `livekit.url` | Hamon faqat muhit o'zgaruvchisi (health check uni to'g'ridan-to'g'ri o'qiydi) — panel orqali tuzatib bo'lmaydi |
-| 5 | `LessonsTab` legendasi | `assistant` va `held` ikkalasi ham yashil, legenda esa "O'tilgan" deydi |
+| 4 | ✅ **HAL QILINDI (2026-08-14) — `livekit.url` paneldan boshqariladi** | Yagona to'siq `LiveKitHealthCheck` ning `IConfiguration` dan to'g'ridan-to'g'ri o'qishi edi; endi u ham `IRuntimeOptions<LiveKitOptions>` ni o'qiydi, ya'ni probe va token BITTA kesimning BITTA maydonidan oziqlanadi. `livekit.public_url` ATAYLAB muhitda qoldi — u sertifikat/DNS bilan juftlashgan |
+| 5 | ✅ **HAL QILINDI (2026-08-14) — `LessonsTab` legendasi** | `assistant` KO'K (`sky` — dizayn tizimida "kurator" rangi) bo'ldi va legendaga ALOHIDA qator qo'shildi. Endi to'rt ohangning to'rttasi ham legendada va rang ↔ ma'no birma-bir |
+
+**Yopilmagan yarim ish yopildi (2026-08-14):** R24 da o'quvchi o'z dars
+bahosini KO'RA OLMASDI (faqat reytingdagi yig'ma `lessonPercent`). Qo'shildi:
+`GET /api/v1/progress/lesson-grades` (o'z-o'ziga qamrovli — `studentId`
+tokendan) + reyting varaqasidagi ro'yxat (faqat `row.isMe` da).
 
 ### ⚠️ ISHLATISHDAN OLDIN SHART
 

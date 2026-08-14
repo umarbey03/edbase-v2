@@ -3,7 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Media;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -92,6 +94,28 @@ public static class DbInitializer
         var bootstrap = BootstrapAdmin.Read(configuration, environment.IsDevelopment());
 
         await InitializeAsync(db, hasher, bootstrap, logger, ct).ConfigureAwait(false);
+
+        // ════════════════════════════════════════════════════════════════
+        // NAMUNAVIY (DEMO) MA'LUMOT — ALOHIDA, OSHKOR KALIT ORTIDA
+        //
+        // ★ NIMA UCHUN SHU YERDA, `InitializeAsync` ICHIDA EMAS: yuqoridagi
+        //   overload testlar va migratsiya vositalari uchun ochiq. Demo
+        //   ma'lumot esa TO'LIQ ilova kontekstini talab qiladi (ombor
+        //   servislari, konfiguratsiya) va u yerda umuman kerak emas.
+        //
+        // 🔴 Kalit va uning uch qatlamli himoyasi — `DemoDataSeeder` izohida.
+        // ════════════════════════════════════════════════════════════════
+        if (!DemoDataSeeder.IsEnabled(configuration))
+            return;
+
+        // Ombor servislari IXTIYORIY: ular ro'yxatdan o'tmagan bo'lsa ham
+        // namunaviy ma'lumotning 95% i (faylsiz qismi) baribir yoziladi.
+        var media = scope.ServiceProvider.GetService<IMediaStorage>();
+        var submissions = scope.ServiceProvider.GetService<ISubmissionStorage>();
+
+        await DemoDataSeeder
+            .SeedAsync(db, hasher, media, submissions, logger, ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Testlar va migratsiya vositalari uchun to'g'ridan-to'g'ri variant.</summary>
