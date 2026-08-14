@@ -50,6 +50,22 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
+// ---------------------------------------------------------------- sinov kirishi
+//
+// ⚠️ FAQAT SINOV UCHUN: `POST /api/v1/auth/dev/quick-login` — rol tugmasi
+//    bosilganda namunaviy hisob nomidan sessiya ochadi (telefon kodisiz).
+//
+// 🔴 DARVOZA SINGLETON VA U KONFIGURATSIYANI ISHGA TUSHISHDA O'QIYDI:
+//    kalitni ish paytida yoqib bo'lmaydi, ya'ni yoqilgan holat HAR DOIM
+//    startdagi baland ovozli ogohlantirish bilan juft keladi
+//    (`DevQuickLoginGate.LogStartupState`, pastda).
+//
+// ★ XUSUSIYATNI BUTUNLAY OLIB TASHLASH UCHUN shu ikki qator va
+//   `DevAuthController` o'chiriladi — haqiqiy `AuthController` ga
+//   tegilmaydi.
+builder.Services.AddSingleton<DevQuickLoginGate>();
+builder.Services.AddScoped<DevQuickLoginService>();
+
 // Chat yozuvchisi: BITTA instance ham IChatMessageWriter, ham fon xizmati.
 // Ikkalasi bir obyekt bo'lishi SHART — aks holda hub bir kanalga yozadi,
 // fon xizmati esa boshqasini o'qib, xabarlar hech qachon saqlanmaydi.
@@ -523,6 +539,13 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 await DbInitializer.InitializeAsync(app.Services);
 
 ApiLog.ApiStarted(app.Logger, app.Environment.EnvironmentName);
+
+// 🔴 SINOV KIRISHI YOQILGAN BO'LSA — BALAND OVOZDA. Bu autentifikatsiyani
+//    chetlab o'tish yo'li, ya'ni uning yoqiqligi log'ning eng boshida,
+//    ogohlantirish darajasida ko'rinishi SHART. Kalit so'ralgan-u muhit
+//    rad etgan holat ham yoziladi — aks holda operator tugmalar
+//    chiqmaganda sababini topa olmasdi.
+app.Services.GetRequiredService<DevQuickLoginGate>().LogStartupState(app.Logger);
 
 // Kuzatuv holati LOGDA ko'rinsin: "Sentry nega ishlamayapti?" degan savolga
 // javob birinchi qatorda turadi (DSN berilmagan bo'lsa — "o'chirilgan").

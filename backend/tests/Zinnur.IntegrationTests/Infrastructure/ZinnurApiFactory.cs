@@ -46,6 +46,23 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     protected virtual int AuthRefreshPermitLimit => 1000;
 
     /// <summary>
+    /// ASP.NET muhit nomi. Odatiy — <c>Development</c>.
+    ///
+    /// ★ NIMA UCHUN OVERRIDE QILINADIGAN QILINDI (2026-08-14): ba'zi
+    ///   himoyalar AYNAN muhitga bog'liq va ularni boshqa yo'l bilan
+    ///   sinab bo'lmaydi. Birinchi shunday holat — sinov uchun kirish
+    ///   (`Dev__QuickLogin`): u <c>Production</c> da kalit YOQIQ bo'lsa
+    ///   ham ishlamasligi kerak, va bu shartni tekshiradigan yagona usul
+    ///   — ilovani HAQIQATAN <c>Production</c> muhitida ko'tarish.
+    ///
+    /// ⚠️ <c>Production</c> ga o'tkazgan fixture <c>Bootstrap:AdminPhone</c>
+    ///   ni HAM berishi shart: prod'da bu qiymatning standarti ATAYLAB
+    ///   yo'q va usiz `DbInitializer` ishga tushishdayoq yiqiladi
+    ///   (`BootstrapAdmin.EnsureUsable`).
+    /// </summary>
+    protected virtual string EnvironmentName => "Development";
+
+    /// <summary>
     /// Oyna uzunligi (sekund). Chegara testida ATAYLAB uzaytiriladi:
     /// qat'iy oyna (fixed window) so'rovlar orasida yopilib qolsa,
     /// hisoblagich nolga qaytib test tasodifan yiqilardi.
@@ -110,7 +127,7 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment(EnvironmentName);
 
         // `UseSetting` ATAYLAB — `ConfigureAppConfiguration` EMAS.
         //

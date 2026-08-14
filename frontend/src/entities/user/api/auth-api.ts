@@ -1,10 +1,13 @@
 import { http } from '@/shared/api'
 import type {
   AuthResponse,
+  DevQuickLoginAccount,
+  DevQuickLoginList,
   PhoneCodeRequest,
   PhoneCodeResponse,
   PhoneVerifyRequest,
   UserDto,
+  UserRoleName,
 } from '@/shared/types'
 
 /**
@@ -66,4 +69,57 @@ export function logout(): Promise<void> {
 /** SPEC 5: `GET /api/v1/auth/me` — `UserDto`. */
 export function fetchMe(options?: { signal?: AbortSignal }): Promise<UserDto> {
   return http.get<UserDto>('/api/v1/auth/me', { signal: options?.signal })
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ FAQAT SINOV UCHUN — bir bosishda rol bo'yicha kirish
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Bu ikki funksiya yuqoridagi HAQIQIY oqimga aloqador emas va ATAYLAB
+// fayl OXIRIDA, o'z sarlavhasi ostida turadi: `login`/`verify` ni
+// o'qiyotgan odam ular orasida "yana bir kirish yo'li" ni ko'rmasin.
+//
+// 🔴 SERVER TOMONIDA UCHTA DARVOZA BOR (oshkor kalit + muhit `Production`
+//    emas + faqat namunaviy hisoblar). Frontend ularning HECH BIRINI
+//    takrorlamaydi va takrorlamasligi ham kerak: mijozdagi tekshiruv —
+//    bezak, u faqat DevTools ochilgunicha yashaydi. Bu yerdagi yagona
+//    qoida — serverdan kelgan javobga ISHONISH.
+
+/**
+ * ⚠️ SINOV UCHUN. Namunaviy hisoblar ro'yxati.
+ *
+ * 🔴 XATO — NORMAL HOLAT. Xususiyat o'chiq bo'lsa server 404 qaytaradi,
+ * ya'ni `catch` bu yerda "nosozlik" emas, "bunday xususiyat yo'q" degani.
+ * Shuning uchun xato YUQORIGA UZATILMAYDI va bo'sh ro'yxatga aylanadi:
+ * chaqiruvchi ikki holatni ajratmasligi kerak (ikkalasi ham "hech nima
+ * ko'rsatma" degani), aks holda oddiy serverda kirish sahifasida
+ * sababsiz xato xabari chiqib turardi.
+ */
+export async function fetchDevQuickLoginAccounts(
+  options?: { signal?: AbortSignal },
+): Promise<DevQuickLoginAccount[]> {
+  try {
+    const list = await http.get<DevQuickLoginList>('/api/v1/auth/dev/quick-login', {
+      auth: false,
+      signal: options?.signal,
+    })
+    return list.accounts
+  } catch {
+    return []
+  }
+}
+
+/**
+ * ⚠️ SINOV UCHUN. Rol bo'yicha sessiya ochadi (telefon kodisiz).
+ *
+ * Javob — AYNI `AuthResponse`, ya'ni tokenlar odatdagi joyda saqlanadi
+ * va `refresh`/`logout` hech qanday o'zgarishsiz ishlaydi.
+ *
+ * ★ TANAGA ROL KETADI, `id` EMAS: server rolni O'ZINING namunaviy
+ *   ro'yxatidan qidiradi. Identifikator yuborilsa, so'rov "kimga
+ *   kirish" ni tanlay olardi — bu esa aynan eski tizimning X-1
+ *   zaifligi bo'lardi (u yerda telefon raqami mijozdan kelardi).
+ */
+export function devQuickLogin(role: UserRoleName): Promise<AuthResponse> {
+  return http.post<AuthResponse>('/api/v1/auth/dev/quick-login', { role }, { auth: false })
 }

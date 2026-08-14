@@ -81,6 +81,59 @@ public static class DemoDataSeeder
     /// </summary>
     public const int MaxUsersForDemo = 3;
 
+    // ════════════════════════════════════════════════════════════════════
+    // 🔴 NAMUNAVIY HISOBNI ANIQLAYDIGAN YAGONA BELGI — TELEGRAM ID DIAPAZONI
+    //
+    // Bu diapazon 2026-08-14 da SINFDAN TASHQARIGA chiqarildi, chunki uni
+    // endi ikkinchi joy ham o'qiydi: `DevQuickLoginService` (test uchun
+    // bir bosishda kirish). O'sha endpoint UCHINCHI, eng muhim darvozasi —
+    // "faqat namunaviy hisoblarga kirish mumkin" — AYNAN shu shartga
+    // tayanadi, ya'ni chegara BITTA joyda turishi shart.
+    //
+    // ★ NIMA UCHUN EMAIL EMAS (bu — eng muhim tanlov):
+    //   `DbInitializer` HAR o'rnatishda, jumladan HAQIQIY markazda ham,
+    //   `admin@zinnur.uz`, `teacher@zinnur.uz` va `student@zinnur.uz`
+    //   profillarini yaratadi. Ya'ni "email `@zinnur.uz` bilan tugasa —
+    //   demak namunaviy" degan qoida HAQIQIY markazning administratori
+    //   (uning telefoni `Bootstrap__AdminPhone` — ko'pincha EGASINING
+    //   SHAXSIY RAQAMI) hisobiga to'g'ridan-to'g'ri yo'l ochib berardi.
+    //   Bu — aynan qochilishi kerak bo'lgan halokat.
+    //
+    // ★ NIMA UCHUN TELEGRAM ID XAVFSIZ: bu ustunga qiymat yozadigan
+    //   yo'llar SANOQLI va ularning HAMMASI haqiqiy ID beradi —
+    //   `initData` imzosi (Mini App) yoki `message.contact.user_id`
+    //   (bot). Ikkalasini ham TELEGRAM'ning O'ZI generatsiya qiladi va
+    //   bugungi qiymatlar ~10¹⁰ atrofida (7·10¹² — undan ~700 barobar
+    //   uzoqda). Ya'ni haqiqiy foydalanuvchi bu oraliqqa TASODIFAN
+    //   tushib qola olmaydi; oraliqqa yozadigan yagona kod —
+    //   <see cref="DemoWorld"/>.
+    //
+    //   Uchinchi yo'l — `Bootstrap__AdminTelegramId` — qo'lda kiritiladi,
+    //   lekin unga bu diapazondagi sonni yozish "o'zimni namunaviy
+    //   hisob qilib ko'rsataman" degani bo'lardi: buni faqat serverning
+    //   muhit o'zgaruvchilarini boshqaradigan odam qila oladi, u esa
+    //   allaqachon bazaga to'liq kirish huquqiga ega.
+    //
+    // 🔴 NIMA UCHUN "demo seed ishlaganmi" MARKERI (`AcademicEmail`)
+    //    YOLG'IZ YETARLI EMAS: u butun BAZA haqida gapiradi, ayrim
+    //    QATOR haqida emas. Marker bor bazada haqiqiy markaz xodimi ham
+    //    bo'lishi mumkin (demo yozilgan stend keyin real ma'lumot bilan
+    //    to'ldirilsa) — diapazon esa har qatorni ALOHIDA tekshiradi.
+    // ════════════════════════════════════════════════════════════════════
+
+    /// <summary>Namunaviy hisoblarning soxta Telegram ID diapazoni — QUYI chegara.</summary>
+    public const long DemoTelegramIdMin = 7_000_000_000_000L;
+
+    /// <summary>
+    /// Diapazonning YUQORI chegarasi (bu qiymatning O'ZI kirmaydi).
+    ///
+    /// ★ Bugun <see cref="DemoWorld"/> eng ko'pi bilan <c>+112</c> ni
+    /// ishlatadi; 1000 — o'sish uchun zaxira. Chegara ATAYLAB yopiq:
+    /// "shundan katta hammasi" degan qoida diapazonni cheksiz qilib,
+    /// kelajakda Telegram ID'lari o'sganda himoyani yo'q qilardi.
+    /// </summary>
+    public const long DemoTelegramIdMaxExclusive = DemoTelegramIdMin + 1_000L;
+
     /// <summary>
     /// ⚠️ PAROL BILAN KIRISH YO'Q (2026-08-13 dan). Bu qiymat faqat
     /// <c>PasswordHash</c> ustuni <c>required</c> bo'lgani uchun kerak.

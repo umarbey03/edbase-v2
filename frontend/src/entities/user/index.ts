@@ -1,4 +1,9 @@
 export {
+  // ⚠️ `devQuickLogin` / `fetchDevQuickLoginAccounts` — FAQAT SINOV
+  //    UCHUN (kirish sahifasidagi rol tugmalari). Ular haqiqiy kirish
+  //    oqimiga aloqador emas — batafsil `auth-api.ts` oxiridagi izohda.
+  devQuickLogin,
+  fetchDevQuickLoginAccounts,
   fetchMe,
   loginWithTelegram,
   logout,

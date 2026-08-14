@@ -63,8 +63,21 @@ internal sealed class DemoWorld(
     //
     // ★ KODNI QAYERDAN OLASIZ: soxta ID'ga xabar yetib bormaydi. Kod
     //   `MessageOutbox` jadvalida qoladi (buyruq — hisobotda).
+    //
+    // 🔴 QIYMATNING O'ZI ENDI `DemoDataSeeder` DA (2026-08-14). Sabab:
+    //    diapazon ikkinchi vazifani ham bajaradi — u "bu qator namunaviy"
+    //    degan YAGONA ishonchli belgi va `DevQuickLoginService` aynan
+    //    shunga tayanib haqiqiy markaz hisoblarini rad etadi. Ikki nusxa
+    //    bo'lsa, biri o'zgarganda ikkinchisi jimgina "hamma qator
+    //    namunaviy emas" deb qolardi.
+    //
+    // ⚠️ QUYIDA ISHLATILADIGAN ENG KATTA SILJISH — `+112`
+    //    (12 o'quvchi, `TelegramBase + 101 + i`). U
+    //    `DemoDataSeeder.DemoTelegramIdMaxExclusive` (=+1000) dan OSHMASLIGI
+    //    SHART: oshsa, o'sha o'quvchi diapazondan chiqib ketadi va unga
+    //    test kirishi jimgina ishlamay qo'yadi.
     // ════════════════════════════════════════════════════════════════════
-    private const long TelegramBase = 7_000_000_000_000L;
+    private const long TelegramBase = DemoDataSeeder.DemoTelegramIdMin;
 
     /// <summary>Namunaviy raqamlar prefiksi — hammasi bitta diapazonda.</summary>
     private const string PhonePrefix = "+99890111";

@@ -49,14 +49,41 @@ public interface IAuthService
     /// TASDIQLANGAN bir martalik koddan keyingi kirish (telefon oqimi).
     /// </summary>
     /// <remarks>
-    /// ★ CHAQIRUVCHI KODNI ALLAQACHON TEKSHIRGAN VA ISHLATGAN bo'lishi
-    /// SHART: bu metod <paramref name="userId"/> ga so'zsiz ishonadi.
-    /// Yagona chaqiruvchi — <c>IPhoneLoginService.VerifyAsync</c>.
+    /// ★ CHAQIRUVCHI EGALIKNI ALLAQACHON TEKSHIRGAN bo'lishi SHART: bu
+    /// metod <paramref name="userId"/> ga so'zsiz ishonadi.
     ///
-    /// 🔴 <c>userId</c> HTTP so'rovidan KELMAYDI. U kod tasdiqlangandan
-    /// keyin SERVER tomonida, <c>PhoneNormalized</c> bo'yicha topiladi.
-    /// So'rov tanasidagi identifikatorga ishonish — eski tizimning X-1
-    /// zaifligining aynan o'zi bo'lardi.
+    /// 🔴 <c>userId</c> HTTP so'rovidan HECH QACHON KELMAYDI. U SERVER
+    /// tomonida topiladi. So'rov tanasidagi identifikatorga ishonish —
+    /// eski tizimning X-1 zaifligining aynan o'zi bo'lardi.
+    ///
+    /// ══════════════════════════════════════════════════════════════
+    /// CHAQIRUVCHILAR — IKKITA, VA IKKALASI HAM SHU YERDA SANALADI
+    ///
+    ///  1) <c>IPhoneLoginService.VerifyAsync</c> — asosiy va yagona
+    ///     ISHLAB CHIQARISH yo'li. Egalik bir martalik kod bilan
+    ///     isbotlanadi, `userId` esa <c>PhoneNormalized</c> bo'yicha
+    ///     topiladi.
+    ///
+    ///  2) <c>DevQuickLoginService</c> (2026-08-14) — ⚠️ FAQAT SINOV
+    ///     UCHUN. U EGALIKNI UMUMAN TEKSHIRMAYDI; o'rniga UCHTA
+    ///     mustaqil darvoza qo'yadi: oshkor kalit (`Dev__QuickLogin`,
+    ///     standart `false`) + muhit `Production` EMAS + faqat
+    ///     `DemoDataSeeder` yozgan hisoblar (Telegram ID diapazoni).
+    ///     Prod'da endpointning O'ZI 404 qaytaradi.
+    ///
+    /// ★ NIMA UCHUN U HAM SHU METODDAN O'TADI (alohida servis emas):
+    ///   yuqoridagi QAT'IY QOIDA — ikkinchi token yaratuvchi yozilmaydi.
+    ///   Sinov yo'li ham `TokenVersion`, `IsActive` tekshiruvi va
+    ///   `refresh`/`logout` bilan AYNAN bir xil ishlashi kerak, aks
+    ///   holda u "boshqa turdagi sessiya" bo'lib qolardi va sinov
+    ///   haqiqiy xulqni tekshirmasdi.
+    ///
+    /// ⚠️ METOD NOMI ("Phone") ENDI IKKINCHI CHAQIRUVCHIGA TO'LIQ MOS
+    ///   EMAS. Nomni o'zgartirish ataylab QILINMADI: u kanonik oqimni
+    ///   nomlaydi, sinov yo'li esa vaqtinchalik mehmon — nom
+    ///   o'zgartirilsa asosiy oqimning tarixi va hujjatlardagi
+    ///   havolalar uzilardi.
+    /// ══════════════════════════════════════════════════════════════
     /// </remarks>
     Task<AuthResponse> LoginWithPhoneAsync(long userId, CancellationToken ct = default);
 

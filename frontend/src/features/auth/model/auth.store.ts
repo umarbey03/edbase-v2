@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
 import {
+  devQuickLogin as devQuickLoginRequest,
   fetchMe,
   loginWithTelegram as telegramLoginRequest,
   logout as logoutRequest,
@@ -10,7 +11,7 @@ import {
 } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { clearTokens, getRefreshToken, onAuthExpired, refreshAccessToken, setTokens } from '@/shared/api'
-import type { AuthResponse, PhoneCodeResponse } from '@/shared/types'
+import type { AuthResponse, PhoneCodeResponse, UserRoleName } from '@/shared/types'
 
 /**
  * Autentifikatsiya store'i.
@@ -83,6 +84,24 @@ export const useAuthStore = defineStore('auth', () => {
     return applySession(await telegramLoginRequest(initData))
   }
 
+  /**
+   * ⚠️ FAQAT SINOV UCHUN: rol tugmasi bilan kirish (telefon kodisiz).
+   *
+   * ★ U HAM `applySession` DAN O'TADI — va bu ataylab. Sinov sessiyasi
+   *   haqiqiysidan HECH NARSA bilan farq qilmasligi kerak: token ham
+   *   o'sha joyda saqlanadi, `refresh` ham, `logout` ham odatdagidek
+   *   ishlaydi. Aks holda tekshiruvchi "sinovda ishladi, jonli tizimda
+   *   ishlamadi" turkumidagi farqlarga duch kelardi — ya'ni sinovning
+   *   O'ZI ishonchsiz bo'lib qolardi.
+   *
+   * 🔴 Server bu yo'lni UCHTA darvoza bilan yopadi (oshkor kalit + muhit
+   *    `Production` emas + faqat namunaviy hisoblar). Bu yerda hech
+   *    qanday qo'shimcha shart YO'Q va bo'lmasligi ham kerak.
+   */
+  async function devQuickLogin(role: UserRoleName): Promise<User> {
+    return applySession(await devQuickLoginRequest(role))
+  }
+
   async function logout(): Promise<void> {
     try {
       await logoutRequest()
@@ -132,6 +151,8 @@ export const useAuthStore = defineStore('auth', () => {
     isReady,
     isAuthenticated,
     bootstrap,
+    // ⚠️ FAQAT SINOV UCHUN — izoh yuqorida.
+    devQuickLogin,
     loginWithTelegram,
     logout,
     reloadProfile,

@@ -533,6 +533,28 @@ services:
       # o'quvchi tushmasin). Batafsil — `DemoDataSeeder` izohi.
       Seed__Demo: ${SEED_DEMO:-false}
 
+      # ---- SINOV UCHUN KIRISH (rol tugmalari) -----------------------------
+      # `true` bo'lsa kirish sahifasida "Sinov rejimi" paneli chiqadi va har
+      # rolga bittadan tugma beriladi: bosilganda NAMUNAVIY hisob nomidan
+      # sessiya ochiladi — telefon kodisiz.
+      #
+      # 🔴 BU — AUTENTIFIKATSIYANI CHETLAB O'TISH. Uchta mustaqil darvoza
+      # bor va UCHALASI ham bajarilishi shart:
+      #   1) shu kalit (standarti — `false`);
+      #   2) muhit `Production` EMAS (`ASPNETCORE_ENVIRONMENT`);
+      #   3) faqat `DemoDataSeeder` yozgan hisoblar (soxta Telegram ID
+      #      diapazoni) — ya'ni haqiqiy markazning administratoriga bu yo'l
+      #      bilan HECH QACHON kirib bo'lmaydi.
+      #
+      # ⚠️ 2-shart tufayli `ASPNETCORE_ENVIRONMENT=Production` bilan
+      # ishlaydigan serverda kalit yoqilgan bo'lsa ham tugmalar CHIQMAYDI
+      # (log'da sabab yoziladi). Ko'rish kerak bo'lsa muhitni `Staging` ga
+      # o'tkazish yetarli — himoyani yumshatish SHART EMAS.
+      #
+      # Yoqilganda log'ning eng boshida baland ovozli ogohlantirish chiqadi:
+      # `docker compose logs api | grep "SINOV UCHUN KIRISH"`.
+      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-false}
+
       # ---- OBYEKT OMBORI (vazifa fayllari) --------------------------------
       # DEV: MinIO (yuqoridagi xizmat). PROD: Cloudflare R2 — qiymatlar
       # docker-compose.prod.yml da QAYTA yoziladi, chunki compose overlay'lari
