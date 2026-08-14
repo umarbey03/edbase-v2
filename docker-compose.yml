@@ -527,11 +527,22 @@ services:
       # chat va yozuvlar. Tekshirish uchun kirish raqamlari LOGDA jadval
       # ko'rinishida chiqadi (`docker compose logs api | grep Namunaviy`).
       #
-      # 🔴 STANDART QIYMAT — `false`, VA U ATAYLAB SHUNDAY. Yoqilgan holda
-      # ham himoya bor: bazada 3 tadan ko'p foydalanuvchi bo'lsa seeder
-      # ISHLAMAYDI va logga xato yozadi (ishlab turgan markazga soxta
-      # o'quvchi tushmasin). Batafsil — `DemoDataSeeder` izohi.
-      Seed__Demo: ${SEED_DEMO:-false}
+      # ⚠️ SINOV BOSQICHIDA STANDART — `true` (loyiha egasi, 2026-08-14:
+      # *"shu avtomatik barcha pull qilingan holdayam chiqib tursin,
+      # hozircha faqat sinaymiz"*). Ya'ni `git pull` qilgan har bir
+      # hamkasb `.env` ni tahrirlamasdan to'la ma'lumot bilan ishlaydi.
+      #
+      # 🔴 YOQIQ BO'LSA HAM ASOSIY HIMOYA JOYIDA: bazada 3 tadan ko'p
+      # foydalanuvchi bo'lsa seeder ISHLAMAYDI va logga xato yozadi. Ya'ni
+      # ishlab turgan markazning bazasiga soxta o'quvchi TUSHMAYDI —
+      # standart o'zgargani bilan bu kafolat o'zgarmadi.
+      #
+      # ★ Bu FAQAT DEV faylining standarti. `docker-compose.prod.yml` bu
+      # kalitni umuman bilmaydi, ya'ni prod'da C# standarti (`false`)
+      # amal qiladi.
+      #
+      # 🔴 SINOV TUGAGACH QAYTARILADI: `${SEED_DEMO:-false}`.
+      Seed__Demo: ${SEED_DEMO:-true}
 
       # ---- SINOV UCHUN KIRISH (rol tugmalari) -----------------------------
       # `true` bo'lsa kirish sahifasida "Sinov rejimi" paneli chiqadi va har
@@ -553,7 +564,18 @@ services:
       #
       # Yoqilganda log'ning eng boshida baland ovozli ogohlantirish chiqadi:
       # `docker compose logs api | grep "SINOV UCHUN KIRISH"`.
-      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-false}
+      #
+      # ⚠️ SINOV BOSQICHIDA STANDART — `true` (loyiha egasi, 2026-08-14).
+      # Hamkasblar `git pull` qilib darrov sinay olsin uchun.
+      #
+      # 🔴 STANDART O'ZGARDI, DARVOZALAR EMAS: 2- va 3-shartlar joyida
+      # qoladi. Ya'ni (a) `Production` da tugmalar baribir chiqmaydi va
+      # (b) faqat namunaviy hisoblarga kiriladi — haqiqiy markazning
+      # administratori bu yo'l bilan HECH QACHON ochilmaydi. Aynan shu
+      # ikki darvoza tufayli standartni yoqish maqbul.
+      #
+      # 🔴 SINOV TUGAGACH QAYTARILADI: `${DEV_QUICK_LOGIN:-false}`.
+      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-true}
 
       # ---- OBYEKT OMBORI (vazifa fayllari) --------------------------------
       # DEV: MinIO (yuqoridagi xizmat). PROD: Cloudflare R2 — qiymatlar
