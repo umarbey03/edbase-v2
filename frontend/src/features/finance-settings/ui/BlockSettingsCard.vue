@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { BLOCK_SCOPE_OPTIONS, fetchFinanceSettings, updateFinanceSettings } from '@/entities/payment'
 import { toUserMessage } from '@/shared/api'
 import { formatSum, parseMoneyInput } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { PaymentBlockScopeName } from '@/shared/types'
 import { BaseButton, BaseCard, BaseField, BaseSpinner } from '@/shared/ui'
 
@@ -76,8 +77,48 @@ const canSubmit = computed(
   () => threshold.value !== null && thresholdError.value === null && !mutation.isPending.value,
 )
 
-function submit(): void {
+const confirm = useConfirm()
+
+const scopeLabel = computed(
+  () => BLOCK_SCOPE_OPTIONS.find((option) => option.value === scope.value)?.label ?? scope.value,
+)
+
+/**
+ * R4 — BLOK SIYOSATINI SAQLASH TASDIQLANADI, `warning` TONIDA.
+ *
+ * ★ NEGA `danger` EMAS: hech narsa o'chmaydi va qiymatni orqaga qaytarish
+ * uchun yana shu forma yetarli. Lekin yon ta'siri KATTA va DARHOL — shuning
+ * uchun `primary` ham emas: bu sozlama BITTA o'quvchiga emas, markazdagi
+ * HAMMAGA tegadi, guruh yoki kurs kesimi yo'q.
+ *
+ * ★ CHEGARA `details` DA, `formatSum` BILAN (reja B2: yon ta'siri katta
+ * amalda RAQAM ko'rsatilsin). Sabab aniq: bu maydondagi eng qimmat xato —
+ * bitta ortiqcha yoki yetishmayotgan nol. `540000` va `54000` maydonda
+ * deyarli bir xil ko'rinadi, "540 000 so'm" esa yo'q.
+ */
+async function submit(): Promise<void> {
   if (!canSubmit.value) return
+
+  const value = threshold.value
+  if (value === null) return
+
+  const ok = await confirm({
+    title: 'Blok sozlamalarini saqlash',
+    message:
+      'Yangi chegara markazdagi BARCHA o‘quvchiga darhol qo‘llanadi — guruh yoki kurs kesimi yo‘q.',
+    confirmLabel: 'Saqlash',
+    tone: 'warning',
+    details: [
+      `Chegara: ${formatSum(value)}`,
+      `Yopiladigan qism: ${scopeLabel.value}`,
+      settings.value?.enforce === true
+        ? 'Blok rejimi yoqilgan — qarzi chegaradan oshganlar shu ondan yopiladi.'
+        : 'Blok rejimi o‘chiq — qiymat saqlanadi, lekin hozircha hech kim bloklanmaydi.',
+      'Istisno qilingan o‘quvchilarga ta’sir qilmaydi.',
+    ],
+  })
+  if (!ok) return
+
   errorMessage.value = null
   savedNote.value = null
   mutation.mutate()

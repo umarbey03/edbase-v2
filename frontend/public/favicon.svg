@@ -1,4 +1,22 @@
+<!--
+  R19 — BREND RANGI. Ilgari bu yerda v1 ning YASHIL aksenti turardi va u
+  2026-08-10 dagi indigo temaga hech qachon ko'chirilmagan edi: ilova
+  butunlay indigo bo'lgani holda brauzer tabidagi belgi yashil qolib,
+  brend rangi haqidagi talab aynan eng ko'rinadigan joyda buzilardi.
+
+  🔴 XOM HEX BU YERDA MAJBURIY va bu `src/` dagi qoidaning ISTISNOSI EMAS,
+  balki uning TASHQARISI: `public/` fayllari Vite/Tailwind quvuridan
+  o'tmaydi, ya'ni `var(--color-brand-500)` bu yerda hech narsaga
+  bog'lanmaydi (brauzer favicon SVG'sini ilova CSS'isiz, mustaqil hujjat
+  sifatida o'qiydi).
+
+  ★ QIYMATLAR `src/style.css` DAGI TOKENLARDAN NUSXA:
+      #4f4de8 = --color-brand-500  (aksent)
+      #ffffff = --color-on-brand   (aksent ustidagi belgi)
+  Aksent o'zgarsa BU FAYL ham QO'LDA yangilanadi — bog'lanish avtomatik
+  emas, shuning uchun qaysi token ekani shu yerda nomi bilan yozib qo'yildi.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#2f9e41" />
-  <path d="M20 22h24l-24 20h24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <rect width="64" height="64" rx="14" fill="#4f4de8" />
+  <path d="M20 22h24l-24 20h24" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
 </svg>

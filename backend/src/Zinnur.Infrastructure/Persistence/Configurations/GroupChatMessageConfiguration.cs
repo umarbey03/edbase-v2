@@ -76,5 +76,31 @@ public sealed class GroupChatMessageConfiguration : IEntityTypeConfiguration<Gro
         // ============================================================
         builder.HasIndex(m => new { m.GroupId, m.Channel, m.SenderId, m.Id })
             .HasDatabaseName("IX_GroupChatMessages_Unread");
+
+        // ============================================================
+        // ★ TOZALASH INDEKSI: (SentAt, Id)
+        //
+        // Yagona o'quvchisi — `ChatRetentionJob`:
+        //   WHERE SentAt < @cutoff ORDER BY SentAt, Id LIMIT @batch
+        //
+        // 🔴 NIMA UCHUN KERAK: yuqoridagi ikkala indeks ham `GroupId` dan
+        // BOSHLANADI, ya'ni ularning bittasi ham vaqt bo'yicha filtrga
+        // yaramaydi. Indekssiz bu so'rov eng katta jadvalda KETMA-KET
+        // SKAN bo'lardi — va u SOATIGA bir marta, o'chiradigan narsa
+        // BO'LMAGANDA ham yurardi. Indeks bilan esa "eskisi bormi?"
+        // degan savolga javob bitta seek bilan olinadi.
+        //
+        // ★ `Id` IKKINCHI USTUN — saralash uchun: bir xil `SentAt` li
+        // qatorlarda tartib aniq bo'ladi va paket indeksning O'ZIDAN
+        // o'qiladi (jadvalga kirilmaydi).
+        //
+        // ⚠️ NARXI: har `INSERT` da bitta qo'shimcha B-tree yozuvi. Bu
+        // yozish yo'li ODAM tezligida (o'quvchi savol yozadi), ya'ni
+        // narx sezilmaydi. Muqobil yechim — `Id` monotonligiga tayanish
+        // — YOZILMAGAN taxminga asoslanardi va buzilganda tozalash
+        // JIMGINA to'xtardi; sabab batafsil `ChatRetentionJob` izohida.
+        // ============================================================
+        builder.HasIndex(m => new { m.SentAt, m.Id })
+            .HasDatabaseName("IX_GroupChatMessages_SentAt");
     }
 }

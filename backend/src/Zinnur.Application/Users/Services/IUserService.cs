@@ -27,9 +27,10 @@ public interface IUserService
     Task<UserDetailsDto> SetActiveAsync(
         long id, bool isActive, long actorId, CancellationToken ct = default);
 
-    /// <summary>Yangi vaqtinchalik parol generatsiya qiladi va uni BIR MARTA qaytaradi.</summary>
-    Task<ResetPasswordResponse> ResetPasswordAsync(
-        long id, long actorId, CancellationToken ct = default);
+    // ⚠️ `ResetPasswordAsync` OLIB TASHLANDI (2026-08-13): parol bilan
+    //    kirish yo'q, ya'ni "vaqtinchalik parol" hech qayerda ishlamasdi.
+    //    Sessiyani bekor qilish uchun `SetActiveAsync(false)` yoki
+    //    `UnlinkTelegramAsync` (batafsil `UserService` dagi izohda).
 
     /// <summary>
     /// Telegram bog'lanishini UZADI (o'quv bo'limi qarori).

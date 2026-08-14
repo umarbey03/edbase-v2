@@ -7,6 +7,7 @@ using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Domain.Entities;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.WebApi.Hubs;
 
@@ -115,7 +116,23 @@ public sealed class LiveClassHub(
         Context.User?.FindFirstValue(ClaimTypes.Name) ?? "Noma'lum";
 
     private string RoleName =>
-        Context.User?.FindFirstValue(ClaimTypes.Role) ?? "Student";
+        Context.User?.FindFirstValue(ClaimTypes.Role) ?? nameof(UserRole.Student);
+
+    /// <summary>
+    /// Qo'l ko'tarish huquqi — FAQAT o'quvchida (<see cref="RaiseHand"/>).
+    ///
+    /// ★ ROL DA'VOSI YETARLI: bu yerda "shu darsning ustozimi?" degan
+    /// aniqroq savolni berish mumkin edi, lekin u har chaqiruvda bazaga
+    /// borishni talab qilardi — sinf izohidagi 5-qaror aynan buni taqiqlaydi
+    /// (200 kishilik xonada sezilarli yuk). Rol esa JWT'da tayyor turadi.
+    ///
+    /// ★ Da'vo umuman bo'lmasa <see cref="RoleName"/> "Student" beradi, ya'ni
+    /// nosoz token qo'l ko'tarishni BLOKLAMAYDI. Bu ataylab: eng yomon holat —
+    /// xodimning qo'li ro'yxatda ko'rinib qolishi (shovqin), o'quvchining
+    /// so'z so'rash imkonidan mahrum bo'lishi esa darsni buzardi.
+    /// </summary>
+    private bool CanRaiseHand =>
+        string.Equals(RoleName, nameof(UserRole.Student), StringComparison.Ordinal);
 
     /// <summary>Ulanish kontekstida saqlangan sessiya (ruxsat allaqachon tekshirilgan).</summary>
     private long? CurrentSessionId =>
@@ -270,13 +287,32 @@ public sealed class LiveClassHub(
         return raw;
     }
 
-    /// <summary>Qo'l ko'tarish / tushirish.</summary>
+    /// <summary>
+    /// Qo'l ko'tarish / tushirish — FAQAT o'quvchi uchun.
+    ///
+    /// ★ ROL TEKSHIRUVI 2026-08-13 da QO'SHILDI (R1). Ilgari bu metodda
+    /// HECH QANDAY rol sharti YO'Q edi — yagona shart "shu sessiyadamisan?"
+    /// edi, rol da'vosi (<see cref="RoleName"/>) esa faqat presence yozuvi
+    /// uchun o'qilardi.
+    ///
+    /// 🔴 NIMA UCHUN UI GATE'i YETARLI EMAS: ko'tarilgan qo'l Redis'dagi
+    /// presence yozuviga TUSHADI va xonadagi HAMMAGA tarqatiladi — ya'ni
+    /// eski/keshlangan klient yoki oddiy `curl` bilan yuborilgan bitta
+    /// chaqiruv ustozning ismini barcha o'quvchilarning "Qo'l ko'targanlar"
+    /// ro'yxatida qoldirardi va uni faqat qayta ulanish tozalardi.
+    /// </summary>
     public async Task RaiseHand(long sessionId, bool raised)
     {
         var userId = UserId;
 
         if (CurrentSessionId != sessionId)
             throw new HubException("Avval darsga qo'shiling.");
+
+        // ★ `HubException` ATAYLAB: SignalR klientga FAQAT shu turdagi
+        // istisno matnini uzatadi (sinf izohidagi `ChatRateLimitMessage` ga
+        // qarang), ya'ni sabab jimgina yo'qolmaydi.
+        if (!CanRaiseHand)
+            throw new HubException("Qo'l ko'tarish faqat o'quvchilar uchun.");
 
         await presence.SetHandRaisedAsync(sessionId, userId, raised, Context.ConnectionAborted);
 

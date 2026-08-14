@@ -14,6 +14,7 @@ import {
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { formatFileSize } from '@/shared/lib/text'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { StudentAssignmentDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -113,9 +114,47 @@ const canSubmit = computed(
   () => !isEmptyAnswer.value && attachmentError.value === null && !mutation.isPending.value,
 )
 
-function handleSubmit(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — TASDIQ FAQAT QAYTA TOPSHIRISH SHOXIDA.
+ *
+ * ★ BIRINCHI TOPSHIRISHDA OYNA YO'Q — ATAYLAB. U hech narsani
+ * almashtirmaydi (avval javob YO'Q edi) va bu o'quvchining eng tez-tez
+ * takrorlanadigan amali; har topshirishga ikkinchi qadam qo'shish
+ * vazifani mexanik ravishda og'irlashtirardi.
+ *
+ * 🔴 QAYTA TOPSHIRISH ESA — YO'QOTISH: yangi javob eskisini TO'LIQ
+ * almashtiradi (matn ham, fayllar ham) va QO'YILGAN BAHO BEKOR QILINADI.
+ * Bundan tashqari qayta yuborish ruxsati BIR MARTALIK: oyna yopilgach
+ * o'quvchi uni o'zi qayta ocha olmaydi — ustoz yana ruxsat berishi kerak.
+ * Ogohlantirish sahifada bor edi, lekin u FORMA USTIDAGI matn — fayl
+ * tanlab, pastdagi "Yuborish" ga yetguncha ekrandan chiqib ketadi.
+ */
+async function handleSubmit(): Promise<void> {
   const assignment = props.assignment
   if (assignment === null || !canSubmit.value) return
+
+  if (isResubmit.value) {
+    const previousScore = assignment.mySubmission?.score ?? null
+    const ok = await confirm({
+      title: 'Javobni qayta yuborish',
+      message:
+        `“${assignmentTitle(assignment.title, assignment.id)}” uchun avvalgi javob `
+        + 'TO‘LIQ almashtiriladi.',
+      confirmLabel: 'Yuborish',
+      tone: 'warning',
+      details: [
+        'Eski matn va fayllar saqlanmaydi.',
+        previousScore === null
+          ? 'Ustoz tekshiruvi qaytadan boshlanadi.'
+          : `Qo‘yilgan baho (${previousScore} / ${assignment.maxScore}) bekor qilinadi.`,
+        'Qayta yuborish ruxsati bir martalik — keyingi urinish uchun ustoz yana ruxsat berishi kerak.',
+      ],
+    })
+    if (!ok) return
+  }
+
   errorMessage.value = null
   mutation.mutate(assignment.id)
 }

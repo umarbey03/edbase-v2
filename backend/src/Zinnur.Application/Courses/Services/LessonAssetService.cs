@@ -38,6 +38,14 @@ namespace Zinnur.Application.Courses.Services;
 /// eng foydali xabar aynan to'lov haqidagisi; gating xabari ("oldingi dars
 /// tugatilmagan") uni chalg'itardi.
 ///
+/// ★★ CHIPTA YO'LI SHU QOIDANI CHETLAB O'TMAYDI. Brauzer `&lt;video src&gt;`
+/// bilan `Authorization` yubora olmagani uchun qisqa muddatli CHIPTA
+/// qo'shildi (<see cref="IMediaAccessTicketService"/>), lekin chipta
+/// faqat "KIM" degan savolga javob beradi. "RUXSATMI?" savoliga javob
+/// baribir SHU YERDA, <see cref="EnsureCanReadAsync"/> da va HAR bayt
+/// so'rovida beriladi. Ya'ni yangi yo'l gating va to'lov darvozasini
+/// zaiflashtirmaydi — u faqat kimligini aniqlash usulini almashtiradi.
+///
 /// ── 2) `Range` — VIDEO UCHUN HAYOTIY ───────────────────────────────────
 ///
 /// Oraliq BAZADAGI hajm bo'yicha normallashtiriladi va OMBORGA uzatiladi
@@ -67,6 +75,7 @@ namespace Zinnur.Application.Courses.Services;
 public sealed class LessonAssetService(
     IApplicationDbContext db,
     IMediaStorage storage,
+    IMediaAccessTicketService tickets,
     IGatingService gating,
     IPaymentBlockService paymentBlock,
     ISettingsResolver settings,
@@ -253,6 +262,34 @@ public sealed class LessonAssetService(
             SuggestFileName(asset),
             stored.TotalLength ?? asset.SizeBytes,
             effectiveRange);
+    }
+
+    // ================================================================= chipta (o'ynatish)
+
+    public async Task<MediaAccessTicket> CreateTicketAsync(
+        long assetId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct).ConfigureAwait(false);
+
+        // FAQAT dars Id'si kerak — bu yerda bironta bayt ham o'qilmaydi.
+        var lessonId = await db.LessonAssets.AsNoTracking()
+            .Where(a => a.Id == assetId)
+            .Select(a => (long?)a.LessonId)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false)
+            ?? throw new NotFoundException(nameof(LessonAsset), assetId);
+
+        // 🔴 AYNI DARVOZA, AYNI TARTIBDA (`OpenAsync` bilan). Chipta
+        //    berilishi o'zi bir marta ruxsat tekshiruvidan o'tadi, ya'ni
+        //    qarzdor yoki qulflangan darsdagi o'quvchi chiptani UMUMAN
+        //    ololmaydi va sababni (to'lov / gating xabari) DARHOL ko'radi.
+        await EnsureCanReadAsync(actor, lessonId, ct).ConfigureAwait(false);
+
+        // ⚠️ OMBOR SOZLANGANLIGI BU YERDA TEKSHIRILMAYDI. Sabab: chipta
+        //    ombordan mustaqil (u sof imzo), tekshiruv esa `OpenAsync` da
+        //    baribir bor. Bu yerda 503 berish "ruxsatingiz yo'q" bilan
+        //    "ombor o'chgan" ni bir xil ekranda aralashtirardi.
+        return tickets.Issue(assetId, actor.Id);
     }
 
     // ================================================================= o'chirish

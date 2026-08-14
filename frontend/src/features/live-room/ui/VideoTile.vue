@@ -14,6 +14,12 @@ const props = withDefaults(
     micEnabled?: boolean
     /** Asosiy sahna uchun kattaroq ko'rinish. */
     large?: boolean
+    /**
+     * Yotiq telefondagi YON filmstrip uchun toraytirilgan katakcha
+     * (104px ≈ 59px balandlik). `large` bilan birga ma'nosiz — asosiy sahna
+     * baribir butun joyni oladi.
+     */
+    compact?: boolean
     roleLabel?: string
   }>(),
   {
@@ -22,6 +28,7 @@ const props = withDefaults(
     isSpeaking: false,
     micEnabled: false,
     large: false,
+    compact: false,
     roleLabel: '',
   },
 )
@@ -66,15 +73,23 @@ onMounted(syncTrack)
 onBeforeUnmount(detachTrack)
 
 const hasVideo = computed(() => props.track !== null)
+
+/*
+  O'lchov klassi. Uchta holat: asosiy sahna (butun joy), yon filmstrip
+  (yotiq telefon — tor), oddiy filmstrip (o'zgarmadi: 160px, `sm` da 192px).
+*/
+const sizeClass = computed(() => {
+  if (props.large) return 'size-full'
+  return props.compact
+    ? 'aspect-video w-[104px] shrink-0'
+    : 'aspect-video w-40 shrink-0 sm:w-48'
+})
 </script>
 
 <template>
   <div
     class="group relative overflow-hidden rounded-xl bg-ink-850 ring-1 ring-inset transition-shadow"
-    :class="[
-      props.isSpeaking ? 'ring-2 ring-emerald-400/80' : 'ring-line',
-      props.large ? 'size-full' : 'aspect-video w-40 shrink-0 sm:w-48',
-    ]"
+    :class="[props.isSpeaking ? 'ring-2 ring-emerald-400/80' : 'ring-line', sizeClass]"
   >
     <video
       ref="videoEl"
@@ -118,8 +133,12 @@ const hasVideo = computed(() => props.track !== null)
       qorong'i xonada "dog'" bo'lib qolardi. Qora gradient + oq matn —
       video subtitri qoidasi, u har qanday kadrda ishlaydi.
     -->
+    <!-- ★ Tor katakchada (104×59px) yozuv qatori tilkaning yarmini egallab
+         qolardi — shuning uchun ichki bo'shliq qisqaradi, matn esa o'sha
+         (ism `truncate` bilan qisqaradi, olib tashlanmaydi). -->
     <div
-      class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5"
+      class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent"
+      :class="props.compact && !props.large ? 'px-1.5 py-0.5' : 'px-2 py-1.5'"
     >
       <AppIcon
         :name="props.micEnabled ? 'mic' : 'mic-off'"
@@ -138,7 +157,8 @@ const hasVideo = computed(() => props.track !== null)
 
     <span
       v-if="props.isScreenShare"
-      class="absolute left-2 top-2 rounded-md bg-brand-600/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+      class="absolute rounded-md bg-brand-600/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+      :class="props.compact && !props.large ? 'left-1 top-1' : 'left-2 top-2'"
     >
       Ekran
     </span>

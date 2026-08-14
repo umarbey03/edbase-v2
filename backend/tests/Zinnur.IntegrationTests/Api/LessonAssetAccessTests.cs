@@ -280,7 +280,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(string email)
     {
-        var tokens = await factory.LoginAsync(email, Password);
+        var tokens = await factory.LoginAsync(email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -415,8 +415,8 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         {
             fullName = $"{role} {prefix}",
             email,
-            password = Password,
             role = role.ToString(),
+            phone = TestPhones.Next(),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created,

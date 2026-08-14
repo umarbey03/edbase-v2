@@ -22,6 +22,7 @@ import StudentAccountDialog from '@/features/student-account/ui/StudentAccountDi
 import TariffsCard from '@/features/tariff-manage/ui/TariffsCard.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatMoney, sumMoney } from '@/shared/lib/money'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { PaymentDto } from '@/shared/types'
 import {
   AppIcon,
@@ -67,6 +68,15 @@ import {
  * yoziladi, lekin uni O'QIYDIGAN endpoint hali ochilmagan.
  */
 const queryClient = useQueryClient()
+
+/*
+  Qarzdorlar bloki: kartochka ↔ jadval CSS emas, `v-if` — `hidden lg:block`
+  IKKALA daraxtni ham quradi (telefonda ko'rinmas jadval ham mount bo'lardi).
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi,
+  ya'ni iPad tik holati (768px) kartochka bo'lib qoladi — `style.css` dagi
+  "md va lg haqidagi asosiy qaror" izohiga qarang.
+*/
+const { isDesktop } = useBreakpoint()
 
 const PAGE_SIZE = 25
 
@@ -244,8 +254,11 @@ function canWaive(payment: PaymentDto): boolean {
       </p>
 
       <template v-else>
-        <!-- Telefon: kartochka -->
-        <ul class="divide-y divide-line md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
           <li
             v-for="payment in debtors"
             :key="payment.id"
@@ -288,8 +301,11 @@ function canWaive(payment: PaymentDto): boolean {
           </li>
         </ul>
 
-        <!-- Desktop: jadval -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

@@ -36,6 +36,15 @@ export interface AbsenteeRow {
   status: AttendanceStatusName | null
   /** O'quvchi yoki xodim yozgan sabab. `null` — "Sababsiz". */
   reason: string | null
+  /**
+   * 🔴 `null` ning IKKI sababi bor (talab R27): raqam kiritilmagan YOKI
+   * so'rovchi USTOZ va server kontaktni kesgan. Manba — `GroupMemberDto`,
+   * ya'ni kesish aynan shu yerga yetib keladi.
+   *
+   * Ikkalasida ham natija bir xil: qo'ng'iroq tugmasi CHIZILMAYDI. Kurator
+   * uchun raqam BERILADI, ya'ni uning ish oqimi o'zgarmaydi — bu ekran
+   * aynan kuratorga mo'ljallangan.
+   */
   phone: string | null
 }
 

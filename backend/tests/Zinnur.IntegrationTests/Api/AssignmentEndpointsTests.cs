@@ -104,8 +104,20 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    /// <summary>
+    /// ★★ R32 (2026-08-13) — BEKOR QILINGAN QOIDA QOTIRIB QO'YILDI.
+    ///
+    /// Bu test ilgari <c>Created</c> ni kutardi: ustoz O'Z guruhiga vazifa
+    /// bera olardi. Loyiha egasining qarori (q10, QAT'IY o'qilish):
+    /// *"teacher vazifa yaratishi kerakmas, o'quv bo'limi yaratadi
+    /// vazifalarni"*.
+    ///
+    /// Test O'CHIRILMADI, AGDARILDI: o'chirilsa, kimdir ertaga qoidani
+    /// "soddalashtirib" qaytarib qo'yganda hech narsa yiqilmasdi va
+    /// regressiya jimgina o'tib ketardi.
+    /// </summary>
     [Fact]
-    public async Task Create_AsTeacher_ForOwnGroup_ReturnsCreated()
+    public async Task Create_AsTeacher_ForOwnGroup_ReturnsForbidden()
     {
         using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
 
@@ -113,7 +125,37 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
             new Uri("/api/v1/assignments", UriKind.Relative),
             new { title = "Ustozning o'z guruhi", groupId = await SeededGroupIdAsync() });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "R32: vazifani faqat o'quv bo'limi yaratadi");
+    }
+
+    /// <summary>
+    /// ★ R32: TAHRIRLASH ham yopildi. Vazifani o'quv bo'limi yaratadi, ustoz
+    /// esa uni KO'RADI (ro'yxatda turadi) — lekin shartini o'zgartira olmaydi.
+    ///
+    /// Ikki tekshiruv bir testda ATAYLAB: ular bitta qoidaning ikki tomoni va
+    /// ajratilsa, "ko'rish yopilib qolgani" (baholash oqimini o'ldiradigan
+    /// regressiya) sezilmasdan qolishi mumkin edi.
+    /// </summary>
+    [Fact]
+    public async Task Update_AsTeacher_ForOwnGroupAssignment_ReturnsForbidden()
+    {
+        var assignmentId = await CreateGroupAssignmentAsync("O'quv bo'limi bergan vazifa");
+
+        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+
+        var visible = await teacher.GetAsync(
+            new Uri($"/api/v1/assignments/{assignmentId}", UriKind.Relative));
+
+        visible.StatusCode.Should().Be(HttpStatusCode.OK,
+            "ustoz o'z guruhining vazifasini KO'RISHI kerak — baholash shunga tayanadi");
+
+        var response = await teacher.PutAsJsonAsync(
+            new Uri($"/api/v1/assignments/{assignmentId}", UriKind.Relative),
+            new { title = "Ustoz o'zgartirmoqchi", maxScore = 5m, allowedFormats = "Text" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "R32: vazifa shartini faqat o'quv bo'limi tahrirlaydi");
     }
 
     [Fact]
@@ -498,7 +540,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(string email, string password)
     {
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

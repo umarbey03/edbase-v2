@@ -1,6 +1,32 @@
 namespace Zinnur.Application.Progress.Dtos;
 
 /// <summary>
+/// Reyting QAMROVI.
+///
+/// ★ BAZAGA YOZILMAYDI — bu faqat so'rov vaqtidagi tanlov, shuning uchun
+/// tartib raqamlari ham ahamiyatsiz. Eski tizimda aynan shu tushuncha
+/// `leaderboard_snapshots.scope` USTUNI edi va `group_id` NULL bo'lgan
+/// `overall` qatorlari `ON CONFLICT` ni buzib dublikat hosil qilardi
+/// (batafsil <c>LeaderboardService</c> izohida). v2 da qamrov hech qayerda
+/// SAQLANMAYDI.
+/// </summary>
+public enum LeaderboardScope
+{
+    /// <summary>O'quvchining o'z guruhi.</summary>
+    Group,
+
+    /// <summary>
+    /// Butun o'quv markaz.
+    ///
+    /// 🔴 "MARKAZ" — "TIZIMDAGI HAMMA" DEGANI EMAS. Bugun ikkalasi bir xil
+    ///    to'plamga tushadi (bitta deployment = bitta markaz), lekin
+    ///    qamrovni <c>ILearningCenterScope</c> hal qiladi va ko'p-markazli
+    ///    o'zgarishdan keyin ham bu yorliqning MA'NOSI o'zgarmaydi.
+    /// </summary>
+    Center,
+}
+
+/// <summary>
 /// Reyting jadvalining bitta qatori.
 /// </summary>
 /// <param name="Rank">
@@ -42,10 +68,65 @@ public sealed record GroupLeaderboardDto(
     IReadOnlyList<LeaderboardRowDto> Rows);
 
 /// <summary>
+/// ========================================================================
+/// BUTUN O'QUV MARKAZ BO'YICHA JADVAL — TOP-N + O'Z QATORING
+/// ========================================================================
+///
+/// ★ NIMA UCHUN GURUH DTO'SI QAYTA ISHLATILMADI: markaz jadvalida
+/// <c>GroupId</c>/<c>GroupName</c> ma'nosiz bo'lardi (ularni <c>null</c>
+/// qilib yuborish "guruh topilmadi" degan MUTLAQO BOSHQA holat bilan
+/// aralashardi) va bu yerda guruhda umuman bo'lmagan ikki maydon bor:
+/// <see cref="TopCount"/> va "o'z qatoring jadvaldan tashqarida" holati.
+/// </summary>
+/// <param name="Period">Qaysi oy (<c>YYYY-MM</c>).</param>
+/// <param name="StudentCount">
+/// Markazdagi reytingga kirgan FAOL o'quvchilar soni — TO'LIQ son,
+/// <see cref="Rows"/> uzunligi emas.
+/// </param>
+/// <param name="TopCount">
+/// Jadvalda ko'pi bilan shuncha qator yuboriladi (bugun 100).
+/// Frontend "eng yaxshi N" yozuvini shundan oladi — sonni ikki joyda
+/// qo'lda yozib qo'yish kerak emas.
+/// </param>
+/// <param name="Me">
+/// So'rovchining o'z qatori — o'RNI TO'LIQ ro'yxatdan olingan, ya'ni
+/// 100 dan pastda bo'lsa ham HAQIQIY o'rin ("847-o'rin").
+///
+/// ★ <see cref="Rows"/> ICHIDA BO'LMASLIGI MUMKIN: shuning uchun frontend
+/// uni alohida ko'rsatadi. Xodim so'rasa <c>null</c> — u jadvalning
+/// ichida emas.
+/// </param>
+/// <param name="Rows">Eng yaxshi <see cref="TopCount"/> qator, 1-o'rindan boshlab.</param>
+public sealed record CenterLeaderboardDto(
+    string Period,
+    int StudentCount,
+    int TopCount,
+    LeaderboardRowDto? Me,
+    IReadOnlyList<LeaderboardRowDto> Rows);
+
+/// <summary>
 /// "Mening o'rnim" — jadvalsiz, yengil ko'rinish (bosh sahifadagi kartochka).
 /// </summary>
-/// <param name="GroupId"><c>null</c> — o'quvchi hech qaysi faol guruhda emas.</param>
+/// <param name="Scope">
+/// Qaysi qamrov bo'yicha o'rin berilgan — <c>Group</c> yoki <c>Center</c>.
+///
+/// ★ NIMA UCHUN IKKINCHI O'RIN MAYDONI EMAS, DISKRIMINATOR: javobga
+/// "markaz o'rni" ni QO'SHIB qo'yish har bosh sahifa ochilishida BUTUN
+/// markaz jadvalini hisoblashga majbur qilardi — hatto markaz tabini
+/// hech qachon ochmaydigan o'quvchi uchun ham. Diskriminator esa
+/// narxni IXTIYORIY qiladi: qimmat hisob faqat <c>?scope=center</c>
+/// so'ralganda bajariladi.
+/// </param>
+/// <param name="GroupId">
+/// <c>null</c> — o'quvchi hech qaysi faol guruhda emas.
+/// ★ <c>Center</c> qamrovida HAR DOIM <c>null</c>: markaz jadvalining
+/// guruhi yo'q.
+/// </param>
+/// <param name="StudentCount">
+/// Qamrovdagi o'quvchilar soni: guruh a'zolari yoki markaz o'quvchilari.
+/// </param>
 public sealed record MyRankDto(
+    LeaderboardScope Scope,
     long? GroupId,
     string? GroupName,
     string Period,

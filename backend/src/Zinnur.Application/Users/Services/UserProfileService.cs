@@ -57,7 +57,7 @@ public sealed class UserProfileService(
         //    Maydon `null` bo'lib javobga tushadi, ya'ni ma'lumot serverdan
         //    CHIQMAYDI. Frontendda yashirish yetarli emasligi shundan:
         //    javobni ko'rish uchun brauzer konsoli yetarli bo'lardi.
-        var finance = audience == StudentAudience.Staff
+        var finance = audience.IsStaff()
             ? null
             : await LoadFinanceAsync(student, audience, ct);
 
@@ -70,14 +70,24 @@ public sealed class UserProfileService(
                 .Project(db, userId, actorId, canEditAll: audience == StudentAudience.Manage)
                 .ToListAsync(ct);
 
+        // 🔴 USTOZGA KONTAKT YUBORILMAYDI (talab R27).
+        //    Moliya bloki bilan AYNI printsip: maydon javobda `null` bo'ladi,
+        //    ya'ni email/telefon/Telegram simdan UMUMAN o'tmaydi. Ism, guruh,
+        //    davomat va natijalar ochiq qoladi — ustozga ish uchun aynan
+        //    shular kerak.
+        //
+        //    ★ KURATOR bundan MUSTASNO: unga raqam kerak (qo'ng'iroq — uning
+        //      asosiy amali). Sabab `StudentAudience` izohida.
+        var seesContact = audience.SeesContact();
+
         return new UserProfileDto(
             new UserDetailsDto(
                 student.Id,
                 student.FullName,
-                student.Email,
-                student.Phone,
-                student.TelegramId,
-                student.TelegramUsername,
+                seesContact ? student.Email : null,
+                seesContact ? student.Phone : null,
+                seesContact ? student.TelegramId : null,
+                seesContact ? student.TelegramUsername : null,
                 student.Role.ToString(),
                 student.IsActive,
                 student.CreatedAt,
@@ -94,6 +104,18 @@ public sealed class UserProfileService(
     private async Task<ProfileTelegramDto> LoadTelegramAsync(
         StudentSubject student, StudentAudience audience, CancellationToken ct)
     {
+        // 🔴 TELEGRAM ID VA NOMI HAM KONTAKT (talab R27): `t.me/<username>`
+        //    bilan o'quvchiga to'g'ridan-to'g'ri yozib bo'ladi, ya'ni ularni
+        //    `UserDetailsDto` da kesib, shu blokda qoldirish maxfiylikni
+        //    umuman bermasdi — ikkalasi AYNI javobda keladi.
+        //
+        //    `Linked` va `LinkedAt` esa QOLADI: ular kontakt emas, HOLAT
+        //    ("o'quvchi tizimga kira oladimi") — ustoz uchun amaliy va u
+        //    orqali hech kimga bog'lanib bo'lmaydi.
+        var seesContact = audience.SeesContact();
+        var telegramId = seesContact ? student.TelegramId : null;
+        var username = seesContact ? student.TelegramUsername : null;
+
         // Uzish izi — faqat XODIMGA. O'quvchiga "sizni Aziz Karimov uzgan"
         // deb ko'rsatish ichki ish tartibini oshkor qilardi va uning
         // profilida hech qanday amaliy foyda bermasdi.
@@ -101,8 +123,8 @@ public sealed class UserProfileService(
         {
             return new ProfileTelegramDto(
                 student.TelegramId is not null,
-                student.TelegramId,
-                student.TelegramUsername,
+                telegramId,
+                username,
                 student.TelegramLinkedAt,
                 UnlinkedAt: null,
                 UnlinkedByName: null,
@@ -117,8 +139,8 @@ public sealed class UserProfileService(
 
         return new ProfileTelegramDto(
             student.TelegramId is not null,
-            student.TelegramId,
-            student.TelegramUsername,
+            telegramId,
+            username,
             student.TelegramLinkedAt,
             lastUnlink?.CreatedAt,
             lastUnlink?.ActorName,

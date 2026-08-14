@@ -7,6 +7,7 @@ import { fetchGroups } from '@/entities/group'
 import { createTariff, todayIsoDate, updateTariff } from '@/entities/payment'
 import { toUserMessage } from '@/shared/api'
 import { formatSum, parseMoneyInput } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { TariffDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -148,8 +149,50 @@ const mutation = useMutation({
   },
 })
 
-function submit(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — TASDIQ FAQAT TAHRIRLASHDA, `warning` TONIDA.
+ *
+ * ★ YARATISHDA SO'RALMAYDI: yangi tarif hech narsani almashtirmaydi va
+ * formaning O'ZI "narx o'zgarsa yangi tarif qo'shing" deb yo'naltiradi —
+ * ya'ni tavsiya etilgan yo'lni tasdiq oynasi bilan sekinlashtirish
+ * xodimni aynan XAVFLI yo'lga (mavjudini tahrirlash) itarardi.
+ *
+ * 🔴 TAHRIRLASH ESA NARX TARIXINI YO'Q QILADI (fayl boshidagi izoh):
+ * `Payment` yozuvi `baseAmount` ni yaratilganda nusxa qiladi, ya'ni
+ * o'tgan oylar o'zgarmaydi — lekin "qachondan qancha edi" degan savolga
+ * javob beradigan yagona yozuv ustiga yoziladi. Shuning uchun eski va
+ * yangi narx `details` da YONMA-YON ko'rsatiladi: bu tahrir kerakmi
+ * yoki yangi tarif kerakmi degan savolga aynan shu ikki raqam javob
+ * beradi.
+ */
+async function submit(): Promise<void> {
   if (!canSubmit.value || mutation.isPending.value) return
+
+  const tariff = props.tariff
+  if (tariff !== null) {
+    const value = amount.value
+    const details = [`Qamrov: ${courseId.value === null ? 'barcha kurslar' : 'tanlangan kurs'}`
+      + `${groupId.value === null ? '' : ' · tanlangan guruh'}`]
+
+    if (value !== null && value !== tariff.amount) {
+      details.unshift(`Narx: ${formatSum(tariff.amount)} → ${formatSum(value)}`)
+      details.push('Narx tarixi saqlanmaydi — eski qiymat hech qayerda qolmaydi.')
+    }
+
+    const ok = await confirm({
+      title: 'Tarifni tahrirlash',
+      message:
+        `“${tariff.name}” tarifining barcha maydoni formadagi qiymatlar bilan ALMASHTIRILADI. `
+        + 'Keyingi oy to‘lovlari shu tarifdan hisoblanadi.',
+      confirmLabel: 'Saqlash',
+      tone: 'warning',
+      details,
+    })
+    if (!ok) return
+  }
+
   errorMessage.value = null
   mutation.mutate()
 }

@@ -589,7 +589,7 @@ public sealed class TestEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> StudentClientAsync()
     {
-        var tokens = await factory.LoginAsync(StudentEmail, StudentPassword);
+        var tokens = await factory.LoginAsync(StudentEmail);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

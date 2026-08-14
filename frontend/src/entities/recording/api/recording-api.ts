@@ -1,5 +1,10 @@
 import { http } from '@/shared/api'
-import type { RecordingDto, RecordingLinkDto, RecordingListItemDto } from '@/shared/types'
+import type {
+  RecordingDto,
+  RecordingLinkDto,
+  RecordingListItemDto,
+  RecordingLiveStatusDto,
+} from '@/shared/types'
 
 import type { RecordingRange } from '../model/types'
 
@@ -43,6 +48,34 @@ export function fetchSessionRecordings(
   return http.get<RecordingDto[]>(`${SESSIONS_BASE}/${sessionId}/recordings`, {
     signal: options?.signal,
   })
+}
+
+/**
+ * `GET /api/v1/live-sessions/{id}/recording-status` — "hozir yozib
+ * olinyaptimi".
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * 🔴 JONLI XONADAGI "YOZUV KETMOQDA" INDIKATORINING YAGONA MANBAI.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * Ruxsat — DARSGA bog'liq, ROLGA emas: guruh a'zosi o'quvchi ham `200`
+ * oladi (yuqoridagi `fetchSessionRecordings` dan AYNAN shu bilan farq
+ * qiladi — u o'quvchiga faqat TAYYOR yozuvlarni ko'rsatadi va ketayotgan
+ * yozuvni umuman bermaydi). Guruhda bo'lmagan odam `403` oladi.
+ *
+ * ⚠️ INDIKATORNI `group.recordEnabled` GA ULASH MUMKIN EMAS: u "yozilishi
+ * KERAK" degani, "yozilYAPTI" degani emas. Egress yiqilgan darsda u
+ * yashil turaverib, hech qachon bo'lmagan yozuv haqida ogohlantirardi —
+ * ya'ni indikator ma'nosini yo'qotardi.
+ */
+export function fetchSessionRecordingStatus(
+  sessionId: number,
+  options?: { signal?: AbortSignal },
+): Promise<RecordingLiveStatusDto> {
+  return http.get<RecordingLiveStatusDto>(
+    `${SESSIONS_BASE}/${sessionId}/recording-status`,
+    { signal: options?.signal },
+  )
 }
 
 /**

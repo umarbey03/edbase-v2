@@ -278,31 +278,53 @@ const journalTiles = computed<KpiTile[]>(() => {
       subtitle="Tushum, qarz va chegirmalar bo‘yicha umumiy manzara"
     >
       <template #actions>
-        <input
-          v-model="from"
-          class="zn-input w-[9.5rem]"
-          type="date"
-          aria-label="Davr boshi"
-        >
-        <input
-          v-model="to"
-          class="zn-input w-[9.5rem]"
-          type="date"
-          aria-label="Davr oxiri"
-        >
-        <BaseButton
-          variant="ghost"
-          :loading="exportMutation.isPending.value"
-          @click="exportMutation.mutate()"
-        >
-          <template #icon>
-            <AppIcon
-              name="download"
-              :size="15"
-            />
-          </template>
-          Excel
-        </BaseButton>
+        <!--
+          ★ NEGA QO'SHIMCHA O'RAM VA KENGLIK CHEGARASI.
+
+          `PageHeader` amallar konteynerini `shrink-0` bilan chizadi: u
+          qatorga sig'masa yangi qatorga o'tadi, lekin SIQILMAYDI. Ikkita
+          sana (2 × 152px) + «Excel» ≈ 400px bo'lib, 320–390px telefonda
+          sahifa ichidagi joydan (288–358px) keng — natijada BUTUN sahifa
+          yon skrollga tushardi. `PageHeader` umumiy komponent, unga
+          tegilmadi; chegara shu yerda qo'yiladi.
+
+          ★ `100vw − 3rem`: 2rem — `AppShell` `main` paddingi (`px-4`),
+          qolgan 1rem — desktop brauzerni tor qilib qo'yganda paydo
+          bo'ladigan klassik skroll paneli uchun zaxira (`100vw` uni
+          hisobga olmaydi). Telefonda skroll paneli ustma-ust chizilgani
+          uchun bu 16px shunchaki bo'sh joy bo'lib qoladi.
+
+          ★ 560px (`xs`) dan yuqorida chegara BUTUNLAY olib tashlanadi va
+          maydonlar avvalgi 9.5rem kengligiga qaytadi — desktop va planshet
+          ko'rinishi eski dizayndagidek qoladi.
+        -->
+        <div class="flex max-w-[calc(100vw-3rem)] flex-wrap items-center gap-2 xs:max-w-none">
+          <input
+            v-model="from"
+            class="zn-input w-[calc(50%-0.25rem)] xs:w-[9.5rem]"
+            type="date"
+            aria-label="Davr boshi"
+          >
+          <input
+            v-model="to"
+            class="zn-input w-[calc(50%-0.25rem)] xs:w-[9.5rem]"
+            type="date"
+            aria-label="Davr oxiri"
+          >
+          <BaseButton
+            variant="ghost"
+            :loading="exportMutation.isPending.value"
+            @click="exportMutation.mutate()"
+          >
+            <template #icon>
+              <AppIcon
+                name="download"
+                :size="15"
+              />
+            </template>
+            Excel
+          </BaseButton>
+        </div>
       </template>
     </PageHeader>
 
@@ -402,7 +424,17 @@ const journalTiles = computed<KpiTile[]>(() => {
         />
 
         <!-- ---------------------------------------------------- kesimlar -->
-        <div class="mt-4 grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4">
+        <!--
+          ★ `min(100%,340px)` — `minmax(340px,1fr)` EMAS. `auto-fit` da
+          minimal yo'lak QAT'IY o'lcham: konteyner undan tor bo'lsa setka
+          KENGAYIB chiqadi va butun sahifa yon skrollga tushardi. 320px
+          ekranda sahifa ichi atigi 288px (`AppShell` `px-4`), 360px da
+          328px — ikkalasi ham 340px dan kichik, ya'ni eng keng tarqalgan
+          telefonlarda buzilardi. `min(100%,…)` yo'lakni konteynerdan
+          oshirmaydi, kengroq ekranda esa AVVALGIDEK 340px da ikkiga
+          bo'linadi — desktop ko'rinishi o'zgarmaydi.
+        -->
+        <div class="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4">
           <FinanceGroupsCard
             :groups="summary.groups"
             :periods="periodsLabel"

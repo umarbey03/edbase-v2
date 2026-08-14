@@ -20,7 +20,7 @@
 docker compose up -d          →  5 xizmat sog'lom
 Frontend  http://localhost:5173
 API       http://localhost:5080/swagger
-Kirish    admin@zinnur.uz / Admin!2345
+Kirish    +998900000001 (telefon + Telegram kodi; 2026-08-13 dan parol yo'q)
 ```
 
 | Qatlam | Hajm | Holat |

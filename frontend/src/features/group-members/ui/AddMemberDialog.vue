@@ -6,7 +6,11 @@ import { addMember } from '@/entities/group'
 import { fetchUsers, USER_SEARCH_MIN } from '@/entities/user'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
-import type { GroupMemberDto } from '@/shared/types'
+import { useConfirm } from '@/shared/lib/useConfirm'
+// ⚠️ `UserDetailsDto` — `fetchUsers` AYNAN shuni qaytaradi. `UserDto` (auth
+//    shakli) BOSHQA tur: u kirgan foydalanuvchining O'ZI uchun va uning
+//    maydonlari `null` bo'lmaydi.
+import type { GroupMemberDto, UserDetailsDto } from '@/shared/types'
 import { BaseBadge, BaseButton, BaseField, BaseModal, DataStatus } from '@/shared/ui'
 
 /**
@@ -75,6 +79,43 @@ const addMutation = useMutation({
 function isMember(studentId: number): boolean {
   return props.existingStudentIds.includes(studentId)
 }
+
+const confirm = useConfirm()
+
+/**
+ * R4 — GURUHGA QO'SHISH TASDIQLANADI, `warning` TONIDA.
+ *
+ * ★ NEGA KERAK: qidiruv natijalari — zich qatorlar ro'yxati va ularning
+ * har birida bir xil "Qo'shish" tugmasi. Telefonda qatorlar bir-biriga
+ * yaqin turadi, ismlar esa ko'pincha o'xshash (bitta familiya, bitta
+ * ism) — ya'ni bu ekranda xato AYNAN "boshqa odam qo'shildi" ko'rinishida
+ * bo'ladi va oyna darhol yopiladi, ya'ni xato SEZILMAY qoladi.
+ *
+ * ★ NEGA `danger` EMAS: yozuv o'chmaydi va qo'shilgan o'quvchini
+ * `GroupMembersPanel` dan chiqarish mumkin. Lekin bu bepul emas —
+ * chiqarilgan a'zo TARIX bo'lib qoladi ("Chiqarilgan" holati), ya'ni
+ * xato bosish guruh ro'yxatida ko'rinadigan iz qoldiradi.
+ */
+async function askAdd(student: UserDetailsDto): Promise<void> {
+  if (addMutation.isPending.value) return
+
+  const ok = await confirm({
+    title: 'Guruhga qo‘shish',
+    // `fullName` tipda `null` bo'lishi mumkin — shablondagi bilan AYNI
+    // zaxira, aks holda oynada "null guruhga a'zo qilinadi" chiqardi.
+    message: `${student.fullName ?? 'O‘quvchi'} guruhga a’zo qilinadi.`,
+    confirmLabel: 'Qo‘shish',
+    tone: 'warning',
+    details: [
+      'O‘quvchi keyingi darslar davomatiga va guruh chatiga qo‘shiladi.',
+      'To‘lov hisobi shu guruh tarifi bo‘yicha yuritila boshlaydi.',
+      'Xato qo‘shilsa uni chiqarish mumkin, lekin yozuv “Chiqarilgan” holatida ro‘yxatda qoladi.',
+    ],
+  })
+  if (!ok) return
+
+  addMutation.mutate(student.id)
+}
 </script>
 
 <template>
@@ -135,7 +176,7 @@ function isMember(studentId: number): boolean {
               size="sm"
               :loading="addMutation.isPending.value && addMutation.variables.value === student.id"
               :disabled="addMutation.isPending.value"
-              @click="addMutation.mutate(student.id)"
+              @click="askAdd(student)"
             >
               Qo‘shish
             </BaseButton>

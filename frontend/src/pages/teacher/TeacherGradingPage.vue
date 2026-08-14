@@ -10,31 +10,57 @@ import {
   submissionStatusLabel,
   submissionStatusTone,
 } from '@/entities/assignment'
-import AssignmentFormDialog from '@/features/assignment-form/ui/AssignmentFormDialog.vue'
 import GradingQueueOverlay from '@/features/grading-queue/ui/GradingQueueOverlay.vue'
 import GradeDialog from '@/features/grading/ui/GradeDialog.vue'
 import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
-import type { AssignmentDto, SubmissionDto } from '@/shared/types'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
+import type { SubmissionDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, PageHeader } from '@/shared/ui'
 
 /**
- * Vazifalar va baholash navbati (ustoz/kurator).
+ * Baholash navbati (ustoz/kurator).
  *
  * Backendda "barcha topshiriqlar bo'yicha navbat" endpoint'i YO'Q —
  * `GET /assignments/{id}/submissions` faqat bitta vazifa kesimida ishlaydi.
  * Shuning uchun oqim ikki bosqichli: vazifa tanlanadi -> uning ishlari
  * yuklanadi. Tanlov chip'lar bilan (telefonda ham bir qatorda skroll qiladi).
  *
- * RUXSAT CHEGARASI (server qoidasining aksi, uni ALMASHTIRMAYDI):
- *  • ustoz/kurator FAQAT guruh vazifasini yarata va tahrirlay oladi;
- *  • kurs darsi vazifasi ro'yxatda KO'RINADI (o'z o'quvchisini baholash
- *    uchun kerak), lekin uni faqat o'quv bo'limi tahrirlaydi — shuning uchun
- *    bunday vazifada "Tahrirlash" tugmasi ko'rsatilmaydi (aks holda tugma
- *    bosilib, 403 bilan qaytardi).
+ * ═══════════════════════════════════════════════════════════════════════
+ * R32 (2026-08-13) — SAHIFA VAZIFA YARATMAYDI
+ * ═══════════════════════════════════════════════════════════════════════
+ * Loyiha egasi: *"teacher vazifa yaratishi kerakmas, o'quv bo'limi yaratadi
+ * vazifalarni"*. Shuning uchun "Yangi vazifa" va "Tahrirlash" tugmalari,
+ * `AssignmentFormDialog` bilan birga, bu sahifadan OLIB TASHLANDI.
+ *
+ * ★ SERVER BIRINCHI, UI IKKINCHI: qoida `AssignmentsController` da
+ * (`Academic,Admin`) va `AssignmentService.EnsureCanCreate` da. Bu yerdagi
+ * o'zgarish faqat "bosilsa 403 qaytaradigan tugma" ni yo'q qilish uchun —
+ * UI hech qachon ruxsatning YAGONA joyi emas.
+ *
+ * ⚠️ BAHOLASH TO'LIQ QOLDI: ro'yxat, tekshirish navbati, "Baholash" va
+ * "Qayta yuborish" — hammasi avvalgidek ishlaydi. Talab faqat YARATISHGA
+ * tegishli edi.
+ *
+ * ★ RO'YXAT hamon `GET /assignments` dan keladi va u ustozga o'z
+ * guruhlarining vazifalari + BARCHA kurs vazifalarini beradi (server
+ * qoidasi o'zgarmadi) — ya'ni o'quv bo'limi yaratgan vazifa shu yerda
+ * darhol ko'rinadi.
  */
 const queryClient = useQueryClient()
+
+/*
+  Navbat ro'yxati: kartochka ↔ jadval CSS emas, `v-if` — `hidden lg:block`
+  IKKALA daraxtni ham quradi (telefonda ko'rinmas jadval ham mount bo'lardi).
+
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi
+  (`style.css` dagi "md va lg haqidagi asosiy qaror" izohi).
+  ★ Baholash/qayta yuborish dialoglari holati (`grading`, `reopening`) SHU
+  komponentda saqlanadi, almashinadigan daraxtdan TASHQARIDA — ya'ni ekran
+  1024px dan o'tganda ochiq dialog yo'qolmaydi.
+*/
+const { isDesktop } = useBreakpoint()
 
 const assignmentsQuery = useQuery({
   queryKey: ['assignments', 'list'],
@@ -51,11 +77,6 @@ watch(assignments, (list) => {
 
 const selected = computed(
   () => assignments.value.find((item) => item.id === selectedId.value) ?? null,
-)
-
-/** Kurs vazifasini ustoz tahrirlay olmaydi (server: "faqat o'quv bo'limi"). */
-const canEditSelected = computed(
-  () => selected.value !== null && selected.value.moduleLessonId === null,
 )
 
 const submissionsQuery = useQuery({
@@ -105,45 +126,19 @@ function handleGraded(): void {
   grading.value = null
   refreshSubmissions()
 }
-
-/* ------------------------------------------------------- vazifa formasi */
-
-const formOpen = ref(false)
-const editing = ref<AssignmentDto | null>(null)
-
-function openCreate(): void {
-  editing.value = null
-  formOpen.value = true
-}
-
-function openEdit(assignment: AssignmentDto): void {
-  editing.value = assignment
-  formOpen.value = true
-}
-
-function handleSaved(): void {
-  void queryClient.invalidateQueries({ queryKey: ['assignments'] })
-}
 </script>
 
 <template>
   <div>
+    <!--
+      Sarlavhada AMAL TUGMASI YO'Q (R32): vazifa yaratish o'quv bo'limida.
+      Sarlavha matni ham shunga moslandi — "berish" so'zi qolsa, tugmasi
+      yo'q va'da bo'lardi.
+    -->
     <PageHeader
-      title="Vazifalar va baholash"
-      subtitle="Uy vazifasi berish va o‘quvchilar ishlarini baholash"
-    >
-      <template #actions>
-        <BaseButton @click="openCreate">
-          <template #icon>
-            <AppIcon
-              name="plus"
-              :size="16"
-            />
-          </template>
-          Yangi vazifa
-        </BaseButton>
-      </template>
-    </PageHeader>
+      title="Tekshirish va baholash"
+      subtitle="O‘quv bo‘limi bergan vazifalar bo‘yicha topshirilgan ishlar"
+    />
 
     <DataStatus
       :pending="assignmentsQuery.isPending.value"
@@ -153,21 +148,9 @@ function handleSaved(): void {
       :skeleton-rows="2"
       empty-icon="clipboard"
       empty-title="Vazifa yo‘q"
-      empty-text="“Yangi vazifa” tugmasi bilan o‘z guruhingizga uy vazifasi bering."
+      empty-text="Vazifalarni o‘quv bo‘limi tuzadi. Guruhingizga vazifa berilgach shu yerda ko‘rinadi."
       @retry="assignmentsQuery.refetch()"
     >
-      <template #empty-action>
-        <BaseButton @click="openCreate">
-          <template #icon>
-            <AppIcon
-              name="plus"
-              :size="16"
-            />
-          </template>
-          Yangi vazifa
-        </BaseButton>
-      </template>
-
       <!-- Vazifa tanlash. Telefonda bir qatorda gorizontal skroll — sahifa emas, SHU blok. -->
       <div class="scroll-x-safe scrollbar-slim -mx-4 mb-4 px-4 sm:mx-0 sm:px-0">
         <div class="flex gap-2 pb-1">
@@ -223,25 +206,14 @@ function handleSaved(): void {
               class="tabular-nums"
             >· {{ pendingCount }}</span>
           </BaseButton>
-          <BaseButton
-            v-if="canEditSelected"
-            size="sm"
-            variant="secondary"
-            @click="openEdit(selected)"
-          >
-            <template #icon>
-              <AppIcon
-                name="edit"
-                :size="13"
-              />
-            </template>
-            Tahrirlash
-          </BaseButton>
-          <span
-            v-else
-            class="text-[11px] text-dim"
-          >
-            Kurs vazifasi — tahrirlashni o‘quv bo‘limi bajaradi
+          <!--
+            "Tahrirlash" OLIB TASHLANDI (R32). O'rniga MATN qoldirildi:
+            ustoz shart noto'g'ri deb hisoblasa, kimga murojaat qilishini
+            bilishi kerak — tugmaning jimgina yo'qolishi "sindi" degan
+            taassurot qoldirardi.
+          -->
+          <span class="text-[11px] text-dim">
+            Vazifa shartini o‘quv bo‘limi tahrirlaydi
           </span>
         </template>
 
@@ -276,8 +248,11 @@ function handleSaved(): void {
             empty-text="Bu vazifa bo‘yicha hali hech kim ish topshirmagan."
             @retry="submissionsQuery.refetch()"
           >
-            <!-- Telefon: kartochka -->
-            <ul class="space-y-2 md:hidden">
+            <!-- Telefon/planshet: kartochka -->
+            <ul
+              v-if="!isDesktop"
+              class="space-y-2"
+            >
               <li
                 v-for="item in submissions"
                 :key="item.id"
@@ -326,8 +301,11 @@ function handleSaved(): void {
               </li>
             </ul>
 
-            <!-- Desktop: jadval -->
-            <div class="scroll-x-safe scrollbar-slim hidden md:block">
+            <!-- Desktop (≥1024px): jadval -->
+            <div
+              v-else
+              class="scroll-x-safe scrollbar-slim"
+            >
               <table class="zn-table">
                 <thead>
                   <tr>
@@ -421,18 +399,6 @@ function handleSaved(): void {
       :submission="reopening"
       @close="reopening = null"
       @reopened="refreshSubmissions"
-    />
-
-    <!--
-      Ustoz FAQAT guruh vazifasini beradi: kurs darsiga biriktirish barcha
-      guruhlarga tegadi va uni server o'quv bo'limiga qoldirgan.
-    -->
-    <AssignmentFormDialog
-      :open="formOpen"
-      :assignment="editing"
-      :allow-course-target="false"
-      @close="formOpen = false"
-      @saved="handleSaved"
     />
   </div>
 </template>

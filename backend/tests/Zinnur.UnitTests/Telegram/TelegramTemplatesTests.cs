@@ -96,6 +96,7 @@ public class TelegramTemplatesTests
             TelegramTemplates.ContactTelegramTakenText(),
             TelegramTemplates.ContactInactiveText(),
             TelegramTemplates.HelpText(),
+            TelegramTemplates.LoginCodeText("123456", TimeSpan.FromMinutes(5)),
         ];
 
         foreach (var text in texts)
@@ -122,9 +123,76 @@ public class TelegramTemplatesTests
             TelegramTemplates.ContactTelegramTaken,
             TelegramTemplates.ContactInactive,
             TelegramTemplates.Help,
+            TelegramTemplates.LoginCode,
         ];
 
         foreach (var key in keys)
             key.Length.Should().BeLessThanOrEqualTo(64);
+    }
+
+    // ------------------------------------------------------------------ kirish kodi
+
+    /// <summary>
+    /// 🔴 KOD `&lt;code&gt;` TEGIDA BO'LISHI SHART.
+    ///
+    /// Ikki sabab, ikkalasi ham amaliy:
+    ///   1) Telegram `&lt;code&gt;` bloki bosilganda matnni BUFERGA nusxalaydi —
+    ///      kodni qo'lda ko'chirish esa eng ko'p xato qilinadigan qadam va
+    ///      har xato urinish 5 talik chegarani yeydi;
+    ///   2) integratsion test kodni AYNAN shu teg bo'yicha topadi
+    ///      (`PhoneLoginEndpointsTests`) — teg olib tashlansa butun
+    ///      uchdan-uchgacha oqim testi jimgina ishlamay qolardi.
+    /// </summary>
+    [Fact]
+    public void LoginCodeText_WrapsCodeInCodeTag()
+    {
+        var text = TelegramTemplates.LoginCodeText("045218", TimeSpan.FromMinutes(5));
+
+        text.Should().Contain("<code>045218</code>");
+    }
+
+    /// <summary>
+    /// ★ MUDDAT MATNDA KO'RSATILADI va u DAQIQAGA yaxlitlanadi.
+    ///
+    /// "Kod amal qiladi" degan noaniq jumla foydalanuvchini kutishga yoki
+    /// darhol qayta so'rashga majbur qilardi — ikkinchisi 60 sekundlik
+    /// oynaga urilib, "hech narsa ishlamayapti" taassurotini berardi.
+    /// </summary>
+    [Fact]
+    public void LoginCodeText_MentionsLifetimeInMinutes()
+    {
+        var text = TelegramTemplates.LoginCodeText("045218", TimeSpan.FromMinutes(5));
+
+        text.Should().Contain("5 daqiqa");
+    }
+
+    /// <summary>
+    /// 🔴 IJTIMOIY MUHANDISLIKKA QARSHI OGOHLANTIRISH — MAJBURIY QISM.
+    ///
+    /// Bir martalik kodlarga qarshi eng keng tarqalgan hujum texnik emas:
+    /// hujumchi qurbonga qo'ng'iroq qilib "o'quv markazi xodimiman, kodni
+    /// ayting" deydi. Server tomonida bunga qarshi HECH QANDAY chora yo'q —
+    /// faqat xabar matnining o'zi ogohlantira oladi. Shuning uchun bu
+    /// jumla shablon "bezagi" emas, XAVFSIZLIK talabi va u test bilan
+    /// qulflanadi.
+    /// </summary>
+    [Fact]
+    public void LoginCodeText_WarnsAgainstSharingTheCode()
+    {
+        var text = TelegramTemplates.LoginCodeText("045218", TimeSpan.FromMinutes(5));
+
+        text.Should().Contain("hech kimga aytmang");
+    }
+
+    /// <summary>
+    /// Juda qisqa muddat ham matnda 0 emas, kamida 1 daqiqa deb ko'rinadi —
+    /// "0 daqiqa yaroqli" degan xabar ma'nosiz bo'lardi.
+    /// </summary>
+    [Fact]
+    public void LoginCodeText_NeverShowsZeroMinutes()
+    {
+        var text = TelegramTemplates.LoginCodeText("045218", TimeSpan.FromSeconds(20));
+
+        text.Should().Contain("1 daqiqa");
     }
 }

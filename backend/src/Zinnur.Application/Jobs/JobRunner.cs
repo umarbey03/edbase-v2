@@ -176,6 +176,39 @@ internal static partial class JobLog
     internal static partial void PeriodWarning(
         ILogger logger, int count, string period, string warning);
 
+    // ---------------------------------------------------------------- chat tarixi
+
+    /// <summary>
+    /// 🔴 QAYTARIB BO'LMAYDIGAN AMAL — SHUNING UCHUN HAR YURISH LOGDA.
+    ///
+    /// Kesim SANASI ham, qo'llangan MUDDAT ham ataylab yoziladi: "nega bu
+    /// guruhda mart oyidagi xabarlar yo'q?" degan savolga javob AYNAN shu
+    /// qatordan topiladi, va zaxiradan tiklashda qaysi oraliq kerakligi
+    /// shundan bilinadi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6440,
+        Level = LogLevel.Information,
+        Message = "Guruh chati tarixi tozalandi: o'chirildi={Deleted} muddat={Months} oy "
+                  + "kesim={Cutoff:yyyy-MM-dd HH:mm}Z paket={Batches}")]
+    internal static partial void ChatHistoryPurged(
+        ILogger logger, int deleted, int months, DateTimeOffset cutoff, int batches);
+
+    [LoggerMessage(
+        EventId = 6441,
+        Level = LogLevel.Warning,
+        Message = "Guruh chati tozalash bir yurishdagi chegaraga yetdi: o'chirildi={Deleted} "
+                  + "paket chegarasi={MaxBatches}. Qolgani KEYINGI yurishda davom etadi "
+                  + "(bu birinchi yoqilganda normal holat).")]
+    internal static partial void ChatHistoryPurgeCapped(
+        ILogger logger, int deleted, int maxBatches);
+
+    [LoggerMessage(
+        EventId = 6442,
+        Level = LogLevel.Debug,
+        Message = "Chat tarixini tozalash o'chiq (`chat.retention_enabled`) — o'tkazib yuborildi.")]
+    internal static partial void RetentionDisabled(ILogger logger);
+
     // ---------------------------------------------------------------- umumiy
 
     [LoggerMessage(

@@ -133,9 +133,17 @@ function roleOf(senderId: number): string {
           :title="STATUS_LABEL[props.status]"
           aria-hidden="true"
         />
+        <!--
+          ★ `tap-expand`, `tap-target` EMAS: ikonka tugmasi 30×30px — barmoq
+          uchun kichik, lekin uni 44px ga KATTALASHTIRISH hover fonini ham
+          kattalashtirib, panel sarlavhasini og'irlashtirardi. `tap-expand`
+          ko'rinmas `::after` bilan faqat bosiladigan maydonni kengaytiradi
+          (30 + 12 = 42px, yon tomonlarida boshqa bosiladigan element yo'q,
+          shuning uchun ustma-ust tushish xavfi ham yo'q).
+        -->
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-200 lg:hidden"
+          class="tap-expand rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-200 lg:hidden"
           title="Yopish"
           @click="emit('close')"
         >

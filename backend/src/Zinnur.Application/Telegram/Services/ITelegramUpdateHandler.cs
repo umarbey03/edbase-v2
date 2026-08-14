@@ -50,7 +50,17 @@ public enum TelegramUpdateOutcome
     /// <summary>🔴 BOSHQA odamning kontakti yuborildi — RAD ETILDI.</summary>
     ContactMismatch = 6,
 
-    /// <summary>Raqam xodim profiliga tegishli — bog'lanmadi.</summary>
+    /// <summary>
+    /// ⚠️ ESKI NATIJA — 2026-08-13 dan boshlab HECH QACHON qaytmaydi.
+    ///
+    /// Ilgari xodim raqami bog'lanmasdi (audit X-1 mitigatsiyasi). Endi
+    /// bog'lanadi: email va parol bilan kirish olib tashlanganidan keyin
+    /// bu qoida xodimni tizimdan butunlay tashqarida qoldirardi.
+    ///
+    /// ★ RAQAM SAQLANADI, QAYTA ISHLATILMAYDI: qiymatlar logga va
+    /// webhook javobiga SATR sifatida chiqadi, ya'ni eski yozuvlarni
+    /// o'qiydigan har qanday hisobot bu nomni topishi kerak.
+    /// </summary>
     StaffPhone = 7,
 
     /// <summary>Profil boshqa Telegram akkauntga bog'langan.</summary>

@@ -1,3 +1,4 @@
+using Zinnur.Application.Jobs;
 using Zinnur.Application.Settings;
 
 namespace Zinnur.UnitTests.Settings;
@@ -98,6 +99,13 @@ public class SettingsRegistryTests
     [InlineData("storage.access_key")]
     [InlineData("storage.secret_key")]
     [InlineData("storage.region")]
+
+    // 🔴 2026-08-13 da `Environment` dan `Database` ga O'TKAZILDI (loyiha
+    //    egasi: Cloudflare ulanish joylari paneldan boshqarilsin). Bu qator
+    //    o'zgarishni QULFLAYDI: xato qiymatda ombor "jim 403" beradi va
+    //    ilgari uni tuzatishning yagona yo'li qayta joylashtirish edi.
+    [InlineData("storage.public_url")]
+
     [InlineData("telegram.bot_token")]
     [InlineData("telegram.webhook_secret")]
     [InlineData("telegram.mini_app_url")]
@@ -157,6 +165,45 @@ public class SettingsRegistryTests
         // Va ular paneldan o'zgartiriladi — bu moliya modulining butun ma'nosi.
         threshold.IsEditable.Should().BeTrue();
         scope.IsEditable.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 🔴 CHAT TARIXINI TOZALASH — QAYTARIB BO'LMAYDIGAN YAGONA SOZLAMA.
+    ///
+    /// Uchta shart shu yerda QULFLANADI, chunki ularning har biri bitta
+    /// belgi o'zgarishi bilan buziladi va oqibati — yo'qolgan yozishma:
+    ///
+    ///   1) STANDART — O'CHIQ. Yoqilgan holda yetkazilsa, yangilanish
+    ///      chiqqan kuni birinchi yurish 3 oydan eski BUTUN yozishmani
+    ///      o'chirardi — hech kim so'ramagan holda;
+    ///   2) PASTKI CHEGARA >= 1 OY. `0` kesimni joriy onga tenglashtirib,
+    ///      keyingi yurishda bugungi savollarni ham o'chirardi;
+    ///   3) chegara vazifaning O'ZIDAGI to'siq bilan MOS — nusxa ataylab
+    ///      (bazaga qo'lda yozilgan qiymat uchun ikkinchi himoya).
+    /// </summary>
+    [Fact]
+    public void ChatRetention_IsOffByDefault_AndHasHardFloor()
+    {
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.ChatRetentionEnabled, out var enabled)
+            .Should().BeTrue();
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.ChatRetentionMonths, out var months)
+            .Should().BeTrue();
+
+        enabled.Kind.Should().Be(SettingValueKind.Toggle);
+        enabled.DefaultValue.Should().Be(
+            "false", "qaytarib bo'lmaydigan tozalash o'z-o'zidan yoqilmasin");
+
+        months.Kind.Should().Be(SettingValueKind.Number);
+        months.DefaultValue.Should().Be("3", "egasi talab qilgan standart — 3 oy");
+        months.Minimum.Should().BeGreaterThanOrEqualTo(1m, "0 oy butun chatni yo'q qilardi");
+
+        // Ikkalasi ham PANELDAN boshqariladi — butun ishning talabi shu.
+        enabled.IsEditable.Should().BeTrue();
+        months.IsEditable.Should().BeTrue();
+
+        // Registr chegarasi va vazifadagi `Math.Clamp` bir-biriga MOS.
+        months.Minimum.Should().Be(ChatRetentionJob.MinMonths);
+        months.Maximum.Should().Be(ChatRetentionJob.MaxMonths);
     }
 
     [Fact]

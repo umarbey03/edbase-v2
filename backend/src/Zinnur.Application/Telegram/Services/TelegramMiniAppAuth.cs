@@ -21,8 +21,21 @@ public sealed class TelegramMiniAppAuth(
         {
             // 503, 500 EMAS: bu bizning bug'imiz emas — muhit sozlanmagan.
             // (`ISubmissionStorage` bilan bir xil qaror.)
+            //
+            // 🔴 MATN 2026-08-13 DA O'ZGARDI. Ilgari bu yerda "email va
+            //    parol bilan kiring" deb yozilgan edi — endi bunday eshik
+            //    YO'Q, ya'ni eski matn foydalanuvchini mavjud bo'lmagan
+            //    ekranga yuborardi.
+            //
+            //    Zaxira yo'l ham qolmadi: telefon + kod oqimi HAM AYNI
+            //    bot tokeniga tayanadi (kod Telegram orqali ketadi).
+            //    Ya'ni token buzilsa PLATFORMAGA HECH KIM KIRA OLMAYDI.
+            //    Aynan shu sababli tokenni muhit o'zgaruvchisi bilan
+            //    ustidan yozish yo'li qo'shildi — `ZINNUR_TELEGRAM_*`,
+            //    batafsil `docs/DEPLOY_UBUNTU.md`.
             throw new ServiceUnavailableException(
-                "Telegram integratsiyasi sozlanmagan. Iltimos, email va parol bilan kiring.");
+                "Telegram integratsiyasi sozlanmagan — hozircha tizimga kirib bo'lmaydi. "
+                + "Administrator bilan bog'laning.");
         }
 
         var result = validator.Validate(initData);

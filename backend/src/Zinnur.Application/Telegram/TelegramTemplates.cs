@@ -41,7 +41,30 @@ public static class TelegramTemplates
     /// <summary>Raqam ro'yxatda yo'q.</summary>
     public const string ContactUnknown = "bot_contact_unknown";
 
-    /// <summary>Raqam xodim profiliga tegishli — Telegram orqali kirish yo'q.</summary>
+    /// <summary>
+    /// Brauzerdan kirish uchun bir martalik kod.
+    ///
+    /// ★ BOT JAVOBI EMAS — bu yagona shablon, uni webhook emas,
+    /// <c>IPhoneLoginService</c> yozadi. Kalit baribir SHU YERDA, chunki
+    /// kalitlar ro'yxati bitta bo'lishi kerak: <see cref="MarkupFor"/>
+    /// tugmani AYNAN kalit bo'yicha tanlaydi va noma'lum kalit jimgina
+    /// "tugmasiz" holatga tushardi.
+    /// </summary>
+    public const string LoginCode = "auth_login_code";
+
+    /// <summary>
+    /// ⚠️ ESKI KALIT — 2026-08-13 dan BOSHLAB ISHLATILMAYDI.
+    ///
+    /// Ilgari xodim raqami botga yuborilganda "Telegram orqali kirish
+    /// faqat o'quvchilar uchun" javobi ketardi. Endi xodim ham
+    /// bog'lanadi (sabab: email va parol bilan kirish olib tashlandi),
+    /// ya'ni bu shox umuman ishlamaydi.
+    ///
+    /// ★ NIMA UCHUN O'CHIRILMADI: kalit BAZADA — `MessageOutbox`
+    /// jadvalidagi eski qatorlarda saqlanib turibdi va "qaysi tur xabar
+    /// nechta ketgan" hisobotlari shu satrga tayanadi. Uni o'chirish
+    /// tarixiy ma'lumotni nomsiz qoldirardi.
+    /// </summary>
     public const string ContactStaff = "bot_contact_staff";
 
     /// <summary>BOSHQA odamning kontakti yuborilgan (audit: X-1).</summary>
@@ -77,6 +100,13 @@ public static class TelegramTemplates
         ContactStaff or ContactProfileTaken or ContactTelegramTaken or ContactInactive =>
             TelegramMarkup.RemoveKeyboard,
 
+        // 🔴 KIRISH KODI — TUGMASIZ, VA BU ATAYLAB.
+        //
+        // «Ilovani ochish» tugmasi bu yerda ZARARLI bo'lardi: kod
+        // BRAUZERDA kutilyapti, tugma esa foydalanuvchini Mini App'ga olib
+        // ketib, u boshlagan oqimni tashlab ketishga majbur qilardi.
+        LoginCode => TelegramMarkup.None,
+
         _ => TelegramMarkup.None,
     };
 
@@ -101,7 +131,44 @@ public static class TelegramTemplates
     public static string ContactLinkedText(string? fullName) =>
         $"✅ Rahmat, <b>{NotificationText.Parameter(fullName)}</b>!\n"
         + "Raqamingiz tasdiqlandi va profilingizga ulandi.\n\n"
-        + "Endi ilovaga <b>parolsiz</b> kirasiz — quyidagi tugmani bosing.";
+        + "Endi tizimga <b>parolsiz</b> kirasiz:\n"
+        + "• telefonda — quyidagi tugma orqali;\n"
+        + "• kompyuterda — saytda telefon raqamingizni kiriting, "
+        + "kod shu chatga keladi.";
+
+    /// <summary>
+    /// Brauzerdan kirish uchun bir martalik kod.
+    ///
+    /// ★ KOD <c>&lt;code&gt;</c> TEGIDA: Telegram uni bosganda BUFERGA
+    ///   nusxalaydi. Bu shunchaki qulaylik emas — kodni qo'lda ko'chirish
+    ///   eng ko'p xato qilinadigan qadam, xato kod esa urinishlar
+    ///   chegarasini yeydi.
+    ///
+    /// 🔴 XABAR MATNI OGOHLANTIRISH BILAN TUGAYDI. Bu bir martalik
+    ///    kodlarning eng keng tarqalgan hujumiga qarshi yagona chora:
+    ///    hujumchi qurbonga qo'ng'iroq qilib, "bank/o'quv markazi
+    ///    xodimiman, kodni ayting" deydi. Texnik himoya bu yerda ojiz —
+    ///    faqat xabarning o'zi ogohlantira oladi.
+    /// </summary>
+    /// <param name="code">6 xonali kod.</param>
+    /// <param name="ttl">Kod qancha yashashi (matnda daqiqada ko'rsatiladi).</param>
+    public static string LoginCodeText(string code, TimeSpan ttl) =>
+        "🔐 <b>Kirish kodi</b>\n\n"
+        + $"<code>{NotificationText.Parameter(code, MaxCodeLength)}</code>\n\n"
+        + $"Kod {Math.Max(1, (int)Math.Round(ttl.TotalMinutes))} daqiqa yaroqli va "
+        + "faqat <b>bir marta</b> ishlatiladi.\n\n"
+        + "⚠️ Bu kodni <b>hech kimga aytmang</b>. ZIN-NUR xodimlari uni "
+        + "hech qachon so'ramaydi. Agar kirishga urinmagan bo'lsangiz — "
+        + "xabarni e'tiborsiz qoldiring va o'quv bo'limiga bildiring.";
+
+    /// <summary>
+    /// Kod uzunligi chegarasi (<see cref="LoginCodeText"/> parametri uchun).
+    /// Kod SERVER yasagan raqam, ya'ni foydalanuvchi ma'lumoti emas —
+    /// lekin u baribir <c>Parameter</c> orqali o'tkaziladi, chunki
+    /// "escape'ni faqat ba'zi joyda qo'llash" qoidasi birinchi
+    /// unutilganda buziladi.
+    /// </summary>
+    private const int MaxCodeLength = 16;
 
     /// <summary>Raqam bazada topilmadi.</summary>
     public static string ContactUnknownText() =>
@@ -109,11 +176,19 @@ public static class TelegramTemplates
         + "Iltimos, <b>o'quv bo'limiga murojaat qiling</b> va ro'yxatdagi "
         + "telefon raqamingizni tekshiring. Raqam to'g'rilangach, qaytadan urinib ko'ring.";
 
-    /// <summary>Raqam xodimga tegishli.</summary>
+    /// <summary>
+    /// ⚠️ ESKI MATN — 2026-08-13 dan boshlab HECH QAYERDAN chaqirilmaydi
+    /// (sabab <see cref="ContactStaff"/> kaliti izohida). Matn eski
+    /// navbat qatorlarini o'qish uchun emas — ular tayyor holda saqlangan —
+    /// balki kalitning ma'nosi kodda ko'rinib tursin uchun qoldirildi.
+    ///
+    /// 🔴 YANGI CHAQIRUV QO'SHMANG: bu matn MAVJUD BO'LMAGAN kirish
+    /// yo'liga ("email va parol") yo'naltiradi.
+    /// </summary>
     public static string ContactStaffText() =>
         "Bu raqam <b>xodim</b> profiliga tegishli.\n\n"
-        + "Xodimlar tizimga <b>email va parol</b> bilan kiradi. "
-        + "Telegram orqali kirish faqat o'quvchilar uchun.";
+        + "Xodimlar ham Telegram orqali kiradi — «📱 Raqamni ulashish» "
+        + "tugmasini bosing.";
 
     /// <summary>Boshqa odamning kontakti yuborilgan.</summary>
     public static string ContactMismatchText() =>

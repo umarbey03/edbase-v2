@@ -463,7 +463,7 @@ public sealed class AssignmentAttachmentTests(StorageBackedApiFactory factory)
 
         var assignmentId = (await created.Content.ReadFromJsonAsync<AssignmentRow>())!.Id;
 
-        var tokens = await factory.LoginAsync(world.Student.Email, world.Student.Password);
+        var tokens = await factory.LoginAsync(world.Student.Email);
         using var student = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var content = new MultipartFormDataContent();

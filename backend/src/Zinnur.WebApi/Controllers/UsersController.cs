@@ -55,11 +55,34 @@ public sealed class UsersController(
     // ================================================================= boshqaruv
 
     /// <summary>
-    /// Ro'yxat: qidiruv, rol/faollik/guruh/Telegram filtri, sahifalash.
+    /// Ro'yxat: qidiruv, rol/faollik/guruh/Telegram/telefon filtri, sahifalash.
     ///
     /// <c>groupId</c> — shu guruhda FAOL a'zo bo'lganlar;
-    /// <c>telegramLinked</c> — Telegram bog'langan/bog'lanmaganlar
-    /// (semantikasi <see cref="UserListQuery"/> da).
+    /// <c>telegramLinked</c> — Telegram bog'langan/bog'lanmaganlar;
+    /// <c>phoneMissing</c> — normalizatsiyalangan telefoni YO'Q'lar.
+    /// (Semantikasi <see cref="UserListQuery"/> da.)
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 KIRISHGA TAYYORLIK HISOBOTI — CUTOVER'DAN OLDIN MAJBURIY
+    ///
+    /// 2026-08-13 dan kirish faqat telefon + Telegram orqali. Ikkita
+    /// so'rov butun tayyorlik manzarasini beradi (har rol uchun alohida
+    /// yurgiziladi: <c>Admin</c>, <c>Academic</c>, <c>Teacher</c>,
+    /// <c>Assistant</c>):
+    ///
+    ///   GET /api/v1/users?role=Teacher&amp;phoneMissing=true&amp;isActive=true
+    ///       -> raqami YO'Q (yoki normalizatsiyadan o'tmagan) xodimlar.
+    ///          Bular hatto BOG'LANA ham olmaydi.
+    ///
+    ///   GET /api/v1/users?role=Teacher&amp;telegramLinked=false&amp;isActive=true
+    ///       -> raqami bor, lekin botga hali ulanmaganlar.
+    ///
+    /// ★ IKKALASI HAM KERAK va tartib SHU: birinchisi ikkinchisining
+    ///   qism-to'plami emas — telefonsiz odam "bog'lanmagan" ro'yxatida
+    ///   ham turadi, lekin uning muammosi BOSHQA va yechimi ham boshqa
+    ///   (birinchisiga raqam kiritish kerak, ikkinchisiga esa faqat
+    ///   botga bir marta kirish).
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     [HttpGet]
     [Authorize(Roles = ManageRoles)]
@@ -111,13 +134,14 @@ public sealed class UsersController(
     public async Task<ActionResult<UserDetailsDto>> Activate(long id, CancellationToken ct) =>
         Ok(await users.SetActiveAsync(id, isActive: true, CurrentUserId, ct));
 
-    /// <summary>Vaqtinchalik parol. Javobda BIR MARTA ko'rinadi — saqlab qo'ying.</summary>
-    [HttpPost("{id:long}/reset-password")]
-    [Authorize(Roles = ManageRoles)]
-    [ProducesResponseType<ResetPasswordResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ResetPasswordResponse>> ResetPassword(long id, CancellationToken ct) =>
-        Ok(await users.ResetPasswordAsync(id, CurrentUserId, ct));
+    // ⚠️ `POST /{id}/reset-password` OLIB TASHLANDI (2026-08-13).
+    //
+    //    Parol bilan kirish yo'q, ya'ni endpoint hech qayerda ishlamaydigan
+    //    satr qaytarardi va xodim uni foydalanuvchiga "kirish paroli" deb
+    //    uzatardi. Sessiyani majburan yopish uchun:
+    //      • `POST /{id}/deactivate`      — profilni yopadi;
+    //      • `POST /{id}/telegram/unlink` — kirish imkoniyatini ham yopadi
+    //                                        va audit iziga yozadi.
 
     /// <summary>CSV import: <c>full_name,phone,email,role</c>. Xato qatorlar hisobotda qaytadi.</summary>
     [HttpPost("import")]

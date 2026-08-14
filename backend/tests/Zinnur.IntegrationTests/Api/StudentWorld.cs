@@ -231,7 +231,7 @@ internal static class WorldBuilder
 
     public static async Task<HttpClient> ClientAsync(ZinnurApiFactory factory, TestUser user)
     {
-        var tokens = await factory.LoginAsync(user.Email, user.Password);
+        var tokens = await factory.LoginAsync(user.Email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -251,7 +251,13 @@ internal static class WorldBuilder
             fullName = $"{prefix} {role}",
             email,
             role = role.ToString(),
-            password = Password,
+
+            // 🔴 TELEFON MAJBURIY (2026-08-13): xodim rollari uchun server
+            //    uni talab qiladi, chunki kirish faqat telefon orqali.
+            //    O'quvchiga shart emas, lekin BERILADI — shu tufayli
+            //    o'quvchi ham telefon oqimini haydaydigan testlarda
+            //    ishlatila oladi.
+            phone = TestPhones.Next(),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created, await Body(response));

@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
 using Zinnur.Application.LiveSessions.Services;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.WebApi.Controllers;
 
@@ -40,6 +42,47 @@ public sealed class LiveSessionsController(
     public async Task<ActionResult<IReadOnlyList<CalendarSessionDto>>> Calendar(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         Ok(await sessions.GetCalendarAsync(CurrentUserId, from, to, ct));
+
+    /// <summary>
+    /// DARSLAR JADVALI (R31): xodimning darslari + har biriga o'quvchilar
+    /// soni, qatnashganlar soni va davomiylik.
+    ///
+    /// ★ Yuqoridagi ikkala shartnoma ham O'ZGARMADI — bu UCHINCHI yo'l va
+    /// uchinchi DTO. Sabab <see cref="SessionStatsDto"/> izohida (qisqasi:
+    /// <c>GET /live-sessions</c> ni frontend allaqachon ishlatadi).
+    ///
+    /// Marshrut <c>{id:long}</c> bilan to'qnashmaydi: "stats" son emas.
+    ///
+    /// 🔴 <c>Student</c> ATAYLAB YO'Q: sanoqlar guruhdagi BOSHQA o'quvchilar
+    /// haqidagi ma'lumot. O'quvchi o'z davomatini kalendardan ko'radi.
+    /// Atribut faqat DARVOZA — "aynan MENING darslarim" filtri servis
+    /// ichida (<c>ScopeByRole</c>).
+    /// </summary>
+    /// <param name="status">Holat filtri: <c>Scheduled|Live|Ended|Cancelled</c>.</param>
+    /// <param name="groupId">Bitta guruh kesimi (ixtiyoriy).</param>
+    [HttpGet("stats")]
+    [Authorize(Roles = AttendanceRoles)]
+    [ProducesResponseType<PagedResult<SessionStatsDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<SessionStatsDto>>> Stats(
+        [FromQuery] SessionStatus? status,
+        [FromQuery] long? groupId,
+        [FromQuery] int page,
+        [FromQuery] int pageSize,
+        CancellationToken ct) =>
+        Ok(await sessions.GetStatsAsync(
+            new SessionStatsQuery(
+                status,
+                groupId,
+
+                // Bo'sh so'rov parametri `0` bo'lib keladi; servis
+                // `Math.Max`/`Math.Clamp` bilan tuzatadi, lekin standart
+                // qiymat SHU YERDA ham ko'rinib tursin — Swagger'ni o'qigan
+                // odam "0 sahifa" degan ma'nosiz holatni o'ylamasin.
+                page <= 0 ? 1 : page,
+                pageSize <= 0 ? DefaultStatsPageSize : pageSize),
+            CurrentUserId,
+            ct));
 
     [HttpGet("{id:long}")]
     [ProducesResponseType<LiveSessionDto>(StatusCodes.Status200OK)]
@@ -145,4 +188,10 @@ public sealed class LiveSessionsController(
     /// orqali FAQAT KO'RADI.
     /// </summary>
     private const string AttendanceRoles = "Teacher,Assistant,Academic,Admin";
+
+    /// <summary>
+    /// Darslar jadvalining standart sahifa hajmi — frontend jadvali bilan
+    /// AYNI (<c>TeacherSessionsTable.vue</c>).
+    /// </summary>
+    private const int DefaultStatsPageSize = 20;
 }

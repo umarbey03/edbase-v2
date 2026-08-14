@@ -2,6 +2,7 @@ using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Services;
 
@@ -80,6 +81,28 @@ internal static class JobsSetup
                 options.MonthlyBilling,
                 sp.GetRequiredService<ILogger<MonthlyBillingJob>>()));
         }
+
+        // ================================================================
+        // 🔴 CHAT TARIXINI TOZALASH — SHARTSIZ RO'YXATDAN O'TADI.
+        //
+        // Yuqoridagi ikki vazifa MUHIT bayrog'i ostida turibdi, bu esa
+        // ATAYLAB turmaydi. Sabab: uni yoqish/o'chirish administratorning
+        // paneldagi qarori (`chat.retention_enabled`) va vazifa uni HAR
+        // YURISHDA, `RunAsync` ICHIDA o'qiydi. Agar bu yerda ham `if`
+        // bo'lsa, ikki xil "o'chiq" holat paydo bo'lardi va panelda
+        // "yoqilgan" ko'rinib turgan sozlama HECH QACHON ishlamasligi
+        // mumkin edi — muhit bayrog'i vazifani DI'ga umuman qo'shmagani
+        // uchun. Bu eng yomon turdagi xato: jimgina yolg'on.
+        //
+        // Ro'yxatda turgan, lekin sozlamada o'chiq vazifa ARZON: u har
+        // yurishda bitta sozlama so'rovi qiladi va darhol chiqadi.
+        // ================================================================
+        services.AddScoped<IScheduledJob>(sp => new ChatRetentionJob(
+            sp.GetRequiredService<IApplicationDbContext>(),
+            sp.GetRequiredService<ISettingsResolver>(),
+            sp.GetRequiredService<TimeProvider>(),
+            options.ChatRetention,
+            sp.GetRequiredService<ILogger<ChatRetentionJob>>()));
 
         // Rejalashtiruvchini O'CHIRIB QO'YISH mumkin (`Jobs:Enabled=false`):
         // vazifalar DI'da qolaveradi va testlar ularni O'ZI chaqiradi —

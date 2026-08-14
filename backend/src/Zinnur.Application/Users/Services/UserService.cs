@@ -41,6 +41,7 @@ public sealed class UserService(
 
         rows = ApplyGroupFilter(rows, query.GroupId);
         rows = ApplyTelegramFilter(rows, query.TelegramLinked);
+        rows = ApplyPhoneFilter(rows, query.PhoneMissing);
         rows = ApplySearch(rows, query.Search);
 
         // Ikkita so'rov (COUNT + sahifa) — ataylab: `Total` bo'lmasa frontend
@@ -86,20 +87,19 @@ public sealed class UserService(
 
         var fullName = RequireFullName(request.FullName);
         var email = RequireEmail(request.Email);
-        var phone = User.NormalizePhone(request.Phone);
+        var phone = RequirePhoneForStaff(request.Phone, request.Role);
 
         await EnsureEmailFreeAsync(email, exceptUserId: null, ct);
         await EnsurePhoneFreeAsync(phone, exceptUserId: null, ct);
-
-        // Parol berilmasa — kuchli tasodifiy parol. Javobda BIR MARTA ko'rsatiladi.
-        var generated = string.IsNullOrWhiteSpace(request.Password);
-        var password = generated ? GenerateTemporaryPassword() : request.Password!;
 
         var user = new User
         {
             FullName = fullName,
             Email = email,
-            PasswordHash = await hasher.HashAsync(password, ct),
+
+            // 🔴 O'LIK USTUNNI TO'LDIRISH — KIRISH MA'LUMOTI EMAS.
+            //    Sabab `PlaceholderPasswordHashAsync` izohida.
+            PasswordHash = await PlaceholderPasswordHashAsync(ct),
             Role = request.Role,
             IsActive = request.IsActive,
         };
@@ -109,7 +109,7 @@ public sealed class UserService(
         db.Users.Add(user);
         await SaveWithUniqueGuardAsync(ct);
 
-        return new CreateUserResponse(Map(user), generated ? password : null);
+        return new CreateUserResponse(Map(user));
     }
 
     public async Task<UserDetailsDto> UpdateAsync(
@@ -125,7 +125,13 @@ public sealed class UserService(
 
         var fullName = RequireFullName(request.FullName);
         var email = RequireEmail(request.Email);
-        var phone = User.NormalizePhone(request.Phone);
+
+        // ★ TEKSHIRUV YANGI ROL BO'YICHA (rol berilmasa — hozirgisi
+        //   bo'yicha). O'quvchini ustozga aylantirayotgan so'rov ham
+        //   telefon talab qiladi: aks holda "ko'tarilgan" xodim ayni
+        //   amaldan keyin tizimga umuman kira olmay qolardi va sababi
+        //   hech qayerda ko'rinmasdi.
+        var phone = RequirePhoneForStaff(request.Phone, request.Role ?? user.Role);
 
         await EnsureEmailFreeAsync(email, exceptUserId: user.Id, ct);
         await EnsurePhoneFreeAsync(phone, exceptUserId: user.Id, ct);
@@ -178,26 +184,25 @@ public sealed class UserService(
         return Map(user);
     }
 
-    public async Task<ResetPasswordResponse> ResetPasswordAsync(
-        long id, long actorId, CancellationToken ct = default)
-    {
-        var actor = await LoadActorAsync(actorId, ct);
-        var user = await LoadTargetAsync(id, ct);
-
-        EnsureCanManage(actor, user);
-
-        var password = GenerateTemporaryPassword();
-
-        // SetPassword ichida InvalidateTokens() bor — eski sessiyalar o'ladi.
-        user.SetPassword(await hasher.HashAsync(password, ct));
-        await db.SaveChangesAsync(ct);
-
-        // Parol tiklangach eski qurilmalardagi kirish tokeni ham darhol o'lsin.
-        await authState.InvalidateAsync(user.Id, ct);
-
-        // Parol OCHIQ KO'RINISHDA hech qayerda saqlanmaydi — faqat shu javobda.
-        return new ResetPasswordResponse(user.Id, password);
-    }
+    // ══════════════════════════════════════════════════════════════════
+    // ⚠️ `ResetPasswordAsync` OLIB TASHLANDI (2026-08-13).
+    //
+    // Metod vaqtinchalik parol yasab, uni javobda qaytarardi. Parol bilan
+    // kirish yo'q bo'lgach u FAOL ZARARLI bo'lib qolardi: xodim "parolni
+    // tiklab berdim" deb foydalanuvchiga hech qayerda ishlamaydigan satrni
+    // uzatardi, foydalanuvchi esa uni kirish ekranida qidirib vaqt
+    // yo'qotardi.
+    //
+    // ★ UNING IKKINCHI, YASHIRIN VAZIFASI — "barcha sessiyalarni bekor
+    //   qilish" — YO'QOLMADI. Ayni natijani beradigan ikkita amal qoldi:
+    //     • `POST /users/{id}/deactivate` — profilni yopadi va
+    //       `InvalidateTokens()` chaqiradi;
+    //     • `POST /users/{id}/telegram/unlink` — bog'lanishni uzadi,
+    //       sessiyalarni bekor qiladi VA audit iziga yozadi.
+    //
+    //   Ikkinchisi o'g'irlangan qurilma holati uchun AYNAN to'g'ri amal:
+    //   u nafaqat sessiyani, balki qayta kirish imkoniyatini ham yopadi.
+    // ══════════════════════════════════════════════════════════════════
 
     // ================================================================= Telegram
 
@@ -323,7 +328,9 @@ public sealed class UserService(
 
         if (accepted.Count == 0) return 0;
 
-        // 2) Parollarni CHEKLANGAN PARALLELLIK bilan hash'laymiz.
+        // 2) O'lik `PasswordHash` ustunini CHEKLANGAN PARALLELLIK bilan
+        //    to'ldiramiz (bu KIRISH MA'LUMOTI emas — sabab
+        //    `PlaceholderPasswordHashAsync` izohida).
         //    BCrypt ~100-250 ms sof CPU; ketma-ket qilinsa 200 qator ~30 soniya.
         //    Parallellik cheklanmasa import butun thread pool'ni egallab,
         //    boshqa so'rovlar javobsiz qolardi.
@@ -334,7 +341,7 @@ public sealed class UserService(
             new ParallelOptions { MaxDegreeOfParallelism = HashParallelism, CancellationToken = ct },
             async (i, token) =>
             {
-                hashes[i] = await hasher.HashAsync(GenerateTemporaryPassword(), token);
+                hashes[i] = await PlaceholderPasswordHashAsync(token);
             });
 
         var entities = new List<User>(accepted.Count);
@@ -482,6 +489,24 @@ public sealed class UserService(
 
             var phone = User.NormalizePhone(rawPhone);
 
+            // 🔴 CSV — XODIM UCHUN TELEFON QOIDASINING IKKINCHI ESHIGI.
+            //
+            // Qoida `RequirePhoneForStaff` da, lekin import u yerdan
+            // O'TMAYDI (u `User` entity'sini to'g'ridan-to'g'ri yasaydi —
+            // paketlab yozish uchun). Tekshiruv bu yerda takrorlanmasa,
+            // CSV himoyani chetlab o'tadigan yo'l bo'lib qolardi va
+            // 200 ta kirolmaydigan xodim bitta fayl bilan yaratilardi.
+            //
+            // ★ QATOR RAD ETILADI, BUTUN FAYL EMAS — import falsafasi
+            //   shunday: bitta xato qator qolganlarini to'xtatmaydi.
+            if (phone is null && role != UserRole.Student)
+            {
+                issues.Add(new UserImportIssue(
+                    line,
+                    "Xodim uchun telefon raqami majburiy (kirish faqat telefon orqali)."));
+                continue;
+            }
+
             if (!seenEmails.Add(normalizedEmail))
             {
                 issues.Add(new UserImportIssue(line, "Fayl ichida email takrorlangan."));
@@ -615,6 +640,30 @@ public sealed class UserService(
         {
             true => rows.Where(u => u.TelegramId != null),
             false => rows.Where(u => u.TelegramId == null),
+            null => rows,
+        };
+
+    /// <summary>
+    /// 🔴 KIRISHGA TAYYORLIK FILTRI — <c>PhoneNormalized</c> BO'YICHA,
+    /// <c>Phone</c> bo'yicha EMAS.
+    ///
+    /// ★ FARQ HAL QILUVCHI: eski tizimdan ko'chirishda dublikat raqamli
+    /// foydalanuvchilarda <c>Phone</c> to'ldirilgan, <c>PhoneNormalized</c>
+    /// esa <c>NULL</c> qolgan. Bot ham, kirish oqimi ham AYNAN
+    /// normalizatsiyalangan ustun bo'yicha izlaydi — ya'ni bu odamlar
+    /// CRM'da raqamli, tizim uchun esa raqamsiz.
+    ///
+    /// Filtr indeksli: <c>IX_Users_PhoneNormalized</c> FILTRLI unikal
+    /// indeks (<c>WHERE "PhoneNormalized" IS NOT NULL</c>) — ya'ni
+    /// <c>IS NULL</c> shoxi indeksdan foydalana olmaydi va to'liq
+    /// skanerlash bo'ladi. Bu QABUL QILINGAN: so'rovni faqat o'quv
+    /// bo'limi, kunda bir necha marta chaqiradi.
+    /// </summary>
+    private static IQueryable<User> ApplyPhoneFilter(IQueryable<User> rows, bool? missing) =>
+        missing switch
+        {
+            true => rows.Where(u => u.PhoneNormalized == null),
+            false => rows.Where(u => u.PhoneNormalized != null),
             null => rows,
         };
 
@@ -766,12 +815,64 @@ public sealed class UserService(
     }
 
     /// <summary>
-    /// Kriptografik jihatdan kuchli vaqtinchalik parol.
-    /// Chalkashadigan belgilar (0/O, 1/l/I) ATAYLAB olib tashlangan — parol
-    /// ko'pincha telefonda og'zaki aytiladi.
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 O'LIK USTUNNI TO'LDIRUVCHI QIYMAT — KIRISH MA'LUMOTI EMAS
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// <c>User.PasswordHash</c> ustuni <c>required</c> va <c>NOT NULL</c>.
+    /// Uni bazadan olib tashlash MIGRATSIYA talab qilardi; bu esa ayni
+    /// paytda ATAYLAB qilinmadi (sabab <c>User.PasswordHash</c> izohida
+    /// va hisobotda).
+    ///
+    /// Shuning uchun har yangi foydalanuvchiga HECH KIM BILMAYDIGAN
+    /// tasodifiy qiymatning hash'i yoziladi.
+    ///
+    /// ★ NIMA UCHUN QAT'IY BIR XIL SATR EMAS ("disabled" kabi): u holda
+    ///   butun bazada bitta hash takrorlanardi. Parol tekshiruvi
+    ///   kelajakda biror yo'l bilan qaytib kelsa (yoki eski nusxadan
+    ///   tiklansa), BITTA ma'lum qiymat butun tizimni ochib berardi.
+    ///   Tasodifiy qiymat esa hech qachon hech kimga ko'rsatilmaydi va
+    ///   xotirada ham qolmaydi.
+    ///
+    /// ★ NIMA UCHUN BCrypt (qimmat, ~250 ms) SAQLANDI: ustun formati
+    ///   o'zgarmasin. Bir xil shakldagi ma'lumot kelajakdagi migratsiyani
+    ///   (ustunni tashlash) sodda va bir xil qiladi.
     /// </summary>
-    private static string GenerateTemporaryPassword() =>
-        RandomNumberGenerator.GetString(PasswordAlphabet, TemporaryPasswordLength);
+    private Task<string> PlaceholderPasswordHashAsync(CancellationToken ct) =>
+        hasher.HashAsync(
+            RandomNumberGenerator.GetString(PasswordAlphabet, PlaceholderPasswordLength), ct);
+
+    /// <summary>
+    /// 🔴 XODIM UCHUN TELEFON MAJBURIY (2026-08-13).
+    ///
+    /// Sabab: kirishning yagona yo'li — telefon + o'sha raqamga
+    /// bog'langan Telegram hisobiga keladigan kod. Telefonsiz xodim
+    /// yaratish — kirolmaydigan xodim yaratish, va bu faqat u birinchi
+    /// marta kirmoqchi bo'lganda ma'lum bo'lardi.
+    ///
+    /// ★ TEKSHIRUV <c>NormalizePhone</c> NATIJASI BO'YICHA, "bo'sh
+    ///   emasmi" bo'yicha EMAS: <c>"-"</c> yoki <c>"yo'q"</c> kabi qiymat
+    ///   bo'sh emas, lekin <c>SetPhone</c> uni raqamsiz deb
+    ///   <c>PhoneNormalized = null</c> qilib qo'yardi — ya'ni tekshiruvdan
+    ///   o'tgan, lekin baribir kira olmaydigan xodim. Aynan shu holat
+    ///   eski ko'chirishdan keyin butun bir guruhda mavjud
+    ///   (<c>UserListQuery.PhoneMissing</c> izohi).
+    ///
+    /// ★ O'QUVCHI ISTISNO: sabab <c>CreateUserRequest.Phone</c> izohida.
+    /// </summary>
+    /// <returns>Normalizatsiyalangan raqam (o'quvchi uchun <c>null</c> bo'lishi mumkin).</returns>
+    private static string? RequirePhoneForStaff(string? rawPhone, UserRole role)
+    {
+        var phone = User.NormalizePhone(rawPhone);
+
+        if (phone is not null || role == UserRole.Student)
+            return phone;
+
+        throw Invalid(
+            nameof(User.Phone),
+            "Xodim uchun telefon raqami majburiy: tizimga kirish faqat telefon orqali "
+            + "bo'ladi va kirish kodi shu raqamga bog'langan Telegram hisobiga yuboriladi.");
+    }
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
@@ -882,7 +983,16 @@ public sealed class UserService(
     private const int MinSearchLength = 3;
     private const int MaxFullNameLength = 200;
     private const int MaxEmailLength = 256;
-    private const int TemporaryPasswordLength = 14;
+    /// <summary>
+    /// O'lik <c>PasswordHash</c> ustunini to'ldiradigan tasodifiy qiymat
+    /// uzunligi (<see cref="PlaceholderPasswordHashAsync"/>).
+    ///
+    /// ⚠️ Ilgari `TemporaryPasswordLength` deb atalardi va qiymat
+    /// foydalanuvchiga KO'RSATILARDI. 2026-08-13 dan u hech kimga
+    /// ko'rinmaydi — nom shu sababdan o'zgartirildi, aks holda kod
+    /// o'qigan odam hamon "vaqtinchalik parol" chiqadi deb o'ylardi.
+    /// </summary>
+    private const int PlaceholderPasswordLength = 14;
 
     /// <summary>Import chegaralari: har qator uchun BCrypt hisobi kerak, cheksiz fayl serverni bo'g'adi.</summary>
     private const int MaxImportBytes = 2 * 1024 * 1024;

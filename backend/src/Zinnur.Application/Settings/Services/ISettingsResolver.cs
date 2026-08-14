@@ -21,6 +21,21 @@ public sealed record ResolvedSetting(
 {
     /// <summary>Qiymat umuman o'rnatilganmi (sir uchun panel shu bayroqni ko'rsatadi).</summary>
     public bool IsSet => !string.IsNullOrEmpty(Value);
+
+    /// <summary>
+    /// 🔴 Qiymat SHOSHILINCH muhit o'zgaruvchisi bilan ustidan yozilganmi
+    /// (<c>SettingDefinition.OverrideConfigurationKey</c>).
+    ///
+    /// ★ NIMA UCHUN <see cref="Origin"/> DAN ALOHIDA BAYROQ KERAK:
+    /// <c>Origin</c> — "qiymat qayerdan keldi" degan FAKT, bu esa
+    /// "paneldan o'zgartirish endi TA'SIR QILMAYDI" degan XULOSA.
+    /// Panel aynan shu xulosaga qarab maydonni qulflaydi
+    /// (<c>SettingsService.ToDto</c>) — aks holda administrator qiymatni
+    /// saqlab, "saqlandi" javobini olib, tizim esa eski qiymat bilan
+    /// ishlayverardi. Registrdagi eng qattiq qoida shuni taqiqlaydi:
+    /// jimgina yolg'on bo'lmasin.
+    /// </summary>
+    public bool IsOverridden { get; init; }
 }
 
 /// <summary>

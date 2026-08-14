@@ -33,10 +33,12 @@ namespace Zinnur.Application.Telegram.Services;
 /// himoya butunlay qulaydi: hujumchi jabrlanuvchining kontakt kartasini
 /// yuborib, uning profilini o'ziga bog'lab olardi.
 ///
-/// ★ ROL: bog'lash FAQAT `Student` uchun. Xodim raqami topilsa profil
-/// bog'lanMAYDI va Telegram orqali kirish taklif qilinmaydi — xodimlar
-/// email+parol bilan kiradi. Shu tufayli Telegram kanali orqali xodim
-/// huquqini olishning ARXITEKTURA darajasida yo'li yo'q.
+/// ★ ROL: 2026-08-13 dan boshlab bog'lash HAR QANDAY rol uchun ochiq.
+/// Ilgari u faqat `Student` bilan cheklangan edi, chunki xodimlar
+/// email+parol bilan kirardi. Endi bunday eshik yo'q — xodim ham faqat
+/// Telegram orqali kiradi, ya'ni bog'lanish uning uchun TO'SIQ emas,
+/// KIRISH SHARTI. Batafsil sabab va yangi tahdid balansi
+/// `HandleContactAsync` ichidagi ★★ blokda.
 /// ══════════════════════════════════════════════════════════════════════════
 /// </summary>
 public sealed class TelegramUpdateHandler(
@@ -293,18 +295,41 @@ public sealed class TelegramUpdateHandler(
             return TelegramUpdateOutcome.PhoneNotFound;
         }
 
-        // ★ FAQAT O'QUVCHI. Xodim raqami topilsa bog'lash BAJARILMAYDI.
-        if (candidate.Role != UserRole.Student)
-        {
-            TelegramBotLog.StaffPhone(logger, updateId, sender.Id, candidate.Role.ToString());
-
-            await ReplyAsync(updateId, chatId, recipientUserId: null,
-                TelegramTemplates.ContactStaff,
-                TelegramTemplates.ContactStaffText(), ct).ConfigureAwait(false);
-
-            return TelegramUpdateOutcome.StaffPhone;
-        }
-
+        // ══════════════════════════════════════════════════════════════
+        // ★★ ROL FILTRI OLIB TASHLANDI (2026-08-13) — X-1 YOZUVI QAYTA
+        //    YOZILDI, CHUNKI UNING SHARTI O'ZGARDI.
+        //
+        // ESKI QOIDA (bekor qilindi): "FAQAT O'QUVCHI. Xodim raqami
+        // topilsa bog'lash BAJARILMAYDI" — sabab sifatida "xodimlar
+        // email+parol bilan kiradi" ko'rsatilgan edi.
+        //
+        // NIMA UCHUN BEKOR QILINDI: email va parol bilan kirish BUTUNLAY
+        // olib tashlandi (loyiha egasining qarori — talab R26). Endi
+        // xodim ham FAQAT Telegram orqali kiradi: brauzerda telefon
+        // raqamini kiritadi, kod esa BOG'LANGAN Telegram hisobiga keladi.
+        // Ya'ni bog'lanmagan xodim tizimga UMUMAN kira olmaydi — bu shart
+        // endi to'siq emas, KIRISH SHARTI.
+        //
+        // ★ X-1 ("Telegram orqali istalgan rolni olish") NIMA BILAN
+        //   TO'SILADI — yuqoridagi tekshiruvlar zanjiri, hammasi SHU
+        //   metodda va hammasi kuchda:
+        //
+        //   1) `contact.user_id == sender.Id` — raqam egaligini
+        //      Telegram'ning O'ZI tasdiqlaydi (metod boshidagi ★★ blok);
+        //   2) qo'lda raqam yozish yo'li YO'Q — faqat `message.contact`;
+        //   3) bot AKKAUNT YARATMAYDI — raqam bazada oldindan bo'lishi
+        //      shart, uni esa faqat o'quv bo'limi kiritadi;
+        //   4) profilda boshqa Telegram ID tursa QAYTA BOG'LASH
+        //      avtomatik BAJARILMAYDI — odam (o'quv bo'limi) bekor
+        //      qiladi va bu audit iziga tushadi.
+        //
+        // 🔴 HALOL BAHO — NIMA YO'QOLDI: xodim uchun parol ikkinchi omil
+        //    edi. Endi xodim hisobining butun xavfsizligi UNING TELEFON
+        //    RAQAMIGA tayanadi. O'zbekistonda operator ishlatilmagan
+        //    raqamni qayta sotadi, ya'ni ishdan ketgan xodimning profili
+        //    DARHOL o'chirilishi (yoki Telegram'i uzilishi) SHART.
+        //    Tartib: `docs/DEPLOY_UBUNTU.md`.
+        // ══════════════════════════════════════════════════════════════
         if (!candidate.IsActive)
         {
             await ReplyAsync(updateId, chatId, candidate.Id,
@@ -463,12 +488,11 @@ internal static partial class TelegramBotLog
         Message = "Raqam ro'yxatda topilmadi: update={UpdateId} telegram={SenderId}")]
     internal static partial void PhoneNotFound(ILogger logger, long updateId, long senderId);
 
-    [LoggerMessage(
-        EventId = 6205,
-        Level = LogLevel.Warning,
-        Message = "Xodim raqami Telegram orqali bog'lanmoqchi bo'ldi (rad etildi): "
-                  + "update={UpdateId} telegram={SenderId} rol={Role}")]
-    internal static partial void StaffPhone(ILogger logger, long updateId, long senderId, string role);
+    // ⚠️ `StaffPhone` (EventId 6205) OLIB TASHLANDI — xodim raqami endi
+    //    rad etilmaydi, ya'ni yozadigan hodisa qolmadi. EventId QAYTA
+    //    ISHLATILMAYDI: eski loglar va Sentry qidiruvlari o'sha raqamga
+    //    bog'langan bo'lishi mumkin, yangi hodisaga berilsa ikki xil
+    //    voqea bitta identifikator ostida qo'shilib ketardi.
 
     [LoggerMessage(
         EventId = 6206,

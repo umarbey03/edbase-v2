@@ -68,6 +68,27 @@ internal static partial class RecordingLog
     internal static partial void StopRequested(
         ILogger logger, long recordingId, string egressId, bool accepted);
 
+    // ================================================================= avtomatik yozuv
+
+    [LoggerMessage(
+        EventId = 6520,
+        Level = LogLevel.Information,
+        Message = "Avtomatik yozuv navbatga qo'yildi (guruh sozlamasi). dars={SessionId}")]
+    internal static partial void AutoQueued(ILogger logger, long sessionId);
+
+    /// <summary>
+    /// ★ NIMA UCHUN <c>Warning</c>, <c>Debug</c> EMAS: guruhda yozuv
+    /// YOQILGAN, lekin dars YOZILMAYDI — ya'ni o'quv bo'limi kutgan narsa
+    /// bo'lmaydi va buni faqat dars tugagach, yozuv yo'qligidan bilishardi.
+    /// Bu logdagi yagona ogohlantirish shu holatga oid.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6521,
+        Level = LogLevel.Warning,
+        Message = "Avtomatik yozuv o'tkazib yuborildi: LiveKit yoki ombor sozlanmagan. "
+                  + "dars={SessionId}")]
+    internal static partial void AutoSkippedNotConfigured(ILogger logger, long sessionId);
+
     // ================================================================= watchdog
 
     [LoggerMessage(

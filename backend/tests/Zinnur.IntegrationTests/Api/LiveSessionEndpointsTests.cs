@@ -104,7 +104,7 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     {
         var (email, password) = await CreateStudentOutsideAnyGroupAsync();
 
-        var studentTokens = await factory.LoginAsync(email, password);
+        var studentTokens = await factory.LoginAsync(email);
         using var studentClient = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var adminTokens = await factory.LoginAsAdminAsync();
@@ -124,7 +124,7 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     public async Task Start_AsStudent_ReturnsForbidden()
     {
         var (email, password) = await CreateStudentOutsideAnyGroupAsync();
-        var studentTokens = await factory.LoginAsync(email, password);
+        var studentTokens = await factory.LoginAsync(email);
         using var studentClient = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var adminTokens = await factory.LoginAsAdminAsync();

@@ -9,8 +9,11 @@ import {
   removeMember,
   resumeMember,
 } from '@/entities/group'
+import { canSeeStudentContact } from '@/entities/user'
+import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime, formatDateWithYear } from '@/shared/lib/datetime'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { GroupMemberDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, IconButton } from '@/shared/ui'
@@ -75,6 +78,32 @@ const emit = defineEmits<{
 
 const queryClient = useQueryClient()
 const confirm = useConfirm()
+const auth = useAuthStore()
+
+/**
+ * 🔴 KONTAKT USTUNLARI USTOZGA UMUMAN CHIZILMAYDI (talab R27).
+ *
+ * Server ustoz javobida `email` va `phone` ni `null` qilib yuboradi, ya'ni
+ * ustunlar QOLDIRILSA butun jadval bo'ylab "—" ustuni turardi — bu "ma'lumot
+ * yo'q/ilova buzilgan" degan taassurot berardi. Ustunni umuman chizmaslik
+ * rostroq: ustoz uchun bu ma'lumot MAVJUD emas.
+ *
+ * ⚠️ KO'RINISH darvozasi, xavfsizlik chegarasi EMAS — haqiqiy kesish
+ * serverda (`GroupService.ProjectMembers`).
+ */
+const showContact = computed(() => canSeeStudentContact(auth.role ?? ''))
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi (telefonda ko'rinmas jadval ham mount bo'lib, ma'lumot olardi).
+
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi
+  (`style.css` dagi "md va lg haqidagi asosiy qaror" izohi).
+  ★ Pauza/ko'chirish dialoglarining nishoni (`pauseTarget`, `moveTarget`) SHU
+  komponentda saqlanadi, almashinadigan daraxtdan TASHQARIDA — ekran
+  o'lchami o'zgarsa ochiq dialog yopilib qolmaydi.
+*/
+const { isDesktop } = useBreakpoint()
 
 const membersQuery = useQuery({
   queryKey: ['group', props.groupId, 'members'],
@@ -237,8 +266,11 @@ function isHistorical(member: GroupMemberDto): boolean {
         :empty-text="props.canManage ? 'Guruhga o‘quvchi qo‘shing.' : ''"
         @retry="membersQuery.refetch()"
       >
-        <!-- Telefon: kartochka -->
-        <ul class="space-y-2 md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
           <li
             v-for="member in members"
             :key="member.id"
@@ -254,6 +286,7 @@ function isHistorical(member: GroupMemberDto): boolean {
               </BaseBadge>
             </div>
             <p
+              v-if="showContact"
               class="mt-1 truncate text-xs text-slate-400"
               v-text="member.email ?? '—'"
             />
@@ -334,14 +367,21 @@ function isHistorical(member: GroupMemberDto): boolean {
           </li>
         </ul>
 
-        <!-- Desktop: jadval. Konteyner o'zi skroll qiladi, sahifa emas. -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval. Konteyner o'zi skroll qiladi, sahifa emas. -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>
                 <th>Ism</th>
-                <th>Email</th>
-                <th>Telefon</th>
+                <th v-if="showContact">
+                  Email
+                </th>
+                <th v-if="showContact">
+                  Telefon
+                </th>
                 <th>Holat</th>
                 <th>Qo‘shilgan</th>
                 <th v-if="props.canManage">
@@ -359,10 +399,12 @@ function isHistorical(member: GroupMemberDto): boolean {
                   v-text="member.fullName ?? '—'"
                 />
                 <td
+                  v-if="showContact"
                   class="text-slate-400"
                   v-text="member.email ?? '—'"
                 />
                 <td
+                  v-if="showContact"
                   class="text-slate-400"
                   v-text="member.phone ?? '—'"
                 />

@@ -171,6 +171,36 @@ public sealed class RecordingService(
     }
 
     /// <inheritdoc />
+    public async Task<RecordingLiveStatusDto> GetLiveStatusAsync(
+        long sessionId, long actorId, CancellationToken ct = default)
+    {
+        // Ruxsat — darsning O'ZI orqali (istisno bilan rad etadi). Rol
+        // TEKSHIRILMAYDI: indikatorni aynan o'quvchi ko'rishi kerak
+        // (sabab: `IRecordingService` izohi, 1-dalil).
+        await liveSessions.GetAsync(sessionId, actorId, ct).ConfigureAwait(false);
+
+        // ★ AYNI FILTR `StartAsync` VA `StopAsync` DAGIDEK: "yakunlanmagan
+        //   qator". Uchta joyda uchta xil ta'rif bo'lsa, tugma yozuvni
+        //   to'xtatib, indikator esa yonib turgan holat kelib chiqardi.
+        //
+        // So'rov `IX_SessionRecordings_SessionId_Id` indeksiga tushadi va
+        // faqat IKKI ustunni o'qiydi — qator umuman yuklanmaydi.
+        var row = await db.SessionRecordings
+            .AsNoTracking()
+            .Where(r => r.SessionId == sessionId
+                     && r.Status != RecordingStatus.Completed
+                     && r.Status != RecordingStatus.Failed)
+            .OrderByDescending(r => r.Id)
+            .Select(r => new { r.StartedAt })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        return row is null
+            ? new RecordingLiveStatusDto(false, null)
+            : new RecordingLiveStatusDto(true, row.StartedAt);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<RecordingDto>> ListForSessionAsync(
         long sessionId, long actorId, CancellationToken ct = default)
     {

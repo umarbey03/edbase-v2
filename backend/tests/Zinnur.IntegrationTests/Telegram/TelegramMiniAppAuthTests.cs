@@ -129,18 +129,35 @@ public sealed class TelegramMiniAppAuthTests(TelegramApiFactory factory)
     }
 
     /// <summary>
-    /// ★★ XODIM TELEGRAM ORQALI KIRA OLMAYDI.
+    /// ══════════════════════════════════════════════════════════════════
+    /// ★★ XODIM ENDI MINI APP ORQALI HAM KIRADI — XULQ 2026-08-13 DA
+    ///    O'ZGARDI (audit X-1 yozuvi qayta yozildi).
     ///
-    /// Hatto bog'lash bosqichi biror yo'l bilan chetlab o'tilgan (bazaga
-    /// qo'lda yozilgan) taqdirda ham token BERILMAYDI — bu ikkinchi,
-    /// mustaqil to'siq.
+    /// ESKI TEST (bekor qilindi) 403 kutardi va izohida bu "ikkinchi,
+    /// mustaqil to'siq" deb atalgan edi. To'siqning butun mantiqiy asosi
+    /// bitta jumla edi: *"xodimlar email va parol bilan kiradi"*. O'sha
+    /// eshik OLIB TASHLANGACH to'siq himoya bo'lishdan to'xtab, xodimni
+    /// tizimdan chiqarib yuboradigan nosozlikka aylandi.
+    ///
+    /// ★ NIMA UCHUN XODIMGA MINI APP OCHIQ QOLDIRILDI: identifikatsiya
+    ///   dalili IKKALA rol uchun ham AYNI — imzolangan `initData` +
+    ///   oldindan qilingan bog'lanish. Xodimni bu yerda 403 bilan
+    ///   to'xtatish uni botdagi «Ilovani ochish» tugmasidan keyin boshi
+    ///   berk ko'chaga olib borardi (ilgari u yerda "email bilan kiring"
+    ///   deb yozilardi — endi bunday sahifa yo'q).
+    ///
+    /// 🔴 QOLGAN HIMOYA: bu yerda hech qanday rol TEKSHIRUVI yo'q,
+    ///    chunki asosiy shart yuqorida — Telegram profilga BOG'LANGAN
+    ///    bo'lishi kerak, bog'lanish esa raqam egaligini Telegram orqali
+    ///    tasdiqlashni talab qiladi (`TelegramWebhookTests`).
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     [Theory]
     [InlineData(UserRole.Admin)]
     [InlineData(UserRole.Academic)]
     [InlineData(UserRole.Teacher)]
     [InlineData(UserRole.Assistant)]
-    public async Task MiniApp_WithStaffAccount_IsForbidden(UserRole role)
+    public async Task MiniApp_WithStaffAccount_IsAllowed(UserRole role)
     {
         var telegramId = NewTelegramId();
         await factory.CreateUserAsync(role, telegramId: telegramId);
@@ -148,8 +165,8 @@ public sealed class TelegramMiniAppAuthTests(TelegramApiFactory factory)
         var response = await factory.PostMiniAppAuthAsync(
             TelegramApiFactory.BuildInitData(telegramId));
 
-        response.Status.Should().Be(HttpStatusCode.Forbidden,
-            "Telegram kanali orqali xodim roli HECH QACHON berilmaydi");
+        response.Status.Should().Be(HttpStatusCode.OK,
+            "email va parol bilan kirish olib tashlangach xodim uchun yagona yo'l — Telegram");
     }
 
     [Fact]

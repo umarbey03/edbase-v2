@@ -5,6 +5,7 @@ import type { ComputedRef, Ref } from 'vue'
 import { fetchSessionRecordings, isRecordingInProgress, startRecording, stopRecording } from '@/entities/recording'
 import type { Recording } from '@/entities/recording'
 import { toUserMessage } from '@/shared/api'
+import { useConfirm } from '@/shared/lib/useConfirm'
 
 /**
  * ============================================================================
@@ -55,6 +56,7 @@ export function useSessionRecording(
 ): UseSessionRecordingResult {
   const { sessionId } = options
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const actionError = ref<string | null>(null)
 
   const listQuery = useQuery({
@@ -125,13 +127,57 @@ export function useSessionRecording(
     ),
     actionError,
     isBusy: computed(() => startMutation.isPending.value || stopMutation.isPending.value),
+    /*
+      ★ BOSHLASHDA TASDIQ SO'RALMAYDI — ATAYLAB (R4).
+
+      Yozuv 2026-08-13 dan AVTOMATIK boshlanadi, ya'ni bu tugma "boshlash"
+      holatida faqat TUZATISH yo'li bo'lib qoladi: guruhda yozuv o'chiq
+      edi, yoki dars boshlanganda ombor sozlanmagan edi (izohi
+      `SessionRecordingControl.vue` da). Bunday yo'lni tasdiq oynasi bilan
+      og'irlashtirish — allaqachon nosozlikni tuzatayotgan xodimga
+      qo'shimcha qadam. Amal esa qaytariladigan: bosib yuborilsa darhol
+      to'xtatiladi.
+    */
     start: () => {
       actionError.value = null
       startMutation.mutate()
     },
+
+    /**
+     * 🔴 TO'XTATISH TASDIQLANADI — U ROZILIKNING YAGONA CHIQISHI VA
+     * QAYTARIB BO'LMAYDI.
+     *
+     * Egress yozuvni to'xtatgach fayl YOPILADI. "Davom ettirish" degan
+     * amal yo'q: qayta boshlansa YANGI fayl ochiladi va bitta darsdan
+     * ikkita bo'lak qoladi. Ya'ni xato bosish qaytarilmaydi — darsning
+     * o'rtasi bir faylda tugab, ikkinchisi boshqasida boshlanadi.
+     *
+     * ★ TASDIQ AYNAN SHU YERDA (tugmada emas): `stop()` — modeldagi
+     * YAGONA to'xtatish yo'li. Tugmaga qo'yilsa, ertaga ikkinchi
+     * chaqiruvchi (masalan "darsdan chiqish" oqimi) uni chetlab o'tardi.
+     *
+     * `void (async …)()` — qaytish turi `() => void` bo'lib qoladi: uni
+     * shablonda `@click="recording.stop"` bilan chaqirish naqshi
+     * o'zgarmasin (`UseSessionRecordingResult` tashqi shartnoma).
+     */
     stop: () => {
-      actionError.value = null
-      stopMutation.mutate()
+      void (async (): Promise<void> => {
+        const ok = await confirm({
+          title: 'Yozuvni to‘xtatish',
+          message: 'Dars yozuvi to‘xtatiladi va shu paytgacha yozilgani yakuniy fayl bo‘lib yopiladi.',
+          confirmLabel: 'To‘xtatish',
+          tone: 'warning',
+          details: [
+            'Darsning qolgan qismi umuman yozilmaydi.',
+            'Yozuv avtomatik boshlangan — to‘xtatilgach o‘z-o‘zidan qayta boshlanmaydi.',
+            'Qayta yoqilsa YANGI fayl ochiladi: bitta darsdan ikkita alohida yozuv qoladi.',
+          ],
+        })
+        if (!ok) return
+
+        actionError.value = null
+        stopMutation.mutate()
+      })()
     },
     refetch: () => {
       void listQuery.refetch()

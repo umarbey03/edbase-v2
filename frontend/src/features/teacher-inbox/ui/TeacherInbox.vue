@@ -25,6 +25,15 @@ import InboxThread from './InboxThread.vue'
  * yozishma. Telefonda (eski `@media(max-width:720px)`) ular ALMASHADI —
  * suhbat ochilsa ro'yxat yashiriladi, "←" tugmasi qaytaradi. Bu alohida
  * MARSHRUT emas: brauzer tarixi savollar bilan to'lib ketmasin.
+ *
+ * 🔴 IKKI USTUN `lg:` (1024px) DAN BOSHLANADI, `md:` DAN EMAS: 768px da
+ * 320px ustun ayrilgach yozishmaga ~420px qolardi — xabar pufakchalari va
+ * yozish maydoni uchun juda tor. Endi iPad tik holatida ham "ro'yxat →
+ * yozishma" almashuvi ishlaydi, ya'ni butun ekran bitta ishga tegishli.
+ *
+ * ★ QAYTISH TUGMASI HAM SHU CHEGARADA: `InboxThread` dagi "←" `lg:hidden`.
+ * Agar u `md:hidden` bo'lib qolsa, 768–1023px oralig'ida ro'yxat YASHIRINIB,
+ * qaytish tugmasi ham YO'QOLIB, foydalanuvchi yozishmada qamalib qolardi.
  */
 const props = withDefaults(defineProps<{ emptyHint?: string }>(), { emptyHint: '' })
 
@@ -111,14 +120,37 @@ function rowBorder(row: InboxRow): string {
   if (row.conversation.unreadCount > 0) return 'border-brand-500/30'
   return 'border-transparent'
 }
+
+/**
+ * QATOR KO'RINISHI — uch tarmoqli shart, `GroupChatThreadList` dagi bilan
+ * bir xil qoida (2026-08-13, R28).
+ *
+ * ★ "HOZIR OCHIQ" boshqa hamma belgidan USTUN turadi: shoshilinchlik
+ * (24 soatdan oshgan kutish) va o'qilmaganlik — ESLATMA, ochiqlik esa
+ * foydalanuvchi AYNAN shu daqiqada qayerdaligi. Ilgari tanlangan qator
+ * faqat `bg-ink-800` bilan ajratilardi va u hover fonidan deyarli
+ * farqlanmasdi — ikki panelli ekranda "qaysi biri ochiq" degan savol
+ * javobsiz qolardi. Kutish muddati baribir ko'rinadi: uni nishon
+ * (`BaseBadge`) aytib turadi.
+ */
+function rowClass(row: InboxRow): string {
+  if (row.conversation.peerId === activePeerId.value) return 'border-brand-500/70 bg-brand-500/15'
+  return `hover:bg-ink-850 ${rowBorder(row)}`
+}
 </script>
 
 <template>
-  <div class="grid items-start gap-3.5 md:grid-cols-[320px_minmax(0,1fr)]">
+  <!--
+    ★ RO'YXAT USTUNI 340px (2026-08-13, R28): o'quvchi chati va ustoz
+    "Chatlar" hubi ham AYNAN shu kenglikda (`docs/MOSLASHUVCHANLIK.md` 6.3).
+    Uchta chat ekrani bir kunda bir necha marta almashadi va 20px lik farq
+    ro'yxat qatorlarini boshqa joyda sindirardi.
+  -->
+  <div class="grid items-start gap-3.5 lg:grid-cols-[340px_minmax(0,1fr)]">
     <!-- ========================= Suhbatlar ro'yxati ========================= -->
     <section
       class="rounded-xl border border-line bg-ink-900 p-2.5"
-      :class="activePeer !== null ? 'hidden md:block' : ''"
+      :class="activePeer !== null ? 'hidden lg:block' : ''"
     >
       <label
         class="sr-only"
@@ -200,7 +232,7 @@ function rowBorder(row: InboxRow): string {
 
         <div
           v-else
-          class="scrollbar-slim max-h-[74vh] overflow-y-auto"
+          class="scrollbar-slim max-h-[74dvh] overflow-y-auto"
         >
           <template
             v-for="section in sections"
@@ -214,15 +246,19 @@ function rowBorder(row: InboxRow): string {
               {{ section.title }} ({{ section.items.length }})
             </p>
 
+            <!--
+              `aria-current="true"` — ko'rish qobiliyati cheklangan
+              foydalanuvchi ham qaysi yozishma ochiqligini biladi (rang
+              yolg'iz o'zi hech qachon yagona belgi bo'lmasligi kerak).
+              O'quvchi chatidagi ro'yxat bilan bir xil qoida.
+            -->
             <button
               v-for="row in section.items"
               :key="row.conversation.peerId"
               type="button"
               class="mb-1 block w-full rounded-[10px] border p-2.5 text-left transition-colors"
-              :class="[
-                row.conversation.peerId === activePeerId ? 'bg-ink-800' : 'hover:bg-ink-850',
-                rowBorder(row),
-              ]"
+              :class="rowClass(row)"
+              :aria-current="row.conversation.peerId === activePeerId ? 'true' : undefined"
               @click="activePeerId = row.conversation.peerId"
             >
               <span class="flex items-center justify-between gap-2">
@@ -273,12 +309,25 @@ function rowBorder(row: InboxRow): string {
       :peer="activePeer"
       @close="activePeerId = null"
     />
-    <EmptyState
+    <!--
+      "O'quvchini tanlang" ko'rsatkichi FAQAT ikki ustunli joylashuvda
+      mazmunli — bitta ustunda ro'yxatning o'zi allaqachon ekranda turadi.
+
+      ★ MARKAZDA (2026-08-13, R28): o'quvchi chatidagi bo'sh o'ng ustun
+      bilan bir xil. `self-stretch` SHART — setka `items-start` bilan
+      qurilgan (qatorlar tepadan tekislanadi), ya'ni usiz katak kontent
+      balandligida qolib, markazlashtiradigan hech narsa bo'lmasdi.
+    -->
+    <div
       v-else
-      class="hidden md:block"
-      icon="chat"
-      title="O‘quvchini tanlang"
-      text="Chapdagi ro‘yxatdan o‘quvchini tanlang — yozishma shu yerda ochiladi."
-    />
+      class="hidden lg:flex lg:items-center lg:justify-center lg:self-stretch"
+    >
+      <EmptyState
+        class="w-full max-w-[420px]"
+        icon="chat"
+        title="O‘quvchini tanlang"
+        text="Chapdagi ro‘yxatdan o‘quvchini tanlang — yozishma shu yerda ochiladi."
+      />
+    </div>
   </div>
 </template>

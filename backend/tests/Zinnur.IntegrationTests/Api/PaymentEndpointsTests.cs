@@ -733,7 +733,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(string email, string password)
     {
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -751,7 +751,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
             fullName = "Moliya " + role.ToString(),
             email,
             role = role.ToString(),
-            password,
+            phone = TestPhones.Next(),
         });
 
         await EnsureStatusAsync(response, HttpStatusCode.Created);

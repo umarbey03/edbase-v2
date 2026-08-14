@@ -15,6 +15,7 @@ import { GroupEditDrawer } from '@/features/group-form'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import { useDebounced } from '@/shared/lib/debounce'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { GroupDto, GroupTypeName } from '@/shared/types'
 import {
   AppIcon,
@@ -29,6 +30,15 @@ import {
 /** Guruhlar boshqaruvi (Academic/Admin): qidiruv, tur filtri, yaratish/tahrirlash. */
 const router = useRouter()
 const queryClient = useQueryClient()
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi (telefonda ko'rinmas jadval ham mount bo'lib, ma'lumot olardi).
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi,
+  ya'ni iPad tik holati (768px) kartochka bo'lib qoladi — `style.css` dagi
+  "md va lg haqidagi asosiy qaror" izohiga qarang.
+*/
+const { isDesktop } = useBreakpoint()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
@@ -144,10 +154,16 @@ function openDetail(groupId: number): void {
             :size="16"
           />
         </span>
+        <!--
+          R22: server qidiruvi guruh nomidan tashqari ustoz, kurator,
+          kurator guruhi va kurs nomlarini ham qamraydi. Bu ekran AYNI
+          endpointdan foydalanadi, ya'ni matn ikkalasida bir xil bo'lishi
+          shart — aks holda o'quv bo'limi imkoniyatdan bexabar qolardi.
+        -->
         <input
           v-model="search"
           class="zn-input pl-9"
-          placeholder="Guruh nomi bo‘yicha qidirish"
+          placeholder="Guruh, ustoz, kurator yoki kurs nomi"
         >
         <p
           v-if="searchTooShort"
@@ -203,8 +219,11 @@ function openDetail(groupId: number): void {
       @retry="groupsQuery.refetch()"
     >
       <BaseCard flush>
-        <!-- Telefon: kartochka -->
-        <ul class="divide-y divide-line md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
           <li
             v-for="group in groups"
             :key="group.id"
@@ -255,8 +274,11 @@ function openDetail(groupId: number): void {
           </li>
         </ul>
 
-        <!-- Desktop: jadval -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

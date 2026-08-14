@@ -74,6 +74,7 @@ public static class SettingsRegistry
         SettingGroup.Storage => "Ombor (fayllar)",
         SettingGroup.Security => "Xavfsizlik",
         SettingGroup.Content => "O'quv kontenti",
+        SettingGroup.Chat => "Guruh chati",
         _ => group.ToString(),
     };
 
@@ -87,6 +88,8 @@ public static class SettingsRegistry
         SettingGroup.Storage => "Uy vazifasi fayllari saqlanadigan obyekt ombori.",
         SettingGroup.Security => "Sessiya, token va ulanish sirlari.",
         SettingGroup.Content => "Dars videosi va rasmlari uchun hajm chegaralari.",
+        SettingGroup.Chat =>
+            "Guruh chati tarixini avtomatik tozalash. 🔴 O'chirish QAYTARILMAYDI.",
         _ => string.Empty,
     };
 
@@ -195,12 +198,20 @@ public static class SettingsRegistry
                 "@BotFather bergan token. Xabar yuborish va Mini App imzosini tekshirish "
                 + "uchun kerak. Bo'sh bo'lsa Telegram funksiyalari butunlay o'chiq bo'ladi. "
                 + "★ Token o'g'irlanganda uni SHU YERDAN almashtirish kifoya — serverga "
-                + "kirish yoki qayta joylashtirish shart emas.",
+                + "kirish yoki qayta joylashtirish shart emas. "
+                + "🔴 2026-08-13 dan bu qiymat TIZIMGA KIRISHNI ham belgilaydi: "
+                + "email va parol olib tashlangan, kirishning ikkala yo'li ham "
+                + "(Mini App imzosi va telefonga yuboriladigan kod) shu tokenga tayanadi.",
             Kind = SettingValueKind.Secret,
             Format = SettingFormat.TelegramToken,
             Source = SettingSource.Database,
             ConfigurationKey = "Telegram:BotToken",
             MaxLength = 200,
+
+            // 🔴 O'LIK HALQANI UZADIGAN KALIT — sabab
+            //    `SettingDefinition.OverrideConfigurationKey` izohida.
+            OverrideConfigurationKey = TelegramOverrideKeys.BotToken,
+            OverrideReason = TelegramOverrideKeys.Reason,
         },
 
         new()
@@ -218,6 +229,14 @@ public static class SettingsRegistry
             Source = SettingSource.Database,
             ConfigurationKey = "Telegram:WebhookSecret",
             MaxLength = 256,
+
+            // 🔴 TOKEN BILAN JUFTLIKDA. `TelegramOptions.IsConfigured`
+            //    IKKALASINI ham talab qiladi — ya'ni faqat tokenni
+            //    ustidan yozish yetarli bo'lmasdi: sir buzuq qolsa
+            //    integratsiya baribir "sozlanmagan" holatida turardi va
+            //    tiklash yo'li yarim ochiq bo'lardi.
+            OverrideConfigurationKey = TelegramOverrideKeys.WebhookSecret,
+            OverrideReason = TelegramOverrideKeys.Reason,
         },
 
         new()
@@ -379,18 +398,74 @@ public static class SettingsRegistry
                 + "Bo'sh qoldirilsa yuqoridagi «Ombor manzili» ishlatiladi. "
                 + "⚠️ Dev'da ular FARQ QILADI: backend omborga Docker tarmog'i ichidan "
                 + "(`http://minio:9000`) boradi, brauzer esa faqat host portini "
-                + "(`http://localhost:9010`) ko'radi.",
+                + "(`http://localhost:9010`) ko'radi. "
+
+                // ═══════════════════════════════════════════════════════
+                // 🔴 ENG QIMMAT TUZOQ — U AYNAN SHU MAYDONDA YASHIRINGAN
+                //
+                // Xato qiymat 500 ham, 400 ham bermaydi: brauzer omborga
+                // BORADI va 403 oladi. Ya'ni sozlama xatosi "video
+                // ochilmayapti" ko'rinishida chiqadi va uni Egress,
+                // kalitlar yoki tarmoqdan qidirish bilan kunlar
+                // yo'qotiladi. Ogohlantirish PANELDA turishi shart —
+                // qidiruv aynan o'sha yerdan boshlanadi.
+                // ═══════════════════════════════════════════════════════
+                + "🔴 XATO MANZIL «JIM 403» BERADI. S3 imzosi (SigV4) URL'ning "
+                + "HOST qismini ham imzolaydi: bu yerdagi manzil ombor haqiqatan "
+                + "javob beradigan manzil bilan mos kelmasa, havola TO'G'RI "
+                + "imzolangan bo'lsa-da ombor uni rad etadi. Xato serverning "
+                + "logida KO'RINMAYDI (so'rov bizga umuman kelmaydi) — "
+                + "foydalanuvchi faqat «video ochilmadi» deb ko'radi. "
+                + "R2 uchun bu odatda `https://<hisob>.r2.cloudflarestorage.com` "
+                + "yoki bucket'ga ulangan o'z domeningiz.",
             Kind = SettingValueKind.Text,
             Format = SettingFormat.Url,
-            Source = SettingSource.Environment,
+
+            // ═══════════════════════════════════════════════════════════
+            // ★★ 2026-08-13: `Environment` DAN `Database` GA O'TKAZILDI.
+            //
+            // Loyiha egasining talabi: *"cloudflareni ham ulanish
+            // joylarini admin panel orqali boshqaradigan qilib ket"*.
+            // Cloudflare R2 uchun AYNAN shu maydon — yozuvlarni KO'RISH
+            // uchun ulanish nuqtasi.
+            //
+            // ── ESKI SABAB VA UNGA JAVOB (o'chirilmaydi) ──────────────
+            //
+            // Eski `ReadOnlyReason` ikki dalilga tayanardi:
+            //
+            //  1) "Bu DEPLOY qarori: DNS va sertifikat bilan birga
+            //     o'zgaradi." — ⚠️ TO'G'RI, LEKIN AYNAN SHU SABABDAN
+            //     PANELDA BO'LISHI KERAK. Domen o'zgarganda bugungi
+            //     yagona yo'l — `.env` ni tahrirlab QAYTA JOYLASHTIRISH.
+            //     Ya'ni eng shoshilinch daqiqada eng sekin yo'l; ayni
+            //     mulohaza `storage.access_key` uchun allaqachon qabul
+            //     qilingan edi (u ham paneldan aylantiriladi).
+            //
+            //  2) 🔴 "Panelga kirgan odam yozuvlar oqimini o'z serveriga
+            //     burib yubora olardi." — ⚠️ BU DALIL IZCHIL EMAS EDI.
+            //     Panelga kirgan odam ALLAQACHON `storage.service_url`,
+            //     `storage.bucket`, `storage.access_key` va
+            //     `storage.secret_key` ni boshqaradi (hammasi
+            //     `Database`), ya'ni yozuvlarni O'Z omboriga YOZDIRA
+            //     oladi. Faqat KO'RISH manzilini yopib qo'yish hech
+            //     qanday xavfsizlik bermasdi — u faqat qayta
+            //     joylashtirish majburiyatini qo'shardi. Bu yerdagi
+            //     haqiqiy chegara — `Admin` roli va `AppSettings` auditi,
+            //     `Source` emas.
+            //
+            // ★ `livekit.public_url` DAN FARQI SHUNDA: u brauzerning
+            //   WebSocket ulanishi (jonli dars) va u sog'liq tekshiruvi
+            //   bilan juftlashgan (`RuntimeLiveKitOptions` izohi). Bu
+            //   maydon esa faqat imzolangan havolaning host qismi —
+            //   hech qanday probe unga qaramaydi.
+            // ═══════════════════════════════════════════════════════════
+            Source = SettingSource.Database,
             ConfigurationKey = "Storage:PublicUrl",
-            ReadOnlyReason =
-                "🔴 XAVFSIZLIK VA DEPLOY. Bu qiymat BRAUZERGA ketadi, ya'ni "
-                + "`livekit.public_url` bilan AYNI turkum: u DNS va sertifikat bilan "
-                + "birga o'zgaradi — deploy qarori, biznes qarori emas. Bundan tashqari "
-                + "manzil paneldan boshqarilsa, panelga kirgan odam barcha dars "
-                + "yozuvlarining oqimini o'z serveriga yo'naltira olardi "
-                + "(`telegram.api_base_url` dagi AYNI mulohaza). " + StartupBoundReason,
+
+            // MinLength YO'Q: bo'sh qiymat MA'NOLI — u "«Ombor manzili»
+            // ishlatilsin" degani (`RuntimeStorageOptions.Compose`). Boshqa
+            // `Storage:*` kalitlaridan farqi shu, shuning uchun u
+            // `SettingCoupling` ning majburiy to'plamiga ham kirmaydi.
         },
 
         new()
@@ -529,6 +604,79 @@ public static class SettingsRegistry
             Maximum = 100m,
         },
 
+        // ================================================================ GURUH CHATI
+        //
+        // 🔴 BU IKKI KALIT MA'LUMOTNI DOIMIY O'CHIRADI. Registrdagi boshqa
+        // hech bir kalit bunday emas — shuning uchun ular alohida bo'limda
+        // va ikkalasining izohi ham "nima yo'qoladi" degan savoldan
+        // boshlanadi. Mexanizm izohi: `ChatRetentionJob`.
+
+        new()
+        {
+            Key = "chat.retention_enabled",
+            Group = SettingGroup.Chat,
+            DisplayName = "Chat tarixini avtomatik o'chirish",
+            Description =
+                "🔴 YOQILSA guruh chatidagi eski xabarlar DOIMIY o'chiriladi va ularni "
+                + "ilova orqali TIKLAB BO'LMAYDI (loyihada \"soft delete\" yo'q; yagona "
+                + "zaxira — tungi `pg_dump`). O'chirish barcha guruhlarga tegishli, "
+                + "arxivlanganlariga ham. "
+                + "⚠️ Shaxsiy yozishmalar (kurator ↔ o'quvchi) va jonli dars chatiga "
+                + "TEGILMAYDI — faqat guruhning doimiy chati tozalanadi.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Chat:RetentionEnabled",
+
+            // ★ STANDART — O'CHIQ, VA BU ATAYLAB (eng muhim qaror shu yerda).
+            //
+            // Yoqilgan holda yetkazilsa, yangi versiya chiqqan kuni birinchi
+            // yurishda 3 oydan eski BUTUN yozishma yo'q bo'lardi — hech kim
+            // so'ramagan, hech kim ogohlantirilmagan holda. Qaytarish yo'li
+            // esa faqat tungi dump. Shuning uchun funksiya TAYYOR turadi,
+            // lekin uni administrator PANELDAN ongli ravishda yoqadi.
+            // Yoqilgan payt log'da ham ko'rinadi (`chat-retention` vazifasi
+            // har yurishda nechta qator o'chirganini yozadi).
+            DefaultValue = "false",
+        },
+
+        new()
+        {
+            Key = "chat.retention_months",
+            Group = SettingGroup.Chat,
+            DisplayName = "Chat tarixi saqlanadigan muddat (oy)",
+            Description =
+                "Guruh chatida shu muddatdan ESKI xabarlar o'chiriladi — Telegram'dagi "
+                + "avtomatik o'chirish kabi, SURILIB boruvchi oyna: 3 oy qo'yilsa, har kuni "
+                + "\"3 oy oldingi\" xabarlar yo'qolib boradi. "
+                + "Faqat yuqoridagi kalit yoqilgan bo'lsa ishlaydi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Chat:RetentionMonths",
+            DefaultValue = "3",
+
+            // 🔴 PASTKI CHEGARA 1 OY — HALOKATGA QARSHI TO'SIQ, "aql bovar
+            // qilmaydigan qiymat" filtri EMAS. `0` qo'yilsa kesim JORIY
+            // ONGA to'g'ri kelardi va keyingi yurish (bir soatdan keyin)
+            // butun guruh chatini, shu jumladan bugun yozilgan savollarni
+            // ham o'chirib yuborardi. Bu qiymat panelda bitta xato bosishga
+            // teng, natijasi esa qaytarilmaydi.
+            //
+            // ⚠️ Chegara IKKI joyda: bu yerda (yozishda 400 beradi va buzuq
+            // saqlangan qiymat o'qishda standartga tushadi — `SettingsResolver`)
+            // va vazifaning O'ZIDA (`ChatRetentionJob.MinMonths`). Nusxa
+            // ataylab: sozlamani qo'lda `AppSettings` jadvaliga yozib
+            // qo'yish mumkin, vazifa esa har holda o'chirish oldidan yana
+            // bir marta cheklaydi.
+            Minimum = 1m,
+
+            // Yuqori chegara 120 oy (10 yil): undan uzun muddat amalda
+            // "hech qachon o'chirilmasin" degani va buni yoqilgan kalit
+            // bilan emas, kalitni O'CHIRIB ifodalash kerak — aks holda
+            // panelda "yoqilgan" ko'rinib, hech narsa qilmaydigan holat
+            // paydo bo'lardi.
+            Maximum = 120m,
+        },
+
         // ================================================================ XAVFSIZLIK
 
         new()
@@ -664,6 +812,64 @@ public static class SettingsRegistry
     ];
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 "BREAK-GLASS" MUHIT O'ZGARUVCHILARI — TIZIMNI QAYTA OCHISH KALITI
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Bu ikki kalit BAZADAGI qiymatdan USTUN turadi (registrning odatiy
+    /// qoidasidan yagona istisno).
+    ///
+    /// ★ NIMA UCHUN AYNAN SHU IKKITASI VA BOSHQA HECH BIRI:
+    ///
+    /// 2026-08-13 dan boshlab tizimga kirishning HAR IKKALA yo'li ham
+    /// Telegram botiga tayanadi (email va parol olib tashlandi). Bot
+    /// tokeni esa bazada. Ya'ni bu ikki qiymat platformadagi YAGONA
+    /// sozlama bo'lib qoldi, uni buzish "hech kim, hech qachon kira
+    /// olmaydi" holatiga olib keladi — VA uni tuzatadigan panel ham
+    /// o'sha kirish ortida qoladi.
+    ///
+    /// Boshqa kalitlar bunday emas: buzuq ombor manzili faqat fayllarni,
+    /// buzuq LiveKit kaliti faqat jonli darsni to'xtatadi — tizimga
+    /// kirib, ularni paneldan tuzatish mumkin qoladi.
+    ///
+    /// ⚠️ QO'YILGAN BO'LSA — DOIM ISHLAYDI, "faqat avariyada" degan
+    ///    texnik cheklov YO'Q. Shuning uchun uni tiklashdan KEYIN
+    ///    olib tashlash kerak, aks holda tokenni paneldan almashtirish
+    ///    imkoniyati mangu yopiq qoladi. Panel buni ochiq ko'rsatadi:
+    ///    maydon qulflanadi va <see cref="Reason"/> matni chiqadi.
+    ///
+    /// Amaliy tartib: <c>docs/DEPLOY_UBUNTU.md</c>.
+    /// </summary>
+    public static class TelegramOverrideKeys
+    {
+        /// <summary>
+        /// Konfiguratsiya yo'li. Muhit o'zgaruvchisi ko'rinishi:
+        /// <c>Telegram__BotTokenOverride</c> (ASP.NET Core ikki pastki
+        /// chiziqni <c>:</c> deb o'qiydi).
+        ///
+        /// ★ NIMA UCHUN <c>Telegram:BotToken</c> NING O'ZI EMAS: u
+        /// allaqachon "baza bo'sh bo'lgandagi BOSHLANG'ICH qiymat"
+        /// ma'nosini bildiradi va deploy fayllarida shu ma'noda turibdi.
+        /// Ayni kalitga ikkinchi, teskari ma'no berilsa, mavjud
+        /// o'rnatishlarda bazadagi token JIMGINA e'tiborsiz qolardi —
+        /// ya'ni tuzatish vositasi o'zi buzuvchiga aylanardi.
+        /// </summary>
+        public const string BotToken = "Telegram:BotTokenOverride";
+
+        /// <summary>Muhit o'zgaruvchisi: <c>Telegram__WebhookSecretOverride</c>.</summary>
+        public const string WebhookSecret = "Telegram:WebhookSecretOverride";
+
+        /// <summary>Panelda ko'rinadigan matn (ikkala kalit uchun AYNI).</summary>
+        public const string Reason =
+            "Bu qiymat hozir MUHIT O'ZGARUVCHISI bilan ustidan yozilgan va u bazadagi "
+            + "qiymatdan ustun turibdi. Bu — tizimni qayta ochish uchun qo'yiladigan "
+            + "shoshilinch kalit (`Telegram__BotTokenOverride` / "
+            + "`Telegram__WebhookSecretOverride`). Paneldan o'zgartirish hech qanday "
+            + "ta'sir qilmaydi. Qayta paneldan boshqarish uchun o'zgaruvchini serverdan "
+            + "olib tashlab, API'ni qayta ishga tushiring.";
+    }
+
+    /// <summary>
     /// Moliya kalitlarining ESKI TIZIMDAGI nomlari. Ular <c>const</c> —
     /// ko'chirish skripti va <c>FinanceSettingsStore</c> AYNI satrga tayanadi.
     /// </summary>
@@ -689,6 +895,10 @@ public static class SettingsRegistry
         public const string LiveKitApiSecret = "livekit.api_secret";
 
         public const string StorageServiceUrl = "storage.service_url";
+
+        // 2026-08-13 da paneldan boshqariladigan bo'ldi (sabab registrda).
+        public const string StoragePublicUrl = "storage.public_url";
+
         public const string StorageBucket = "storage.bucket";
         public const string StorageAccessKey = "storage.access_key";
         public const string StorageSecretKey = "storage.secret_key";
@@ -697,6 +907,15 @@ public static class SettingsRegistry
         // ---------------------------------------------------------------- WAVE 1
         public const string LessonVideoMaxMb = "lesson.video_max_mb";
         public const string LessonImageMaxMb = "lesson.image_max_mb";
+
+        // ---------------------------------------------------------------- WAVE 3: chat retention
+        //
+        // Ikkalasini ham FAQAT `ChatRetentionJob` o'qiydi va u ularni HAR
+        // YURISHDA qaytadan o'qiydi — ishga tushishda emas. Sabab
+        // `JobsSetup` dagi izohda: aks holda panel vazifa umuman qaramaydigan
+        // qiymatni tahrirlardi.
+        public const string ChatRetentionEnabled = "chat.retention_enabled";
+        public const string ChatRetentionMonths = "chat.retention_months";
     }
 
     /// <summary>
@@ -747,6 +966,29 @@ public static class SettingsRegistry
                 && string.IsNullOrWhiteSpace(definition.ConfigurationKey))
             {
                 problems.Add($"'{definition.Key}': muhit sozlamasi, lekin konfiguratsiya kaliti yo'q.");
+            }
+
+            // ── "BREAK-GLASS" KALITINING IZCHILLIGI ────────────────────
+            //
+            // ★ SABAB MAJBURIY: ustidan yozish kuchga kirganda panel
+            //   maydonni QULFLAYDI. Sababsiz qulflangan maydon
+            //   administratorni "nega ishlamayapti?" degan savol bilan
+            //   yolg'iz qoldirardi — bu registrda `ReadOnlyReason` uchun
+            //   allaqachon qabul qilingan qoidaning aynan o'zi.
+            if (definition.OverrideConfigurationKey is { Length: > 0 }
+                && string.IsNullOrWhiteSpace(definition.OverrideReason))
+            {
+                problems.Add($"'{definition.Key}': ustidan yozish kaliti bor, lekin sababi yozilmagan.");
+            }
+
+            // ★ FAQAT `Database` KALITLARIDA MA'NOGA EGA: `Environment`
+            //   kalitlari uchun baza baribir o'qilmaydi, ya'ni "ustidan
+            //   yozish" degan tushuncha u yerda bo'sh so'z bo'lardi va
+            //   uni ko'rgan odam registrni noto'g'ri tushunardi.
+            if (definition.OverrideConfigurationKey is { Length: > 0 }
+                && definition.Source != SettingSource.Database)
+            {
+                problems.Add($"'{definition.Key}': ustidan yozish faqat `Database` manbali kalit uchun.");
             }
 
             // Standart qiymatning o'zi tekshiruvdan o'tishi shart — aks holda

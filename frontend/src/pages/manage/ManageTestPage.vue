@@ -18,6 +18,7 @@ import TestQuestionsEditor from '@/features/test-questions/ui/TestQuestionsEdito
 import TestResultsPanel from '@/features/test-results/ui/TestResultsPanel.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import {
   AppIcon,
   BaseBadge,
@@ -38,6 +39,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const queryClient = useQueryClient()
+const confirm = useConfirm()
 
 const rawId = route.params['testId']
 const testId = Number(Array.isArray(rawId) ? rawId[0] : rawId)
@@ -88,6 +90,36 @@ const publishMutation = useMutation({
     actionError.value = toUserMessage(error)
   },
 })
+
+/**
+ * R4 — e'lon holatini almashtirish TASDIQLANADI.
+ *
+ * Amal qaytariladigan, lekin yon ta'siri katta: e'lon qilinganda test SHU
+ * ONDA barcha o'quvchiga ochiladi, e'lon qaytarilganda esa ular kirgan test
+ * ekrandan YO'QOLADI. Ikkalasi ham bitta tugmada va yonma-yon "Tahrirlash"
+ * tugmasi bilan turadi — tasodifiy bosish real zarar. Shuning uchun `warning`
+ * (`danger` emas: ma'lumot o'chmaydi, holatni qaytarish mumkin).
+ *
+ * ★ TUGMA ATAYLAB BLOKLANMAYDI, faqat so'raladi: nuqsonli testda server 409
+ * bilan SABABNI aytadi (`publishMutation.onError`) va o'sha matn xodimga
+ * qaysi savol nuqsonli ekanini ko'rsatadi.
+ */
+async function togglePublish(publish: boolean): Promise<void> {
+  if (publishMutation.isPending.value) return
+
+  const name = test.value === null ? 'Test' : testTitle(test.value)
+  const ok = await confirm({
+    title: publish ? 'Testni e’lon qilish' : 'E’lonni qaytarish',
+    message: publish
+      ? `“${name}” o‘quvchilarga ochiladi va ular darhol yechishni boshlashi mumkin.`
+      : `“${name}” o‘quvchilar ro‘yxatidan olinadi. Topshirilgan natijalar saqlanadi.`,
+    confirmLabel: publish ? 'E’lon qilish' : 'Qaytarish',
+    tone: 'warning',
+  })
+  if (!ok) return
+
+  publishMutation.mutate(publish)
+}
 
 /* ---------------------------------------------------------- tahrirlash */
 
@@ -168,7 +200,7 @@ function askDelete(): void {
               :variant="test.isPublished ? 'secondary' : 'success'"
               :disabled="!test.isPublished && publishBlocked !== null"
               :loading="publishMutation.isPending.value"
-              @click="publishMutation.mutate(!test.isPublished)"
+              @click="togglePublish(!test.isPublished)"
             >
               <template #icon>
                 <AppIcon

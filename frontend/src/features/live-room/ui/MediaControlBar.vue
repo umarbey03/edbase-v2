@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { AppIcon, BaseSpinner } from '@/shared/ui'
 
 const props = withDefaults(
@@ -9,6 +10,17 @@ const props = withDefaults(
     /** Ekran ulashish faqat host uchun (SPEC: `roomAdmin` grant'i hostda). */
     canShareScreen: boolean
     handRaised: boolean
+    /**
+     * Qo'l ko'tarish FAQAT o'quvchida (R1, 2026-08-13 talabi: "livechatda
+     * teacher is not needed to raise hand").
+     *
+     * ★ EKRAN ULASHISHNING KO'ZGUSI: u hostda, bu esa o'quvchida — ya'ni
+     * panel kengligi rolga qarab O'ZGARMAYDI (pastdagi o'rov izohiga qarang).
+     * 🔴 Bu FAQAT ko'rinish qatlami: hub'da ham rad etish bor
+     * (`LiveClassHub.RaiseHand`), aks holda eski klient yoki `curl` bilan
+     * ustozning qo'li HAMMANING "Qo'l ko'targanlar" ro'yxatiga tushardi.
+     */
+    canRaiseHand: boolean
     /**
      * HAR BIR TUGMA UCHUN ALOHIDA kutish holati.
      *
@@ -43,12 +55,23 @@ const emit = defineEmits<{
 }>()
 
 /*
+  Yotiq telefonda panel video USTIDA suzadi (ota komponentda) — u yerda har
+  piksel qimmat, shuning uchun ichki bo'shliq qisqaradi. TUGMA O'LCHAMI
+  O'ZGARMAYDI (pastdagi izohga qarang).
+*/
+const { isShortLandscape } = useBreakpoint()
+
+/*
   `active:scale-90` — bosishning DARHOL sezilishi uchun. Holat o'zgarishi
   optimistik bo'lsa ham, barmoq/sichqoncha tekkan zahoti vizual javob bo'lishi
   kerak: foydalanuvchi shikoyati aynan "bosilishi bilinmayapti" edi.
+
+  🔴 `size-11` (44px) — WCAG 2.5.5 ning eng kichik teginish nishoni. Panel tor
+  telefonga sig'masa ham bu qiymat KICHRAYTIRILMAYDI: sig'dirish o'rov
+  (`flex-wrap`) bilan hal qilinadi, tugmani kichraytirish bilan emas.
 */
 const BASE =
-  'relative inline-flex size-11 items-center justify-center rounded-full transition-[background-color,transform] duration-150 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40'
+  'relative inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-[background-color,transform] duration-150 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40'
 
 /** Yoqilgan/o'chirilgan holat uchun uslub — takrorlanmasligi uchun bitta funksiya. */
 function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:bg-ink-700'): string {
@@ -57,8 +80,30 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
 </script>
 
 <template>
+  <!--
+    O'ROVLI PANEL.
+
+    Hisob: 5 ta tugma × 44px + oraliqlar + ajratgich + ichki bo'shliq ≈ 300px.
+    320px lik telefonda (Galaxy Fold tashqi ekrani, eski SE) bu panel
+    gorizontal ravishda TOSHIB ketardi — "chiqish" tugmasi ekrandan tashqarida
+    qolardi.
+
+    ★ ROLLAR ENDI BIR XIL KENGLIKDA: ekran ulashish faqat hostda, qo'l
+    ko'tarish faqat o'quvchida (R1) — ikkalasi bir-birining o'rnini oladi.
+    Ilgari ustozda tugma bittaga ko'p edi va panel birinchi bo'lib AYNAN
+    ustozda qoqilardi; endi bunday nomutanosiblik yo'q.
+
+    ★ YECHIM O'ROV, KICHRAYTIRISH EMAS: `flex-wrap` + `max-w-full` bilan panel
+    tor ekranda ikki qatorga bo'linadi. 44px chegara buzilmaydi va tartib
+    saqlanadi — tugmalar o'sha ketma-ketlikda, faqat qatordan qatorga o'tadi.
+    `max-w-full` SHART: onasi `flex` konteyner, usiz bola o'z kontenti
+    kengligida qolib o'ralmasdi.
+    ★ Oraliq telefonda 6px, `sm` dan yuqorida 8px — bu bir qator sig'ish
+    ehtimolini oshiradi, lekin tugmalarga tegmaydi.
+  -->
   <div
-    class="flex items-center justify-center gap-2 rounded-2xl bg-ink-900/90 px-3 py-2 ring-1 ring-inset ring-line backdrop-blur"
+    class="flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-2 rounded-2xl bg-ink-900/90 ring-1 ring-inset ring-line backdrop-blur sm:gap-x-2"
+    :class="isShortLandscape ? 'px-2 py-1' : 'px-2 py-2 sm:px-3'"
   >
     <button
       type="button"
@@ -125,6 +170,7 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
     </button>
 
     <button
+      v-if="props.canRaiseHand"
       type="button"
       :class="[
         BASE,

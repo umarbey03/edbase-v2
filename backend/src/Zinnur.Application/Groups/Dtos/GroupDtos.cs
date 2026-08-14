@@ -73,7 +73,17 @@ public sealed record GroupDto(
     DateTimeOffset? UpdatedAt);
 
 /// <summary>Ro'yxat filtri. Barcha maydonlar ixtiyoriy.</summary>
-/// <param name="Search">Guruh nomi bo'yicha qism-satr (kamida 2 belgi).</param>
+/// <param name="Search">
+/// ERKIN MATN qidiruvi (kamida 2 belgi), qism-satr, katta-kichik harf
+/// farqlamaydi. Qamrov (R22): <b>guruh nomi</b>, <b>ustoz F.I.Sh.</b>,
+/// <b>kurator F.I.Sh.</b>, <b>biriktirilgan kurator guruhi nomi</b> va
+/// <b>kurs nomi</b>. Bittasi mos kelsa yetarli (OR).
+///
+/// ★ SONLI/VAQT/ENUM maydonlari (davomiylik, boshlanish soati, hafta
+/// kunlari) bu yerga KIRMAYDI — ular tuzilgan filtr bo'lib qoladi
+/// (<paramref name="Type"/>, <paramref name="IsActive"/>). Sabab
+/// <c>GroupService.ApplySearch</c> izohida.
+/// </param>
 /// <param name="Type">Guruh turi bo'yicha filtr.</param>
 /// <param name="IsActive">Arxivlanganlarni ajratish uchun.</param>
 /// <param name="Page">Sahifa (1 dan).</param>
@@ -154,6 +164,16 @@ public sealed record UpdateGroupResponse(
 /// Guruh a'zosi (o'quvchi).
 /// </summary>
 /// <param name="Id">A'zolik yozuvining Id'si (o'quvchining Id'si emas).</param>
+/// <param name="Email">
+/// 🔴 <c>null</c> — so'rovchi USTOZ (talab R27). Bazada ustun majburiy,
+/// ya'ni bo'shlik faqat SERVER kesganidan darak beradi. Kesish
+/// <c>GroupService.ProjectMembers</c> da, KURATOR bundan mustasno.
+/// </param>
+/// <param name="Phone">
+/// <c>null</c> — raqam kiritilmagan YOKI so'rovchi ustoz (yuqoriga qarang).
+/// Interfeys ikkalasini ajrata olmaydi, shuning uchun "Telefon kiritilmagan"
+/// matni ustozga KO'RSATILMAYDI — u yolg'on bo'lardi.
+/// </param>
 /// <param name="PausedUntil">Pauza qachongacha (ixtiyoriy).</param>
 /// <param name="SourceGroupId">
 /// A'zolik AYNAN qaysi guruhda yozilgan. Kurator guruhi ro'yxatida bu
@@ -164,7 +184,7 @@ public sealed record GroupMemberDto(
     long Id,
     long StudentId,
     string FullName,
-    string Email,
+    string? Email,
     string? Phone,
     MemberStatus Status,
     DateTimeOffset JoinedAt,

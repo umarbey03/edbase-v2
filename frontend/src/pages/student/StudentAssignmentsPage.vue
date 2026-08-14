@@ -57,7 +57,17 @@ function handleSubmitted(): void {
 </script>
 
 <template>
-  <div>
+  <!--
+    ★ `@container` SAHIFA ILDIZIDA (ilgari ro'yxat `<div>` ida edi).
+
+    Sabab TEXNIK: element O'ZINI so'rovga sola olmaydi — `@container` va
+    `@sm:`/`@2xl:` bitta tugunda tursa, so'rov YUQORIDAGI konteynerga
+    murojaat qiladi, u esa yo'q edi. Ro'yxat `<div>` i ildiz bilan bir xil
+    kenglikda (ikkalasi ham `<main>` ustunini to'ldiradi), shuning uchun
+    o'lchov qiymati o'zgarmaydi — faqat endi setka ham, kartochka ichki
+    bo'shlig'i ham SHU konteynerdan o'qiydi.
+  -->
+  <div class="@container">
     <!--
       `PageHeader` o'rniga `StudentSubHeader`: bu sahifa endi "O'quv" tabining
       ichida yashaydi va o'quvchiga u yerga qaytish yo'li ko'rinib turishi
@@ -78,11 +88,41 @@ function handleSubmitted(): void {
       empty-text="Ustoz vazifa bergach shu yerda ko‘rinadi."
       @retry="assignmentsQuery.refetch()"
     >
-      <div class="space-y-3">
+      <!--
+        ★ `@container` + `@sm:` — ichki bo'shliq EKRANGA emas, USTUN
+        kengligiga qarab o'sadi. Ilgari `sm:p-4` edi: u oyna 640px dan
+        kengaygandagina yoqilardi, holbuki kartochka 520px lik ustunda
+        yashaydi va uning kengligi oynadan mustaqil. Ya'ni "ustun keng
+        bo'lsa nafas kengroq" degan niyat oyna kengligiga bog'lab qo'yilgan
+        edi — panel desktopda kengaysa ham natija to'g'ri bo'lishi uchun
+        o'lchov endi konteynerniki.
+
+        ★ 2026-08-13: `space-y-3` O'RNIGA SETKA. Karkas ustuni 1600px
+        bo'lgach bitta ustundagi vazifa kartochkasi ~1536px ga cho'zilardi:
+        chap chekkada bitta sarlavha, o'ng chekkada bitta tugma, orada bir
+        metr bo'sh joy. Bo'shliqni `gap-3` beradi (avvalgi `space-y-3` bilan
+        AYNAN bir xil 12px), ya'ni bitta ustunda ko'rinish o'zgarmaydi.
+
+        Chegaralar kartochkaning matn hajmidan: bu yerda tavsif, ustoz
+        izohi va blok sababi bor, ya'ni eng kam qulay kenglik ~320px —
+        2 ustun uchun 42rem, 3 ustun uchun 64rem. TO'RTINCHI USTUN
+        ATAYLAB YO'Q: 1536px da 3 ustun ~505px beradi va 12px lik izoh
+        matni uchun bu qulay o'lchov; 4 ustunda (~375px) uzun izohlar
+        kartochkani cho'zib, satrlar notekis bo'lib ketardi.
+
+        ★ Telefon: 42rem = 672px, karkas ustuni esa `lg` gacha 520px bilan
+        qulflangan — birorta so'rov yonmaydi, ro'yxat bitta ustun.
+      -->
+      <div class="grid gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">
+        <!--
+          ★ HOVER FAQAT CHEGARADA: kartochkaning o'zi bosilmaydi (harakat
+          "Topshirish" tugmasida), fon o'zgarishi esa bosilishga yolg'on
+          va'da berardi.
+        -->
         <article
           v-for="row in rows"
           :key="row.item.id"
-          class="rounded-xl border border-line bg-ink-900 p-3.5 sm:p-4"
+          class="flex flex-col rounded-xl border border-line bg-ink-900 p-3.5 transition-colors hover:border-line-strong @sm:p-4"
         >
           <div class="flex flex-wrap items-start justify-between gap-2">
             <h3
@@ -210,11 +250,30 @@ function handleSubmitted(): void {
             <span v-text="row.feedback" />
           </p>
 
+          <!--
+            ★ `flex flex-col` + `@2xl:mt-auto`: ko'p ustunli setkada bir
+            satrdagi kartochkalar teng balandlikka cho'ziladi, tugma esa
+            matn tugagan joyda "osilib" qolardi — endi u kartochka
+            TAGIGA yopishadi va tugmalar qatori bir chiziqda turadi.
+
+            `mt-auto` KONTEYNER SO'ROVI OSTIDA: bitta ustunda kartochka
+            balandligi kontent bo'yicha, ya'ni bo'sh joy YO'Q va `mt-auto`
+            0 ga aylanib, hozirgi 12px lik oraliqni yeb qo'yardi. Telefon
+            yo'lida esa 42rem lik so'rov hech qachon yonmaydi.
+          -->
           <div
             v-if="row.state.blockedReason === null"
-            class="mt-3 flex justify-end"
+            class="mt-3 flex justify-end @2xl:mt-auto @2xl:pt-3"
           >
+            <!--
+              ★ `tap-expand`: `size="sm"` 36px baland, WCAG 2.5.5 esa 44px
+              so'raydi. `BaseButton` o'lchov xaritasi butun ilovaniki —
+              uni surish har panelda joylashuvni siljitardi. Shuning uchun
+              faqat bosiladigan maydon kengaytiriladi (36 + 2×6 = 48px),
+              ko'rinish o'zgarmaydi.
+            -->
             <BaseButton
+              class="tap-expand"
               size="sm"
               @click="submitting = row.item"
             >

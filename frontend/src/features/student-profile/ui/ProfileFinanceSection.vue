@@ -13,6 +13,7 @@ import {
 } from '@/entities/payment'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { ProfileFinanceDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
 
@@ -41,6 +42,18 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ record: []; reverse: []; 'show-transactions': [] }>()
+
+/*
+  Oylar bloki: kartochka ↔ jadval CSS emas, `v-if` — `hidden lg:block` IKKALA
+  daraxtni ham quradi (telefonda ko'rinmas 7 ustunli jadval ham mount bo'lardi).
+
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi
+  (`style.css` dagi "md va lg haqidagi asosiy qaror" izohi).
+  ★ O'lchov EKRANNIKI, drawer kengligi emas — ilgari `md:` ham shunday edi.
+  Drawer desktopda ham to'liq ekran emas, shuning uchun kechroq chegara bu
+  yerda AYNIQSA to'g'ri: 768px ekranda panel ichida 7 ustun qisilardi.
+*/
+const { isDesktop } = useBreakpoint()
 
 const periods = computed(() => props.finance.periods)
 
@@ -147,8 +160,11 @@ const blocked = computed(() => props.finance.blockScope !== 'None')
     </p>
 
     <template v-else>
-      <!-- Telefon: kartochka ro'yxati (jadval 360px ekranga sig'maydi). -->
-      <ul class="divide-y divide-line rounded-xl border border-line md:hidden">
+      <!-- Telefon/planshet: kartochka ro'yxati (jadval 360px ekranga sig'maydi). -->
+      <ul
+        v-if="!isDesktop"
+        class="divide-y divide-line rounded-xl border border-line"
+      >
         <li
           v-for="period in periods"
           :key="`${period.groupId}-${period.month}`"
@@ -182,8 +198,11 @@ const blocked = computed(() => props.finance.blockScope !== 'None')
         </li>
       </ul>
 
-      <!-- Desktop: jadval. Gorizontal skroll SHU konteynerda. -->
-      <div class="scroll-x-safe scrollbar-slim hidden rounded-xl border border-line md:block">
+      <!-- Desktop (≥1024px): jadval. Gorizontal skroll SHU konteynerda. -->
+      <div
+        v-else
+        class="scroll-x-safe scrollbar-slim rounded-xl border border-line"
+      >
         <table class="zn-table">
           <thead>
             <tr>

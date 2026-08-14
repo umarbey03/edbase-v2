@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Scope;
 using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.GroupChat.Services;
@@ -28,6 +29,25 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IAuthService, AuthService>();
+
+        // ---------------------------------------------------------------- TELEFON BILAN KIRISH
+        //
+        // 2026-08-13: email va parol bilan kirish olib tashlandi, o'rniga
+        // telefon + Telegram orqali keladigan bir martalik kod.
+        //
+        // ★ SERVIS — SCOPED: kod so'rovi navbat yozuvini AYNI so'rovning
+        //   `DbContext` kuzatuvchisiga qo'shadi va uni bitta
+        //   `SaveChanges` bilan saqlaydi (commit-then-send). Singleton
+        //   bo'lsa scoped kontekst ushlab qolinardi ("captive dependency")
+        //   va ikkinchi so'rovda allaqachon yopilgan kontekstga urinilardi.
+        //
+        // ★ KOD SAQLOVCHISI — SINGLETON: uning ikkala bog'liqligi ham
+        //   (`ICacheService`, `TimeProvider`) singleton va u hech qanday
+        //   holat saqlamaydi. Scoped qilinsa har so'rovda bekorga obyekt
+        //   yasalardi; captive-dependency xavfi esa yo'q, chunki qisqa
+        //   umrli hech narsaga tegmaydi.
+        services.AddSingleton<IPhoneLoginCodeStore, PhoneLoginCodeStore>();
+        services.AddScoped<IPhoneLoginService, PhoneLoginService>();
 
         // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
         // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).
@@ -140,6 +160,18 @@ public static class DependencyInjection
         // tayanadi. Singleton bo'lsa scoped kontekst ushlab qolinardi
         // ("captive dependency") va ikkinchi so'rovda allaqachon yopilgan
         // kontekst bilan ishlashga urinilardi.
+        //
+        // O'QUV MARKAZ QAMROVI — ko'p-markazli (multi-tenant) kelajak uchun
+        // YAGONA chok. Bugun u hech narsani filtrlamaydi (bitta deployment =
+        // bitta markaz), lekin "markaz bo'yicha" savoli KODDA NOMLANGAN
+        // bo'lishi kerak: ertaga `LearningCenter` qo'shilganda o'zgarish
+        // SHU ro'yxatdagi bitta qatorga (va `SingleCenterScope` ichiga)
+        // tushadi, reyting servisiga emas. Batafsil `ILearningCenterScope`
+        // izohida.
+        //
+        // SCOPED — u so'rov umriga bog'langan `DbContext` ga tayanadi.
+        services.AddScoped<ILearningCenterScope, SingleCenterScope>();
+
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
@@ -198,6 +230,22 @@ public static class DependencyInjection
         // bilan ishlashga urinilardi.
         services.AddScoped<IRecordingService, RecordingService>();
         services.AddScoped<IRecordingWebhookHandler, RecordingWebhookHandler>();
+
+        // AVTOMATIK YOZUV NAVBATI (2026-08-13).
+        //
+        // 🔴 SCOPED BO'LISHI SHART — VA BU TASODIF EMAS. Navbat qatorini
+        //    `LiveSessionService` NING AYNI `DbContext` iga qo'shadi va
+        //    saqlashni O'ZI qilmaydi: ikkalasi bir scope'da bo'lgani uchun
+        //    dars `Live` bo'lishi va navbat qatori BITTA tranzaksiyaga
+        //    tushadi (izoh: `IAutoRecordingScheduler`).
+        //
+        // ★ NIMA UCHUN `IRecordingService` QAYTA ISHLATILMADI: u
+        //   `ILiveSessionService` ga bog'liq, `LiveSessionService` esa
+        //   navbatga bog'liq bo'ladi — ya'ni DI grafida HALQA hosil
+        //   bo'lardi va konteyner ishga tushishda yiqilardi. Tor interfeys
+        //   halqani TUZILISH bilan imkonsiz qiladi: navbat dars servisini
+        //   umuman bilmaydi.
+        services.AddScoped<IAutoRecordingScheduler, AutoRecordingScheduler>();
 
         // Vaqtni test qilish mumkin bo'lsin (DateTimeOffset.UtcNow qotib qolmasin)
         services.AddSingleton(TimeProvider.System);

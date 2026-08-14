@@ -158,21 +158,31 @@ async function save(): Promise<void> {
     return
   }
 
-  // B2 jadvali: ma'lumotni almashtiruvchi saqlash -> `primary` + o'zgargan
-  // maydonlar ro'yxati. Hech narsa o'zgarmagan bo'lsa oyna ko'rsatilmaydi.
+  /*
+    B2 jadvali: ma'lumotni almashtiruvchi saqlash -> `primary` + o'zgargan
+    maydonlar ro'yxati.
+
+    🔴 TASDIQ `changes` BO'SH BO'LGANDA HAM SO'RALADI (2026-08-13 da tuzatildi;
+    aynan shu xato `AssignmentFormDialog` da ham bor edi). Ilgari shart
+    `changes.length > 0` edi — ya'ni `changedAssignmentFields` biror maydonni
+    ko'rmay qolsa `PUT` TASDIQSIZ ketardi. `PUT` bu yerda TO'LIQ ALMASHTIRISH,
+    shuning uchun tasdiq diffga emas, AMALGA bog'lanadi; diff faqat `details`
+    ni boyitadi.
+  */
   const changes = changedAssignmentFields(current, form.value)
-  if (changes.length > 0) {
-    const ok = await confirm({
-      title: 'Vazifani saqlash',
-      message:
-        'Vazifa ma’lumotlari ALMASHTIRILADI. Kursdagi barcha guruhlar yangi '
-        + 'shartni darhol ko‘radi (topshirilgan javoblar va baholar saqlanadi).',
-      confirmLabel: 'Saqlash',
-      tone: 'primary',
-      details: changes,
-    })
-    if (!ok) return
-  }
+  const ok = await confirm({
+    title: 'Vazifani saqlash',
+    message:
+      'Vazifa ma’lumotlari ALMASHTIRILADI. Kursdagi barcha guruhlar yangi '
+      + 'shartni darhol ko‘radi (topshirilgan javoblar va baholar saqlanadi).',
+    confirmLabel: 'Saqlash',
+    tone: 'primary',
+    details:
+      changes.length > 0
+        ? changes
+        : ['Formada o‘zgarish topilmadi — barcha maydon eski qiymati bilan qayta yoziladi.'],
+  })
+  if (!ok) return
 
   errorMessage.value = null
   updateMutation.mutate(current.id)

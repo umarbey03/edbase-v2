@@ -189,6 +189,26 @@ public sealed class GatingService(
     public async Task<LessonGateDto> MarkVideoWatchedAsync(
         long studentId, long moduleLessonId, CancellationToken ct = default)
     {
+        // ════════════════════════════════════════════════════════════════
+        // 🔴 DARS OCHIQ BO'LISHI SHART — AMALDAN OLDIN.
+        // ════════════════════════════════════════════════════════════════
+        //
+        // Bu metod endi TASHQARIDAN (o'quvchining brauzeridan) chaqiriladi
+        // (`ProgressController.MarkVideoWatched`). Tekshiruvsiz o'quvchi
+        // hali OCHILMAGAN darslarning Id'sini ketma-ket yuborib, butun
+        // kursning video shartini "bajarilgan" qilib qo'yardi — ya'ni
+        // gating'ni O'ZI ochib olardi.
+        //
+        // ★ Bitta ARZON tekshiruv IKKALA savolga javob beradi: "bu dars
+        //   mening kursimdami" va "dars ochiqmi" — begona kursning darsi
+        //   `NotInCourse` bo'lib rad etiladi (`LessonAssetService` va
+        //   `AssignmentService.SubmitAsync` dagi AYNI mulohaza).
+        //
+        // ⚠️ `SetOverrideAsync` da bunday tekshiruv YO'Q va bo'lmasligi
+        //    ham kerak: uni O'QUV BO'LIMI chaqiradi va uning butun
+        //    ma'nosi — aynan YOPIQ darsni ochish.
+        await EnsureLessonUnlockedAsync(studentId, moduleLessonId, ct);
+
         var progress = await LoadOrCreateProgressAsync(studentId, moduleLessonId, ct);
 
         // Idempotent: birinchi ko'rilgan payt SAQLANADI (Domain qoidasi) —

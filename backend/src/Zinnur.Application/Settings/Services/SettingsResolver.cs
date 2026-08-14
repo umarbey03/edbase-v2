@@ -7,7 +7,9 @@ namespace Zinnur.Application.Settings.Services;
 /// ★ TARTIB:
 ///   1) <see cref="SettingSource.Environment"/> kaliti bo'lsa — FAQAT
 ///      konfiguratsiya. Baza UMUMAN o'qilmaydi.
-///   2) aks holda: bazadagi qator -> konfiguratsiya -> registrdagi standart.
+///   2) 🔴 <c>OverrideConfigurationKey</c> qo'yilgan VA muhitda qiymati
+///      bor bo'lsa — O'SHA, bazadan ham USTUN ("break-glass").
+///   3) aks holda: bazadagi qator -> konfiguratsiya -> registrdagi standart.
 ///
 /// ★ NIMA UCHUN 1-BAND O'QISHDA TO'SILADI, YOZISHDA EMAS: yozishni to'sish
 /// yetarli emas edi — bazaga to'g'ridan-to'g'ri kirgan odam (yoki eski
@@ -104,6 +106,38 @@ public sealed class SettingsResolver(ISettingsStore store, ISettingsEnvironment 
                 : SettingOrigin.Default;
 
             return new ResolvedSetting(definition, raw, origin, null, null);
+        }
+
+        // ── 🔴 SHOSHILINCH USTIDAN YOZISH ("break-glass") ─────────────────
+        //
+        // Odatiy qoida (baza -> muhit -> standart) SHU YERDA, va FAQAT
+        // registrda ataylab belgilangan kalitlar uchun, TESKARI aylanadi.
+        //
+        // ★ NIMA UCHUN BU YERDA, `IRuntimeOptions` DA EMAS: bu — USTUNLIK
+        //   qoidasi, u esa loyihada BITTA joyda yashaydi (shu sinf izohi).
+        //   Telegram sozlamalarini o'qiydigan uch joy bor
+        //   (`RuntimeTelegramOptions`, `TelegramSetup`, sozlamalar paneli);
+        //   qoida ulardan birida bo'lsa qolgan ikkitasi eski qiymatni
+        //   ko'rardi va tiklash yarim ishlagan bo'lardi.
+        //
+        // ★ QIYMAT REGISTR QOIDASIDAN O'TKAZILMAYDI. Ataylab: bu kalit
+        //   qo'yilgan payt — tizim allaqachon yiqilgan payt. Operator
+        //   yozgan qiymat bizning format tekshiruvimizdan o'tmasa (masalan
+        //   Telegram token shakli kelajakda o'zgarsa), uni JIMGINA rad
+        //   etib bazadagi buzuq qiymatga qaytish oxirgi tiklash yo'lini
+        //   ham yopib qo'yardi. Bu yerda operator — oxirgi instansiya.
+        if (definition.OverrideConfigurationKey is { Length: > 0 } overrideKey)
+        {
+            var forced = environment.Read(overrideKey);
+
+            if (!string.IsNullOrEmpty(forced))
+            {
+                return new ResolvedSetting(
+                    definition, forced, SettingOrigin.EnvironmentOverride, null, null)
+                {
+                    IsOverridden = true,
+                };
+            }
         }
 
         // ── BAZA USTUN BO'LGAN KALITLAR ───────────────────────────────────

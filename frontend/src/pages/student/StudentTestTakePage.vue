@@ -17,6 +17,7 @@ import TestResultCard from '@/features/test-take/ui/TestResultCard.vue'
 import TestRunner from '@/features/test-take/ui/TestRunner.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { MyResultDto, SubmitTestRequest } from '@/shared/types'
 import { AppIcon, BaseButton, BaseCard, DataStatus, PageHeader } from '@/shared/ui'
 
@@ -179,7 +180,46 @@ function invalidateAfterAttempt(): void {
   void queryClient.invalidateQueries({ queryKey: ['assignments', 'mine'] })
 }
 
-function handleStart(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — TESTNI BOSHLASH TASDIQLANADI, `warning` TONIDA.
+ *
+ * ★ NEGA KERAK: bir bosish SERVERDA taymerni ishga tushiradi va uni
+ * to'xtatib bo'lmaydi (sahifani yopish ham yordam bermaydi). Urinish
+ * BITTA — ya'ni tasodifiy bosish o'quvchining yagona imkoniyatini
+ * sarflaydi. Qoidalar sahifada allaqachon yozilgan, lekin ular
+ * O'QILMASDAN o'tib ketiladigan matn; tasdiq oynasi ularni bosish
+ * YO'LIGA qo'yadi.
+ *
+ * ★ "DAVOM ETTIRISH" DA TASDIQ SO'RALMAYDI: urinish ALLAQACHON ochiq va
+ * taymer ketyapti, ya'ni ogohlantiradigan yangi oqibat yo'q. Aksincha,
+ * bu yerdagi har qo'shimcha qadam vaqti sanalayotgan o'quvchining
+ * sekundlarini yeydi.
+ */
+async function handleStart(): Promise<void> {
+  if (startMutation.isPending.value) return
+
+  const current = test.value
+  if (current !== null && current.myStatus !== 'InProgress') {
+    const details = ['Bitta testga bitta urinish beriladi — topshirilgach o‘zgartirib bo‘lmaydi.']
+    if (current.timeLimitMinutes !== null) {
+      details.push(
+        `Vaqt SERVERDA sanaladi: ${current.timeLimitMinutes} daqiqadan keyin urinish avtomatik yopiladi.`,
+      )
+      details.push('Sahifani yangilash yoki tabni yopish taymerni to‘xtatmaydi.')
+    }
+
+    const ok = await confirm({
+      title: 'Testni boshlash',
+      message: `“${testTitle(current)}” boshlanadi va vaqt shu ondan sanala boshlaydi.`,
+      confirmLabel: 'Boshlash',
+      tone: 'warning',
+      details,
+    })
+    if (!ok) return
+  }
+
   startError.value = null
   startMutation.mutate()
 }

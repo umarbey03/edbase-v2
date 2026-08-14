@@ -76,6 +76,16 @@ public class JobFactory : ZinnurApiFactory
     public Task<JobRunResult> RunBillingJobAsync() => RunAsync<MonthlyBillingJob>();
 
     /// <summary>
+    /// Chat tarixini tozalash vazifasining bitta yurishi.
+    ///
+    /// ★ SHU YERDA CHAQIRILISHINING O'ZI BIR NARSANI ISBOTLAYDI: vazifa
+    /// hech qanday muhit bayrog'isiz DI'da turibdi (`JobsSetup` da shartsiz
+    /// ro'yxatdan o'tadi). Agar kimdir uni `if (options...)` ichiga solib
+    /// qo'ysa, `JobOf<T>` "Sequence contains no elements" bilan yiqiladi.
+    /// </summary>
+    public Task<JobRunResult> RunChatRetentionJobAsync() => RunAsync<ChatRetentionJob>();
+
+    /// <summary>
     /// Vazifani AYNAN rejalashtiruvchi kabi yurgizadi: yangi scope +
     /// <see cref="IJobRunner"/> (ya'ni QULF OSTIDA).
     ///

@@ -16,6 +16,15 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
  * boshqa odamga o'tadi, ya'ni u SHAXSNI ANIQLAMAYDI. Shu sababli nom yonida
  * DOIM `telegramId` ko'rsatiladi — xodim ishonchli identifikatorni ko'rib
  * turishi kerak.
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ * 🔴 USTOZ UCHUN KONTAKT SERVERDA KESILGAN (talab R27)
+ *
+ * Telefon, email, Telegram id va nomi `null` bo'lib keladi. Ular "—" bilan
+ * chizilsa xodim ma'lumot KIRITILMAGAN deb o'ylardi va o'quv bo'limiga
+ * "raqamni to'ldiring" deb murojaat qilardi. Shu sababli sabab OSHKORA
+ * yoziladi: "Ko'rsatilmaydi".
+ * ════════════════════════════════════════════════════════════════════════
  */
 const props = defineProps<{
   user: UserDetailsDto
@@ -25,22 +34,35 @@ const props = defineProps<{
    * ⚠️ KO'RINISH darvozasi; serverda ham `[Authorize(Roles="Academic,Admin")]`.
    */
   canUnlink: boolean
+  /**
+   * Kontakt serverda kesilganmi (so'rovchi — ustoz).
+   * Panel buni ROLDAN hisoblaydi; bu yerda faqat MATN tanlanadi.
+   */
+  contactHidden: boolean
 }>()
 
 const emit = defineEmits<{ unlink: [] }>()
 
+const HIDDEN = 'Ko‘rsatilmaydi'
+
 /** Bo'sh satr ham "yo'q" hisoblanadi: server `""` yubormaydi, lekin himoya arzon. */
 function textOrDash(value: string | null): string {
-  return value !== null && value.length > 0 ? value : '—'
+  if (value !== null && value.length > 0) return value
+  return props.contactHidden ? HIDDEN : '—'
 }
 
 const rows = computed(() => [
-  { label: 'F.I.Sh.', value: textOrDash(props.user.fullName) },
+  // F.I.Sh. va "hisob yaratilgan" — kontakt EMAS, ular hech qachon kesilmaydi,
+  // shuning uchun ularda `textOrDash` ning "Ko'rsatilmaydi" tarmog'i yurmaydi.
+  { label: 'F.I.Sh.', value: props.user.fullName ?? '—' },
   { label: 'Telefon', value: textOrDash(props.user.phone) },
   { label: 'Email', value: textOrDash(props.user.email) },
   {
     label: 'Telegram ID',
-    value: props.telegram.telegramId === null ? '—' : String(props.telegram.telegramId),
+    value:
+      props.telegram.telegramId === null
+        ? (props.contactHidden ? HIDDEN : '—')
+        : String(props.telegram.telegramId),
   },
   { label: 'Hisob yaratilgan', value: formatDateTime(props.user.createdAt) },
 ])
@@ -96,8 +118,21 @@ const hasUnlinkTrace = computed(() => props.telegram.unlinkedAt !== null)
         </BaseButton>
       </div>
 
+      <!--
+        🔴 USTOZDA NOM VA ID KESILGAN, LEKIN `linked` HAQIQIY.
+        Bu shart bo'lmasa "Nomi yo'q (foydalanuvchi username qo'ymagan)"
+        matni chiqib, YOLG'ON aytardi: nom bor, shunchaki berilmagan.
+      -->
       <p
-        v-if="props.telegram.linked"
+        v-if="props.contactHidden"
+        class="mt-2 text-xs leading-relaxed text-slate-400"
+      >
+        Telegram nomi va ID’si ustozga ko‘rsatilmaydi. O‘quvchi bilan bog‘lanish
+        kerak bo‘lsa o‘quv bo‘limiga yoki kuratorga murojaat qiling.
+      </p>
+
+      <p
+        v-else-if="props.telegram.linked"
         class="mt-2 text-sm text-slate-100"
       >
         <!--
@@ -137,8 +172,13 @@ const hasUnlinkTrace = computed(() => props.telegram.unlinkedAt !== null)
         mumkin — shaxsni Telegram ID bo‘yicha tekshiring.
       </p>
 
+      <!--
+        "Qanday bog'lanadi" — o'quv bo'limi uchun yo'riqnoma (u qo'lda ulash
+        tugmasini qidiradi). Ustozga ko'rsatilmaydi: u baribir bog'lay olmaydi
+        va tepada allaqachon sabab yozilgan.
+      -->
       <p
-        v-if="!props.telegram.linked"
+        v-if="!props.contactHidden && !props.telegram.linked"
         class="mt-2 text-xs leading-relaxed text-slate-400"
       >
         Bog‘lanish FAQAT bot orqali tuziladi: o‘quvchi botga raqamini ulashadi.

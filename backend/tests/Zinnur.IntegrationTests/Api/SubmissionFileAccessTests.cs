@@ -203,7 +203,7 @@ public sealed class SubmissionFileAccessTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(TestUser user)
     {
-        var tokens = await factory.LoginAsync(user.Email, user.Password);
+        var tokens = await factory.LoginAsync(user.Email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

@@ -276,7 +276,15 @@ function curatorLabel(group: GroupDto): string {
               </div>
 
               <div class="flex shrink-0 items-center gap-1.5">
-                <!-- Yashil = qo'ng'iroq: eski jadvaldagi asosiy kurator amali. -->
+                <!--
+                  Yashil = qo'ng'iroq: eski jadvaldagi asosiy kurator amali.
+
+                  🔴 Talab R27 dan keyin raqam USTOZGA kelmaydi (server
+                  kesadi), kuratorga esa keladi — shuning uchun bu tugma
+                  kurator uchun O'Z JOYIDA qoldi. Ustoz shu sahifani ochsa
+                  tugma jimgina yo'qoladi va "Yozish" ishlayveradi: yozishma
+                  ichki kanal, ya'ni kontakt tarqalmaydi.
+                -->
                 <a
                   v-if="row.phone !== null && row.phone.length > 0"
                   class="tap-target inline-flex items-center justify-center rounded-[9px] border border-transparent bg-green-500/15 px-2.5 text-green-400 transition-colors hover:border-green-500"

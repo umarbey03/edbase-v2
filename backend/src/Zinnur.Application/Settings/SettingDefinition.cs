@@ -77,6 +77,25 @@ public enum SettingOrigin
 
     /// <summary>Bazadagi qator — ya'ni kimdir paneldan o'zgartirgan.</summary>
     Database = 2,
+
+    /// <summary>
+    /// 🔴 SHOSHILINCH muhit o'zgaruvchisi bazadagi qiymatni USTIDAN
+    /// YOZGAN (<c>SettingDefinition.OverrideConfigurationKey</c>).
+    ///
+    /// ★ NIMA UCHUN <see cref="Environment"/> DAN ALOHIDA QIYMAT:
+    /// ikkalasi ham "muhitdan keldi" bo'lsa-da, MA'NOSI qarama-qarshi.
+    /// <c>Environment</c> — "baza hali to'ldirilmagan, boshlang'ich
+    /// qiymat ishlayapti" (normal holat). Bu esa — "bazada qiymat BOR,
+    /// lekin u ATAYLAB chetlab o'tilyapti" (avariya holati). Panel
+    /// ikkalasini bir xil ko'rsatsa, operator tizim shoshilinch rejimda
+    /// turganini umuman bilmasdi va o'zgaruvchini olib tashlashni
+    /// unutardi.
+    ///
+    /// ⚠️ Yangi qiymat OXIRIGA qo'shildi — JSON'da satr sifatida chiqadi
+    /// (`origin: "EnvironmentOverride"`), ya'ni mavjud klient buzilmaydi,
+    /// lekin frontend tipiga qo'shilishi kerak.
+    /// </summary>
+    EnvironmentOverride = 3,
 }
 
 /// <summary>
@@ -142,6 +161,19 @@ public enum SettingGroup
     /// ko'rib turardi.
     /// </summary>
     Content = 6,
+
+    /// <summary>
+    /// GURUH CHATI — tarixni avtomatik tozalash siyosati.
+    ///
+    /// ★ NIMA UCHUN ALOHIDA BO'LIM: bu yerdagi kalitlar boshqa hech bir
+    /// bo'limga o'xshamaydi — ular MA'LUMOTNI DOIMIY O'CHIRADI. Qolgan
+    /// hamma sozlama xatti-harakatni o'zgartiradi (chegara, manzil, kalit)
+    /// va noto'g'ri qiymat qaytarib olinadi. Bu ikkitasi esa qaytarib
+    /// bo'lmaydigan amalni boshqaradi, ya'ni ular yonida "diqqat" matni
+    /// turishi va ular boshqa sozlamalar orasida KO'ZGA TASHLANMASDAN
+    /// qolib ketmasligi kerak.
+    /// </summary>
+    Chat = 7,
 }
 
 /// <summary>
@@ -181,6 +213,53 @@ public sealed record SettingDefinition
     /// baza bo'sh bo'lgandagi boshlang'ich qiymat.
     /// </summary>
     public string? ConfigurationKey { get; init; }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 SHOSHILINCH USTIDAN YOZISH KALITI ("break-glass")
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Bo'sh bo'lmasa VA konfiguratsiyada shu kalit ostida qiymat bo'lsa —
+    /// U BAZADAGI QATORDAN USTUN turadi. Ya'ni odatiy qoida
+    /// (<c>baza -&gt; muhit -&gt; standart</c>) TESKARI aylanadi.
+    ///
+    /// ★ NIMA UCHUN KERAK BO'LIB QOLDI — O'LIK HALQA (2026-08-13):
+    ///
+    /// Email va parol bilan kirish olib tashlangach, tizimga kirishning
+    /// HAR IKKALA yo'li ham Telegram bot tokeniga tayanadi:
+    ///   • Mini App — <c>initData</c> imzosi shu token bilan tekshiriladi;
+    ///   • telefon + kod — kod shu bot orqali yuboriladi.
+    ///
+    /// Token esa BAZADA va uni faqat <c>Admin</c> o'zgartira oladi.
+    /// Demak: token xato yozilsa → hech kim kira olmaydi → tokenni
+    /// tuzatadigan panel ham o'sha kirish ortida qoladi. Bu — faqat
+    /// <c>psql</c> bilan tiklanadigan to'liq ishdan chiqish, tunning
+    /// istalgan soatida.
+    ///
+    /// Bu kalit shu halqani uzadi: operator muhit o'zgaruvchisini
+    /// qo'yib, konteynerni qayta ishga tushiradi — buzuq baza qatori
+    /// e'tiborsiz qoladi va tizim yana ochiladi.
+    ///
+    /// ★ NIMA UCHUN <see cref="SettingSource.Environment"/> GA
+    ///   O'TKAZILMADI: u holda tokenni PANELDAN o'zgartirish umuman
+    ///   mumkin bo'lmasdi, ya'ni "token o'g'irlansa serverga kirmasdan
+    ///   almashtiraman" degan asosiy foyda yo'qolardi. Bu yerda esa
+    ///   odatiy holat o'zgarmaydi: o'zgaruvchi QO'YILMAGUNCHA baza ustun.
+    ///
+    /// ⚠️ QO'YILGAN BO'LSA PANEL MAYDONI QULFLANADI va sababi
+    ///    ko'rsatiladi (<c>SettingsService.ToDto</c>) — aks holda admin
+    ///    qiymatni o'zgartirib, "saqlandi" degan javob olib, tizim esa
+    ///    eski qiymat bilan ishlayverardi. Bu registrdagi eng qattiq
+    ///    qoidaning buzilishi bo'lardi: jimgina yolg'on.
+    /// </summary>
+    public string? OverrideConfigurationKey { get; init; }
+
+    /// <summary>
+    /// Ustidan yozish kuchga kirganda panelda ko'rsatiladigan matn.
+    /// <see cref="OverrideConfigurationKey"/> bilan BIRGA to'ldiriladi
+    /// (registr tekshiruvi buni talab qiladi).
+    /// </summary>
+    public string? OverrideReason { get; init; }
 
     /// <summary>
     /// <c>AppSettings</c> jadvalidagi qator kaliti. Odatda <see cref="Key"/>

@@ -25,11 +25,44 @@ curl -s localhost:5080/health/ready
 |---|---|
 | Frontend | http://localhost:5173 |
 | API + Swagger | http://localhost:5080/swagger |
-| Admin | `admin@zinnur.uz` / `Admin!2345` |
-| Ustoz | `teacher@zinnur.uz` / `Demo!2345` |
-| O'quvchi | `student@zinnur.uz` / `Demo!2345` |
+| Admin | `+998900000001` (`admin@zinnur.uz`) |
+| Ustoz | `+998900000002` (`teacher@zinnur.uz`) |
+| O'quvchi | `+998900000003` (`student@zinnur.uz`) |
 | Postgres / Redis / MinIO (host) | 5440 / 6390 / **9010** (konsol 9011) |
 | Eski loyiha (TEGILMAYDI) | http://localhost:8000 (`zinnur-legacy`) |
+
+### 🔴 KIRISH — EMAIL VA PAROL YO'Q (2026-08-13 dan)
+
+`POST /api/v1/auth/login` **olib tashlandi**. Kirish ikki bosqichli:
+
+```
+POST /api/v1/auth/phone/request-code   { "phone": "+998900000001" }
+POST /api/v1/auth/phone/verify         { "phone": "...", "code": "123456" }
+```
+
+Kod **Telegram orqali** yuboriladi, ya'ni brauzerda kirish uchun profilga
+Telegram BOG'LANGAN bo'lishi shart.
+
+**⚠️ DEV MASHINASIDA KOD KELMAYDI** — seed qilingan foydalanuvchilarda
+`TelegramId` yo'q va lokal botda token ham yo'q. Ikki yo'l bor:
+
+```bash
+# A) Haqiqiy bot bilan: paneldan token qo'yib, botga raqamni ulash.
+
+# B) Kodni bazadan o'qish (bot kerak emas, faqat token sozlangan bo'lsin):
+docker compose exec -T postgres psql -U zinnur -d zinnur -c \
+  "SELECT \"Body\" FROM \"MessageOutbox\" WHERE \"TemplateKey\"='auth_login_code' \
+   ORDER BY \"Id\" DESC LIMIT 1;"
+
+# C) Telegram'ni qo'lda bog'lash (eng tez yo'l dev uchun):
+docker compose exec -T postgres psql -U zinnur -d zinnur -c \
+  "UPDATE \"Users\" SET \"TelegramId\"=111111111, \"TelegramLinkedAt\"=now() \
+   WHERE \"Email\"='admin@zinnur.uz';"
+```
+
+Testlarda kirish HTTP orqali EMAS — `ZinnurApiFactory.LoginAsAdminAsync()`
+tokenni to'g'ridan-to'g'ri yasaydi (sabab o'sha faylda). Oqimning O'ZI
+`PhoneLoginEndpointsTests` da to'liq sinaladi.
 
 ### ⚠️ Образ eskirmaganmi — HAR SAFAR tekshiring
 
@@ -196,13 +229,25 @@ Enumlar (JSON'da SATR): `kind` = `Text|Number|Money|Toggle|Choice|Secret` ·
 |---|---|---|
 | 200 | kirish | tokenlarni odatdagidek saqla |
 | 401 | imzo yaroqsiz/eskirgan | "Ilovani yopib, qaytadan oching" |
-| 403 | `Student` emas | "Xodimlar email+parol bilan kiradi" |
+| 403 | profil FAOL EMAS | "O'quv bo'limi bilan bog'laning" |
 | 409 | Telegram bog'lanmagan | **botga yo'naltir** — "raqamni ulashing" |
 | 429 | rate-limit | `Retry-After` sarlavhasi bor |
-| 503 | Telegram sozlanmagan | email+parol ekraniga qaytar |
+| 503 | Telegram sozlanmagan | "vaqtincha ishlamayapti" (zaxira yo'l YO'Q) |
 
-🔴 **Telefon kiritish oynasi YARATILMASIN** — bog'lash faqat botda
-(eski tizimning X-1/X-1b zaifligi aynan qo'lda kiritishdan kelib chiqqan).
+⚠️ **403 ning ma'nosi 2026-08-13 da O'ZGARDI.** Ilgari u "siz xodimsiz"
+degani edi (Telegram kanali `Student` bilan cheklangan edi). Endi xodim
+ham Mini App orqali kiradi — rol filtri olib tashlandi, chunki
+email+parol eshigi yo'q.
+
+🔴 **MINI APP ICHIDA telefon kiritish oynasi YARATILMASIN** — bog'lash
+faqat botda (eski tizimning X-1/X-1b zaifligi aynan qo'lda kiritishdan
+kelib chiqqan).
+
+★ **`LoginPage` dagi telefon formasi BOSHQA NARSA va u TO'G'RI.** Farq
+hal qiluvchi: u yerda raqam faqat "kimga kod yuborilsin" degan savolga
+javob beradi, kirish esa KOD bilan bo'ladi — kod hujumchi ko'ra
+olmaydigan kanalga (jabrlanuvchining Telegram hisobiga) ketadi. Eski
+zaiflikda esa raqamning O'ZI kirish berardi.
 
 ---
 

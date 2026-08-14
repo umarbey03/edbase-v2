@@ -9,13 +9,16 @@ import { AppIcon, BaseBadge, BaseSpinner, DataStatus } from '@/shared/ui'
 import { useGroupChatRoom } from '../model/useGroupChatRoom'
 import { useGroupChatRows } from '../model/useGroupChatRows'
 import { useGroupChatScroll } from '../model/useGroupChatScroll'
+import ChatDaySeparator from './ChatDaySeparator.vue'
+import ChatEmojiPicker from './ChatEmojiPicker.vue'
+import ChatNotice from './ChatNotice.vue'
 import GroupChatMessageRow from './GroupChatMessageRow.vue'
 
 /**
  * SUHBAT EKRANI — ustoz, kurator va o'quvchi uchun BITTA komponent.
  *
  * NEGA BITTA: ekranning o'zi uch rolda ham AYNAN bir xil ishlaydi (tarix,
- * yuborish, kanal tab'lari), farq faqat RANGDA — u esa `[data-theme]` orqali
+ * yuborish, o'qildi), farq faqat RANGDA — u esa `[data-theme]` orqali
  * avtomatik keladi (`bg-brand-500` o'quvchida oltin, xodimda sariq).
  * Ikki nusxa qilsak, tuzatish har doim ikki joyda kerak bo'lardi.
  *
@@ -25,6 +28,28 @@ import GroupChatMessageRow from './GroupChatMessageRow.vue'
  *  • xabarlar oqimi — `.tchat` / `.mrow` / `.mbub`;
  *  • yozish paneli — `.tchatbar` (yumaloq maydon + yumaloq yuborish tugmasi),
  *    to'ldiruvchi matn AYNAN "Xabar yozing...".
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ★ BALANDLIK — CHAQIRUVCHINIKI (2026-08-13, talab: *"chat writing part
+ * should be stuck in its place"*).
+ *
+ * Ilgari bu yerda `heightClass` prop'i bor edi va uning SUKUT qiymati
+ * `h-[calc(100dvh-420px)]` — qat'iy balandlikdagi xabarlar ro'yxati. Xodim
+ * sahifalari qiymat bermagani uchun aynan o'sha 420 raqami ishlardi va
+ * ro'yxat TEPASIDAGI har bir o'zgarish (sahifa sarlavhasi, tablar, banner)
+ * yozish panelini pastga — ko'pincha ekran tashqarisiga — surardi.
+ *
+ * Endi shartnoma bitta: KOMPONENT O'Z OTA-ONASINI TO'LDIRADI. Ildiz —
+ * ustun flex'i, xabarlar ro'yxati `flex-auto` bilan qolgan joyni oladi,
+ * sarlavha/ogohlantirish/yozish paneli esa `shrink-0`. Chaqiruvchi
+ * balandlikni BIR MARTA chegaralaydi (`ChatFillColumn` yoki o'quvchi
+ * sahifasidagi setka katagi) — shunda yozish paneli DOIM eng pastda,
+ * qimirlamay turadi.
+ *
+ * ★ Balandligi chegaralanmagan ota-onada ham ekran BUZILMAYDI: `flex-auto`
+ * (`flex-1` EMAS) mazmun bo'yicha o'sadi, ya'ni ro'yxat nol balandlikka
+ * tushib qolmaydi. `flex-1` da (asos 0) aynan shunday bo'lardi.
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 const props = withDefaults(
   defineProps<{
@@ -33,27 +58,23 @@ const props = withDefaults(
     groupName?: string
     /** `null` — serverning o'zi tanlasin (birinchi ruxsat etilgan kanal). */
     channel?: GroupChatChannelName | null
-    /**
-     * Xabarlar oynasining balandligi. Eski ilovada ikki panelda ikki xil edi:
-     * ustozda `calc(100vh - 420px)`, o'quvchida `calc(100vh - 220px)`.
-     */
-    heightClass?: string
   }>(),
   {
     groupName: '',
     channel: null,
-    heightClass: 'h-[calc(100vh-420px)] min-h-[300px]',
   },
 )
-
-const emit = defineEmits<{ 'update:channel': [GroupChatChannelName] }>()
 
 const auth = useAuthStore()
 
 /**
- * Tanlangan kanal MAHALLIY holat: foydalanuvchi tab bosganda darhol
- * o'zgaradi va `useGroupChatRoom` yangi suhbatga ulanadi. Boshlang'ich
- * qiymat prop'dan keladi (ro'yxatdan qaysi qator bosilgani).
+ * Tanlangan kanal — ro'yxatdan qaysi qator bosilgani (`channel` prop'i).
+ * MAHALLIY ref'da saqlanadi, chunki `useGroupChatRoom` unga reaktiv ulanadi
+ * va prop o'zgarganda (boshqa qator tanlanganda) suhbat qayta ulanishi kerak.
+ *
+ * ★ `null` — SERVER tanlaydi. `TeacherGroupPage` ataylab kanal bermaydi:
+ * ustozga `Teacher`, kuratorga `Curator` oqimini serverning o'zi beradi va
+ * bu qoida klientda TAKRORLANMAYDI.
  */
 const selectedChannel = ref<GroupChatChannelName | null>(props.channel)
 
@@ -103,22 +124,38 @@ const title = computed(() =>
 /** Server aytgan kanal (u tanlovni o'zi qilishi mumkin). */
 const shownChannel = computed(() => room.activeChannel.value ?? selectedChannel.value ?? 'Teacher')
 
-/**
- * Kanal tab'lari FAQAT bittadan ko'p bo'lganda chiziladi.
- * Ustozda `availableChannels` doim `["Teacher"]` — unga tab ko'rsatish
- * bosib bo'lmaydigan yagona tugma bo'lardi (jonli tekshirildi).
- */
-const showChannelTabs = computed(() => room.availableChannels.value.length > 1)
+/*
+  ★ KANAL TAB'LARI OLIB TASHLANDI (2026-08-13, talab: *"chat qismda o'zi 2 ta
+  ustoz va curator chatiga ajratishi yetarli, yana ichiga kirganda 2 ga
+  ajratishi kerakmas"*).
 
-function selectChannel(channel: GroupChatChannelName): void {
-  if (channel === shownChannel.value) return
-  selectedChannel.value = channel
-  emit('update:channel', channel)
-}
+  Bo'linish BIR MARTA — suhbatlar RO'YXATIDA bo'ladi: server `/threads` da
+  har guruh uchun "Ustoz chati" va "Kurator chati" qatorlarini alohida
+  qaytaradi, ya'ni foydalanuvchi qaysi oqimga kirayotganini ro'yxatda
+  tanlaydi. Suhbat ichida ikkinchi marta tanlash o'sha tanlovni takrorlardi.
+
+  ★ HECH KIM KIRISHNI YO'QOTMADI: tab'lar `availableChannels.length > 1`
+  bo'lgandagina chizilardi (o'quvchi, admin, o'quv bo'limi) — ular ikkala
+  qatorni ham ro'yxatdan ochadi. Ustoz va kuratorda tab umuman ko'rinmasdi.
+
+  🔴 `availableChannels` DTO'dan OLIB TASHLANMAYDI: u ruxsat ma'lumoti
+  (`useGroupChatHub.ts:105-126` o'sha ro'yxatga suyanadi) va backend
+  integratsion testlari uni tekshiradi.
+
+  Qaysi oqimda ekanini yuqoridagi nishon (`BaseBadge`) aytib turadi — u
+  ATAYLAB qoldirilgan: "kimga yozayapman" savoli hech qachon javobsiz
+  qolmasligi kerak.
+*/
 
 /* --------------------------------- yuborish -------------------------------- */
 
 const draft = ref('')
+
+/**
+ * Yozish maydonining o'zi — emoji tanlagichga kursor joyi uchun kerak
+ * (`ChatEmojiPicker` matnni AYNAN kursor turgan joyga qo'yadi).
+ */
+const input = ref<HTMLTextAreaElement | null>(null)
 
 const trimmed = computed(() => draft.value.trim())
 
@@ -176,9 +213,17 @@ watch(
 </script>
 
 <template>
-  <div>
+  <!--
+    ★ ILDIZ — USTUN FLEX'i. Xabarlar ro'yxati qolgan joyni o'zi egallaydi,
+    sarlavha, ogohlantirish va yozish paneli esa o'z balandligini o'zi oladi
+    va ularni hech kim piksel bilan sanamaydi (sabab — yuqoridagi
+    "BALANDLIK — CHAQIRUVCHINIKI" izohi).
+  -->
+  <div class="flex min-h-0 flex-col">
     <!-- ============================== Sarlavha ============================== -->
-    <div class="mb-2.5 flex flex-wrap items-center gap-2.5">
+    <!-- `shrink-0`: balandlik chegaralanganda siqiladigan yagona element
+         xabarlar ro'yxati bo'lsin — sarlavha va yozish paneli emas. -->
+    <div class="mb-2.5 flex shrink-0 flex-wrap items-center gap-2.5">
       <BaseBadge
         :tone="channelTone(shownChannel)"
         size="sm"
@@ -211,49 +256,28 @@ watch(
       </span>
     </div>
 
-    <!-- =========================== Kanal tab'lari =========================== -->
+    <!-- ============================== Xabarlar ============================== -->
     <!--
-      ★ IKKI OQIM. O'quvchi ustozga va kuratorga ALOHIDA yozadi; ustoz
-      kurator oqimini KO'RMAYDI va aksincha. Ro'yxat SERVERDAN keladi
-      (`availableChannels`) — klient uni o'zi to'qimaydi, chunki ruxsat
-      qoidasi serverniki va ruxsatsiz kanal so'ralsa 403 qaytadi.
+      ★ `DataStatus` SKROLL SOHASINING ICHIDA (2026-08-13). Ilgari u tashqarida
+      turardi va yuklanayotganda BUTUN ro'yxat o'rniga skeleton chizardi
+      (`DataStatus.vue:40-49` — `skeletonRows × h-20`). Skeleton balandligi
+      ro'yxat balandligiga teng emas, ya'ni suhbat har ochilganda yozish
+      paneli bir sakrab, keyin joyiga qaytardi. Endi holat qanday bo'lishidan
+      qat'i nazar ustun tuzilishi bir xil: sarlavha → skroll sohasi → panel.
+
+      `flex-auto` (`flex-1` EMAS) — sabab yuqoridagi bosh izohda.
     -->
     <div
-      v-if="showChannelTabs"
-      class="mb-2.5 flex gap-1.5"
-      role="tablist"
+      ref="scroller"
+      class="scrollbar-slim flex min-h-0 flex-auto flex-col overflow-y-auto overflow-x-hidden"
     >
-      <button
-        v-for="option in room.availableChannels.value"
-        :key="option"
-        type="button"
-        role="tab"
-        :aria-selected="option === shownChannel"
-        class="rounded-full border px-3 py-1.5 text-xs font-bold transition-colors"
-        :class="
-          option === shownChannel
-            ? 'border-transparent bg-brand-500 text-on-brand'
-            : 'border-line bg-ink-900 text-slate-300 hover:bg-ink-800'
-        "
-        @click="selectChannel(option)"
-      >
-        {{ channelLabel(option) }}
-      </button>
-    </div>
-
-    <DataStatus
-      :pending="room.isPending.value"
-      :error="room.loadError.value"
-      :empty="false"
-      :retrying="false"
-      :skeleton-rows="3"
-      @retry="room.retry()"
-    >
-      <!-- ============================ Xabarlar ============================= -->
-      <div
-        ref="scroller"
-        class="scrollbar-slim flex flex-col overflow-y-auto overflow-x-hidden"
-        :class="props.heightClass"
+      <DataStatus
+        :pending="room.isPending.value"
+        :error="room.loadError.value"
+        :empty="false"
+        :retrying="false"
+        :skeleton-rows="3"
+        @retry="room.retry()"
       >
         <!-- Eskiroq sahifa yuklanayotgani (yuqoriga skroll qilinganda). -->
         <div
@@ -284,11 +308,10 @@ watch(
           v-for="row in rows"
           :key="row.id"
         >
-          <!-- Kun ajratgichi — eski `.datesep`. -->
-          <div
+          <!-- Kun ajratgichi — uch chat ekrani uchun BITTA komponent. -->
+          <ChatDaySeparator
             v-if="row.dayLabel !== null"
-            class="my-2 self-center rounded-full border border-line bg-ink-950 px-3 py-0.5 text-[11px] text-slate-400"
-            v-text="row.dayLabel"
+            :label="row.dayLabel"
           />
           <GroupChatMessageRow
             :sender-name="row.senderName"
@@ -299,40 +322,35 @@ watch(
             :role="row.senderRole"
           />
         </template>
-      </div>
-    </DataStatus>
+      </DataStatus>
+    </div>
 
     <!-- ============================ Ogohlantirish =========================== -->
-    <!-- 429, ruxsat xatosi va boshqalar. Yopish tugmasi bilan — xabar
-         ekranda abadiy osilib qolmasin. -->
-    <div
+    <!-- 429, ruxsat xatosi va boshqalar. Ko'rinishi shaxsiy chatlar bilan
+         BITTA komponentdan keladi (`ChatNotice` izohi). -->
+    <ChatNotice
       v-if="room.notice.value !== null"
-      class="mt-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2"
-      role="alert"
-    >
-      <p
-        class="min-w-0 flex-1 text-xs leading-relaxed text-amber-200"
-        v-text="room.notice.value"
-      />
-      <button
-        type="button"
-        class="shrink-0 text-amber-300/70 transition-colors hover:text-amber-200"
-        aria-label="Yopish"
-        @click="room.dismissNotice()"
-      >
-        <AppIcon
-          name="close"
-          :size="14"
-        />
-      </button>
-    </div>
+      class="mt-2"
+      :text="room.notice.value"
+      @dismiss="room.dismissNotice()"
+    />
 
     <!-- ============================ Yozish paneli =========================== -->
     <form
-      class="mt-2.5 flex items-end gap-2"
+      class="mt-2.5 flex shrink-0 items-end gap-2"
       novalidate
       @submit.prevent="submit"
     >
+      <!--
+        Emoji CHAPDA: o'ng tomon yuborish tugmasiniki va u eski ilovadan
+        ko'chirilgan joyda qolishi kerak (barmoq o'sha burchakni "biladi").
+      -->
+      <ChatEmojiPicker
+        v-model="draft"
+        :target="input"
+        :max-length="GROUP_CHAT_BODY_MAX"
+      />
+
       <div class="min-w-0 flex-1">
         <label
           class="sr-only"
@@ -340,10 +358,22 @@ watch(
         >
           Xabar matni
         </label>
+        <!--
+          ★ `resize-y` OLIB TASHLANDI (2026-08-13): burchakdan tortib
+          maydonni `max-h-32` gacha cho'zish mumkin edi va u xabarlar
+          ro'yxatini emas, PANELNI surardi — foydalanuvchi o'z qo'li bilan
+          yozish maydonini ekrandan chiqarib yuborardi.
+
+          O'rniga `field-sizing-content`: maydon YOZILGAN MATNGA qarab
+          o'sadi (Telegram'dagidek) va `max-h-32` da to'xtaydi. Qo'llab-
+          quvvatlamaydigan brauzerda bugungi bir qatorli ko'rinish qoladi —
+          ya'ni chekinish yo'q, faqat yaxshilanish bor.
+        -->
         <textarea
           id="group-chat-input"
+          ref="input"
           v-model="draft"
-          class="zn-input max-h-32 min-h-11 w-full resize-y rounded-3xl py-2.5"
+          class="zn-input max-h-32 min-h-11 w-full resize-none overflow-y-auto rounded-3xl py-2.5 field-sizing-content"
           rows="1"
           :maxlength="GROUP_CHAT_BODY_MAX"
           placeholder="Xabar yozing..."

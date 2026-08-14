@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Zinnur.Application.Jobs;
 using Zinnur.Application.Recordings.Dtos;
+using Zinnur.Application.Recordings.Jobs;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -93,6 +95,40 @@ public class RecordingFactory : ZinnurApiFactory
             services.RemoveAll<ILiveKitEgress>();
             services.AddSingleton<ILiveKitEgress>(Egress);
         });
+    }
+
+    /// <summary>
+    /// Watchdog'ning BITTA yurishi — AYNAN rejalashtiruvchi kabi: yangi
+    /// scope + <see cref="IJobRunner"/> (ya'ni Postgres advisory lock
+    /// ostida). <c>JobFactory.RunAsync</c> bilan AYNI naqsh.
+    ///
+    /// ★ AVTOMATIK YOZUV UCHUN BU SHUNCHAKI QULAYLIK EMAS: dars boshlanganda
+    /// faqat NAVBAT qatori yoziladi, Egress'ga murojaatni esa AYNAN shu
+    /// vazifa qiladi (izoh: <c>IAutoRecordingScheduler</c>). Ya'ni "yozuv
+    /// haqiqatan boshlandimi" degan savolni tekshirish uchun vazifani
+    /// yurgizmasdan iloji yo'q.
+    ///
+    /// ⚠️ Rejalashtiruvchi testlarda O'CHIQ (<c>Jobs:Enabled=false</c>) —
+    /// aks holda fon sikli test yaratgan navbat qatorini "o'g'irlab"
+    /// ishlab qo'yardi va natija tasodifiy bo'lardi.
+    /// </summary>
+    public async Task<JobRunResult> RunRecordingWatchdogAsync()
+    {
+        using var scope = Services.CreateScope();
+
+        var job = scope.ServiceProvider
+            .GetServices<IScheduledJob>()
+            .OfType<RecordingWatchdogJob>()
+            .Single();
+
+        var execution = await Services.GetRequiredService<IJobRunner>().RunAsync(job);
+
+        // Yiqilgan vazifa JIM qolmasin: yurgizuvchi istisnoni ataylab yutadi
+        // (prod'da bu to'g'ri), testda esa haqiqiy sabab ko'rinishi kerak.
+        return execution.Outcome == JobOutcome.Failed
+            ? throw new InvalidOperationException(
+                $"Watchdog yiqildi: {execution.ErrorMessage}")
+            : execution.Result;
     }
 }
 

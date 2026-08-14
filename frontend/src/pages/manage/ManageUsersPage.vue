@@ -20,6 +20,7 @@ import UserFormDialog from '@/features/user-form/ui/UserFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { UserDetailsDto, UserRoleName } from '@/shared/types'
 import {
@@ -50,6 +51,17 @@ import {
  */
 const queryClient = useQueryClient()
 const confirm = useConfirm()
+
+/*
+  Kartochka ↔ jadval almashuvi CSS emas, `v-if` bilan: `hidden lg:block`
+  IKKALA daraxtni ham quradi — telefon hech qachon ko'rmaydigan 8 ustunli
+  jadval ham mount bo'lib, ma'lumot bilan to'lardi.
+
+  ★ Chegara `lg` (1024px), `md` EMAS — yon menyu ham shu yerda ochiladi.
+  iPad tik holati (768px) endi kartochka + gamburger bo'lib qoladi
+  (`style.css` dagi "md va lg haqidagi asosiy qaror" izohiga qarang).
+*/
+const { isDesktop } = useBreakpoint()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
@@ -418,8 +430,11 @@ function telegramText(user: UserDetailsDto): string {
       @retry="usersQuery.refetch()"
     >
       <BaseCard flush>
-        <!-- Telefon: kartochka ro'yxati -->
-        <ul class="divide-y divide-line md:hidden">
+        <!-- Telefon/planshet: kartochka ro'yxati -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
           <li
             v-for="user in users"
             :key="user.id"
@@ -482,8 +497,11 @@ function telegramText(user: UserDetailsDto): string {
           </li>
         </ul>
 
-        <!-- Desktop: jadval. Gorizontal skroll SHU konteynerda. -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval. Gorizontal skroll SHU konteynerda. -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

@@ -331,7 +331,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
             fullName = "Blok " + role.ToString(),
             email,
             role = role.ToString(),
-            password,
+            phone = TestPhones.Next(),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -348,7 +348,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(string email, string password)
     {
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -427,7 +427,7 @@ public sealed class PaymentSoftModeTests(SoftModePaymentFactory factory)
         var courseId = await factory.WithDbAsync(db => db.Courses
             .OrderBy(c => c.Id).Select(c => c.Id).FirstAsync());
 
-        var studentTokens = await factory.LoginAsync("student@zinnur.uz", "Demo!2345");
+        var studentTokens = await factory.LoginAsync("student@zinnur.uz");
         using var student = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var response = await student.GetAsync(new Uri($"/api/v1/courses/{courseId}", UriKind.Relative));

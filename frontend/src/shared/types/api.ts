@@ -24,10 +24,41 @@ export interface ProblemDetails {
   errors?: Record<string, string[]>
 }
 
-/** `POST /api/v1/auth/login` tanasi */
-export interface LoginRequest {
-  email: string
-  password: string
+/**
+ * `POST /api/v1/auth/phone/request-code` tanasi.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * ⚠️ `LoginRequest` (email + parol) OLIB TASHLANDI — 2026-08-13, loyiha
+ *    egasining qarori. `POST /api/v1/auth/login` endpointi ham yo'q.
+ *
+ * Endi kirish IKKI BOSQICHLI: telefon raqami yuboriladi, kod esa o'sha
+ * raqamga bog'langan TELEGRAM hisobiga keladi.
+ * ══════════════════════════════════════════════════════════════════════
+ */
+export interface PhoneCodeRequest {
+  /** Xom ko'rinish ham bo'ladi — normalizatsiya SERVERDA. */
+  phone: string
+}
+
+/**
+ * `request-code` javobi.
+ *
+ * 🔴 JAVOB HAR DOIM BIR XIL — raqam bazada bor yoki yo'qligidan qat'i
+ * nazar. Interfeys HECH QACHON "bunday raqam topilmadi" deb ko'rsatmasin:
+ * server bu ma'lumotni ataylab bermaydi (hisob sanashga qarshi), va uni
+ * mijozda "o'ylab topish" himoyani bekor qilardi.
+ */
+export interface PhoneCodeResponse {
+  /** Kod necha sekund yaroqli (taymer uchun). */
+  expiresInSeconds: number
+  /** Qayta yuborish tugmasi qachondan faollashadi. */
+  resendAfterSeconds: number
+}
+
+/** `POST /api/v1/auth/phone/verify` tanasi. */
+export interface PhoneVerifyRequest {
+  phone: string
+  code: string
 }
 
 /**
@@ -39,10 +70,31 @@ export interface RefreshRequest {
   refreshToken: string
 }
 
+/**
+ * `GET /api/v1/auth/me` va `AuthResponse.user` — KIRGAN foydalanuvchining
+ * O'ZI.
+ *
+ * 🔴 BU YAGONA "O'Z-O'ZIGA CHEKLANGAN" (self-scoped) shakl: serverda uni
+ * to'ldiradigan yo'lda "kimning profili" degan parametr umuman yo'q, javob
+ * tokendagi `sub` dan chiqadi. Shu sababli `phone` MAYDONI AYNAN SHU
+ * TURDAN olinadi (suv belgisi — R8).
+ */
 export interface UserDto {
   id: number
   fullName: string
   email: string
+  /**
+   * 🔴 SUV BELGISI UCHUN YAGONA RUXSAT ETILGAN MANBA (R8).
+   *
+   * Guruh doirasidagi shakllardan (`GroupMemberDto`, davomat qatori,
+   * qatnashuvchi DTO'si) OLINMASIN: ular ustozga ham ochiq va R27 aynan
+   * o'sha yo'lni yopadi — suv belgisini o'shalardan yig'ish yopilgan
+   * teshikni qayta ochardi.
+   *
+   * `null` — raqam kiritilmagan (bunday foydalanuvchilar BOR: ular
+   * Telegram'ni ham ulay olmaydi).
+   */
+  phone: string | null
   role: UserRoleName
 }
 
@@ -64,6 +116,40 @@ export interface LiveSessionDto {
   scheduledEnd: string
   actualStart: string | null
   endsAt: string | null
+  isHost: boolean
+}
+
+/**
+ * `GET /api/v1/live-sessions/stats` qatori — "Darslarim" jadvali (R31).
+ *
+ * ★ `LiveSessionDto` DAN ALOHIDA TUR, chunki server ham ikkita alohida
+ * shartnoma beradi: eski `GET /live-sessions` kengaytirilmadi (uni bosh
+ * sahifa va `SessionBoard` allaqachon ishlatadi). Sabab backendda —
+ * `LiveSessionDtos.cs`.
+ *
+ * ⚠️ `actualEnd` SHU YERDA BOR, `LiveSessionDto` da esa YO'Q — davomiylikni
+ * mijozda hisoblab bo'lmasligining sababi aynan shu edi.
+ */
+export interface SessionStatsDto {
+  id: number
+  groupId: number
+  groupName: string
+  title: string | null
+  type: SessionTypeName
+  status: SessionStatusName
+  /** ISO-8601 (DateTimeOffset) */
+  scheduledStart: string
+  scheduledEnd: string
+  actualStart: string | null
+  actualEnd: string | null
+  /** Reja: `scheduledEnd − scheduledStart`. Doim bor. */
+  plannedMinutes: number
+  /** Haqiqiy: `actualEnd − actualStart`. `null` — dars o'tmagan/yakunlanmagan. */
+  actualMinutes: number | null
+  /** Guruhdagi HOZIRGI faol o'quvchilar soni (izoh: backend DTO). */
+  studentCount: number
+  /** `Present` + `Late` + `Partial`. Yozuvi yo'q o'quvchi sanalmaydi. */
+  attendedCount: number
   isHost: boolean
 }
 
@@ -174,11 +260,21 @@ export interface GroupDto {
   updatedAt: string | null
 }
 
+/**
+ * `GET /api/v1/groups/{id}/members` elementi.
+ *
+ * 🔴 KONTAKT ROLGA QARAB KESILADI (R27, `GroupService.ProjectMembers`):
+ * so'rovchi USTOZ bo'lsa `email` va `phone` — `null`. Kurator, o'quv bo'limi
+ * va admin uchun to'liq keladi (kuratorga raqam kerak: qo'ng'iroq — uning
+ * asosiy amali).
+ */
 export interface GroupMemberDto {
   id: number
   studentId: number
   fullName: string | null
+  /** `null` — so'rovchi ustoz (serverda kesilgan). Bazada ustun MAJBURIY. */
   email: string | null
+  /** `null` — raqam kiritilmagan YOKI so'rovchi ustoz. Ikkisi farqlanmaydi. */
   phone: string | null
   status: MemberStatusName
   joinedAt: string
@@ -605,10 +701,18 @@ export interface SubmitTestRequest {
   answers: QuestionAnswerRequest[]
 }
 
-/** `GET /api/v1/users` elementi. `role` backendda `string` (enum nomi). */
+/**
+ * `GET /api/v1/users` elementi. `role` backendda `string` (enum nomi).
+ *
+ * 🔴 `GET /users/{id}/profile` ICHIDA kelganda kontakt ROLGA qarab kesiladi
+ * (R27): so'rovchi USTOZ bo'lsa `email`, `phone`, `telegramId` va
+ * `telegramUsername` — hammasi `null`. `/api/v1/users` ro'yxati esa faqat
+ * o'quv bo'limi/adminga ochiq, ya'ni u yerda kesish yo'q.
+ */
 export interface UserDetailsDto {
   id: number
   fullName: string | null
+  /** `null` — so'rovchi ustoz (kesilgan). Bazada ustun MAJBURIY. */
   email: string | null
   phone: string | null
   telegramId: number | null
@@ -630,16 +734,26 @@ export interface CreateUserRequest {
   fullName: string
   email: string
   role: UserRoleName
+  /**
+   * 🔴 XODIM ROLLARI UCHUN MAJBURIY (`Student` dan tashqari hammasi) —
+   * server 400 qaytaradi.
+   *
+   * Sabab: 2026-08-13 dan kirish faqat telefon orqali. Telefonsiz xodim
+   * CRM'da normal ko'rinadi, lekin hech qachon kira olmaydi.
+   */
   phone?: string | null
-  /** Bo'sh bo'lsa server vaqtinchalik parol o'ylab topadi. */
-  password?: string | null
+
+  // ⚠️ `password` maydoni OLIB TASHLANDI (2026-08-13): parol bilan kirish
+  //    yo'q, server uni umuman qabul qilmaydi.
   isActive: boolean
 }
 
 export interface CreateUserResponse {
   user: UserDetailsDto
-  /** Faqat parol server tomonidan generatsiya qilinganda to'ladi. */
-  temporaryPassword: string | null
+
+  // ⚠️ `temporaryPassword` OLIB TASHLANDI (2026-08-13). Yangi
+  //    foydalanuvchi botga raqamini ulab, kod bilan kiradi — uzatiladigan
+  //    "boshlang'ich parol" degan narsa yo'q.
 }
 
 export interface UpdateUserRequest {
@@ -810,6 +924,30 @@ export interface CourseLessonDto {
   assets: LessonAssetDto[] | null
   unlocked: boolean
   lockReason: LessonLockReasonName | null
+  /**
+   * WAVE 2 · dars TUGATILGANMI (video ko'rilgan + vazifa topshirilgan + test
+   * yechilgan — mavjud bo'lganlari uchun).
+   *
+   * 🔴 BU MAYDON SHU TIPDA YO'Q EDI, server esa uni WAVE 2 DAN BERI YUBORADI
+   * (`CourseDtos.cs` · `CourseLessonDto.Completed`, `CourseService.MapLesson`
+   * uni gating daraxtidagi `LessonGateDto.Completed` dan oladi). Tip uni
+   * o'tkazib yuborgani uchun frontendda uchta izohda "server bermaydi" deb
+   * yozilgan va progress "ochilgan darslar" bo'yicha hisoblangan edi —
+   * o'quvchi ochib qo'ygan, lekin tugatmagan darsi ham "bajarilgan" bo'lib
+   * ko'rinardi. Uchala izoh ham tuzatildi (2026-08-13, R9).
+   *
+   * ★ `unlocked` BILAN ADASHTIRMANG — bular ikki BOSHQA savol: dars ochiq,
+   *   lekin tugatilmagan bo'lishi mumkin.
+   *
+   * ★ QULFLANGAN DARSDA DOIM `false` — server ataylab shunday qiladi
+   *   (`MapLesson` izohi): vazifasi va testi yo'q kursda xom `Completed`
+   *   qiymati butun daraxtni, hali ochilmaganini ham, "tugatilgan"
+   *   ko'rsatardi.
+   *
+   * ★ XODIM UCHUN DOIM `false` — "tugatilgan" o'quvchi progressi, xodimda
+   *   esa progress yozuvi yo'q.
+   */
+  completed: boolean
   hasAssignment: boolean
   hasTest: boolean
 }
@@ -919,8 +1057,45 @@ export interface GroupLeaderboardDto {
   rows: LeaderboardRowDto[] | null
 }
 
+/**
+ * Reyting QAMROVI (server enum'i, `JsonStringEnumConverter` bilan matn).
+ *
+ * 🔴 `Center` — "TIZIMDAGI HAMMA" DEGANI EMAS, bitta O'QUV MARKAZ.
+ *    Mahsulot bir necha markazga sotiladi va serverdagi
+ *    `ILearningCenterScope` aynan shu chegarani ushlab turadi.
+ */
+export type LeaderboardScopeName = 'Group' | 'Center'
+
+/**
+ * Butun o'quv markaz bo'yicha jadval.
+ *
+ * ★ `rows` TO'LIQ EMAS: server eng yaxshi `topCount` ta qatorni yuboradi.
+ *   `studentCount` esa TO'LIQ son — ya'ni `rows.length < studentCount`
+ *   bo'lishi NORMAL va bu "ma'lumot yetishmayapti" degani emas.
+ */
+export interface CenterLeaderboardDto {
+  /** `YYYY-MM` */
+  period: string
+  /** Markazdagi reytingga kirgan o'quvchilar TO'LIQ soni. */
+  studentCount: number
+  /** Jadvalda ko'pi bilan shuncha qator keladi (serverdagi chegara). */
+  topCount: number
+  /**
+   * So'rovchining qatori — `rows` ICHIDA BO'LMASLIGI MUMKIN (u yuqori
+   * yuzlikka kirmasa). O'rin HAR DOIM to'liq ro'yxatdan olingan.
+   * Xodim so'rasa `null`.
+   */
+  me: LeaderboardRowDto | null
+  rows: LeaderboardRowDto[] | null
+}
+
 /** "Mening o'rnim" — jadvalsiz yengil ko'rinish. `groupId` `null` — faol guruh yo'q. */
 export interface MyRankDto {
+  /**
+   * Javob qaysi qamrov bo'yicha. `Center` da `groupId` HAR DOIM `null` —
+   * bu "guruh topilmadi" bilan aralashmasin uchun diskriminator kerak.
+   */
+  scope: LeaderboardScopeName
   groupId: number | null
   groupName: string | null
   period: string
@@ -1456,7 +1631,26 @@ export type SettingKindName = 'Text' | 'Number' | 'Money' | 'Toggle' | 'Choice' 
  * ya'ni "reset" == "standart qiymatni yozish" EMAS, "ustki qatlamni olib
  * tashlash"). Boshqa manbalarda server 400 bilan rad etadi.
  */
-export type SettingOriginName = 'Default' | 'Environment' | 'Database'
+/**
+ * Qiymat AMALDA qayerdan kelgani.
+ *
+ * 🔴 `EnvironmentOverride` (2026-08-13) — SHOSHILINCH ("break-glass")
+ * rejim: bazadagi qiymat BOR, lekin muhit o'zgaruvchisi uni ustidan
+ * yozgan. Faqat `telegram.bot_token` va `telegram.webhook_secret` da
+ * uchraydi — email va parol bilan kirish olib tashlangach, ular buzilsa
+ * tizim o'zini o'zi qulflab qo'yardi (tokenni tuzatadigan panel ham
+ * kirish ortida qolardi).
+ *
+ * ★ `Environment` DAN AJRATILGAN: u — "baza hali to'ldirilmagan" (normal
+ * holat), bu esa "bazadagi qiymat ATAYLAB chetlab o'tilyapti" (avariya).
+ * Panel ikkalasini bir xil ko'rsatsa, operator tizim shoshilinch rejimda
+ * turganini bilmay, o'zgaruvchini olib tashlashni unutardi.
+ */
+export type SettingOriginName =
+  | 'Default'
+  | 'Environment'
+  | 'Database'
+  | 'EnvironmentOverride'
 
 /** Qo'shimcha shakl tekshiruvi (serverda bajariladi, UI faqat ishorasini beradi). */
 export type SettingFormatName = 'None' | 'Url' | 'TimeZone'
@@ -1704,6 +1898,41 @@ export interface RecordingLinkDto {
   expiresAt: string
 }
 
+/**
+ * `GET /api/v1/live-sessions/{id}/recording-status` javobi.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * 🔴 ROZILIK INDIKATORI UCHUN — VA U O'QUVCHIGA HAM OChIQ
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * 2026-08-13 dan dars yozuvi AVTOMATIK boshlanadi (guruhning
+ * `recordEnabled` kaliti bo'yicha). Shu bilan birga jonli xonadagi HAR
+ * BIR ishtirokchi — o'quvchi ham — yozib olinayotganini ko'rishi SHART.
+ * Bu endpoint aynan shu uchun qo'shildi va u YAGONA yozuv endpointi ki,
+ * unda rol darvozasi yo'q.
+ *
+ * ★ NIMA UCHUN `GET .../recordings` DAN FOYDALANILMAYDI: o'sha ro'yxat
+ * o'quvchiga FAQAT `Completed` yozuvlarni beradi (server tomonda
+ * filtrlanadi), ya'ni KETAYOTGAN yozuv unga umuman ko'rinmaydi —
+ * indikator hech qachon yonmasdi.
+ */
+export interface RecordingLiveStatusDto {
+  /**
+   * Yakunlanmagan yozuv bormi (`Requested`, `Starting` yoki `Active`).
+   *
+   * ⚠️ `Active` DAN KENGROQ va bu ATAYLAB: "yozilmayapti" deb yolg'on
+   * aytish roziligni buzardi, "yozilmoqda" deb ortiqcha ogohlantirish
+   * esa zararsiz. Shubha "ha" foydasiga hal qilinadi (backenddagi
+   * `IRecordingService.GetLiveStatusAsync` izohi).
+   */
+  isRecording: boolean
+  /**
+   * Yozuv HAQIQATAN boshlangan payt. `null` — hali navbatda (bu holatda
+   * ham `isRecording` `true` bo'ladi). Faqat izoh matni uchun.
+   */
+  startedAt: string | null
+}
+
 /* ===== WAVE 2 · FOYDALANUVCHI (wave2/users) =====
 
    O'quvchi profili drawer'i (`GET /users/{id}/profile`), Telegram
@@ -1738,10 +1967,21 @@ export interface UserProfileDto {
 
 /** Telegram ulanish holati + OXIRGI uzishning izi. */
 export interface ProfileTelegramDto {
-  /** Hosila: `telegramId !== null`. */
+  /**
+   * Bazada bog'lanish BORMI. ★ Ustoz uchun ham HAQIQIY qiymat keladi:
+   * bu HOLAT ("o'quvchi kira oladimi"), kontakt emas.
+   */
   linked: boolean
+  /**
+   * 🔴 Ustozga DOIM `null` (R27). `linked === true && telegramId === null`
+   * degani "bog'langan, ammo sizga ko'rsatilmaydi" — "bog'lanmagan" EMAS.
+   */
   telegramId: number | null
-  /** `@` BELGISIZ (`UserDetailsDto.telegramUsername` dagi ogohlantirish o'sha). */
+  /**
+   * `@` BELGISIZ (`UserDetailsDto.telegramUsername` dagi ogohlantirish o'sha).
+   * 🔴 Ustozga DOIM `null`: `t.me/<username>` — to'g'ridan-to'g'ri bog'lanish
+   * kanali, ya'ni KONTAKT.
+   */
   username: string | null
   linkedAt: string | null
   /**

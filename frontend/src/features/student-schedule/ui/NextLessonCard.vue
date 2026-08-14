@@ -104,12 +104,25 @@ function join(): void {
 </script>
 
 <template>
+  <!--
+    ★ DESKTOP (≥1024px): kartochka ichki o'lchamlari bir pog'ona kattaroq va
+    sichqoncha ostida "ko'tariladi". Ko'tarilish BEJIZ EMAS — kartochka
+    ichida yagona harakat tugmasi ("Darsga kirish") bor va bosh sahifada
+    kursor tabiiy ravishda avval kartochkaga tushadi: hover unga "bu blok
+    tirik" degan javob beradi (loyiha egasi talabi: *"interaktivroq"*).
+
+    ★ Yangi `@keyframes` QO'SHILMADI — bu shunchaki `transition`, ya'ni
+    `prefers-reduced-motion` bloki (`style.css`) uni o'z-o'zidan 0.01ms ga
+    tushiradi. Tailwind `hover:` ni `@media (hover:hover)` ga o'raydi, ya'ni
+    teginishli ekranda "yopishib qolgan" holat bo'lmaydi; ustiga `lg:`
+    ham qo'yilgan — telefon yo'li umuman ko'rmaydi.
+  -->
   <article
-    class="flex flex-col overflow-hidden rounded-[18px] border-[1.5px] p-4 pb-3.5"
+    class="flex flex-col overflow-hidden rounded-[18px] border-[1.5px] p-4 pb-3.5 lg:p-5 lg:transition lg:hover:-translate-y-0.5 lg:hover:shadow-md"
     :style="cardStyle"
   >
     <p
-      class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[1px]"
+      class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[1px] lg:text-xs"
       :style="{ color: labelColor }"
     >
       <span
@@ -134,10 +147,10 @@ function join(): void {
 
     <template v-else>
       <h3
-        class="mb-1 mt-2.5 text-lg font-extrabold leading-tight"
+        class="mb-1 mt-2.5 text-lg font-extrabold leading-tight lg:mt-3 lg:text-xl"
         v-text="sessionTitle(props.session)"
       />
-      <p class="text-[12.5px] leading-snug text-slate-400">
+      <p class="text-[12.5px] leading-snug text-slate-400 lg:text-[13.5px]">
         <span v-text="props.session.groupName" /><br>
         <span v-text="formatWeekdayDateTime(props.session.scheduledStart)" />
       </p>
@@ -148,22 +161,30 @@ function join(): void {
         Katakcha foni ilgari `bg-black/25` edi: qorong'i fonda u "chuqurlik"
         berardi, oq kartochkada esa kulrang dog' bo'lib chiqadi.
         `ink-800` — yorug' temadagi ichki blok rangi.
+
+        🔴 SANOQ DESKTOPDA QAYTA O'LCHANDI. 21px lik raqam 520px lik
+        ustunning YARMIGA (≈250px) mo'ljallangan edi; desktopda esa
+        kartochka ~560px bo'ladi va o'sha raqam 130px lik katakning
+        o'rtasida yo'qolib, sanoq "bo'sh qutilar qatori" bo'lib ko'rinardi.
+        Katak `flex-1` bo'lgani uchun uni TORAYTIRIB bo'lmaydi (o'ngda
+        tushunarsiz bo'shliq qolardi) — shuning uchun MAZMUN kattalashadi:
+        32px raqam + balandroq to'ldirma + kattaroq yorliq.
       -->
       <div
         v-if="!isLive && countdown !== null"
-        class="mb-2.5 mt-3 flex gap-1.5"
+        class="mb-2.5 mt-3 flex gap-1.5 lg:mb-3.5 lg:mt-4 lg:gap-2.5"
       >
         <div
           v-for="cell in countdown"
           :key="cell.label"
-          class="flex-1 rounded-[11px] border border-line bg-ink-800 px-1 py-2 text-center"
+          class="flex-1 rounded-[11px] border border-line bg-ink-800 px-1 py-2 text-center lg:rounded-2xl lg:py-3.5"
         >
           <b
-            class="block text-[21px] font-extrabold leading-none tabular-nums"
+            class="block text-[21px] font-extrabold leading-none tabular-nums lg:text-[32px]"
             v-text="cell.value"
           />
           <span
-            class="mt-1 block text-[9px] uppercase tracking-wider text-slate-400"
+            class="mt-1 block text-[9px] uppercase tracking-wider text-slate-400 lg:mt-1.5 lg:text-[10px]"
             v-text="cell.label"
           />
         </div>

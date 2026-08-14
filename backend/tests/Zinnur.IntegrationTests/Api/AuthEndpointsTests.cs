@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Zinnur.IntegrationTests.Infrastructure;
 
 namespace Zinnur.IntegrationTests.Api;
@@ -10,64 +11,39 @@ namespace Zinnur.IntegrationTests.Api;
 /// Bu yerdagi testlar qatlamlar CHEGARASINI tekshiradi: JWT yaratish →
 /// claim xaritalash → ruxsat tekshiruvi → baza. Aynan shu chegarada eng
 /// qimmat buglar yashiringan bo'ladi.
+///
+/// ⚠️ EMAIL VA PAROL BILAN KIRISH TESTLARI OLIB TASHLANDI (2026-08-13) —
+/// endpointning o'zi yo'q. Telefon + bir martalik kod oqimi butunlay
+/// alohida sinf'da sinaladi: <c>PhoneLoginEndpointsTests</c>.
 /// </summary>
 public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
     : IClassFixture<ZinnurApiFactory>
 {
     // ------------------------------------------------------------------ kirish
 
-    [Fact]
-    public async Task Login_WithSeededAdminCredentials_ReturnsTokens()
-    {
-        var tokens = await factory.LoginAsAdminAsync();
-
-        tokens.AccessToken.Should().NotBeNullOrWhiteSpace();
-        tokens.RefreshToken.Should().NotBeNullOrWhiteSpace();
-        tokens.User.Email.Should().Be("admin@zinnur.uz");
-        tokens.User.Role.Should().Be("Admin");
-    }
-
-    [Fact]
-    public async Task Login_WithWrongPassword_ReturnsUnauthorized()
-    {
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "admin@zinnur.uz", password = "noto'g'ri-parol" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     /// <summary>
-    /// Mavjud bo'lmagan email ham AYNAN shu javobni berishi kerak —
-    /// aks holda javobdan qaysi email ro'yxatda borligini aniqlash mumkin
-    /// (user enumeration).
+    /// ★ REGRESSIYA QULFI: eski kirish endpointi QAYTIB KELMASIN.
+    ///
+    /// NIMA UCHUN BU TEST BOR: parol yo'li olib tashlangan, lekin
+    /// `IPasswordHasher`, `User.PasswordHash` va `SetPassword` kod bazasida
+    /// QOLDI (sabab `User.PasswordHash` izohida). Ya'ni "ikkinchi eshikni"
+    /// tasodifan tiklash uchun bir necha qator yetarli. Bu test shu
+    /// qadamni DARHOL qizartiradi.
+    ///
+    /// 405 ham qabul qilinadi: marshrut boshqa metod uchun band bo'lsa
+    /// ASP.NET 404 emas, 405 qaytaradi — ikkalasi ham "bu yerda kirish
+    /// yo'q" degani.
     /// </summary>
     [Fact]
-    public async Task Login_WithUnknownEmail_ReturnsSameUnauthorizedAsWrongPassword()
-    {
-        using var client = factory.CreateClient();
-
-        var unknown = await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "yoq@zinnur.uz", password = "Admin!2345" });
-
-        unknown.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task Login_ResponseIsProblemDetails_OnFailure()
+    public async Task Login_EndpointIsGone()
     {
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "admin@zinnur.uz", password = "xato" });
+            new { email = "admin@zinnur.uz", password = "Admin!2345" });
 
-        response.Content.Headers.ContentType?.MediaType
-            .Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>();
-        problem!.TraceId.Should().NotBeNullOrWhiteSpace(
-            "har javobda traceId bo'lishi kerak — foydalanuvchi shikoyat qilganda logdan topish uchun");
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
     }
 
     // ------------------------------------------------------------------ /me
@@ -111,6 +87,42 @@ public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
         user.FullName.Should().NotBe("Noma'lum");
     }
 
+    /// <summary>
+    /// ========================================================================
+    /// 🔴 R8: SUV BELGISI UCHUN TELEFON — FAQAT SHU YO'LDAN
+    /// ========================================================================
+    ///
+    /// Video ustidagi suv belgisi o'quvchining O'Z raqamini ko'rsatadi.
+    /// Raqam manbai ATAYLAB <c>/auth/me</c>: bu endpoint tokendagi
+    /// <c>sub</c> dan kelib chiqadi, ya'ni undan HECH QACHON boshqa
+    /// odamning raqami chiqmaydi ("kimning profili" degan parametr yo'q).
+    ///
+    /// ★ MUQOBIL YO'LLAR NEGA RAD ETILDI: guruh a'zolari ro'yxati, davomat
+    /// varag'i va qatnashuvchilar ro'yxati ham raqamni bilardi, LEKIN
+    /// ularning hammasi USTOZGA ham ochiq va R27 aynan o'sha yo'llarni
+    /// yopadi. Suv belgisini o'shalardan yig'ish yopilgan teshikni qayta
+    /// ochardi.
+    ///
+    /// Bu test aynan shu bog'lanishni qulflaydi: maydon YO'QOLSA suv belgisi
+    /// jimgina ism+id ga tushib qolardi va buni hech kim sezmasdi.
+    /// </summary>
+    [Fact]
+    public async Task Me_ReturnsOwnPhone_ForWatermark()
+    {
+        var tokens = await factory.LoginAsAdminAsync();
+        using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
+
+        var expected = await factory.WithDbAsync(db => db.Users
+            .AsNoTracking()
+            .Where(u => u.Email == "admin@zinnur.uz")
+            .Select(u => u.Phone)
+            .FirstAsync());
+
+        var user = await client.GetFromJsonAsync<AuthUser>("/api/v1/auth/me");
+
+        user!.Phone.Should().Be(expected);
+    }
+
     [Fact]
     public async Task Me_WithGarbageToken_ReturnsUnauthorized()
     {
@@ -149,6 +161,23 @@ public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
             new { refreshToken = tokens.AccessToken });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>Xato so'rov RFC 7807 shaklida va `traceId` bilan qaytadi.</summary>
+    [Fact]
+    public async Task Refresh_ResponseIsProblemDetails_OnFailure()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/refresh",
+            new { refreshToken = "qalbaki-token" });
+
+        response.Content.Headers.ContentType?.MediaType
+            .Should().Be("application/problem+json");
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>();
+        problem!.TraceId.Should().NotBeNullOrWhiteSpace(
+            "har javobda traceId bo'lishi kerak — foydalanuvchi shikoyat qilganda logdan topish uchun");
     }
 
     // ------------------------------------------------------------------ chiqish

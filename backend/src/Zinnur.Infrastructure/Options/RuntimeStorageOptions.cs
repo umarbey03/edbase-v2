@@ -15,14 +15,17 @@ namespace Zinnur.Infrastructure.Options;
 /// ★ QAYSI MAYDONLAR BAZADAN, QAYSILARI YO'Q:
 ///   • ServiceUrl, Bucket, AccessKey, SecretKey, Region — BAZADAN
 ///     (registrda <c>Source = Database</c>);
+///   • PublicUrl — 2026-08-13 dan BAZADAN. Ilgari u muhitdan o'qilardi;
+///     loyiha egasining "Cloudflare ulanish joylari paneldan
+///     boshqarilsin" talabi bilan o'tkazildi. To'liq sabab va eski
+///     qarorning dalillariga javob — registrdagi izohda.
+///     🔴 BU AYNIQSA MUHIM O'ZGARISH: xato <c>PublicUrl</c> "jim 403"
+///     beradi (SigV4 host'ni imzolaydi) va ilgari uni tuzatishning
+///     yagona yo'li QAYTA JOYLASHTIRISH edi;
 ///   • KeyPrefix — muhitdan: u ombor ICHIDAGI joylashuv sxemasi,
-///     o'zgartirilsa eski fayllarga yo'l uzilardi (registrdagi sabab);
-///   • PublicUrl — MUHITDAN (FAZA 5.3). Bu BRAUZERGA ketadigan manzil,
-///     ya'ni <c>livekit.public_url</c> bilan AYNI turkum: u DNS va
-///     sertifikat bilan birga o'zgaradi — DEPLOY qarori, biznes qarori
-///     emas. Bundan tashqari paneldan boshqarilsa, panelga kirgan odam
-///     dars yozuvlarining butun oqimini o'z serveriga burib yubora
-///     olardi (<c>telegram.api_base_url</c> dagi AYNI mulohaza);
+///     o'zgartirilsa eski fayllarga yo'l uzilardi (registrdagi sabab).
+///     ★ U ulanish nuqtasi EMAS, shuning uchun "paneldan boshqarilsin"
+///     talabiga kirmaydi;
 ///   • TimeoutSeconds — registrda umuman yo'q: u `HttpClient` ga ishga
 ///     tushishda beriladi va ish jarayonida o'zgartirib bo'lmaydi.
 /// </summary>
@@ -50,7 +53,14 @@ public sealed class RuntimeStorageOptions(IRuntimeSettings runtime, IOptions<Sto
             Region = Fallback(snapshot.Value(SettingsRegistry.Keys.StorageRegion), Seed.Region),
 
             KeyPrefix = Seed.KeyPrefix,
-            PublicUrl = Seed.PublicUrl,
+
+            // ★ ZAXIRA `Seed` GA, `ServiceUrl` GA EMAS. Bo'sh `PublicUrl`
+            //   MA'NOLI qiymat: "ko'rish havolasi ham `ServiceUrl` dan
+            //   qurilsin" (bu qoida `R2RecordingStorage` ichida, bitta
+            //   joyda turadi). Bu yerda uni takrorlash ikkinchi ta'rif
+            //   yasardi va ular bir kun ajralib ketardi.
+            PublicUrl = snapshot.Value(SettingsRegistry.Keys.StoragePublicUrl) ?? Seed.PublicUrl,
+
             TimeoutSeconds = Seed.TimeoutSeconds,
         };
     }

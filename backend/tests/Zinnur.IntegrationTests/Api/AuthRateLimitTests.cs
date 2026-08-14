@@ -44,6 +44,25 @@ public sealed class ThrottledApiFactory : ZinnurApiFactory
         return client;
     }
 
+    /// <summary>
+    /// ★ TELEGRAM ATAYLAB SOZLANGAN: `phone/request-code` bot tokeni bo'sh
+    ///   bo'lsa 503 qaytaradi (kod yuboradigan kanal yo'q). U holda bu
+    ///   sinf "cheklov ichida 503, chegaradan keyin 429" ni tekshirgan
+    ///   bo'lardi — ya'ni endpoint HAQIQATAN ishlayotganini umuman
+    ///   isbotlamasdi.
+    ///
+    /// Tashqi tarmoqqa chiqish xavfi yo'q: xabar yuborish worker'i
+    /// o'chirilgan va API manzili javob bermaydigan portga qaratilgan
+    /// (`TelegramApiFactory` dagi AYNI naqsh).
+    /// </summary>
+    protected override IEnumerable<KeyValuePair<string, string>> ExtraSettings() =>
+    [
+        new("Telegram:BotToken", "123456789:AAH-ratelimit-test-bot-token-xy"),
+        new("Telegram:WebhookSecret", "zinnur_ratelimit_webhook_secret_2026"),
+        new("Telegram:ApiBaseUrl", "http://127.0.0.1:9"),
+        new("Notifications:Enabled", "false"),
+    ];
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -84,7 +103,7 @@ public sealed class ThrottledApiFactory : ZinnurApiFactory
 }
 
 /// <summary>
-/// ★ PAROL TOPISHGA (brute force) QARSHI HIMOYA.
+/// ★ KIRISH OQIMINI TOSHIRISHGA QARSHI HIMOYA.
 ///
 /// Bu testlar mavjud bo'lishining sababi: rate-limit siyosati `Program.cs`
 /// da e'lon qilingan va izohda "kirish endpointi cheklanadi" deb yozilgan
@@ -96,21 +115,36 @@ public sealed class ThrottledApiFactory : ZinnurApiFactory
 /// joyida, faqat bog'lovchi halqa yo'q. Shuning uchun himoyani
 /// HULQ-ATVOR darajasida qulflaymiz.
 ///
+/// ══════════════════════════════════════════════════════════════════════
+/// ⚠️ 2026-08-13: NISHON O'ZGARDI. Ilgari bu yerda `POST /auth/login`
+///    sinalardi (parol topishga qarshi). Endi parol yo'q — o'rniga
+///    `POST /auth/phone/request-code`.
+///
+/// 🔴 HAR SO'ROVDA YANGI RAQAM ISHLATILADI (`TestPhones.Next()`).
+///    Sabab hal qiluvchi: endpointda IKKITA mustaqil chegara bor —
+///      • IP bo'yicha (HTTP siyosati) — AYNAN shu sinf tekshiradi;
+///      • RAQAM bo'yicha (Redis, 60 s) — `PhoneLoginQuotaTests` tekshiradi.
+///    Bitta raqam takrorlansa IKKINCHI chegara birinchi bo'lib ishlab
+///    ketardi va test IP cheklovini umuman sinamagan bo'lardi — lekin
+///    baribir YASHIL chiqardi. Bu eng yomon turdagi test: himoya yo'q
+///    bo'lsa ham "bor" deb ko'rsatadi.
+/// ══════════════════════════════════════════════════════════════════════
+///
 /// Har test O'Z "IP"si bilan ishlaydi — aks holda birinchi test butun
 /// budjetni yeb qo'yardi.
 /// </summary>
 public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     : IClassFixture<ThrottledApiFactory>
 {
-    private const string AdminEmail = "admin@zinnur.uz";
-    private const string AdminPassword = "Admin!2345";
-    private const string WrongPassword = "noto'g'ri-parol";
-
     /// <summary>Siyosatdagi budjet (<c>ThrottledApiFactory.AuthPermitLimit</c>).</summary>
     private const int PermitLimit = 10;
 
-    private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string password) =>
-        client.PostAsJsonAsync("/api/v1/auth/login", new { email = AdminEmail, password });
+    /// <summary>
+    /// Kod so'raydi. Raqam HAR CHAQIRUVDA yangi — sabab sinf izohida.
+    /// </summary>
+    private static Task<HttpResponseMessage> RequestCodeAsync(HttpClient client) =>
+        client.PostAsJsonAsync(
+            "/api/v1/auth/phone/request-code", new { phone = TestPhones.Next() });
 
     private static Task<HttpResponseMessage> RefreshAsync(HttpClient client, string token) =>
         client.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = token });
@@ -120,12 +154,13 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     /// <summary>
     /// ★ ASOSIY TEST: budjetdan keyingi urinish 429 oladi.
     ///
-    /// Parol ATAYLAB noto'g'ri — hujum aynan MUVAFFAQIYATSIZ urinishlardan
-    /// iborat. Birinchi 10 tasining 401 bo'lishi esa cheklov haddan tashqari
-    /// qattiq emasligini ko'rsatadi.
+    /// Budjet ichidagi javoblar 200 bo'lishi kerak — raqam bazada
+    /// bo'lmasa ham. Bu ikki narsani birdan isbotlaydi: cheklov haddan
+    /// tashqari qattiq emas VA endpoint hisob sanashga yo'l bermaydi
+    /// (noma'lum raqam ham 200 oladi).
     /// </summary>
     [Fact]
-    public async Task Login_AfterPermitLimit_ReturnsTooManyRequests()
+    public async Task RequestCode_AfterPermitLimit_ReturnsTooManyRequests()
     {
         using var client = factory.CreateClientFromIp("10.0.0.1");
 
@@ -133,38 +168,15 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
 
         for (var attempt = 0; attempt <= PermitLimit; attempt++)
         {
-            using var response = await LoginAsync(client, WrongPassword);
+            using var response = await RequestCodeAsync(client);
             statuses.Add(response.StatusCode);
         }
 
-        statuses.Take(PermitLimit).Should().AllBeEquivalentTo(HttpStatusCode.Unauthorized,
-            "budjet ichidagi urinishlar odatdagidek javob olishi kerak");
+        statuses.Take(PermitLimit).Should().AllBeEquivalentTo(HttpStatusCode.OK,
+            "budjet ichidagi so'rovlar odatdagidek javob olishi kerak");
 
         statuses[PermitLimit].Should().Be(HttpStatusCode.TooManyRequests,
-            "11-urinish chegaradan oshadi — aks holda parol topish cheksiz davom etardi");
-    }
-
-    /// <summary>
-    /// Chegara TO'G'RI parolni ham sanaydi.
-    ///
-    /// NEGA MUHIM: faqat 401 javoblar sanalganda hujumchi parolni topgan
-    /// ondan boshlab cheksiz token ola olardi. Bu — hisob egallanganidan
-    /// keyingi zarar chegarasi.
-    /// </summary>
-    [Fact]
-    public async Task Login_WithCorrectPassword_IsAlsoCounted()
-    {
-        using var client = factory.CreateClientFromIp("10.0.0.2");
-
-        for (var attempt = 0; attempt < PermitLimit; attempt++)
-        {
-            using var response = await LoginAsync(client, AdminPassword);
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
-        }
-
-        using var blocked = await LoginAsync(client, AdminPassword);
-
-        blocked.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+            "11-so'rov chegaradan oshadi — aks holda kod so'rash cheksiz davom etardi");
     }
 
     /// <summary>
@@ -175,23 +187,54 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     /// bitta bot butun platformaga kirishni yopib qo'yardi.
     /// </summary>
     [Fact]
-    public async Task Login_LimitIsPerIp_AndDoesNotBlockOtherClients()
+    public async Task RequestCode_LimitIsPerIp_AndDoesNotBlockOtherClients()
     {
         using var noisy = factory.CreateClientFromIp("10.0.0.3");
 
         for (var attempt = 0; attempt <= PermitLimit; attempt++)
         {
-            using var burned = await LoginAsync(noisy, WrongPassword);
+            using var burned = await RequestCodeAsync(noisy);
             burned.StatusCode.Should().Be(attempt < PermitLimit
-                ? HttpStatusCode.Unauthorized
+                ? HttpStatusCode.OK
                 : HttpStatusCode.TooManyRequests);
         }
 
         using var innocent = factory.CreateClientFromIp("10.0.0.4");
-        using var response = await LoginAsync(innocent, AdminPassword);
+        using var response = await RequestCodeAsync(innocent);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "boshqa IP o'z budjetiga ega — qo'shni ayb bilan bloklanmasin");
+    }
+
+    /// <summary>
+    /// Kodni TEKSHIRISH endpointi ham AYNI siyosat ostida.
+    ///
+    /// ★ NIMA UCHUN ALOHIDA TEST: `verify` — kodni taxmin qilish
+    /// mumkin bo'lgan yagona joy. Uni cheklovsiz qoldirish 6 xonali
+    /// kodni bir necha daqiqada topish imkonini berardi. Raqam bo'yicha
+    /// urinishlar chegarasi ham bor (5 ta), lekin u FAQAT kod
+    /// so'ralgan raqamlarga qo'llanadi — bu esa hamma so'rovga.
+    /// </summary>
+    [Fact]
+    public async Task Verify_IsAlsoRateLimited()
+    {
+        using var client = factory.CreateClientFromIp("10.0.0.7");
+
+        var statuses = new List<HttpStatusCode>();
+
+        for (var attempt = 0; attempt <= PermitLimit; attempt++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                "/api/v1/auth/phone/verify",
+                new { phone = TestPhones.Next(), code = "000000" });
+
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.Take(PermitLimit).Should().AllBeEquivalentTo(HttpStatusCode.Unauthorized,
+            "kod so'ralmagan raqam uchun javob 'kod noto'g'ri' bo'ladi (401)");
+
+        statuses[PermitLimit].Should().Be(HttpStatusCode.TooManyRequests);
     }
 
     // ------------------------------------------------------------------ yangilash
@@ -218,7 +261,7 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     /// kirgan foydalanuvchi tokenini yangilay oladi.
     ///
     /// NEGA SHUNDAY: bitta maktab bitta NAT IP orqasida turadi. Umumiy
-    /// budjetda bir necha noto'g'ri parol butun binoni tizimdan chiqarib
+    /// budjetda bir necha kod so'rovi butun binoni tizimdan chiqarib
     /// yuborardi — dars o'rtasida, sabab ko'rsatmasdan.
     /// </summary>
     [Fact]
@@ -226,23 +269,22 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     {
         using var client = factory.CreateClientFromIp("10.0.0.6");
 
-        // Haqiqiy token — kirish budjeti tugashidan OLDIN olinadi (1-ruxsat).
-        using var login = await LoginAsync(client, AdminPassword);
-        login.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Token HTTP orqali OLINMAYDI (`LoginAsAdminAsync` uni to'g'ridan-
+        // to'g'ri yasaydi), ya'ni kirish budjetiga umuman tegmaydi — bu
+        // testda aynan shu kerak.
+        var tokens = await factory.LoginAsAdminAsync();
 
-        var tokens = await login.Content.ReadFromJsonAsync<AuthTokens>();
-
-        // Qolgan budjetni oxirigacha yeymiz (2..10-ruxsatlar).
-        for (var attempt = 1; attempt < PermitLimit; attempt++)
+        // Kirish budjetini oxirigacha yeymiz.
+        for (var attempt = 0; attempt < PermitLimit; attempt++)
         {
-            using var burned = await LoginAsync(client, WrongPassword);
-            burned.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            using var burned = await RequestCodeAsync(client);
+            burned.StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
-        using var blockedLogin = await LoginAsync(client, WrongPassword);
+        using var blockedLogin = await RequestCodeAsync(client);
         blockedLogin.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
 
-        using var refresh = await RefreshAsync(client, tokens!.RefreshToken);
+        using var refresh = await RefreshAsync(client, tokens.RefreshToken);
 
         refresh.StatusCode.Should().Be(HttpStatusCode.OK,
             "yangilashning budjeti alohida — kirish bloklangani uni to'smasligi kerak");

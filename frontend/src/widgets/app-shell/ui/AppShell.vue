@@ -185,12 +185,32 @@ async function handleLogout(): Promise<void> {
           class="min-w-0 flex-1 truncate text-sm font-semibold"
           v-text="pageTitle"
         />
-        <p class="shrink-0 pr-2 text-base font-bold">
-          Zin<span class="text-brand-500">-Nur</span>
+        <!--
+          R19 — yon panel bilan AYNAN bir xil rang (`text-brand-500`). Mobil
+          sarlavhada nom yonma-yon `pageTitle` bilan turadi, shuning uchun
+          ikki rangli so'z bu yerda ayniqsa ko'zga tashlanardi.
+        -->
+        <p class="shrink-0 pr-2 text-base font-bold text-brand-500">
+          Zin-Nur
         </p>
       </header>
 
-      <main class="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-6.5">
+      <!--
+        `max-w-[96rem]` + `mx-auto` — KENG MONITOR HIMOYASI. Ilgari `main`
+        da hech qanday cheklov yo'q edi: 2560px li ekranda matn qatori butun
+        kenglikni egallardi (sarlavha, izohlar, forma yorliqlari — ko'z bir
+        qator oxiridan keyingisining boshiga qaytolmaydigan uzunlik).
+
+        ★ 96rem = 1536px — `style.css` dagi `--breakpoint-2xl` bilan BIR XIL
+        qiymat, ya'ni "kontent eng keng e'lon qilingan bosqichda to'xtaydi".
+        Yon menyu (230px) hisobga olinsa cheklov faqat ~1766px dan keng
+        ekranda ishga tushadi — oddiy noutbukda hech narsa o'zgarmaydi.
+
+        ★ Qiymat ATAYLAB kichikroq (masalan 80rem) EMAS: bu panelning asosiy
+        mazmuni 8-10 ustunli jadval, tor konteyner ularni gorizontal skrollga
+        majburlardi — keng monitor afzalligi yo'qolardi.
+      -->
+      <main class="mx-auto w-full min-w-0 max-w-[96rem] flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-6.5">
         <RouterView v-slot="{ Component }">
           <component :is="Component" />
         </RouterView>

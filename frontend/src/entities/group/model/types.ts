@@ -62,6 +62,42 @@ export function weekdayLabel(value: string): string {
   return lookup(WEEKDAY_SHORT, value, value.slice(0, 2))
 }
 
+/**
+ * `Du, Ch` — jadvaldagi "Kunlari" USTUNI.
+ *
+ * `groupScheduleSummary` kun va vaqtni birga beradi (kartochkada bitta qator
+ * — joy tejaladi), jadvalda esa ular loyiha egasining ustunlar ro'yxati
+ * bo'yicha ALOHIDA ustun. Shuning uchun kunlar qismi mustaqil yorliq
+ * sifatida ham kerak.
+ *
+ * ★ Kun yo'q bo'lsa chiziqcha: bo'sh katak "yuklanmadi" degan taassurot
+ * qoldirardi, `—` esa "belgilanmagan" degan aniq ma'noni beradi.
+ */
+export function groupWeekdaysLabel(group: GroupDto): string {
+  const days = (group.weekdays ?? []).map(weekdayLabel)
+  return days.length === 0 ? '—' : days.join(', ')
+}
+
+/**
+ * "Biriktirilgan kurator" ustuni.
+ *
+ * 🔴 BACKENDDA "KURATOR" TUSHUNCHASI IKKITA (reja hujjatidagi q6 savoli):
+ *  - `assistantName` — guruhga biriktirilgan ODAM (xodim);
+ *  - `curatorGroupName` — shu guruhga bog'langan KURATOR GURUHI.
+ *
+ * Avval ODAM ko'rsatiladi: ustoz bu ustunga "kim bilan gaplashaman?" deb
+ * qaraydi, guruh nomi bu savolga javob bermaydi. Odam biriktirilmagan
+ * bo'lsa — guruh nomi zaxira sifatida chiqadi, u ham hech nimadan yaxshiroq.
+ *
+ * ★ UCHINCHI o'qilish ham bor: kurator GURUHINI olib boradigan xodim
+ * (`CuratorGroup.TeacherId`). U `GroupDto` da UMUMAN yo'q va uni ko'rsatish
+ * uchun backendga yangi maydon kerak bo'lardi — shuning uchun bu variant
+ * ataylab tanlanmadi (bugungi ikki maydon bilan migratsiyasiz ishlanadi).
+ */
+export function groupCuratorLabel(group: GroupDto): string {
+  return group.assistantName ?? group.curatorGroupName ?? '—'
+}
+
 /** `Du, Ch · 10:00` — guruh kartochkasidagi bir qatorlik jadval xulosasi. */
 export function groupScheduleSummary(group: GroupDto): string {
   const days = (group.weekdays ?? []).map(weekdayLabel).join(', ')

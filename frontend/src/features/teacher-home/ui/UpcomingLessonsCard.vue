@@ -14,6 +14,7 @@ import {
 import type { SessionStartState } from '@/entities/session'
 import { toUserMessage } from '@/shared/api'
 import { formatDate, formatTime } from '@/shared/lib/datetime'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useNow } from '@/shared/lib/use-now'
 import type { LiveSessionDto } from '@/shared/types'
 import { BaseBadge, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
@@ -39,6 +40,18 @@ const queryClient = useQueryClient()
  * BITTA taymer (`useNow`) — sahifa yopilganda o'zi to'xtaydi.
  */
 const now = useNow()
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi va bu yerda narx ikki barobar: har sekundda yangilanadigan
+  `now` HAR IKKI ro'yxatni qayta chizardi (ustoz bosh sahifasi, 12 qator).
+
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi
+  (`style.css` dagi "md va lg haqidagi asosiy qaror" izohi).
+  ★ "Yana ko'rsatish" hisoblagichi (`limit`) SHU komponentda — daraxt
+  almashsa ham ochilgan qatorlar soni saqlanadi.
+*/
+const { isDesktop } = useBreakpoint()
 
 const sessionsQuery = useQuery({
   queryKey: ['live-sessions'],
@@ -149,8 +162,11 @@ function isStarting(sessionId: number): boolean {
         empty-text="Yangi dars rejalashtirilganda shu yerda ko‘rinadi."
         @retry="sessionsQuery.refetch()"
       >
-        <!-- ===================== Telefon: kartochka ===================== -->
-        <ul class="space-y-2 md:hidden">
+        <!-- ================= Telefon/planshet: kartochka ================= -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
           <li
             v-for="row in visible"
             :key="row.session.id"
@@ -219,8 +235,11 @@ function isStarting(sessionId: number): boolean {
           </li>
         </ul>
 
-        <!-- ====================== Desktop: jadval ====================== -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- ================= Desktop (≥1024px): jadval ================= -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

@@ -12,6 +12,46 @@ public class User : BaseEntity
     /// <summary>Unikal. Har doim kichik harflarda saqlanadi.</summary>
     public required string Email { get; set; }
 
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 O'LIK USTUN — HECH KIM O'QIMAYDI (2026-08-13 dan)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Email va parol bilan kirish BUTUNLAY olib tashlandi (loyiha
+    /// egasining qarori — talab R26). Bugungi kunda bu ustunni
+    /// TEKSHIRADIGAN kod YO'Q: <c>AuthService</c> da parol yo'li ham,
+    /// <c>POST /api/v1/auth/login</c> ham mavjud emas.
+    ///
+    /// ★ NIMA UCHUN USTUN BARIBIR OLIB TASHLANMADI — ONGLI QAROR:
+    ///
+    ///  1) MIGRATSIYA XAVFI. Ustunni tashlash <c>NOT NULL</c> ustunni
+    ///     o'chirishni, snapshot yangilashni va zanjirdagi keyingi
+    ///     migratsiyalarni talab qiladi. Bu o'zgarish ALLAQACHON eng
+    ///     xavfli o'zgarish (butun kirish yo'li almashdi) — unga
+    ///     qaytarib bo'lmaydigan sxema o'zgarishini QO'SHISH ikki
+    ///     xavfni bitta relizga bog'lab qo'yardi.
+    ///
+    ///  2) QAYTISH YO'LI. Telefon oqimi kutilmagan sababdan (masalan
+    ///     Telegram O'zbekistonda bloklansa) ishlamay qolsa, parol yo'lini
+    ///     qaytarish — bitta servisni tiklash. Ustun tashlangan bo'lsa
+    ///     HAMMA parol yo'qolgan bo'lardi va har bir foydalanuvchini
+    ///     qo'lda tiklash kerak bo'lardi.
+    ///
+    ///  3) NARXI NOL. Ustun hech qayerda o'qilmaydi; ro'yxat so'rovi uni
+    ///     bazadan umuman OLMAYDI (`UserService.Projection`).
+    ///
+    /// ⚠️ QIYMAT ENDI MA'NOSIZ: yangi foydalanuvchilarga HECH KIMGA
+    ///    ma'lum bo'lmagan tasodifiy satrning hash'i yoziladi
+    ///    (<c>UserService.PlaceholderPasswordHashAsync</c>). Eski
+    ///    qatorlarda haqiqiy parol hash'lari qolgan — ular ham
+    ///    tekshirilmaydi.
+    ///
+    /// 🔴 BU USTUNNI QAYTA ISHLATMANG. "Parolni ham qo'shib qo'yaylik"
+    ///    degan qadam ikkita parallel kirish yo'lini tiklaydi — bu esa
+    ///    <c>IAuthService</c> izohida QAT'IY taqiqlangan. Parol qaytarilsa
+    ///    u YAGONA yo'l bo'lishi yoki ikkinchi omil sifatida qurilishi
+    ///    kerak, "yana bitta eshik" sifatida emas.
+    /// </summary>
     public required string PasswordHash { get; set; }
 
     /// <summary>Foydalanuvchi kiritgan ko'rinish (bo'shliq, qavs, defis bo'lishi mumkin).</summary>
@@ -87,6 +127,13 @@ public class User : BaseEntity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// ⚠️ 2026-08-13 dan HECH QAYERDAN chaqirilmaydi (parol bilan kirish
+    /// olib tashlandi). Metod saqlandi, chunki u <see cref="PasswordHash"/>
+    /// ni <see cref="InvalidateTokens"/> bilan BIRGA o'zgartirish
+    /// invariantini ushlab turadi — parol yo'li kelajakda qaytarilsa,
+    /// bu bog'liqlikni qaytadan kashf qilish shart bo'lmasin.
+    /// </summary>
     public void SetPassword(string newHash)
     {
         if (string.IsNullOrWhiteSpace(newHash))

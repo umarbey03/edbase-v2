@@ -3,13 +3,14 @@ import { computed, ref, shallowRef } from 'vue'
 
 import {
   fetchMe,
-  login as loginRequest,
   loginWithTelegram as telegramLoginRequest,
   logout as logoutRequest,
+  requestPhoneCode as requestPhoneCodeRequest,
+  verifyPhoneCode as verifyPhoneCodeRequest,
 } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { clearTokens, getRefreshToken, onAuthExpired, refreshAccessToken, setTokens } from '@/shared/api'
-import type { AuthResponse, LoginRequest } from '@/shared/types'
+import type { AuthResponse, PhoneCodeResponse } from '@/shared/types'
 
 /**
  * Autentifikatsiya store'i.
@@ -36,12 +37,14 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Muvaffaqiyatli javobni SESSIYAGA aylantiradi.
    *
-   * ★ IKKALA kirish eshigi (email+parol va Telegram Mini App) shu YAGONA
+   * ★ IKKALA kirish eshigi (telefon + kod va Telegram Mini App) shu YAGONA
    * funksiyadan o'tadi. Har biri o'zi `setTokens` chaqirsa, kelajakda
    * sessiyaga qo'shiladigan qadam (masalan tokenni boshqacha saqlash yoki
    * audit) bittasida esdan chiqib, ikki yo'l bir-biridan uzoqlashardi —
    * eski tizimning Telegram zaifligi ham aynan shunday "ikkinchi yo'l"
    * bo'lgani uchun paydo bo'lgan edi.
+   *
+   * ⚠️ Uchinchi eshik (email + parol) 2026-08-13 da OLIB TASHLANDI.
    */
   function applySession(response: AuthResponse): User {
     setTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken })
@@ -50,8 +53,22 @@ export const useAuthStore = defineStore('auth', () => {
     return response.user
   }
 
-  async function login(payload: LoginRequest): Promise<User> {
-    return applySession(await loginRequest(payload))
+  /**
+   * 1-BOSQICH: telefon raqamiga bir martalik kod so'rash.
+   *
+   * 🔴 SESSIYA OCHILMAYDI va foydalanuvchi hali ANIQLANMAYDI — bu ataylab.
+   * Javob raqam bazada bor yoki yo'qligidan qat'i nazar AYNI bo'ladi
+   * (hisob sanashga qarshi), shuning uchun bu yerdan "foydalanuvchi
+   * topildi" degan xulosa chiqarib bo'lmaydi va chiqarishga urinmaslik
+   * kerak.
+   */
+  async function requestPhoneCode(phone: string): Promise<PhoneCodeResponse> {
+    return requestPhoneCodeRequest({ phone })
+  }
+
+  /** 2-BOSQICH: kodni tasdiqlash — SESSIYA aynan shu yerda ochiladi. */
+  async function verifyPhoneCode(phone: string, code: string): Promise<User> {
+    return applySession(await verifyPhoneCodeRequest({ phone, code }))
   }
 
   /**
@@ -115,9 +132,10 @@ export const useAuthStore = defineStore('auth', () => {
     isReady,
     isAuthenticated,
     bootstrap,
-    login,
     loginWithTelegram,
     logout,
     reloadProfile,
+    requestPhoneCode,
+    verifyPhoneCode,
   }
 })

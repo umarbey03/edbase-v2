@@ -1,5 +1,6 @@
+import { formatDayLabel } from '@/shared/lib/datetime'
 import { lookup } from '@/shared/lib/lookup'
-import type { ConversationDto } from '@/shared/types'
+import type { ConversationDto, DirectMessageDto } from '@/shared/types'
 
 /**
  * Xabar uzunligi chegarasi — SERVER shartnomasi nusxasi (2000 belgi; server
@@ -30,6 +31,34 @@ export function conversationSubtitle(conversation: ConversationDto): string {
   const preview = conversation.lastMessagePreview ?? ''
   if (preview.length === 0) return 'Hali xabar yo‘q'
   return conversation.lastMessageMine === true ? `Siz: ${preview}` : preview
+}
+
+/** Yozishma qatori: xabar + (kerak bo'lsa) ustidagi kun ajratgichi yorlig'i. */
+export interface DirectMessageRow {
+  message: DirectMessageDto
+  /** `null` — oldingi xabar AYNI kunda yozilgan, ajratgich chizilmaydi. */
+  dayLabel: string | null
+}
+
+/**
+ * Kun ajratgichlari (eski `.datesep`): bir kunlik xabarlar bitta sarlavha
+ * ostida turadi, aks holda uzun yozishmada "qachon yozilgan" yo'qoladi.
+ *
+ * NEGA ENTITY QATLAMIDA (2026-08-13, R28): bu qoidani IKKI ekran o'qiydi —
+ * ustozning "Savollar" yozishmasi (`features/teacher-inbox`) va o'quvchining
+ * kurator chati (`pages/student`). Ilgari u faqat ustozda bor edi va
+ * o'quvchi bir necha haftalik yozishmada faqat SOATni ko'rardi; guruh
+ * chatida esa ajratgich allaqachon chizilardi, ya'ni bitta foydalanuvchi
+ * ikki xil qoidani ko'rib turardi.
+ */
+export function withDayLabels(messages: DirectMessageDto[]): DirectMessageRow[] {
+  let previous = ''
+  return messages.map((message) => {
+    const label = formatDayLabel(message.sentAt)
+    const showDay = label !== previous
+    previous = label
+    return { message, dayLabel: showDay ? label : null }
+  })
 }
 
 /* ==========================================================================

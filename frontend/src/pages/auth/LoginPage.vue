@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { homeRouteFor } from '@/entities/user'
@@ -10,31 +10,69 @@ import { toUserMessage } from '@/shared/api'
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
+/*
+  ══════════════════════════════════════════════════════════════════════════
+  ★★ KIRISH — FAQAT TELEFON ORQALI (2026-08-13, loyiha egasining qarori)
+
+  Email va parol formasi BUTUNLAY olib tashlandi. O'rniga ikki bosqich:
+
+    1) foydalanuvchi telefon raqamini kiritadi;
+    2) kod uning TELEGRAM hisobiga keladi va u kodni shu yerga yozadi.
+
+  ★ NIMA UCHUN MINI APP YOLG'IZ YETARLI EMASDI: xodimlar ish stolida,
+    oddiy brauzerda ishlaydi; Mini App qobig'i o'quvchi shakliga qurilgan;
+    Telegram Login Widget esa kod bazasida umuman yozilmagan. Ya'ni "faqat
+    telefon orqali" talabini bajarish uchun brauzerda ishlaydigan oqim
+    QURILISHI shart edi.
+
+  🔴 XAVFSIZLIK — INTERFEYS DARAJASIDAGI IKKI QAT'IY QOIDA:
+
+    (a) "Bunday raqam topilmadi" degan xabar HECH QACHON ko'rsatilmaydi.
+        Server bu ma'lumotni ataylab bermaydi (hisob sanashga qarshi), va
+        uni bu yerda "o'ylab topish" himoyani bekor qilardi. Raqam
+        yuborilgach ekran DOIM kod bosqichiga o'tadi.
+
+    (b) Telefon raqami serverga XOM holda yuboriladi — mijozda hech
+        qanday normalizatsiya QILINMAYDI. Normalizatsiya qoidasi
+        backendda bitta joyda (`User.NormalizePhone`) va u
+        `PhoneNormalized` ustunini to'ldiradigan AYNI metod. Bu yerga
+        ikkinchi nusxa yozilsa, ikkalasi asta bir-biridan uzoqlashib,
+        "raqamim to'g'ri, lekin kod kelmayapti" turkumidagi nosozlik
+        berardi.
+  ══════════════════════════════════════════════════════════════════════════
+*/
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const email = ref('')
-const password = ref('')
-const showPassword = ref(false)
+/** Oqim bosqichi: raqam kiritish -> kod kiritish. */
+const step = ref<'telefon' | 'kod'>('telefon')
+
+const phone = ref('')
+const code = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref<string | null>(null)
+
+/** Qayta yuborishgacha qolgan sekundlar (0 — tugma faol). */
+const resendIn = ref(0)
+let resendTimer: ReturnType<typeof setInterval> | null = null
+
+const codeInput = useTemplateRef<HTMLInputElement>('codeInput')
 
 /**
  * TELEGRAM REJIMI.
  *
- * Ilova Telegram Mini App ichida ochilgan bo'lsa, o'quvchi email va parolni
- * BILMAYDI — u faqat Telegram orqali kiradi. Shuning uchun forma o'rniga
- * avtomatik kirish ekrani ko'rsatiladi.
+ * Ilova Telegram Mini App ichida ochilgan bo'lsa, o'quvchi hech narsa
+ * kiritmasligi kerak — `initData` imzosi kifoya. Shuning uchun forma
+ * o'rniga avtomatik kirish ekrani ko'rsatiladi.
  *
- * ★ SHART BIR MARTA hisoblanadi va `ref` da turadi (computed emas): 403/503
- * holatida foydalanuvchi ATAYLAB email formasiga o'tishi mumkin, ya'ni qiymat
- * hodisaga qarab o'zgaradi. `isTelegramMiniApp()` esa o'zgarmas bo'lgani
- * uchun formadan Telegram ekraniga qaytish yo'li yo'q — bu to'g'ri:
- * o'quvchi noto'g'ri ekranda "qamalib" qolmaydi, ilovani qayta ochsa bo'ldi.
- *
- * ★ ODDIY BRAUZERDA `false` — quyidagi forma va uning butun mantig'i
- * O'ZGARISHSIZ ishlaydi (xodimlar oqimida regressiya bo'lmasligi uchun).
+ * ★ SHART BIR MARTA hisoblanadi va `ref` da turadi (computed emas): xato
+ * holatida foydalanuvchi ATAYLAB telefon formasiga o'tishi mumkin, ya'ni
+ * qiymat hodisaga qarab o'zgaradi. `isTelegramMiniApp()` esa o'zgarmas
+ * bo'lgani uchun formadan Telegram ekraniga qaytish yo'li yo'q — bu
+ * to'g'ri: o'quvchi noto'g'ri ekranda "qamalib" qolmaydi, ilovani qayta
+ * ochsa bo'ldi.
  */
 const telegramMode = ref(isTelegramMiniApp())
 
@@ -51,9 +89,22 @@ async function handleTelegramSuccess(user: User): Promise<void> {
 }
 
 const sessionExpired = computed(() => route.query['sabab'] === 'sessiya-tugadi')
-const canSubmit = computed(
-  () => email.value.trim().length > 0 && password.value.length > 0 && !isSubmitting.value,
+
+/**
+ * Raqamda kamida shuncha RAQAM bo'lsin.
+ *
+ * ★ TO'LIQ TEKSHIRUV ATAYLAB YO'Q: qat'iy shakl talabi (masalan
+ * `+998 XX XXX XX XX`) chet el raqami bilan ro'yxatdan o'tgan xodimni
+ * to'sib qo'yardi, va shakl qoidasi backenddagi normalizatsiya bilan
+ * ikkinchi nusxa bo'lib qolardi. Bu yerda faqat "tugmani bekorga
+ * bosmang" darajasidagi filtr.
+ */
+const canSendPhone = computed(
+  () => phone.value.replace(/\D/g, '').length >= 7 && !isSubmitting.value,
 )
+
+/** Kod — AYNAN 6 raqam (server ham shuni yasaydi). */
+const canVerify = computed(() => /^\d{6}$/.test(code.value.trim()) && !isSubmitting.value)
 
 /** `?redirect=` dagi ichki manzil (bo'lmasa `null`). */
 function redirectTarget(): string | null {
@@ -64,22 +115,91 @@ function redirectTarget(): string | null {
   return null
 }
 
-async function handleSubmit(): Promise<void> {
-  if (!canSubmit.value) return
+function startResendCountdown(seconds: number): void {
+  stopResendCountdown()
+  resendIn.value = seconds
+
+  resendTimer = setInterval(() => {
+    resendIn.value -= 1
+    if (resendIn.value <= 0) stopResendCountdown()
+  }, 1000)
+}
+
+function stopResendCountdown(): void {
+  if (resendTimer !== null) {
+    clearInterval(resendTimer)
+    resendTimer = null
+  }
+  resendIn.value = 0
+}
+
+// Sahifadan chiqilganda taymer qolib ketmasin (xotira oqishi va
+// yopilgan komponentga yozish xatosi).
+onBeforeUnmount(stopResendCountdown)
+
+/** 1-BOSQICH: kod so'rash. */
+async function handleSendCode(): Promise<void> {
+  if (!canSendPhone.value) return
+
   isSubmitting.value = true
   errorMessage.value = null
+
   try {
-    const user = await auth.login({ email: email.value.trim(), password: password.value })
+    const result = await auth.requestPhoneCode(phone.value.trim())
+
+    /*
+      🔴 BU YERDA HECH QANDAY SHART YO'Q — javob raqam bazada bor yoki
+      yo'qligidan qat'i nazar AYNI. Ekran DOIM kod bosqichiga o'tadi.
+      "Raqam topilmadi" shoxini qo'shish serverning butun anti-enumeration
+      himoyasini bir qatorda bekor qilardi.
+    */
+    step.value = 'kod'
+    code.value = ''
+    startResendCountdown(result.resendAfterSeconds)
+
+    // Fokus kod maydoniga — mobil klaviatura darhol ochilsin.
+    await nextTick()
+    codeInput.value?.focus()
+  } catch (error) {
+    // 429 va 503 — yagona haqiqiy xato holatlari (ikkalasi ham raqamga
+    // bog'liq emas, ya'ni hech nima oshkor qilmaydi).
+    errorMessage.value = toUserMessage(error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+/** 2-BOSQICH: kodni tasdiqlash. */
+async function handleVerify(): Promise<void> {
+  if (!canVerify.value) return
+
+  isSubmitting.value = true
+  errorMessage.value = null
+
+  try {
+    const user = await auth.verifyPhoneCode(phone.value.trim(), code.value.trim())
     const target = redirectTarget()
+
     // Manzil ko'rsatilmagan bo'lsa — ROLGA mos bosh sahifa. Ilgari hamma
     // `/darslar` ga tushardi, shu sababli admin ham o'quvchi ekranini ko'rardi.
     if (target !== null) await router.replace(target)
     else await router.replace({ name: homeRouteFor(user.role) })
   } catch (error) {
     errorMessage.value = toUserMessage(error)
+    code.value = ''
+    await nextTick()
+    codeInput.value?.focus()
   } finally {
     isSubmitting.value = false
   }
+}
+
+/** Raqamni tuzatish uchun ortga qaytish. */
+function backToPhone(): void {
+  step.value = 'telefon'
+  code.value = ''
+  errorMessage.value = null
+  stopResendCountdown()
 }
 </script>
 
@@ -88,7 +208,7 @@ async function handleSubmit(): Promise<void> {
   <TelegramAuthScreen
     v-if="telegramMode"
     @success="handleTelegramSuccess"
-    @email-login="telegramMode = false"
+    @phone-login="telegramMode = false"
   />
 
   <div
@@ -124,13 +244,28 @@ async function handleSubmit(): Promise<void> {
 
     <div class="relative w-full max-w-sm">
       <div class="mb-7 text-center">
+        <!--
+          R19 — MONOGRAMMA PLITASI boshqa qobiqlar bilan bir xil bo'ldi:
+          `text-white` o'rniga `text-on-brand`. Ikkalasi bugun bir xil
+          qiymat (`#ffffff`), lekin `text-white` — QOTIB QOLGAN rang:
+          aksent ochroq tonga o'tsa plita ustidagi harf o'qilmay qolardi
+          va buni faqat kirish sahifasida ko'rish mumkin bo'lardi.
+        -->
         <div
-          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-bold text-white shadow-sm"
+          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-bold text-on-brand shadow-sm"
         >
           Z
         </div>
-        <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-50">
-          Zin<span class="text-brand-500">-Nur</span>
+        <!--
+          R19 — brend nomi BITTA rangda. Ilgari "Zin" `text-slate-50` (eng
+          to'q matn rangi), "-Nur" esa `text-brand-500` edi — ya'ni bu
+          sahifada bo'linish boshqa joylardagidan ham keskinroq ko'rinardi.
+          Endi butun so'z aksent tokenida, `AppSidebar` bilan bir xil.
+
+          ★ Matn O'ZGARMADI — faqat rang qatlami birlashtirildi.
+        -->
+        <h1 class="mt-4 text-2xl font-bold tracking-tight text-brand-500">
+          Zin-Nur
         </h1>
         <p class="mt-1 text-sm text-slate-400">
           Jonli darslar platformasi
@@ -145,7 +280,7 @@ async function handleSubmit(): Promise<void> {
       <form
         class="rounded-[1.25rem] bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line"
         novalidate
-        @submit.prevent="handleSubmit"
+        @submit.prevent="step === 'telefon' ? handleSendCode() : handleVerify()"
       >
         <div
           v-if="sessionExpired"
@@ -154,80 +289,146 @@ async function handleSubmit(): Promise<void> {
           Sessiya muddati tugadi. Iltimos, qaytadan kiring.
         </div>
 
-        <label class="block">
-          <span class="mb-1.5 block text-xs font-medium text-slate-400">Elektron pochta</span>
-          <div class="relative">
-            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
-              <AppIcon
-                name="mail"
-                :size="17"
-              />
-            </span>
-            <input
-              v-model="email"
-              type="email"
-              name="email"
-              autocomplete="email"
-              required
-              placeholder="ism@zinnur.uz"
-              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-          </div>
-        </label>
+        <!-- ================================================ 1-BOSQICH: RAQAM -->
+        <template v-if="step === 'telefon'">
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Telefon raqami</span>
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
+                <AppIcon
+                  name="phone"
+                  :size="17"
+                />
+              </span>
+              <input
+                v-model="phone"
+                type="tel"
+                name="phone"
+                inputmode="tel"
+                autocomplete="tel"
+                required
+                placeholder="+998 90 123 45 67"
+                class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+            </div>
+          </label>
 
-        <label class="mt-4 block">
-          <span class="mb-1.5 block text-xs font-medium text-slate-400">Parol</span>
-          <div class="relative">
-            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
-              <AppIcon
-                name="lock"
-                :size="17"
-              />
-            </span>
-            <input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              name="password"
-              autocomplete="current-password"
-              required
-              placeholder="••••••••"
-              class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-16 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-            <!--
-              `hover:bg-white/5` oq sirtda umuman ko'rinmaydi; maydon foni
-              `ink-950` bo'lgani uchun hover bir daraja to'qroq — `ink-750`.
-            -->
+          <p class="mt-2 text-[12px] leading-relaxed text-slate-500">
+            Kirish kodi shu raqamga ulangan <b class="font-medium text-slate-400">Telegram</b>
+            hisobingizga yuboriladi.
+          </p>
+
+          <p
+            v-if="errorMessage !== null"
+            class="mt-4 rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-200 ring-1 ring-inset ring-rose-500/25"
+            role="alert"
+            v-text="errorMessage"
+          />
+
+          <BaseButton
+            class="mt-6"
+            type="submit"
+            size="lg"
+            block
+            :loading="isSubmitting"
+            :disabled="!canSendPhone"
+          >
+            Kod yuborish
+          </BaseButton>
+        </template>
+
+        <!-- ================================================ 2-BOSQICH: KOD -->
+        <template v-else>
+          <!--
+            Raqam ko'rinib turadi: foydalanuvchi kodni kutayotib "qaysi
+            raqamni yozgan edim?" degan savolga tushmasin. Tuzatish uchun
+            yonida "o'zgartirish" tugmasi bor — orqaga qaytish uchun
+            brauzer tugmasi ishlamaydi (bu bitta sahifa).
+          -->
+          <div class="mb-4 flex items-center justify-between gap-2 rounded-xl bg-ink-950 px-3 py-2 ring-1 ring-inset ring-line">
+            <span
+              class="truncate text-xs text-slate-300"
+              v-text="phone"
+            />
             <button
               type="button"
-              class="absolute inset-y-0 right-2 my-auto h-7 rounded-lg px-2 text-[11px] font-medium text-slate-400 transition-colors hover:bg-ink-750 hover:text-slate-200"
-              @click="showPassword = !showPassword"
+              class="shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-brand-500 transition-colors hover:bg-ink-750"
+              @click="backToPhone"
             >
-              {{ showPassword ? 'Yashirish' : 'Ko‘rsatish' }}
+              O‘zgartirish
             </button>
           </div>
-        </label>
 
-        <p
-          v-if="errorMessage !== null"
-          class="mt-4 rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-200 ring-1 ring-inset ring-rose-500/25"
-          role="alert"
-          v-text="errorMessage"
-        />
+          <label class="block">
+            <span class="mb-1.5 block text-xs font-medium text-slate-400">Telegramdan kelgan kod</span>
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
+                <AppIcon
+                  name="lock"
+                  :size="17"
+                />
+              </span>
+              <!--
+                `inputmode="numeric"` + `autocomplete="one-time-code"` —
+                mobil brauzer kodni bildirishnomadan taklif qiladi.
+                `maxlength` server yasaydigan uzunlik bilan bir xil.
+              -->
+              <input
+                ref="codeInput"
+                v-model="code"
+                type="text"
+                name="code"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                required
+                placeholder="123456"
+                class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-center text-lg font-semibold tracking-[0.4em] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+            </div>
+          </label>
 
-        <BaseButton
-          class="mt-6"
-          type="submit"
-          size="lg"
-          block
-          :loading="isSubmitting"
-          :disabled="!canSubmit"
-        >
-          Kirish
-        </BaseButton>
+          <p
+            v-if="errorMessage !== null"
+            class="mt-4 rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-200 ring-1 ring-inset ring-rose-500/25"
+            role="alert"
+            v-text="errorMessage"
+          />
+
+          <BaseButton
+            class="mt-6"
+            type="submit"
+            size="lg"
+            block
+            :loading="isSubmitting"
+            :disabled="!canVerify"
+          >
+            Kirish
+          </BaseButton>
+
+          <!--
+            Qayta yuborish — taymer bilan. Server 60 sekundlik oynani
+            RAQAM bo'yicha qo'llaydi, ya'ni tugmani erta bosish 429
+            beradi. Taymer shu holatni oldindan ko'rsatadi.
+          -->
+          <BaseButton
+            class="mt-2.5"
+            type="button"
+            variant="ghost"
+            size="md"
+            block
+            :disabled="resendIn > 0 || isSubmitting"
+            @click="handleSendCode"
+          >
+            {{ resendIn > 0 ? `Qayta yuborish (${resendIn})` : 'Kodni qayta yuborish' }}
+          </BaseButton>
+        </template>
       </form>
 
-      <p class="mt-6 text-center text-xs text-slate-600">
-        Parolni unutdingizmi? Kuratoringizga murojaat qiling.
+      <p class="mt-6 text-center text-xs leading-relaxed text-slate-600">
+        Kod kelmadimi? Telegramda botga <b class="font-medium">/start</b> yozib,
+        «Raqamni ulashish» tugmasini bosing. Yordam kerak bo'lsa —
+        o'quv bo'limiga murojaat qiling.
       </p>
     </div>
   </div>

@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { debtAmount, periodLabel, reversePayment } from '@/entities/payment'
 import { toUserMessage } from '@/shared/api'
 import { formatMoney, formatSum, parseMoneyInput } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { ReversalDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -23,6 +24,8 @@ import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 const props = defineProps<{ open: boolean; student: { id: number; name: string } | null }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
+
+const confirm = useConfirm()
 
 /** Server chegarasi: `PaymentService.MaxAmount`. */
 const MAX_AMOUNT = 1_000_000_000
@@ -85,8 +88,40 @@ const mutation = useMutation({
   },
 })
 
-function submit(): void {
+/**
+ * R4 — QAYTARIB BO'LMAYDIGAN amal, shuning uchun `danger` tasdiq.
+ *
+ * NEGA FORMANING O'ZI YETARLI EMAS: bu oynada summa QO'LDA teriladi va
+ * "Pulni qaytarish" bosilishi bilan kassadan pul chiqadi — orqaga qaytaruvchi
+ * endpoint YO'Q (`payment-api.ts` da faqat `recordPayment` bor, ya'ni xatoni
+ * tuzatish yangi to'lov kiritish orqali qo'lda yopiladi). Bir nol ortiqcha
+ * terilsa (540 000 → 5 400 000) forma buni XATO deb bilmaydi: raqam haqiqiy.
+ * Tasdiq oynasi TERILGAN summani so'z bilan qaytarib o'qiydi — mana shu
+ * yagona to'siq.
+ *
+ * ★ SUMMA `formatSum` bilan ko'rsatiladi (maydondagi ishora bilan bir xil
+ * shakl), aks holda kassir ikki xil yozilgan raqamni solishtirishga majbur
+ * bo'lardi.
+ */
+async function submit(): Promise<void> {
   if (!canSubmit.value || mutation.isPending.value) return
+
+  const student = props.student
+  const value = amount.value
+  if (student === null || value === null) return
+
+  const ok = await confirm({
+    title: 'Pulni qaytarish',
+    message: `${student.name} uchun ${formatSum(value)} kassadan qaytariladi. Amalni orqaga qaytarib bo‘lmaydi.`,
+    confirmLabel: 'Qaytarish',
+    tone: 'danger',
+    details: [
+      'Pul avval balansdan, so‘ng eng yangi to‘langan oylardan yechiladi.',
+      'Yopilgan oylar qayta ochilib, qarz sifatida ko‘rinishi mumkin.',
+    ],
+  })
+  if (!ok) return
+
   errorMessage.value = null
   mutation.mutate()
 }
@@ -131,7 +166,17 @@ const affectedMonths = computed(() => result.value?.affectedMonths ?? [])
         {{ formatSum(result.returned) }} to‘liq qaytarildi.
       </p>
 
-      <dl class="mt-3 grid grid-cols-2 gap-2.5">
+      <!--
+        ★ TELEFONDA BITTA USTUN. 320px ekranda oyna ichi 288px
+        (`BaseModal` `px-4`) va ikki ustunda summaga atigi 115px joy
+        qolardi. Bu oynada raqamlar bir-biriga O'XSHASH («balansdan
+        yechildi» / «to'langan oylardan» / «qolgan balans»), shuning uchun
+        siqilgan joylashuvda qaysi summa qaysi izohga tegishli ekanini
+        adashtirish oson — kassa hisobi shu yerda buzilardi. 560px (`xs`)
+        dan boshlab eski ikki ustunli ko'rinish. Tartib va matnlar
+        O'ZGARMADI.
+      -->
+      <dl class="mt-3 grid grid-cols-1 gap-2.5 xs:grid-cols-2">
         <div class="rounded-lg border border-line bg-ink-800 p-3">
           <dd
             class="text-base font-bold tabular-nums text-slate-100"

@@ -19,6 +19,8 @@ import {
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { formatMoney, formatSum } from '@/shared/lib/money'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { PaymentDto } from '@/shared/types'
 import {
   AppIcon,
@@ -130,10 +132,55 @@ const exemptMutation = useMutation({
   },
 })
 
-function toggleExempt(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — ISTISNO KALITI TASDIQLANADI, `warning` TONIDA.
+ *
+ * ★ NEGA `danger` EMAS: kalitni orqaga qaytarish uchun ayni tugmani qayta
+ * bosish yetarli va hech qanday yozuv o'chmaydi. Lekin `primary` ham emas —
+ * ikkala yo'nalish ham o'quvchining KIRISH huquqini shu ondan o'zgartiradi.
+ *
+ * ★ QARZ SUMMASI `details` DA VA U ASOSIY MA'LUMOT: istisnoni OLIB TASHLASH
+ * qarzi chegaradan oshgan o'quvchini o'sha zahoti bloklaydi — xodim buni
+ * tugmani bosgandan keyin emas, OLDIN ko'rishi kerak. Ikki yo'nalishning
+ * matni ham alohida: ular bir xil emas va "haqiqatan davom etasizmi?"
+ * turkumidagi umumiy savol bu yerda hech narsa aytmasdi.
+ */
+async function toggleExempt(): Promise<void> {
   const current = account.value
   if (current === null || exemptMutation.isPending.value) return
-  exemptMutation.mutate(!current.exempt)
+
+  const next = !current.exempt
+  // `account.debt` — ochiq oylar bo'yicha JAMI qarz (DTO izohi). `debtAmount`
+  // bitta oy qatoriga tegishli va bu yerda ishlatilmaydi.
+  const debtText = formatSum(current.debt)
+
+  const ok = next
+    ? await confirm({
+        title: 'Blokdan istisno qilish',
+        message: `${current.fullName} qarzidan qat’i nazar bloklanmaydi.`,
+        confirmLabel: 'Istisno qilish',
+        tone: 'warning',
+        details: [
+          `Joriy qarz: ${debtText} — u hisoblanaveradi va jurnalda ko‘rinadi.`,
+          'Blok qo‘llanmaydi: video, jonli dars va testlar ochiq qoladi.',
+          'Istisno muddatsiz — uni qo‘lda olib tashlagunicha amal qiladi.',
+        ],
+      })
+    : await confirm({
+        title: 'Istisnoni olib tashlash',
+        message: `${current.fullName} yana umumiy blok qoidasi ostiga qaytadi.`,
+        confirmLabel: 'Olib tashlash',
+        tone: 'warning',
+        details: [
+          `Joriy qarz: ${debtText}.`,
+          'Qarz chegaradan oshgan bo‘lsa, o‘quvchi SHU ONDA bloklanadi.',
+        ],
+      })
+
+  if (!ok) return
+  exemptMutation.mutate(next)
 }
 
 /**
@@ -146,6 +193,24 @@ function toggleExempt(): void {
 function canWaive(month: PaymentDto): boolean {
   return month.status !== 'Paid' && month.status !== 'Waived'
 }
+
+/*
+  IKKALA JADVAL TELEFONDA KARTOCHKA BO'LADI.
+
+  ★ CHEGARA EKRAN kengligi bo'yicha olinadi, OYNA kengligi bo'yicha emas.
+  `BaseModal wide` panelni `sm:max-w-3xl` (768px) bilan cheklaydi, ya'ni
+  1024px dan keng ekranda ham jadvalga atigi ~720px joy tegadi va
+  "Tranzaksiyalar jurnali" ning SAKKIZ ustuni baribir `scroll-x-safe`
+  ichida gorizontal siljiydi — bu BUGUNGI xatti-harakat va o'zgarmaydi.
+  Muhimi teskarisi: 1024px DAN PAST ekranda oyna butun ekranni egallaydi
+  va u yerda jadval umuman sig'masdi — kartochka aynan shu oraliqni
+  qutqaradi.
+
+  ★ `ResizeObserver` bilan PANEL kengligini o'lchash to'g'riroq bo'lardi,
+  lekin ilovadagi qolgan 16 ta jadval `lg` chegarasida almashadi: bitta
+  oyna boshqa qoidaga o'tsa, xodim ikki xil naqshni yodlashi kerak edi.
+*/
+const { isDesktop } = useBreakpoint()
 </script>
 
 <template>
@@ -309,6 +374,88 @@ function canWaive(month: PaymentDto): boolean {
       >
         Hali oylik yozuv ochilmagan.
       </p>
+      <!--
+        Telefon: har oy — bitta kartochka. Oy va guruh sarlavhada, uchta
+        summa (Summa · To'langan · Qarz) uch ustunli setkada — ular BIR-BIRIGA
+        NISBATAN o'qiladi ("qancha edi / qancha to'landi / qancha qoldi"),
+        shuning uchun ro'yxat emas, yonma-yon setka.
+      -->
+      <ul
+        v-else-if="!isDesktop"
+        class="space-y-2"
+      >
+        <li
+          v-for="month in months"
+          :key="month.id"
+          class="rounded-lg border border-line bg-ink-950 p-3"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <p
+                class="truncate text-sm font-medium text-slate-100"
+                v-text="periodLabel(month.period)"
+              />
+              <p
+                class="truncate text-xs text-slate-400"
+                v-text="month.groupName"
+              />
+            </div>
+            <BaseBadge :tone="paymentStatusTone(month.status)">
+              {{ paymentStatusLabel(month.status) }}
+            </BaseBadge>
+          </div>
+
+          <dl class="mt-2.5 grid grid-cols-3 gap-2 border-t border-line pt-2.5">
+            <div class="min-w-0">
+              <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                Summa
+              </dt>
+              <dd class="mt-0.5 text-[13px] tabular-nums text-slate-300">
+                {{ formatMoney(month.amount) }}
+                <!-- Chegirma jadvalda qavs ichida yonida turadi; kartochkada
+                     ustun tor, shuning uchun ostiga tushadi. -->
+                <span
+                  v-if="month.discountAmount > 0"
+                  class="block text-[11px] text-dim"
+                >−{{ formatMoney(month.discountAmount) }}</span>
+              </dd>
+            </div>
+            <div class="min-w-0">
+              <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                To‘langan
+              </dt>
+              <dd
+                class="mt-0.5 text-[13px] tabular-nums text-slate-400"
+                v-text="formatMoney(month.paidAmount)"
+              />
+            </div>
+            <div class="min-w-0">
+              <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                Qarz
+              </dt>
+              <dd
+                class="mt-0.5 text-[13px] tabular-nums"
+                :class="debtAmount(month) > 0 ? 'text-rose-400' : 'text-slate-500'"
+                v-text="formatMoney(debtAmount(month))"
+              />
+            </div>
+          </dl>
+
+          <div
+            v-if="canWaive(month)"
+            class="mt-2 flex justify-end"
+          >
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              @click="emit('waive', month)"
+            >
+              Kechirish
+            </BaseButton>
+          </div>
+        </li>
+      </ul>
+
       <div
         v-else
         class="scroll-x-safe scrollbar-slim rounded-lg border border-line"
@@ -396,7 +543,61 @@ function canWaive(month: PaymentDto): boolean {
         v-else
         class="rounded-lg border border-line"
       >
-        <div class="scroll-x-safe scrollbar-slim">
+        <!--
+          Telefon: jurnal yozuvi — kartochka. Tepada AMAL va SUMMA: jurnalni
+          varaqlagan kassir avval "kirim/chiqim qancha" ni qidiradi, qolgan
+          oltita ustun esa tafsilot. Kvitansiya raqami `font-mono` da qoladi
+          (jadvaldagidek) — u ko'chirib yoziladigan qiymat.
+        -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
+          <li
+            v-for="item in transactions"
+            :key="item.id"
+            class="p-3"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <BaseBadge :tone="transactionKindTone(item.kind)">
+                {{ transactionKindLabel(item.kind) }}
+              </BaseBadge>
+              <span
+                class="shrink-0 text-sm font-medium tabular-nums"
+                :class="isOutgoingTransaction(item.kind) ? 'text-rose-400' : 'text-green-400'"
+              >
+                {{ isOutgoingTransaction(item.kind) ? '−' : '+' }}{{ formatMoney(item.amount) }}
+              </span>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-400">
+              <span class="tabular-nums">{{ formatDateTime(item.createdAt) }}</span>
+              · {{ paymentMethodLabel(item.method) }}
+            </p>
+            <p
+              class="truncate text-xs text-slate-400"
+              v-text="item.groupName ?? '—'"
+            />
+            <p class="mt-1 text-[11px] text-dim">
+              Kiritgan mas’ul: {{ item.actorName ?? 'Tizim' }}
+              <template v-if="item.receiptNo !== null">
+                · Kvitansiya: <span class="font-mono">{{ item.receiptNo }}</span>
+              </template>
+            </p>
+            <!-- Jadvalda izoh `truncate` bilan kesiladi (ustun kengligi
+                 cheklangan); kartochkada joy bor — to'liq ko'rsatiladi. -->
+            <p
+              v-if="item.note !== null"
+              class="mt-1 text-[11px] leading-relaxed text-slate-400"
+            >
+              Izoh: {{ item.note }}
+            </p>
+          </li>
+        </ul>
+
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

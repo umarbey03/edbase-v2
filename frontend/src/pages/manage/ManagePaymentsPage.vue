@@ -20,6 +20,7 @@ import WaivePaymentDialog from '@/features/payment-actions/ui/WaivePaymentDialog
 import StudentAccountDialog from '@/features/student-account/ui/StudentAccountDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatMoney, sumMoney } from '@/shared/lib/money'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { PaymentDto, PaymentStatusName } from '@/shared/types'
 import {
   AppIcon,
@@ -52,6 +53,15 @@ import {
  *    "jami" raqamidan ko'ra kamroq, lekin to'g'ri.
  */
 const queryClient = useQueryClient()
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi (telefonda ko'rinmas jadval ham mount bo'lib, ma'lumot olardi).
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi,
+  ya'ni iPad tik holati (768px) kartochka bo'lib qoladi — `style.css` dagi
+  "md va lg haqidagi asosiy qaror" izohiga qarang.
+*/
+const { isDesktop } = useBreakpoint()
 
 const PAGE_SIZE = 25
 
@@ -324,8 +334,11 @@ function canWaive(payment: PaymentDto): boolean {
       @retry="paymentsQuery.refetch()"
     >
       <BaseCard flush>
-        <!-- Telefon: kartochka -->
-        <ul class="divide-y divide-line md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
           <li
             v-for="payment in payments"
             :key="payment.id"
@@ -379,8 +392,11 @@ function canWaive(payment: PaymentDto): boolean {
           </li>
         </ul>
 
-        <!-- Desktop: jadval. Ustunlar eski ilovadagidek. -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval. Ustunlar eski ilovadagidek. -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { roleLabel } from '@/entities/user'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { UserRoleName } from '@/shared/types'
 import { AppIcon, BaseButton, BaseSpinner } from '@/shared/ui'
 
@@ -25,6 +26,19 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ retry: [] }>()
+
+/*
+  Yotiq telefonda filmstrip PASTDAN O'NG TOMONGA ko'chadi.
+
+  Sabab arifmetik: gorizontal filmstrip 16:9 katakchalar bilan ~90px
+  balandlik + oraliq oladi. 390px balandlikdagi yotiq ekranda bu asosiy
+  videoning to'rtdan birini yeb qo'yadi. Yon ustunda esa u atigi ~110px
+  KENGLIK oladi — yotiq ekranda kenglik mo'l (700px+), balandlik esa taqchil.
+
+  ★ Tartib o'zgarmaydi: asosiy sahna avval, filmstrip keyin — faqat
+  yo'nalish ustundan qatorga aylanadi (yuqori→past o'rniga chap→o'ng).
+*/
+const { isShortLandscape } = useBreakpoint()
 
 /** Filmstrip'da ko'rsatiladigan maksimum katakcha (DOM'ni cheklash uchun). */
 const FILMSTRIP_LIMIT = 24
@@ -77,10 +91,13 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col gap-3">
+  <section
+    class="flex min-h-0 min-w-0 flex-1"
+    :class="isShortLandscape ? 'gap-2' : 'flex-col gap-3'"
+  >
     <!-- Asosiy sahna -->
     <div
-      class="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-ink-900 ring-1 ring-inset ring-line"
+      class="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl bg-ink-900 ring-1 ring-inset ring-line"
     >
       <VideoTile
         v-if="mainTile"
@@ -182,10 +199,18 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
       v-if="filmstrip.length > 0"
       class="shrink-0"
     >
-      <div class="scrollbar-slim flex gap-2 overflow-x-auto pb-1">
+      <div
+        class="scrollbar-slim flex gap-2"
+        :class="
+          isShortLandscape
+            ? 'h-full flex-col overflow-y-auto overscroll-contain pr-0.5'
+            : 'overflow-x-auto pb-1'
+        "
+      >
         <VideoTile
           v-for="tile in filmstrip"
           :key="tile.key"
+          :compact="isShortLandscape"
           :track="tile.videoTrack"
           :name="tile.name"
           :is-local="tile.isLocal"
@@ -196,7 +221,8 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
         />
         <div
           v-if="hiddenCount > 0"
-          class="flex aspect-video w-24 shrink-0 items-center justify-center rounded-xl bg-ink-850 text-xs font-medium text-slate-400 ring-1 ring-inset ring-line"
+          class="flex aspect-video shrink-0 items-center justify-center rounded-xl bg-ink-850 text-xs font-medium text-slate-400 ring-1 ring-inset ring-line"
+          :class="isShortLandscape ? 'w-[104px]' : 'w-24'"
         >
           +{{ hiddenCount }}
         </div>

@@ -55,7 +55,50 @@ public class LiveSession : BaseEntity
     // ---------------------------------------------------------------- hisoblanuvchi
 
     public int PlannedDurationMinutes =>
-        Math.Max(1, (int)(ScheduledEnd - ScheduledStart).TotalMinutes);
+        PlannedMinutesOf(ScheduledStart, ScheduledEnd);
+
+    /// <summary>
+    /// REJADAGI davomiylik — entity YUKLANMAGAN holat uchun ham.
+    ///
+    /// NIMA UCHUN STATIK NUSXA BOR: darslar jadvali (R31) darslarni to'liq
+    /// entity sifatida emas, TOR proyeksiya bilan o'qiydi (faqat kerakli
+    /// ustunlar), ya'ni <see cref="PlannedDurationMinutes"/> ga yetib
+    /// bo'lmaydi. Formulani Application qatlamiga ko'chirib yozish esa
+    /// qoidani IKKI joyga bo'lardi — bir kun kimdir uzaytirishni
+    /// (<see cref="ExtendedMin"/>) hisobga olishga qaror qilsa, ikkinchi
+    /// nusxa jimgina eskirardi. Naqsh yangi emas: <c>IsHost</c> ham AYNAN
+    /// shu sababdan ikki shaklda mavjud (<c>LiveSessionService</c>).
+    ///
+    /// ★ Kamida 1 daqiqa: nol uzunlikdagi dars ma'lumotdagi xato bo'lardi
+    /// va u davomat foizining MAXRAJIGA tushib, nolga bo'lish berardi.
+    ///
+    /// 🔴 BAZAGA TA'SIRI YO'Q: statik metod ham, hisoblanuvchi property ham
+    /// EF modeliga tushmaydi — migratsiya TALAB QILINMAYDI.
+    /// </summary>
+    public static int PlannedMinutesOf(DateTimeOffset start, DateTimeOffset end) =>
+        Math.Max(1, (int)(end - start).TotalMinutes);
+
+    /// <summary>
+    /// HAQIQIY davomiylik (daqiqa) — dars qancha DAVOM ETDI.
+    ///
+    /// <c>null</c> qaytadi, agar dars boshlanmagan yoki yakunlanmagan bo'lsa
+    /// (<see cref="ActualStart"/> / <see cref="ActualEnd"/> bo'sh) — ya'ni
+    /// "hali ma'lum emas" va "0 daqiqa" BIR-BIRIDAN farq qiladi. Nol bilan
+    /// almashtirilsa, rejalashtirilgan dars jadvalda "0 daqiqa o'tdi" deb
+    /// ko'rinardi.
+    ///
+    /// ★ <see cref="PlannedMinutesOf"/> DAN FARQLI o'laroq pastdan 1 ga
+    /// yaxlitlanmaydi: 40 soniyada yopilgan dars uchun "0 daqiqa" —
+    /// TO'G'RI javob va aynan shu narsa e'tiborni tortishi kerak.
+    ///
+    /// ⚠️ Teskari oraliq (<c>end &lt; start</c>) ham <c>null</c>: bu soat
+    /// sozlanishi yoki qo'lda tuzatishdan qoladigan buzuq ma'lumot, uni
+    /// manfiy son qilib ko'rsatish jadvalni tushunarsiz qilardi.
+    /// </summary>
+    public static int? ActualMinutesOf(DateTimeOffset? start, DateTimeOffset? end) =>
+        start is { } from && end is { } to && to >= from
+            ? (int)(to - from).TotalMinutes
+            : null;
 
     /// <summary>Dars qachon avtomatik yakunlanishi kerak. Faqat jonli darsda mavjud.</summary>
     public DateTimeOffset? EndsAt =>

@@ -186,16 +186,33 @@ public sealed class TelegramWebhookTests(TelegramApiFactory factory)
     }
 
     /// <summary>
-    /// ★ XODIM RAQAMI Telegram orqali BOG'LANMAYDI. Xodimlar email+parol
-    /// bilan kiradi; aks holda Telegram kanali orqali xodim huquqiga yo'l
-    /// ochilardi (eski tizimda aynan shunday edi).
+    /// ══════════════════════════════════════════════════════════════════
+    /// ★★ XODIM RAQAMI ENDI BOG'LANADI — XULQ 2026-08-13 DA O'ZGARDI.
+    ///
+    /// ESKI TEST (bekor qilindi) `"StaffPhone"` natijasini kutardi va
+    /// izohida "xodimlar email+parol bilan kiradi" deb yozilgan edi.
+    /// Email va parol bilan kirish OLIB TASHLANGACH bu qoida xodimni
+    /// tizimdan butunlay tashqarida qoldirardi: kirish uchun Telegram
+    /// bog'lanishi SHART, bog'lanish esa taqiqlangan bo'lardi.
+    ///
+    /// 🔴 SHUNING UCHUN BU TEST ENDI TESKARISINI QULFLAYDI: har xodim
+    ///    roli botga raqamini ulab, bog'lana olishi kerak. Test qizarsa —
+    ///    kimdir rol filtrini qaytargan, ya'ni butun xodimlar guruhi
+    ///    tizimdan chiqib qolgan.
+    ///
+    /// ★ X-1 HIMOYASI YO'QOLMADI: raqam egaligini Telegram'ning O'ZI
+    ///   tasdiqlaydi (`contact.user_id == from.id`) va bu shart alohida
+    ///   testlar bilan qulflangan (`Webhook_WithForeignContact_*`). Bot
+    ///   akkaunt YARATMAYDI va qayta bog'lash faqat odam orqali bo'ladi —
+    ///   ikkalasi ham shu faylda sinaladi.
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     [Theory]
     [InlineData(UserRole.Admin, "+998901110011")]
     [InlineData(UserRole.Academic, "+998901110012")]
     [InlineData(UserRole.Teacher, "+998901110013")]
     [InlineData(UserRole.Assistant, "+998901110014")]
-    public async Task Webhook_WithStaffPhone_DoesNotLink(UserRole role, string phone)
+    public async Task Webhook_WithStaffPhone_LinksProfile(UserRole role, string phone)
     {
         var staffId = await factory.CreateUserAsync(role, phone);
         var telegramId = NewTelegramId();
@@ -204,8 +221,8 @@ public sealed class TelegramWebhookTests(TelegramApiFactory factory)
             TelegramApiFactory.ContactUpdate(
                 TelegramApiFactory.NextUpdateId(), telegramId, phone, telegramId));
 
-        response.Outcome.Should().Be("StaffPhone");
-        (await factory.TelegramIdOfAsync(staffId)).Should().BeNull();
+        response.Outcome.Should().Be("Linked");
+        (await factory.TelegramIdOfAsync(staffId)).Should().Be(telegramId);
     }
 
     [Fact]

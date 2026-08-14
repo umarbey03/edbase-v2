@@ -7,9 +7,12 @@ import {
   fetchThread,
   markConversationRead,
   sendDirectMessage,
+  withDayLabels,
 } from '@/entities/direct-message'
+import { ChatDaySeparator, ChatNotice } from '@/features/group-chat'
+import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
 import { toUserMessage } from '@/shared/api'
-import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
+import { formatTime } from '@/shared/lib/datetime'
 import type { ConversationDto } from '@/shared/types'
 import { AppIcon, DataStatus } from '@/shared/ui'
 
@@ -41,18 +44,10 @@ const threadError = computed(() =>
 )
 
 /**
- * Kun ajratgichlari (eski `.datesep`): bir kunlik xabarlar bitta sarlavha
- * ostida turadi, aks holda uzun yozishmada "qachon yozilgan" yo'qoladi.
+ * Kun ajratgichlari — qoida ENDI entity qatlamida (`withDayLabels`), chunki
+ * o'quvchining kurator chati ham AYNAN shu ajratgichni chizadi (R28).
  */
-const grouped = computed(() => {
-  let previous = ''
-  return messages.value.map((message) => {
-    const label = formatDayLabel(message.sentAt)
-    const showDay = label !== previous
-    previous = label
-    return { message, dayLabel: showDay ? label : null }
-  })
-})
+const grouped = computed(() => withDayLabels(messages.value))
 
 const scroller = ref<HTMLElement | null>(null)
 
@@ -87,6 +82,9 @@ watch(
 const draft = ref('')
 const sendError = ref<string | null>(null)
 
+/** Emoji tanlagichga kursor joyi kerak (`ChatEmojiPicker` izohi). */
+const input = ref<HTMLTextAreaElement | null>(null)
+
 // Boshqa o'quvchiga o'tilganda yozib qo'yilgan matn ketmasin.
 watch(peerId, () => {
   draft.value = ''
@@ -114,6 +112,13 @@ const canSend = computed(
     !sendMutation.isPending.value,
 )
 
+/**
+ * Belgilar sanog'i FAQAT chegaraga yaqinlashganda ko'rinadi — guruh
+ * chatidagi qoida bilan AYNAN bir xil (`GroupChatRoom` izohi): doim turgan
+ * "0/2000" bir jumlalik javob yozayotgan xodim uchun shovqin.
+ */
+const showCounter = computed(() => draft.value.length > DM_BODY_MAX - 200)
+
 function submit(): void {
   if (!canSend.value) return
   sendMutation.mutate({ id: peerId.value, body: draft.value.trim() })
@@ -121,12 +126,30 @@ function submit(): void {
 </script>
 
 <template>
-  <section class="flex min-h-[60vh] flex-col rounded-xl border border-line bg-ink-900 p-3.5">
-    <header class="mb-2.5 flex items-center gap-2.5 border-b border-line pb-2.5">
-      <!-- Telefonda ro'yxatga qaytish (eski `#dm-back`). Desktopda kerak emas. -->
+  <!--
+    ★ `min-h-[60dvh]` → `h-[60dvh]` (2026-08-13, talab: *"chat writing part
+    should be stuck in its place"*). `min-h` — POL edi, ya'ni kartochka
+    xabarlar ko'paygan sari CHEKSIZ o'sardi va yozish paneli u bilan birga
+    pastga, ekran tashqarisiga ketardi; ichkaridagi `flex-1` skroll sohasi
+    esa hech qachon ishga tushmasdi (cho'zilishga chegara yo'q edi).
+    Endi balandlik CHEGARA: ro'yxat skrollanadi, panel joyida qoladi.
+
+    `min-h-[320px]` — telefon yotiq holati uchun pol (60dvh o'sha yerda
+    ~200px bo'lib qolardi).
+  -->
+  <section class="flex h-[60dvh] min-h-[320px] flex-col rounded-xl border border-line bg-ink-900 p-3.5">
+    <header class="mb-2.5 flex shrink-0 items-center gap-2.5 border-b border-line pb-2.5">
+      <!--
+        Ro'yxatga qaytish (eski `#dm-back`). Ikki ustunli desktopda kerak emas.
+
+        🔴 `lg:hidden`, `md:hidden` EMAS — `TeacherInbox` dagi ikki ustunli
+        setka bilan BIR XIL chegara. Ular ajralib qolsa 768–1023px oralig'ida
+        ro'yxat yashirinib, qaytish tugmasi ham yo'q bo'lib, foydalanuvchi
+        yozishmadan chiqa olmasdi.
+      -->
       <button
         type="button"
-        class="tap-target flex items-center justify-center rounded-lg border border-line bg-ink-800 px-2 text-slate-100 transition-colors hover:bg-ink-750 md:hidden"
+        class="tap-target flex items-center justify-center rounded-lg border border-line bg-ink-800 px-2 text-slate-100 transition-colors hover:bg-ink-750 lg:hidden"
         aria-label="Ro‘yxatga qaytish"
         @click="emit('close')"
       >
@@ -148,28 +171,35 @@ function submit(): void {
       </div>
     </header>
 
-    <DataStatus
-      :pending="threadQuery.isPending.value"
-      :error="threadError"
-      :empty="messages.length === 0"
-      :retrying="threadQuery.isFetching.value"
-      :skeleton-rows="3"
-      empty-icon="chat"
-      empty-title="Hali xabar yo‘q — birinchi bo‘lib yozing."
-      @retry="threadQuery.refetch()"
+    <!--
+      ★ `DataStatus` SKROLL SOHASINING ICHIDA (2026-08-13): tashqarida
+      turganda yuklanish holati butun sohani almashtirardi
+      (`DataStatus.vue:40-49`) va yozishma har ochilganda yozish paneli bir
+      sakrab, keyin joyiga tushardi. Endi kartochka tuzilishi har uch holatda
+      bir xil: sarlavha → skroll sohasi → yozish paneli.
+    -->
+    <div
+      ref="scroller"
+      class="chat-scroll-container scrollbar-slim min-h-0 flex-1 space-y-2 overflow-y-auto pb-1"
     >
-      <div
-        ref="scroller"
-        class="chat-scroll-container scrollbar-slim flex-1 space-y-2 overflow-y-auto pb-1"
+      <DataStatus
+        :pending="threadQuery.isPending.value"
+        :error="threadError"
+        :empty="messages.length === 0"
+        :retrying="threadQuery.isFetching.value"
+        :skeleton-rows="3"
+        empty-icon="chat"
+        empty-title="Hali xabar yo‘q — birinchi bo‘lib yozing."
+        @retry="threadQuery.refetch()"
       >
         <template
           v-for="row in grouped"
           :key="row.message.id"
         >
-          <p
+          <!-- Kun ajratgichi — uch chat ekrani uchun BITTA komponent. -->
+          <ChatDaySeparator
             v-if="row.dayLabel !== null"
-            class="mx-auto w-fit rounded-[20px] border border-line bg-ink-950 px-3 py-0.5 text-[11px] text-slate-400"
-            v-text="row.dayLabel"
+            :label="row.dayLabel"
           />
           <div
             class="flex"
@@ -208,39 +238,75 @@ function submit(): void {
             </div>
           </div>
         </template>
-      </div>
-    </DataStatus>
+      </DataStatus>
+    </div>
 
+    <!-- `shrink-0`: kartochka balandligi chegaralangan — siqiladigan yagona
+         element xabarlar sohasi bo'lsin, yozish paneli emas. -->
     <form
-      class="mt-2.5 flex items-end gap-2"
+      class="mt-2.5 flex shrink-0 items-end gap-2"
       novalidate
       @submit.prevent="submit"
     >
-      <textarea
+      <!-- Emoji — guruh chati va o'quvchi chatidagi bilan AYNAN bir xil. -->
+      <ChatEmojiPicker
         v-model="draft"
-        class="zn-input max-h-32 min-h-11 flex-1 resize-y py-2.5"
-        rows="1"
-        :maxlength="DM_BODY_MAX"
-        placeholder="Javob yozing..."
+        :target="input"
+        :max-length="DM_BODY_MAX"
       />
+
+      <div class="min-w-0 flex-1">
+        <!--
+          ★ `resize-y` o'rniga `field-sizing-content`: qo'lda cho'zish
+          kartochkaning qat'iy balandligida yozish panelini pastga surardi.
+          Sabab `GroupChatRoom` izohida.
+        -->
+        <textarea
+          ref="input"
+          v-model="draft"
+          class="zn-input max-h-32 min-h-11 w-full resize-none overflow-y-auto py-2.5 field-sizing-content"
+          rows="1"
+          :maxlength="DM_BODY_MAX"
+          placeholder="Javob yozing..."
+        />
+        <!-- Chegara SERVER bilan bir xil (2000) — guruh chatidagi qoida. -->
+        <p
+          v-if="showCounter"
+          class="mt-1 pr-2 text-right text-[11px] tabular-nums text-dim"
+        >
+          {{ draft.length }} / {{ DM_BODY_MAX }}
+        </p>
+      </div>
+
+      <!--
+        ★ TUGMADA YOZUV YO'Q (2026-08-13, R28): o'quvchi chatida va guruh
+        chatida bu tugma faqat ikonka, bu yerda esa `sm:` dan boshlab
+        "Yuborish" yozuvi chiqardi — ya'ni bir xil amal uch ekranda ikki xil
+        kenglikda turardi. Ma'no `aria-label` da qoladi.
+      -->
       <button
         type="submit"
-        class="tap-target flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-bold text-on-brand transition-colors disabled:opacity-40"
+        class="tap-target flex shrink-0 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-bold text-on-brand transition-colors disabled:opacity-40"
         :disabled="!canSend"
+        aria-label="Yuborish"
       >
         <AppIcon
           name="send"
           :size="16"
         />
-        <span class="hidden sm:inline">Yuborish</span>
       </button>
     </form>
 
-    <p
+    <!--
+      Yuborilmagan xabar — guruh chatidagi bilan BITTA komponent
+      (`ChatNotice`). Yozilgan matn maydonda qoladi, shuning uchun
+      ogohlantirishni YOPISH mumkin.
+    -->
+    <ChatNotice
       v-if="sendError !== null"
-      class="mt-2 text-xs text-rose-400"
-      role="alert"
-      v-text="sendError"
+      class="mt-2"
+      :text="sendError"
+      @dismiss="sendError = null"
     />
   </section>
 </template>

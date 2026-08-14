@@ -13,6 +13,7 @@ import {
 import CourseFormDialog from '@/features/course-form/ui/CourseFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { CourseDto } from '@/shared/types'
 import {
   AppIcon,
@@ -27,6 +28,15 @@ import {
 /** Kurslar boshqaruvi (Academic/Admin): ro'yxat, qidiruv, yaratish/tahrirlash, tartib. */
 const router = useRouter()
 const queryClient = useQueryClient()
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi (telefonda ko'rinmas jadval ham mount bo'lib, ma'lumot olardi).
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi,
+  ya'ni iPad tik holati (768px) kartochka bo'lib qoladi — `style.css` dagi
+  "md va lg haqidagi asosiy qaror" izohiga qarang.
+*/
+const { isDesktop } = useBreakpoint()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
@@ -215,8 +225,11 @@ function openContent(courseId: number): void {
       @retry="coursesQuery.refetch()"
     >
       <BaseCard flush>
-        <!-- Telefon: kartochka -->
-        <ul class="divide-y divide-line md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="divide-y divide-line"
+        >
           <li
             v-for="(course, index) in courses"
             :key="course.id"
@@ -289,8 +302,11 @@ function openContent(courseId: number): void {
           </li>
         </ul>
 
-        <!-- Desktop: jadval -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

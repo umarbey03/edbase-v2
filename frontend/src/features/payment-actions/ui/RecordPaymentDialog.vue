@@ -173,7 +173,17 @@ const allToBalance = computed(() => receipt.value !== null && receipt.value.appl
         avtomatik sarflanadi.
       </p>
 
-      <dl class="mt-3 grid grid-cols-2 gap-2.5">
+      <!--
+        ★ TELEFONDA BITTA USTUN. 320px ekranda oyna ichidagi joy 288px
+        (`BaseModal` `px-4`), ikki ustunda esa har katak 139px, kartochka
+        paddingidan keyin 115px qoladi — «12 500 000 so'm» kabi summa
+        o'ralib ketardi yoki yorliq uch qatorga bo'linardi. PULDA noaniq
+        joylashuv xunuk joylashuvdan xavfliroq: noto'g'ri o'qilgan raqam
+        kassaga xato bo'lib yoziladi. 560px (`xs`) dan boshlab eski ikki
+        ustunli ko'rinish qaytadi. Kataklar tartibi va matnlari
+        O'ZGARMADI — faqat joylashuv.
+      -->
+      <dl class="mt-3 grid grid-cols-1 gap-2.5 xs:grid-cols-2">
         <div class="rounded-lg border border-line bg-ink-800 p-3">
           <dd
             class="text-base font-bold tabular-nums text-green-400"
@@ -270,6 +280,13 @@ const allToBalance = computed(() => receipt.value !== null && receipt.value.appl
           Ikki tugmali tanlov (eski ilovadagi `#pm-modal` setkasi). `<select>`
           emas: atigi ikki variant bor va kassir uni har to'lovda bosadi —
           bitta teginish ikkitadan tez.
+
+          ★ BU SETKA TELEFONDA HAM IKKI USTUN BO'LIB QOLADI (yuqoridagi
+          kvitansiya setkasidan farqli): yorliqlar «Naqd» va «Karta» —
+          eng tor ekranda ham har tugmaga 124px joy tushadi, ya'ni matn
+          siqilmaydi. Ustma-ust qo'yilsa esa tanlov TURI yo'qolardi:
+          yonma-yon turgan ikki tugma "biri yoki ikkinchisi" ekanini
+          o'zi ko'rsatadi, ustma-ust ikkitasi ro'yxatga o'xshab qoladi.
         -->
         <div class="grid grid-cols-2 gap-2">
           <button

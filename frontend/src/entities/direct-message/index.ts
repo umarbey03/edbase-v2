@@ -12,4 +12,6 @@ export {
   waitLabel,
   waitTone,
   waitingHours,
+  withDayLabels,
 } from './model/types'
+export type { DirectMessageRow } from './model/types'

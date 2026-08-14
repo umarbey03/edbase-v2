@@ -31,11 +31,31 @@ const props = withDefaults(
     searchable?: boolean
     emptyTitle?: string
     emptyText?: string
+    /**
+     * Ochiq turgan suhbat kaliti — `threadKey(groupId, channel)`.
+     *
+     * NEGA KERAK (2026-08-13): o'quvchi chati desktopda IKKI PANELLI bo'ldi —
+     * ro'yxat doim chapda turadi va o'ng tarafda suhbat ochiladi. Bunday
+     * joylashuvda "qaysi qator ochiq" ni KO'RSATISH shart: telefonda buni
+     * navigatsiyaning o'zi bildirardi (ro'yxat suhbat bilan almashardi),
+     * desktopda esa ikkalasi bir vaqtda ko'rinadi.
+     *
+     * ★ `null` SUKUT — ustoz hubi (`TeacherGroupChatsPage`) bu prop'ni
+     * umuman bermaydi va uning ko'rinishi bir zarra ham o'zgarmaydi.
+     *
+     * ★ NEGA PROP, nega chaqiruvchi CSS bilan bo'yamaydi: qatorlar SHU
+     * komponent ichida chiziladi. Tashqaridan `:deep()` + `:nth-child` bilan
+     * bo'yash qator TARTIBIGA va ichki markupga jimgina bog'lanib qolardi —
+     * bu fayl izohlari aynan shunday bog'lanishlarni yo'q qilish uchun
+     * yozilgan.
+     */
+    selectedKey?: string | null
   }>(),
   {
     searchable: false,
     emptyTitle: 'Guruh topilmadi',
     emptyText: '',
+    selectedKey: null,
   },
 )
 
@@ -121,10 +141,28 @@ function threadTime(thread: GroupChatThreadDto): string {
           v-for="thread in filtered"
           :key="threadKey(thread.groupId, thread.channel)"
         >
+          <!--
+            ★ TANLANGAN QATOR o'qilmagan qatordan USTUN turadi: ikkalasi ham
+            chegara rangini belgilaydi, lekin "hozir ochiq" — foydalanuvchi
+            AYNAN shu daqiqada qayerdaligi, "o'qilmagan" esa eslatma. Shuning
+            uchun shart uch tarmoqli, ikki alohida `:class` emas.
+
+            `aria-current="true"` — ko'rish qobiliyati cheklangan foydalanuvchi
+            ham qaysi suhbat ochiqligini biladi (rang yolg'iz yetarli emas).
+          -->
           <button
             type="button"
             class="flex w-full items-center gap-3 rounded-[14px] border bg-ink-900 px-3.5 py-3 text-left transition-colors hover:bg-ink-800"
-            :class="thread.unreadCount > 0 ? 'border-brand-500/40' : 'border-line'"
+            :class="
+              threadKey(thread.groupId, thread.channel) === props.selectedKey
+                ? 'border-brand-500/70 bg-brand-500/15'
+                : thread.unreadCount > 0
+                  ? 'border-brand-500/40'
+                  : 'border-line'
+            "
+            :aria-current="
+              threadKey(thread.groupId, thread.channel) === props.selectedKey ? 'true' : undefined
+            "
             @click="emit('open', thread)"
           >
             <BaseAvatar

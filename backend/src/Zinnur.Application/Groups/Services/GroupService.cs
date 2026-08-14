@@ -286,14 +286,26 @@ public sealed class GroupService(
 
     // ================================================================= a'zolik
 
+    /// <summary>
+    /// Guruh a'zolari.
+    ///
+    /// 🔴 YAGONA USTOZGA OCHIQ PROYEKSIYA — kontakt SHU YERDA kesiladi
+    /// (talab R27). Qolgan a'zolik metodlari <c>EnsureCanManage</c> bilan
+    /// qulflangan, ya'ni ularga faqat o'quv bo'limi va admin yetadi va
+    /// u yerda kesish shart emas.
+    /// </summary>
     public async Task<IReadOnlyList<GroupMemberDto>> ListMembersAsync(
         long id, long actorId, CancellationToken ct = default)
     {
-        var (_, group) = await LoadForReadAsync(id, actorId, ct);
+        var (actor, group) = await LoadForReadAsync(id, actorId, ct);
 
-        return await ProjectMembers(MembersOf(group)
-                .OrderBy(m => m.Student!.FullName)
-                .ThenBy(m => m.Id))
+        return await ProjectMembers(
+                MembersOf(group)
+                    .OrderBy(m => m.Student!.FullName)
+                    .ThenBy(m => m.Id),
+                // ⚠️ KURATOR ISTISNO: unga telefon KERAK (qo'ng'iroq —
+                //    uning asosiy amali). Sabab `StudentAudience` izohida.
+                withContact: actor.Role != UserRole.Teacher)
             .ToListAsync(ct);
     }
 
@@ -697,18 +709,35 @@ public sealed class GroupService(
             .Property<DateOnly?>(GroupMemberFields.PausedUntil)
             .CurrentValue = value;
 
+    /// <summary>
+    /// Bitta a'zolik yozuvi — a'zolikni O'ZGARTIRGAN metodlar javobi uchun.
+    /// Ularning hammasi <c>EnsureCanManage</c> dan o'tadi (o'quv bo'limi /
+    /// admin), shuning uchun kontakt kesilmaydi.
+    /// </summary>
     private async Task<GroupMemberDto> GetMemberDtoAsync(long memberId, CancellationToken ct) =>
-        await ProjectMembers(db.GroupMembers.AsNoTracking().Where(m => m.Id == memberId))
+        await ProjectMembers(
+                db.GroupMembers.AsNoTracking().Where(m => m.Id == memberId),
+                withContact: true)
             .FirstOrDefaultAsync(ct)
         ?? throw new NotFoundException(nameof(GroupMember), memberId);
 
-    private static IQueryable<GroupMemberDto> ProjectMembers(IQueryable<GroupMember> rows) =>
+    /// <param name="withContact">
+    /// 🔴 <c>false</c> — email va telefon <c>null</c> bo'lib qaytadi (ustoz).
+    ///
+    /// ★ TERNAR AYNAN PROYEKSIYA ICHIDA, natijani keyin "tozalash" emas:
+    /// shu shaklda EF <c>CASE WHEN</c> yasaydi va ustunlar SQL javobiga ham
+    /// tushmaydi. Tashqarida tozalansa ma'lumot bazadan chiqib, keyin
+    /// tashlab yuborilardi — va kelajakda kimdir "tozalash" qadamini
+    /// tushirib qoldirsa, sirg'anish JIMGINA bo'lardi.
+    /// </param>
+    private static IQueryable<GroupMemberDto> ProjectMembers(
+        IQueryable<GroupMember> rows, bool withContact) =>
         rows.Select(m => new GroupMemberDto(
             m.Id,
             m.StudentId,
             m.Student!.FullName,
-            m.Student.Email,
-            m.Student.Phone,
+            withContact ? m.Student.Email : null,
+            withContact ? m.Student.Phone : null,
             m.Status,
             m.JoinedAt,
             EF.Property<DateOnly?>(m, GroupMemberFields.PausedUntil),
@@ -716,14 +745,52 @@ public sealed class GroupService(
             m.Group!.Name));
 
     /// <summary>
-    /// Guruh nomi bo'yicha qidiruv.
+    /// ========================================================================
+    /// QIDIRUV — GURUH NOMI, USTOZ, KURATOR, KURATOR GURUHI VA KURS NOMI
+    /// ========================================================================
     ///
-    /// `Groups` KICHIK jadval (yuzlarcha qator, 100 mingta emas), shuning
-    /// uchun `pg_trgm` GIN indeksi qo'yilmagan — bu yerda ketma-ket skan
-    /// arzon. `Users` da esa aksincha: o'sha jadval yuz minglab qatorga
-    /// o'sadi va indeks MAJBURIY (`UserService.ApplySearch`).
+    /// R22 (2026-08-13 talabi): *"guruhlar bo'limida qidiruv barcha
+    /// parametrlar bo'yicha ishlasin"*.
+    ///
+    /// ★ "BARCHA PARAMETRLAR" NIMA DEGANI — QABUL QILINGAN O'QILISH:
+    /// erkin matn qidiruvi jadvaldagi MATNLI ustunlar bo'yicha ishlaydi.
+    /// SONLI/VAQT/ENUM maydonlari (davomiylik, boshlanish soati, hafta
+    /// kunlari, holat, tur) bu yerga QO'SHILMADI va ular tuzilgan FILTR
+    /// bo'lib qoladi (`Type`, `IsActive` — allaqachon bor, R21a).
+    ///
+    /// Uch sabab:
+    ///   1) NOANIQLIK: "80" deb yozilganda foydalanuvchi 80 daqiqalik
+    ///      darsnimi yoki "80-guruh" nomlimi izlayotgani NOMA'LUM, natija
+    ///      esa ikkalasini aralashtirib berardi va qaysi ustun mos
+    ///      kelganini KO'RSATIB bo'lmasdi;
+    ///   2) TIL: hafta kunlari bazada raqam (`DayOfWeek`), UI'da esa
+    ///      o'zbekcha ("Du", "Chor"). "Dushanba" bo'yicha matnli qidiruv
+    ///      SQL'da o'zbekcha nomni bilishni talab qilardi — ya'ni tarjima
+    ///      jadvali bazaga ko'chirilardi;
+    ///   3) NAQSH: `UserService.ApplySearch` AYNAN shunday ishlaydi —
+    ///      matnli ustunlar (F.I.Sh., email) erkin qidiruvda, telefon esa
+    ///      normalizatsiya bilan; sonli filtrlar alohida parametrlarda.
+    ///
+    /// ⚠️ SO'ROV SHAKLI O'ZGARDI. Ilgari bu bitta ustun ustidagi `LIKE` edi;
+    /// endi qatorga 4 ta qo'shimcha shart qo'shiladi, ulardan IKKITASI
+    /// korrelyatsion `EXISTS` (ustoz va kurator ismi). Bu ATAYLAB qabul
+    /// qilindi: `Groups` KICHIK jadval (yuzlarcha qator, 100 mingta emas),
+    /// ya'ni ketma-ket skan bu yerda arzon va `pg_trgm` GIN indeksi hamon
+    /// kerak emas. `Users` da esa aksincha — o'sha jadval yuz minglab
+    /// qatorga o'sadi va indeks MAJBURIY (`UserService.ApplySearch`).
+    ///
+    /// 🔴 SHU SABABLI USTOZ VA KURATOR IKKI ALOHIDA `Any(...)` BILAN
+    /// IZLANADI, `u.Id == g.TeacherId || u.Id == g.AssistantId` BILAN EMAS.
+    /// Bitta `EXISTS` ichidagi `OR` Postgres'ni birlamchi kalit indeksidan
+    /// voz kechishga va `Users` ni HAR GURUH QATORI UCHUN ketma-ket
+    /// skanerlashga majbur qilishi mumkin. Ikki alohida shartda esa har
+    /// biri bitta qatorlik PK qidiruvi bo'lib qoladi — guruhlar soni ×
+    /// 2 ta indeks tegishi, ya'ni yuzlarcha arzon murojaat.
+    ///
+    /// KURS va KURATOR GURUHI nomi navigatsiya orqali olinadi (`JOIN`) —
+    /// ular uchun `EXISTS` shart emas, chunki FK bevosita guruh qatorida.
     /// </summary>
-    private static IQueryable<Group> ApplySearch(IQueryable<Group> rows, string? search)
+    private IQueryable<Group> ApplySearch(IQueryable<Group> rows, string? search)
     {
         var trimmed = search?.Trim();
 
@@ -742,7 +809,14 @@ public sealed class GroupService(
         // `ToLowerInvariant()` ni EF tarjima QILA OLMAYDI, shuning uchun
         // globalizatsiya analizatori shu blokda ataylab o'chirilgan.
 #pragma warning disable CA1304, CA1311
-        return rows.Where(g => EF.Functions.Like(g.Name.ToLower(), term));
+        return rows.Where(g =>
+            EF.Functions.Like(g.Name.ToLower(), term)
+            || (g.Course != null && EF.Functions.Like(g.Course.Name.ToLower(), term))
+            || (g.CuratorGroup != null && EF.Functions.Like(g.CuratorGroup.Name.ToLower(), term))
+            || db.Users.Any(u => u.Id == g.TeacherId
+                              && EF.Functions.Like(u.FullName.ToLower(), term))
+            || db.Users.Any(u => u.Id == g.AssistantId
+                              && EF.Functions.Like(u.FullName.ToLower(), term)));
 #pragma warning restore CA1304, CA1311
     }
 

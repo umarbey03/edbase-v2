@@ -62,6 +62,29 @@ internal sealed class JobsOptions
     /// <summary>Oylik yozuvlarni tekshirish oralig'i (daqiqa).</summary>
     public int BillingIntervalMinutes { get; private init; } = 30;
 
+    // ---------------------------------------------------------------- chat tarixi
+    //
+    // 🔴 BU YERDA "Enabled" BAYROG'I YO'Q — VA BU ATAYLAB. Tozalash
+    // yoqilgan-yoqilmagani ADMINISTRATOR qarori va u paneldagi
+    // `chat.retention_enabled` kalitida (vazifa uni HAR YURISHDA o'qiydi).
+    // Bu yerga muhit bayrog'i qo'yilsa, panel hech kim qaramaydigan
+    // kalitni tahrirlab, "yoqdim, lekin ishlamadi" holatini yaratardi.
+    // Quyidagilar esa faqat EKSPLUATATSIYA parametrlari.
+
+    /// <summary>Tozalashni tekshirish oralig'i (daqiqa).</summary>
+    public int ChatRetentionIntervalMinutes { get; private init; } = 60;
+
+    /// <summary>Bitta <c>DELETE</c> dagi qatorlar soni.</summary>
+    public int ChatRetentionBatchSize { get; private init; } = 5000;
+
+    /// <summary>
+    /// Bitta yurishdagi paketlar chegarasi (standart: 20 × 5000 = 100 000
+    /// qator). Sabab <see cref="Zinnur.Application.Jobs.ChatRetentionJob"/>
+    /// izohida: birinchi yoqilganda orqada yillik tarix turgan bo'lishi
+    /// mumkin va u bitta yurishda emas, bir necha yurishda tozalanadi.
+    /// </summary>
+    public int ChatRetentionMaxBatchesPerRun { get; private init; } = 20;
+
     // ---------------------------------------------------------------- hosila
 
     public TimeSpan Tick => TimeSpan.FromSeconds(TickSeconds);
@@ -73,6 +96,11 @@ internal sealed class JobsOptions
 
     public MonthlyBillingSettings MonthlyBilling =>
         new(Interval: TimeSpan.FromMinutes(BillingIntervalMinutes));
+
+    public ChatRetentionSettings ChatRetention => new(
+        Interval: TimeSpan.FromMinutes(ChatRetentionIntervalMinutes),
+        BatchSize: ChatRetentionBatchSize,
+        MaxBatchesPerRun: ChatRetentionMaxBatchesPerRun);
 
     /// <summary>Konfiguratsiyadan o'qiydi; yo'q yoki buzuq qiymat standartga tushadi.</summary>
     public static JobsOptions Read(IConfiguration configuration)
@@ -112,6 +140,24 @@ internal sealed class JobsOptions
             BillingIntervalMinutes = Number(
                 configuration, $"{SectionName}:MonthlyBilling:IntervalMinutes",
                 defaults.BillingIntervalMinutes, 1, 1440),
+
+            // ★ PASTKI CHEGARA 5 DAQIQA: tozalash — kunlik hodisa. Har
+            // daqiqada yurish hech nima yutmasdi, lekin har yurish
+            // kesimni qidirish uchun bazaga borardi.
+            ChatRetentionIntervalMinutes = Number(
+                configuration, $"{SectionName}:ChatRetention:IntervalMinutes",
+                defaults.ChatRetentionIntervalMinutes, 5, 1440),
+
+            // Yuqori chegara 20 000: undan katta paket uzoq tranzaksiya va
+            // katta WAL demakdir — ya'ni fon tozalashi ilovaning O'ZINI
+            // sekinlashtirardi.
+            ChatRetentionBatchSize = Number(
+                configuration, $"{SectionName}:ChatRetention:BatchSize",
+                defaults.ChatRetentionBatchSize, 100, 20_000),
+
+            ChatRetentionMaxBatchesPerRun = Number(
+                configuration, $"{SectionName}:ChatRetention:MaxBatchesPerRun",
+                defaults.ChatRetentionMaxBatchesPerRun, 1, 1000),
         };
     }
 

@@ -6,6 +6,7 @@ import { downloadTestResultsCsv, fetchTestResults, percentLabel, scoreLabel } fr
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { saveBlob } from '@/shared/lib/download'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
 /**
@@ -22,6 +23,15 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus } from '@/shared/u
  * saralanmaydi.
  */
 const props = defineProps<{ testId: number }>()
+
+/*
+  Kartochka ↔ jadval: CSS emas, `v-if` — `hidden lg:block` IKKALA daraxtni
+  ham quradi (telefonda ko'rinmas jadval ham mount bo'lib, ma'lumot olardi).
+  ★ Chegara `lg` (1024px), `md` EMAS: yon menyu ham AYNI shu yerda ochiladi,
+  ya'ni iPad tik holati (768px) kartochka bo'lib qoladi — `style.css` dagi
+  "md va lg haqidagi asosiy qaror" izohiga qarang.
+*/
+const { isDesktop } = useBreakpoint()
 
 const resultsQuery = useQuery({
   queryKey: ['tests', props.testId, 'results'],
@@ -91,8 +101,11 @@ const exportMutation = useMutation({
         empty-text="O‘quvchilar testni topshirgach natijalar shu yerda ko‘rinadi."
         @retry="resultsQuery.refetch()"
       >
-        <!-- Telefon: kartochka -->
-        <ul class="space-y-2 md:hidden">
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
           <li
             v-for="row in rows"
             :key="row.attemptId"
@@ -124,8 +137,11 @@ const exportMutation = useMutation({
           </li>
         </ul>
 
-        <!-- Desktop: jadval -->
-        <div class="scroll-x-safe scrollbar-slim hidden md:block">
+        <!-- Desktop (≥1024px): jadval -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>

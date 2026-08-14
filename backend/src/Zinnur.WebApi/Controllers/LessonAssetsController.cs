@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Courses.Dtos;
 using Zinnur.Application.Courses.Services;
+using Zinnur.Application.Media;
 using Zinnur.WebApi.Media;
 
 namespace Zinnur.WebApi.Controllers;
@@ -27,7 +28,8 @@ namespace Zinnur.WebApi.Controllers;
 [Route("api/v1/lessons")]
 [Authorize]
 [Produces("application/json")]
-public sealed class LessonAssetsController(ILessonAssetService assets) : ControllerBase
+public sealed class LessonAssetsController(
+    ILessonAssetService assets, IMediaAccessTicketService tickets) : ControllerBase
 {
     /// <summary>
     /// Yangi media yuklaydi (`multipart/form-data`, maydon nomi — `file`).
@@ -130,25 +132,84 @@ public sealed class LessonAssetsController(ILessonAssetService assets) : Control
     /// (`Video` qamrovi) va GATING dan keyin. UI'da yashirish YETARLI EMAS:
     /// `assetId` ketma-ket va uni taxmin qilish oson.
     ///
-    /// ⚠️ FRONTEND UCHUN: brauzer `&lt;video src&gt;` bilan `Authorization`
-    /// sarlavhasini YUBORMAYDI. Bu endpointga token bilan murojaat qilish
-    /// kerak (`fetch` + `MediaSource`, yoki qisqa muddatli oraliq).
-    /// Batafsil: hisobotdagi shartnoma bo'limi.
+    /// ═══════════════════════════════════════════════════════════════════
+    /// ★★ KIMLIGINI ANIQLASHNING IKKI YO'LI
+    ///
+    ///   1) `Authorization: Bearer …` — odatiy yo'l (`fetch`, rasm
+    ///      ko'rish, xodim vositalari, testlar).
+    ///   2) `?ticket=…` — QISQA MUDDATLI CHIPTA
+    ///      (<see cref="IMediaAccessTicketService"/>). U FAQAT shuning
+    ///      uchun bor: brauzerning `&lt;video src&gt;` elementi
+    ///      `Authorization` sarlavhasini YUBORA OLMAYDI va uni
+    ///      majburlashning yo'li yo'q.
+    ///
+    /// Shuning uchun endpoint `[AllowAnonymous]`. 🔴 BU "OCHIQ" DEGANI
+    /// EMAS: quyidagi <see cref="ResolveActorId"/> ikkala yo'ldan HECH
+    /// BIRI kimligini aniqlay olmasa **401** beradi, aniqlagan taqdirda
+    /// esa qaror baribir `LessonAssetService.EnsureCanReadAsync` da
+    /// (to'lov bloki + gating, HAR so'rovda) qabul qilinadi.
+    ///
+    /// ⚠️ CHIPTA `assetId` GA BOG'LANGAN: 5-fayl chiptasi 6-faylda
+    /// ishlamaydi (imzo ichida Id bor).
+    /// ═══════════════════════════════════════════════════════════════════
+    ///
+    /// ⚠️ PLEYER UCHUN SHARTNOMA: chipta ~15 daqiqada o'ladi. Uzun darsda
+    /// keyingi `Range` so'rovi **401** oladi va brauzer buni `error`
+    /// hodisasi qilib beradi — pleyer YANGI chipta olib, `currentTime` ni
+    /// tiklashi kerak (`RecordingPlayerModal` dagi AYNI naqsh).
     /// </summary>
     [HttpGet("assets/{assetId:long}")]
+    [AllowAnonymous]
     [Produces("application/octet-stream")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status206PartialContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status416RangeNotSatisfiable)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> Get(long assetId, CancellationToken ct)
+    public async Task<IActionResult> Get(
+        long assetId, [FromQuery] string? ticket, CancellationToken ct)
     {
+        if (ResolveActorId(assetId, ticket) is not { } actorId)
+            return Unauthorized();
+
         var download = await assets.OpenAsync(
-            assetId, MediaResponse.RawRange(Request.Headers.Range), CurrentUserId, ct);
+            assetId, MediaResponse.RawRange(Request.Headers.Range), actorId, ct);
 
         return await MediaResponse.WriteAsync(this, download, ct);
+    }
+
+    /// <summary>
+    /// O'YNATISH CHIPTASI: `&lt;video src&gt;` ga qo'yish uchun qisqa
+    /// muddatli belgi.
+    ///
+    /// 🔴 CHIPTA BERISHDAN OLDIN RUXSAT TO'LIQ TEKSHIRILADI (to'lov bloki
+    /// va gating). Ya'ni qulflangan darsda yoki qarz bilan o'quvchi
+    /// chiptani UMUMAN olmaydi va sababni **403** ning matnida DARHOL
+    /// ko'radi — videoni bosib, keyin "buzuq fayl" bilan yuzlashmaydi.
+    ///
+    /// ⚠️ Javob `expiresAt` bilan keladi va u SHARTNOMANING BIR QISMI:
+    /// pleyer shu vaqtdan oldin yangisini so'rashi kerak
+    /// (`RecordingsController.Link` bilan AYNI naqsh).
+    /// </summary>
+    /// <response code="200">Chipta va uning muddati.</response>
+    /// <response code="403">Gating yopiq yoki to'lov qarzi (`Video` qamrovi).</response>
+    [HttpGet("assets/{assetId:long}/ticket")]
+    [ProducesResponseType<MediaAccessTicket>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MediaAccessTicket>> Ticket(long assetId, CancellationToken ct)
+    {
+        var ticket = await assets.CreateTicketAsync(assetId, CurrentUserId, ct);
+
+        // 🔴 KESHLANMASIN: ichida imzo bor va u FOYDALANUVCHIGA xos.
+        //    Oraliq proksi (yoki umumiy kompyuterdagi brauzer) saqlab
+        //    qolsa, keyingi foydalanuvchi o'zganing chiptasini olardi.
+        //    `RecordingsController.Link` da AYNI sabab, AYNI qator.
+        Response.Headers.CacheControl = "no-store";
+
+        return Ok(ticket);
     }
 
     /// <summary>
@@ -214,6 +275,35 @@ public sealed class LessonAssetsController(ILessonAssetService assets) : Control
     ///    chegara — sozlamadagi qiymat (standart 1024 MB).
     /// </summary>
     private const long MaxUploadBytes = (2048L * 1024 * 1024) + (1024 * 1024);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴🔴 KIMLIGINI ANIQLASH — SESSIYA YOKI CHIPTA (BOSHQA YO'L YO'Q)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Bu metod FAQAT "kim?" degan savolga javob beradi. "Ruxsatmi?"
+    /// degan savol bu yerda UMUMAN so'ralmaydi — u
+    /// `LessonAssetService.EnsureCanReadAsync` ning ishi va u HAR bayt
+    /// so'rovida bajariladi. Ikkalasini bir joyga qo'shish o'sha
+    /// tekshiruvni chetlab o'tadigan ikkinchi yo'l yasardi.
+    ///
+    /// ★ SESSIYA USTUN: `Authorization` sarlavhasi kelgan bo'lsa chipta
+    ///   umuman o'qilmaydi. Sabab — sarlavha JWT quvurida to'liq
+    ///   tekshirilgan (imzo, muddat, `ver`/TokenVersion), chipta esa
+    ///   `ver` ni bilmaydi. Kuchliroq dalil ustun turishi kerak.
+    ///
+    /// 🔴 `null` QAYTSA — 401. "Havolani bilish" hech nima bermaydi.
+    /// </summary>
+    private long? ResolveActorId(long assetId, string? ticket)
+    {
+        if (User.FindFirstValue(ClaimTypes.NameIdentifier) is { Length: > 0 } subject
+            && long.TryParse(subject, CultureInfo.InvariantCulture, out var sessionUserId))
+        {
+            return sessionUserId;
+        }
+
+        return tickets.TryResolveUserId(ticket, assetId);
+    }
 
     private long CurrentUserId =>
         long.Parse(

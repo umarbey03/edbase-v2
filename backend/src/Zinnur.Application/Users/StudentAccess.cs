@@ -10,6 +10,28 @@ namespace Zinnur.Application.Users;
 /// <summary>
 /// So'rovchi o'quvchi ma'lumotini QANCHA ko'rishi mumkin.
 /// Tartib MUHIM EMAS (bazaga yozilmaydi) — bu faqat ish vaqtidagi qaror.
+///
+/// ════════════════════════════════════════════════════════════════════════
+/// ★ NIMA UCHUN <c>Staff</c> IKKIGA BO'LINDI (2026-08-14, talab R27)
+///
+/// Ilgari ustoz ham, kurator ham bitta <c>Staff</c> qiymatiga tushardi va
+/// ikkalasi AYNAN bir xil ma'lumot ko'rardi. Loyiha egasining talabi
+/// (*"student kontakt ma'lumotlari teacherga ko'rinmasligi kerak"*) esa
+/// aynan shu ikkovini ajratadi:
+///
+///   • <see cref="Teacher"/> — kontakt YO'Q. Ustozning ishi dars o'tish,
+///     baholash va davomat; o'quvchiga qo'ng'iroq qilish uning vazifasi
+///     emas va markaz mijoz bazasining tarqalishini xohlamaydi.
+///   • <see cref="Curator"/> — kontakt BOR. Kuratorning ASOSIY amali aynan
+///     qo'ng'iroq: dars qoldirgan o'quvchini u qidiradi
+///     (<c>CuratorGroupMembers.vue</c> dagi yashil telefon tugmasi va
+///     <c>CuratorOverview.vue</c> dagi "Oxirgi darsni qoldirganlar"
+///     ro'yxati). Raqamni olib tashlash uning ish oqimini BUTUNLAY
+///     yopardi, ya'ni bu maxfiylik yutug'i emas, funksiya yo'qotishi
+///     bo'lardi.
+///
+/// Moliya bloki esa IKKALASIDAN ham yopiq — u yerda ajratish yo'q.
+/// ════════════════════════════════════════════════════════════════════════
 /// </summary>
 internal enum StudentAudience
 {
@@ -17,14 +39,47 @@ internal enum StudentAudience
     Manage,
 
     /// <summary>
-    /// O'z guruhidagi ustoz yoki kurator — moliya bloki UMUMAN yuborilmaydi.
+    /// O'z guruhining USTOZI — moliya ham, KONTAKT ham yuborilmaydi
+    /// (email, telefon, Telegram id va nomi).
     /// </summary>
-    Staff,
+    Teacher,
+
+    /// <summary>
+    /// O'z guruhining KURATORI — moliya yuborilmaydi, kontakt BERILADI
+    /// (qo'ng'iroq — kuratorning asosiy amali).
+    /// </summary>
+    Curator,
 
     /// <summary>
     /// O'quvchining o'zi — ichki izohlar va to'lov jurnali yuborilmaydi.
     /// </summary>
     Self,
+}
+
+/// <summary>
+/// Auditoriya bo'yicha qarorlar — YAGONA joyda.
+///
+/// ★ NIMA UCHUN metod, har joyda <c>audience is Teacher or Curator</c>
+/// yozish o'rniga: yangi xodim roli qo'shilganda (masalan "metodist")
+/// shartni har servisda topib yangilash kerak bo'lardi va bittasi
+/// unutilardi — R27 ning o'zi ham aynan shunday "yarim joyda qolgan"
+/// tekshiruvdan chiqadigan zaiflik (eski tizim X-4).
+/// </summary>
+internal static class StudentAudienceRules
+{
+    /// <summary>Xodim (ustoz yoki kurator) — moliya bloki UMUMAN yuborilmaydi.</summary>
+    internal static bool IsStaff(this StudentAudience audience) =>
+        audience is StudentAudience.Teacher or StudentAudience.Curator;
+
+    /// <summary>
+    /// Kontakt (email, telefon, Telegram id/nomi) yuboriladimi.
+    ///
+    /// 🔴 Bu SERVER tomondagi kesish: maydon <c>null</c> bo'lib javobga
+    /// tushadi. Frontendda yashirish yetarli EMAS — javob oddiy JSON va
+    /// uni ko'rish uchun brauzer konsoli kifoya.
+    /// </summary>
+    internal static bool SeesContact(this StudentAudience audience) =>
+        audience is not StudentAudience.Teacher;
 }
 
 /// <summary>
@@ -87,8 +142,12 @@ internal static class StudentAccess
                         + "faqat o'z guruhidagi o'quvchining profilini ko'radi.");
                 }
 
+                // RUXSAT ikkalasida bir xil, KO'RINISH esa boshqa: sabab
+                // `StudentAudience` izohida (talab R27).
                 return (await LoadSubjectAsync(db, studentId, ct).ConfigureAwait(false),
-                        StudentAudience.Staff);
+                        actor.Role == UserRole.Teacher
+                            ? StudentAudience.Teacher
+                            : StudentAudience.Curator);
 
             default:
                 // Yangi rol qo'shilsa TAQIQ bilan boshlanadi: "unutilgan rol"
@@ -133,8 +192,16 @@ internal static class StudentAccess
     /// kerak. Guruhdan chiqarilgandan keyin izoh birdan "begona" bo'lib
     /// qolsa, ustoz o'z yozuvini tahrirlay ham olmasdi.
     ///
-    /// ⚠️ Bu "hamma narsani ko'radi" degani EMAS: <see cref="StudentAudience.Staff"/>
-    /// da moliya bloki baribir yuborilmaydi.
+    /// ⚠️ AMALDAGI OQIBAT: xodim BIR MARTA o'qitgan o'quvchining profiliga
+    /// MUDDATSIZ kirish huquqi qoladi — "hech qachon eskirmaydigan ruxsat".
+    /// Bu ATAYLAB shunday va bu ish doirasida O'ZGARTIRILMADI; qaror loyiha
+    /// egasiga qoldirildi (R27 hisoboti). Agar cheklash kerak bo'lsa,
+    /// tabiiy chegara — "oxirgi a'zolik tugaganidan keyin N oy" — lekin u
+    /// izohlar CRUD'ini ham qamraydi va eski izohni tahrirlashni yopadi.
+    ///
+    /// ⚠️ Bu "hamma narsani ko'radi" degani EMAS: xodim auditoriyalarida
+    /// (<see cref="StudentAudience.Teacher"/>, <see cref="StudentAudience.Curator"/>)
+    /// moliya bloki baribir yuborilmaydi, ustozga esa kontakt ham chiqmaydi.
     /// </summary>
     private static async Task<bool> SharesGroupAsync(
         IApplicationDbContext db, long staffId, long studentId, CancellationToken ct)

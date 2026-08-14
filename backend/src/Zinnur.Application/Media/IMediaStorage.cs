@@ -27,7 +27,22 @@ namespace Zinnur.Application.Media;
 /// (`ISubmissionStorage` izohi va `PROGRESS.md`): presigned havola
 /// CHIQARILGACH uni ushlagan har kim ochadi va bekor qilib bo'lmaydi
 /// (eski tizimning X-6 kamchiligi). Bu yerda "havola" tushunchasi YO'Q:
-/// har bayt so'rovi `Authorization` va gating tekshiruvidan o'tadi.
+/// HAR BAYT SO'ROVI gating va to'lov tekshiruvidan o'tadi
+/// (`LessonAssetService.EnsureCanReadAsync`).
+///
+/// ⚠️ ANIQLIK KIRITISH (WAVE 2, R6): "har bayt so'rovi `Authorization`
+/// dan o'tadi" degan avvalgi jumla endi TO'LIQ TO'G'RI EMAS EDI va
+/// tuzatildi. Brauzerning `&lt;video src&gt;` elementi `Authorization`
+/// sarlavhasini yubora olmagani uchun KIMLIKNI ANIQLASHNING ikkinchi
+/// yo'li qo'shildi — qisqa muddatli, FAYLGA BOG'LANGAN chipta
+/// (<see cref="IMediaAccessTicketService"/>).
+///
+/// 🔴 QAROR O'ZGARMADI: chipta faqat "KIM" degan savolga javob beradi,
+/// "RUXSATMI" degan savol esa AVVALGIDEK har so'rovda, bazadan hal
+/// qilinadi. Ya'ni qaytarib bo'ladigan ruxsat (revocability) — bu
+/// portning butun ma'nosi — SAQLANDI: qarzi paydo bo'lgan yoki darsi
+/// qulflangan o'quvchi videoni DAVOM ETTIRA OLMAYDI, holbuki presigned
+/// havolada u faylni oxirigacha ko'rib bo'lardi.
 ///
 /// ⚠️ TARMOQ NARXI HAQIDA OGOHLANTIRISH: `IRecordingStorage` izohida
 /// AYNI savol uchun TESKARI qaror qabul qilingan (dars yozuvi uchun

@@ -47,8 +47,16 @@ const panelLabel = computed(() =>
         Z
       </span>
       <div class="min-w-0">
-        <p class="truncate text-lg font-bold tracking-tight">
-          Zin<span class="text-brand-500">-Nur</span>
+        <!--
+          R19 — brend nomi BITTA rangda. Ilgari "Zin" tanadan rang meros olardi
+          (`slate-100`), "-Nur" esa `text-brand-500` edi: bitta so'z ikki xil
+          rangda chizilardi. Endi butun so'z aksent tokenida.
+
+          ★ Matn O'ZGARMADI — "Zin-Nur" aynan shundayligicha qoladi, faqat
+          ikkiga bo'lingan `<span>` bitta rangli qatlamga yig'ildi.
+        -->
+        <p class="truncate text-lg font-bold tracking-tight text-brand-500">
+          Zin-Nur
         </p>
         <!--
           Logo ostida ROL yoziladi — eski panellarda ham shunday edi

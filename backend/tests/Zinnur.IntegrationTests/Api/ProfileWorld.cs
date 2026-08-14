@@ -170,6 +170,30 @@ internal static class ProfileWorldBuilder
         return (await response.Content.ReadFromJsonAsync<ProfileResponse>())!;
     }
 
+    /// <summary>
+    /// O'quvchining BAZADAGI haqiqiy kontakti.
+    ///
+    /// NIMA UCHUN KERAK: R27 testlari "ustoz javobida SHU satr yo'q" deb
+    /// tekshiradi. Qiymat qo'lda yozilsa (masalan <c>"+99890..."</c>) test
+    /// har doim yashil bo'lardi — javobda umuman bo'lmagan satrni izlash
+    /// hech narsa isbotlamaydi. Shuning uchun aynan HAQIQIY qiymat olinadi.
+    /// </summary>
+    internal static Task<(string Email, string? Phone)> ContactOfAsync(
+        ZinnurApiFactory factory, long userId)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+
+        return factory.WithDbAsync(async db =>
+        {
+            var row = await db.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.Email, u.Phone })
+                .FirstAsync();
+
+            return (row.Email, row.Phone);
+        });
+    }
+
     /// <summary>Bazadagi joriy sessiya versiyasi (uzishdan keyin oshgani tekshiriladi).</summary>
     internal static Task<int> TokenVersionOfAsync(ZinnurApiFactory factory, long userId)
     {
@@ -217,10 +241,15 @@ internal sealed record ProfileResponse(
     ProfileStudy Study,
     List<NoteResponse>? Notes);
 
+/// <summary>
+/// ★ <c>Email</c> — <c>string?</c>: ustoz javobida u <c>null</c> bo'ladi
+/// (talab R27). Bazada ustun majburiy, ya'ni bo'shlik faqat serverning
+/// kesganidan darak beradi.
+/// </summary>
 internal sealed record ProfileUser(
     long Id,
     string FullName,
-    string Email,
+    string? Email,
     string? Phone,
     long? TelegramId,
     string? TelegramUsername,

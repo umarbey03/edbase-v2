@@ -13,13 +13,30 @@ using Zinnur.WebApi.Media;
 namespace Zinnur.WebApi.Controllers;
 
 /// <summary>
-/// Uy vazifalari: tuzish (o'quv bo'limi/ustoz), topshirish (o'quvchi),
+/// Uy vazifalari: tuzish (FAQAT o'quv bo'limi), topshirish (o'quvchi),
 /// baholash (ustoz/kurator).
 ///
 /// Controller YUPQA: <c>[Authorize(Roles=...)]</c> — faqat DARVOZA
-/// ("umuman kira oladimi"). "Ustoz FAQAT O'Z guruhiga" degan haqiqiy qoida
-/// <see cref="IAssignmentService"/> ICHIDA — aks holda yangi endpoint
-/// qo'shilganda uni takrorlash unutilardi.
+/// ("umuman kira oladimi"). Nishon darajasidagi qoidalar (kimning javobi,
+/// kimning guruhi) <see cref="IAssignmentService"/> ICHIDA — aks holda yangi
+/// endpoint qo'shilganda ularni takrorlash unutilardi.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// R32 (2026-08-13 talabi) — USTOZ VAZIFA YARATMAYDI
+/// ═══════════════════════════════════════════════════════════════════════
+/// Loyiha egasi: *"teacher vazifa yaratishi kerakmas, o'quv bo'limi yaratadi
+/// vazifalarni"*. Q10 QAT'IY o'qilishda hal qilindi: ustoz/kurator vazifa
+/// yaratish, tahrirlash va SHART BIRIKTIRMALARIDAN butunlay chetlatildi.
+///
+/// ★ NIMA UCHUN BU YERDA DARVOZA HAM O'ZGARDI, faqat servis emas: rol
+/// gate'i atributda qolib, qoida faqat servisda bo'lsa, ustoz UI'siz
+/// so'rov yuborganda 403 ni SERVIS qaytarardi — bir xil natija, lekin
+/// "kim umuman kira oladi" degan savolga javob ikki joyda ikki xil
+/// yozilgan bo'lardi. Endi ikkalasi ham bitta gapni aytadi.
+///
+/// ⚠️ BAHOLASH TEGILMADI (<see cref="GradeRoles"/>) — talab faqat
+/// YARATISHGA tegishli. Ustoz javoblarni ko'radi, baholaydi va qayta
+/// topshirishga ruxsat beradi, avvalgidek.
 /// </summary>
 [ApiController]
 [Route("api/v1/assignments")]
@@ -48,11 +65,12 @@ public sealed class AssignmentsController(
         Ok(await assignments.GetAsync(id, CurrentUserId, ct));
 
     /// <summary>
-    /// Yangi vazifa. <c>moduleLessonId</c> — KURS vazifasi (faqat o'quv bo'limi),
-    /// <c>groupId</c> — GURUH vazifasi (ustoz/kurator o'z guruhiga).
+    /// Yangi vazifa — FAQAT o'quv bo'limi/admin (R32).
+    /// <c>moduleLessonId</c> — KURS vazifasi, <c>groupId</c> — GURUH vazifasi.
+    /// Ikkalasi ham endi AYNI darvozadan o'tadi.
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = StaffRoles)]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType<AssignmentDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -63,9 +81,12 @@ public sealed class AssignmentsController(
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
-    /// <summary>Tahrirlash. Nishon (guruh/dars) o'zgartirilmaydi.</summary>
+    /// <summary>
+    /// Tahrirlash — FAQAT o'quv bo'limi/admin (R32). Nishon (guruh/dars)
+    /// o'zgartirilmaydi.
+    /// </summary>
     [HttpPut("{id:long}")]
-    [Authorize(Roles = StaffRoles)]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType<AssignmentDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<AssignmentDto>> Update(
@@ -255,12 +276,14 @@ public sealed class AssignmentsController(
     /// **400** oladi. Hajm chegarasi sozlamadan
     /// (`lesson.image_max_mb`) — oshsa **413**.
     ///
-    /// RUXSAT: vazifani TAHRIRLASH huquqi bilan AYNI (kurs vazifasi —
-    /// faqat o'quv bo'limi; guruh vazifasi — o'sha guruhning ustozi/kuratori
-    /// ham).
+    /// RUXSAT: vazifani TAHRIRLASH huquqi bilan AYNI — R32 dan keyin bu
+    /// FAQAT o'quv bo'limi/admin degani. Biriktirma vazifa SHARTINING bir
+    /// qismi, ya'ni uni yuklash — vazifani tahrirlash bilan bir xil amal;
+    /// darvoza ajralib qolsa, ustoz yarata olmagan vazifaning shartini
+    /// o'zgartira olib qolardi.
     /// </summary>
     [HttpPost("{id:long}/attachments")]
-    [Authorize(Roles = StaffRoles)]
+    [Authorize(Roles = ManageRoles)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxAttachmentRequestBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxAttachmentRequestBytes)]
@@ -324,9 +347,12 @@ public sealed class AssignmentsController(
         return await MediaResponse.WriteAsync(this, download, ct);
     }
 
-    /// <summary>Shart biriktirmasini o'chiradi (bazadan, so'ng ombordan).</summary>
+    /// <summary>
+    /// Shart biriktirmasini o'chiradi (bazadan, so'ng ombordan).
+    /// RUXSAT — yuklash bilan AYNI (R32: faqat o'quv bo'limi/admin).
+    /// </summary>
     [HttpDelete("~/api/v1/assignments/attachments/{attachmentId:long}")]
-    [Authorize(Roles = StaffRoles)]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -340,10 +366,21 @@ public sealed class AssignmentsController(
 
     private const string StudentRole = "Student";
 
-    /// <summary>Vazifa tuza oladigan rollar (aniq qoida servisda).</summary>
+    /// <summary>
+    /// XODIM darvozasi — faqat O'QISH yo'llari uchun (ro'yxat, kartochka,
+    /// topshirilgan javoblar).
+    ///
+    /// ★ R32 dan keyin bu nom "yarata oladigan rollar"ni ANGLATMAYDI: ustoz
+    /// va kurator vazifani KO'RADI (o'z o'quvchisini baholash uchun kerak),
+    /// lekin yaratmaydi va tahrirlamaydi. Yozish yo'llari
+    /// <see cref="ManageRoles"/> ga o'tkazildi.
+    /// </summary>
     private const string StaffRoles = "Teacher,Assistant,Academic,Admin";
 
-    /// <summary>O'chirish — faqat o'quv bo'limi/admin.</summary>
+    /// <summary>
+    /// Vazifani BOSHQARISH (yaratish, tahrirlash, o'chirish, shart
+    /// biriktirmalari) — faqat o'quv bo'limi/admin.
+    /// </summary>
     private const string ManageRoles = "Academic,Admin";
 
     /// <summary>

@@ -17,6 +17,7 @@ import {
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { formatSum, parseMoneyInput } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { SettingDto, SettingsPageDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseField, ConfirmDeleteDialog } from '@/shared/ui'
 
@@ -276,8 +277,78 @@ const canSave = computed(
   () => props.setting.isEditable && isDirty.value && !saveMutation.isPending.value,
 )
 
-function save(): void {
+const confirm = useConfirm()
+
+/**
+ * Tasdiq oynasidagi tafsilotlar.
+ *
+ * SIRDA — QIYMAT KO'RSATILMAYDI. Bu shu faylning bosh qoidasining davomi
+ * (`syncFromServer` izohi): token/kalit hech qachon ekranga chiqmaydi, tasdiq
+ * oynasi ham istisno emas — u `<body>` ga teleport qilinadi va ekran
+ * ulashilgan yig'ilishda ochilib qolishi mumkin.
+ *
+ * SIR EMASDA esa YANGI QIYMAT ko'rsatiladi va bu asosiy foyda: xato bu yerda
+ * odatda "ko'rinmaydigan" bo'ladi (bitta ortiqcha nol, tashlab yuborilgan
+ * `https://`, nusxa-joylashdan ilashgan bo'shliq). Qiymat 120 belgidan
+ * uzun bo'lsa qisqartiriladi — oyna 500 belgilik matn bilan cho'zilmasin.
+ */
+const confirmDetails = computed<string[]>(() => {
+  const list = [`Kalit: ${props.setting.key}`]
+
+  if (props.setting.isSecret) {
+    list.push('Yangi sir yozilgach uni ekranda tekshirib bo‘lmaydi — faqat ustiga qayta yozish mumkin.')
+    list.push(
+      'Xato qiymat bog‘liq xizmatni darhol ishdan chiqaradi: bot tokeni buzilsa hech kim tizimga kira olmaydi (kirish faqat Telegram kodi orqali).',
+    )
+  } else {
+    const value = payloadValue.value
+    list.push(
+      value.length === 0
+        ? 'Yangi qiymat: (bo‘sh)'
+        : `Yangi qiymat: ${value.length > 120 ? `${value.slice(0, 120)}…` : value}`,
+    )
+  }
+
+  return list
+})
+
+/**
+ * R4 — SOZLAMANI SAQLASH TASDIQLANADI, `danger` TONIDA.
+ *
+ * ★ NEGA `primary` EMAS, `danger`: reja B2 da "ma'lumotni almashtiruvchi
+ * saqlash" `primary` deb yozilgan, lekin bu qator oddiy forma emas. Uchta
+ * farq bir joyga to'plangan:
+ *
+ *   1) OYNA ICHIDA EMAS — sahifada doim ochiq turgan kartochka. Boshqa
+ *      formalarda "Saqlash" ga yetish uchun avval oyna ochiladi, ya'ni
+ *      niyat allaqachon bildirilgan; bu yerda tasodifiy bosish TO'G'RIDAN
+ *      yozuvga aylanadi.
+ *   2) QAMROV — BUTUN TIZIM. Bu qatorlar orasida bot tokeni, webhook siri va
+ *      fayl ombori ma'lumotlari bor; ular bitta o'quvchiga emas, hammaga
+ *      ta'sir qiladi va o'zgarish DARHOL kuchga kiradi.
+ *   3) 🔴 QAYTARISH YO'LI TOR. 2026-08-13 dan kirish faqat telefon +
+ *      Telegram kodi orqali (email/parol olib tashlandi), ya'ni bot tokeni
+ *      xato yozilsa administratorning O'ZI ham kira olmaydi va tuzatish
+ *      faqat serverdagi `Telegram__BotTokenOverride` bilan qoladi
+ *      (`docs/DEPLOY_UBUNTU.md` 7.1.1).
+ *
+ * "Standartga qaytarish" esa `ConfirmDeleteDialog` da qoladi — u server
+ * xatosini oynaning O'ZIDA ko'rsatishi kerak (fayl boshidagi izoh).
+ */
+async function save(): Promise<void> {
   if (!canSave.value) return
+
+  const ok = await confirm({
+    title: 'Sozlamani saqlash',
+    message:
+      `“${props.setting.name}” qiymati almashtiriladi va o‘zgarish DARHOL kuchga kiradi `
+      + '— ilova qayta ishga tushirilmaydi.',
+    confirmLabel: 'Saqlash',
+    tone: 'danger',
+    details: confirmDetails.value,
+  })
+  if (!ok) return
+
   errorMessage.value = null
   clearSavedNote()
   saveMutation.mutate(payloadValue.value)

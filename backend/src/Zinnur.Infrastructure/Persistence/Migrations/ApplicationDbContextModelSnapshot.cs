@@ -542,6 +542,9 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SentAt", "Id")
+                        .HasDatabaseName("IX_GroupChatMessages_SentAt");
+
                     b.HasIndex("GroupId", "Channel", "Id")
                         .HasDatabaseName("IX_GroupChatMessages_Group_Channel_Id");
 

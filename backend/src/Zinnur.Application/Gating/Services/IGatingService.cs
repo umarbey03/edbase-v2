@@ -30,7 +30,13 @@ public interface IGatingService
     Task EnsureLessonUnlockedAsync(
         long studentId, long moduleLessonId, CancellationToken ct = default);
 
-    /// <summary>Videoni ko'rilgan deb belgilaydi (idempotent) va keshni bekor qiladi.</summary>
+    /// <summary>
+    /// Videoni ko'rilgan deb belgilaydi (idempotent) va keshni bekor qiladi.
+    ///
+    /// 🔴 DARS OCHIQ BO'LISHI SHART: aks holda o'quvchi yopiq darslarning
+    /// Id'sini yuborib gating'ni o'zi ochib olardi. Yopiq bo'lsa —
+    /// <see cref="Common.Exceptions.ForbiddenException"/>.
+    /// </summary>
     Task<LessonGateDto> MarkVideoWatchedAsync(
         long studentId, long moduleLessonId, CancellationToken ct = default);
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { rankBadge } from '@/entities/leaderboard'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { BaseCard, DataStatus } from '@/shared/ui'
 
 import { useGroupBoard } from '../model/use-group-board'
@@ -21,6 +22,22 @@ import { useGroupBoard } from '../model/use-group-board'
 const props = defineProps<{ groupId: number }>()
 
 const board = useGroupBoard(props.groupId)
+
+/*
+  Telefonda jadval o'rniga kartochka ro'yxati chiziladi (ilovadagi umumiy
+  naqsh). `hidden lg:block` EMAS, `v-if`: CSS bilan yashirilgan jadval ham
+  mount bo'lib, 30 ta qatorni bekorga quradi (`useBreakpoint` izohi).
+*/
+const { isDesktop } = useBreakpoint()
+
+/**
+ * `null` — "shu oyda mezon bo'yicha ma'lumot yo'q", NOL EMAS (jadval
+ * ostidagi izoh shuni aytadi). Ikki ko'rinishda bir xil bo'lishi uchun
+ * qoida bitta joyda.
+ */
+function percentText(value: number | null): string {
+  return value === null ? '—' : `${value}%`
+}
 </script>
 
 <template>
@@ -40,7 +57,72 @@ const board = useGroupBoard(props.groupId)
         empty-title="Ma’lumot yo‘q."
         @retry="board.refetch()"
       >
-        <div class="scroll-x-safe scrollbar-slim">
+        <!--
+          Telefon: kartochka. Oltita ustunning hammasi saqlanadi — o'rin va
+          ism birinchi qatorda, uchta mezon esa pastda uch ustunli setkada.
+          "Jami" ATAYLAB tepada, mezonlar bilan bir qatorda emas: reyting
+          ro'yxatida ko'z avval o'rinni, keyin yakuniy ballni qidiradi.
+
+          ★ QATORLAR TARTIBI jadvaldagi bilan bir xil (`board.rows`) —
+          pastdagi izohga qarang.
+        -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
+          <li
+            v-for="row in board.rows.value"
+            :key="row.studentId"
+            class="rounded-lg border border-line bg-ink-950 p-3"
+          >
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 shrink-0 text-center text-[15px] font-bold tabular-nums text-brand-500">
+                {{ rankBadge(row.rank) }}
+              </span>
+              <p
+                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
+                v-text="row.studentName ?? '—'"
+              />
+              <span class="shrink-0 whitespace-nowrap">
+                <b class="text-[15px] tabular-nums text-slate-100">{{ row.total }}</b>
+                <span class="ml-1 text-[10px] text-dim">Jami</span>
+              </span>
+            </div>
+
+            <dl class="mt-2.5 grid grid-cols-3 gap-2 border-t border-line pt-2.5 text-center">
+              <div>
+                <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                  Davomat
+                </dt>
+                <dd class="mt-0.5 text-[13px] tabular-nums text-slate-400">
+                  {{ percentText(row.attendancePercent) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                  Vazifa
+                </dt>
+                <dd class="mt-0.5 text-[13px] tabular-nums text-slate-400">
+                  {{ percentText(row.assignmentPercent) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-[10px] uppercase tracking-[0.06em] text-dim">
+                  Test
+                </dt>
+                <dd class="mt-0.5 text-[13px] tabular-nums text-slate-400">
+                  {{ percentText(row.testPercent) }}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        </ul>
+
+        <!-- Desktop: jadval. Gorizontal skroll SHU konteynerda. -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>
@@ -70,13 +152,13 @@ const board = useGroupBoard(props.groupId)
                   v-text="row.studentName ?? '—'"
                 />
                 <td class="tabular-nums text-slate-400">
-                  {{ row.attendancePercent === null ? '—' : `${row.attendancePercent}%` }}
+                  {{ percentText(row.attendancePercent) }}
                 </td>
                 <td class="tabular-nums text-slate-400">
-                  {{ row.assignmentPercent === null ? '—' : `${row.assignmentPercent}%` }}
+                  {{ percentText(row.assignmentPercent) }}
                 </td>
                 <td class="tabular-nums text-slate-400">
-                  {{ row.testPercent === null ? '—' : `${row.testPercent}%` }}
+                  {{ percentText(row.testPercent) }}
                 </td>
                 <td class="font-bold tabular-nums text-slate-100">
                   {{ row.total }}

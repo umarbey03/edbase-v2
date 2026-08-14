@@ -17,6 +17,7 @@ import {
 import { isManagerRole } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { GroupChatRoom } from '@/features/group-chat'
+import ChatFillColumn from '@/features/group-chat/ui/ChatFillColumn.vue'
 import GradeDialog from '@/features/grading/ui/GradeDialog.vue'
 import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import {
@@ -37,6 +38,7 @@ import GroupMembersPanel from '@/features/group-members/ui/GroupMembersPanel.vue
 import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { SubmissionDto } from '@/shared/types'
 import {
   AppIcon,
@@ -143,6 +145,59 @@ const archiveMutation = useMutation({
     actionError.value = toUserMessage(error)
   },
 })
+
+const confirm = useConfirm()
+
+/**
+ * R4 — ARXIVLASH/TIKLASH TASDIQLANADI.
+ *
+ * ★ ILGARI TUGMA MUTATSIYANI TO'G'RIDAN-TO'G'RI CHAQIRARDI
+ * (`@click="archiveMutation.mutate()"`) — ya'ni sahifadagi eng og'ir amal
+ * yonidagi "Jadvalni qayta tuzish" dan (u tasdiq oynasi bilan) KO'RA arzon
+ * edi: bitta bosish, orqaga yo'l yo'q.
+ *
+ * 🔴 ARXIVLASH — ODDIY BAYROQ EMAS: guruh chati SHU ONDA yopiladi va unga
+ * har qanday murojaat 403 qaytaradi. Ya'ni o'quvchilar yozishmasi ko'zdan
+ * yo'qoladi (o'chmaydi, lekin ochilmaydi) — buni tasdiq matnida AYTMASLIK
+ * "chat buzildi" turkumidagi murojaatlarni keltirib chiqarardi.
+ *
+ * TON: arxivlash `danger` (kirish YO'QOLADI), tiklash `warning` (kirish
+ * qaytadi — ya'ni yon ta'siri bor, lekin hech narsa yopilmaydi).
+ */
+async function askArchive(): Promise<void> {
+  const current = group.value
+  if (current === null || archiveMutation.isPending.value) return
+
+  actionError.value = null
+  const name = groupDisplayName(current)
+
+  const ok = current.isActive
+    ? await confirm({
+        title: 'Guruhni arxivlash',
+        message: `“${name}” arxivga o‘tkaziladi va guruh chati yopiladi.`,
+        confirmLabel: 'Arxivlash',
+        tone: 'danger',
+        details: [
+          'Guruh chatiga kirish YOPILADI — o‘quvchi ham, xodim ham eski yozishmani ocha olmaydi.',
+          'Guruh faol ro‘yxatlardan va tanlash oynalaridan chiqadi.',
+          'Davomat, baho va to‘lov tarixi saqlanadi — hech narsa o‘chmaydi.',
+          'Shu yerdagi “Tiklash” tugmasi bilan qaytariladi.',
+        ],
+      })
+    : await confirm({
+        title: 'Guruhni tiklash',
+        message: `“${name}” yana faol guruhga aylanadi.`,
+        confirmLabel: 'Tiklash',
+        tone: 'warning',
+        details: [
+          'Guruh chati qayta ochiladi va eski yozishmalar ko‘rinadi.',
+          'Guruh faol ro‘yxatlarda va tanlash oynalarida yana paydo bo‘ladi.',
+        ],
+      })
+
+  if (!ok) return
+  archiveMutation.mutate()
+}
 
 /*
   Jadvalni qayta tuzish ATAYLAB tasdiqlanadi: u o'nlab kelajakdagi darsni
@@ -269,7 +324,7 @@ function refreshSubmissions(): void {
               size="sm"
               :variant="group.isActive ? 'danger' : 'primary'"
               :loading="archiveMutation.isPending.value"
-              @click="archiveMutation.mutate()"
+              @click="askArchive"
             >
               {{ group.isActive ? 'Arxivlash' : 'Tiklash' }}
             </BaseButton>
@@ -423,12 +478,22 @@ function refreshSubmissions(): void {
           tegishli bo'lsa o'shanisini o'zi tanlaydi — ustozga `Teacher`,
           kuratorga `Curator`. Klient bu tanlovni TAKRORLAMAYDI, aks holda
           ikki joyda ikki xil qoida paydo bo'lardi.
+
+          ★ `ChatFillColumn` (2026-08-13, talab: *"chat writing part should be
+          stuck in its place"*): suhbat ustuni ekran tagigacha cho'ziladi va
+          yozish paneli DOIM eng pastda qoladi. Bu yerda balandlikni qo'lda
+          sanab bo'lmaydi — ustida sahifa sarlavhasi, o'tilgan darslar
+          xulosasi, SHARTLI "keyingi dars" banneri va tor ekranda ikki
+          qatorga o'tadigan tablar turadi; ustun o'zi o'lchaydi (sabab shu
+          komponent izohida).
         -->
-        <GroupChatRoom
-          v-else-if="activeTab === 'chat'"
-          :group-id="groupId"
-          :group-name="groupDisplayName(group)"
-        />
+        <ChatFillColumn v-else-if="activeTab === 'chat'">
+          <GroupChatRoom
+            class="min-h-0 flex-1"
+            :group-id="groupId"
+            :group-name="groupDisplayName(group)"
+          />
+        </ChatFillColumn>
         <!--
           "Yozuvlar" — eski `academic.html` dagi guruh ichidagi `#t-recordings`
           tabi (663–674-qatorlar). Guruh OLDINDAN tanlangani uchun widget'ga

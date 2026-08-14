@@ -9,12 +9,33 @@ import { useSessionRecording } from '../model/useSessionRecording'
 /**
  * Jonli darsdagi "Yozuvni boshlash / to'xtatish" tugmasi.
  *
- * ★ ESKI ILOVADA BUNDAY TUGMA YO'Q EDI. U yerda yozuv GURUH SOZLAMASI edi
- * ("Darslarni yozib olish (recording)" — `academic.html`, 1646 va 1703-qatorlar)
- * va dars yakunlanganda o'zi to'xtardi (`live.html`, 690-qator: "davomat
- * yopiladi, yozuv to'xtaydi"). v2 backendi esa QO'LDA boshlash/to'xtatish
- * endpointlarini beradi, shuning uchun boshqaruv ustozga ko'rinadigan joyga —
- * jonli xonaning yuqori paneliga qo'yildi.
+ * ══════════════════════════════════════════════════════════════════════
+ * ★ 2026-08-13 DAN BU TUGMA — OVERRIDE, ASOSIY YO'L EMAS.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * Yozuv endi AVTOMATIK boshlanadi: guruhda `recordEnabled` yoqilgan bo'lsa,
+ * dars boshlanishi bilan navbatga tushadi (backend:
+ * `LiveSessionService.StartAsync` → `IAutoRecordingScheduler`). Ya'ni odatiy
+ * holatda ustoz xonaga kirganda tugma allaqachon "Yozuvni to'xtatish" deb
+ * turadi va hech narsa bosish shart emas.
+ *
+ * ── NIMA UCHUN TUGMA SAQLANDI (o'chirilmadi) ──────────────────────────
+ *
+ *  1) 🔴 TO'XTATISH — ROZILIKNING YAGONA CHIQISHI. Yozuv o'z-o'zidan
+ *     boshlangani uchun "bu darsni yozmang" deyishning boshqa yo'li YO'Q.
+ *     Tugmani olib tashlash darsni tugatmasdan yozuvni to'xtatishni
+ *     butunlay imkonsiz qilardi (va `stopRecording` chaqiruvchisiz
+ *     qolardi).
+ *  2) Guruhda yozuv O'CHIQ, lekin AYNAN shu darsni yozib olish kerak
+ *     (ochiq dars, o'rnini bosuvchi ustoz).
+ *  3) Dars boshlanganda ombor/LiveKit sozlanmagan edi va avtomatik navbat
+ *     qator qo'shmadi. Administrator paneldan sozlamani tuzatgach, ustoz
+ *     darsni QAYTA BOSHLAMASDAN yozuvni yoqa oladi.
+ *
+ * ⚠️ TUGMA INDIKATOR EMAS. Ilgari u ikkala vazifani ham bajarardi va
+ * aynan shu rozilik dalilining zaif joyi edi: uni FAQAT host ko'rardi.
+ * Endi indikator alohida (`RecordingIndicator`) va xonadagi HAR KIMGA —
+ * o'quvchiga ham — ko'rinadi.
  *
  * KO'RINISH SHARTI ota komponentda (`canManageSession && isLive`): o'quvchi
  * bu chaqiruvlardan **403** oladi (jonli tekshirilgan), ya'ni tugma unga
@@ -80,9 +101,19 @@ function toggle(): void {
     o'zgarishsiz beradi.
   -->
   <Teleport to="body">
+    <!--
+      ★ `bottom` inline `style` da: toast `<body>` ga teleport qilingani uchun
+      jonli xona ildizidagi xavfsiz zona padding'i unga TA'SIR QILMAYDI.
+      iPhone'da 12px lik `bottom-3` xabarni "home indicator" ostiga tushirib,
+      matnning pastki qatorini va yopish tugmasini qiyin bosiladigan qilardi.
+      `env()` ni Tailwind klassi bilan berish uchun `style.css` ga utility
+      qo'shish kerak edi — ilovadagi mavjud naqsh ham inline `style`
+      (`BaseModal`, `BaseDrawer`, `StudentTabBar`).
+    -->
     <div
       v-if="recording.actionError.value !== null"
-      class="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-xl border border-rose-500/30 bg-rose-950/95 px-4 py-3 text-xs text-rose-100 shadow-xl"
+      class="fixed inset-x-3 z-50 mx-auto max-w-md rounded-xl border border-rose-500/30 bg-rose-950/95 px-4 py-3 text-xs text-rose-100 shadow-xl"
+      :style="{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }"
       role="alert"
     >
       <div class="flex items-start gap-2">
@@ -92,7 +123,7 @@ function toggle(): void {
         />
         <button
           type="button"
-          class="shrink-0 rounded p-0.5 hover:text-rose-50"
+          class="tap-expand shrink-0 rounded p-0.5 hover:text-rose-50"
           title="Yopish"
           @click="recording.actionError.value = null"
         >

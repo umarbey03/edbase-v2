@@ -336,6 +336,57 @@
   --animate-ping-live: ping-live 1.5s infinite;
   --animate-pulse-btn: pulse-btn 1.8s infinite;
   --animate-node-pulse: node-pulse 1.8s ease-in-out infinite;
+
+  /* ---------------------------- CHEGARALAR ------------------------------ */
+  /*
+    TO'RT BOSQICHLI TIZIM (2026-08-13). Ilgari bu blokda chegara UMUMAN
+    e'lon qilinmagan edi — Tailwind sukut qiymatlari ishlatilardi va amalda
+    ilova IKKI bosqichli bo'lib qolgandi: `sm:` 150 ta (71%), `md:` 34 ta,
+    `lg:` 31 ta, `xl:` 7 ta, `2xl:` 0 ta. Ya'ni planshet bosqichi YO'Q edi.
+
+    ★ `sm`…`2xl` qiymatlari Tailwind sukutidan O'ZGARTIRILMADI. Sabab: 222 ta
+    mavjud ishlatilish aynan shu qiymatlarga tayanadi — birortasini surish
+    butun ilovada jimgina joylashuv siljishiga olib kelardi. Bu yerda ular
+    ATAYLAB ochiq yozilgan: qiymat endi hujjatlangan shartnoma, tasodif emas.
+
+    ┌───────┬────────┬──────────────────────────────────────────────────┐
+    │ xs    │ 560px  │ Katta telefon. O'quvchi bosh sahifasida ikkita    │
+    │       │        │ kartochka yonma-yon turadigan chegara.            │
+    ├───────┼────────┼──────────────────────────────────────────────────┤
+    │ sm    │ 640px  │ Modal markazlashadi (pastdan chiquvchi varaqadan  │
+    │       │        │ dialogga o'tadi).                                 │
+    ├───────┼────────┼──────────────────────────────────────────────────┤
+    │ md    │ 768px  │ iPad TIK holati. Kontent kengayadi, LEKIN jadval  │
+    │       │        │ hali kartochka bo'lib qoladi (pastdagi izohga     │
+    │       │        │ qarang).                                          │
+    ├───────┼────────┼──────────────────────────────────────────────────┤
+    │ lg    │ 1024px │ iPad YOTIQ / desktop. Yon menyu VA jadval AYNI    │
+    │       │        │ shu yerda paydo bo'ladi — ikkalasi bitta chegara. │
+    ├───────┼────────┼──────────────────────────────────────────────────┤
+    │ xl    │ 1280px │ Keng desktop — uch ustunli setkalar.              │
+    ├───────┼────────┼──────────────────────────────────────────────────┤
+    │ 2xl   │ 1536px │ Juda keng monitor.                                │
+    └───────┴────────┴──────────────────────────────────────────────────┘
+
+    🔴 `md` va `lg` HAQIDAGI ASOSIY QAROR (loyiha egasi, 2026-08-13):
+    Ilgari jadvallar `md:` (768px) da, yon menyu esa `lg:` (1024px) da
+    ochilardi. Natijada iPad tik holatida (768px) foydalanuvchi TO'LIQ
+    desktop jadvalini KO'RARDI, lekin yon menyusiz — gamburger tugmali
+    joylashuvda 10 ustunli jadval. Qaror: jadvallar `lg:` ga ko'chiriladi,
+    ya'ni ikkala o'tish bitta nuqtada bo'ladi. iPad tik holati endi
+    kartochka + gamburger — izchil va barmoqqa qulay.
+
+    ★ `min-[820px]:` (GradingQueueOverlay) ATAYLAB tokenga aylantirilmadi:
+    bitta joyda ishlatiladi va o'sha overlay'ning ichki ustun kengligiga
+    bog'liq, umumiy karkas bosqichi emas. Tokenga chiqarilsa "tizim
+    chegarasi" degan noto'g'ri taassurot berardi.
+  */
+  --breakpoint-xs: 35rem;
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+  --breakpoint-2xl: 96rem;
 }
 
 /*
@@ -765,6 +816,35 @@ body {
   outline-offset: 2px;
 }
 
+/*
+  HARAKATNI KAMAYTIRISH (`prefers-reduced-motion`).
+
+  Ilovada 11 ta `@keyframes` bor va uchtasi CHEKSIZ takrorlanadi
+  (`ping-live`, `pulse-btn`, `node-pulse` — jonli dars va kurs yo'lakchasi
+  indikatorlari). Vestibulyar buzilishi bo'lgan foydalanuvchi uchun ekranda
+  to'xtovsiz pulsatsiya qiladigan element jismoniy noqulaylik tug'diradi;
+  bu WCAG 2.3.3 talabi ham.
+
+  ★ NEGA `0.01ms`, `none` EMAS: `animation: none` qilinsa `both` bilan
+  yozilgan animatsiyalarning YAKUNIY holati qo'llanmaydi va element
+  boshlang'ich (ko'pincha `opacity: 0`) holatida QOLIB KETADI — ya'ni
+  varaqa va drawer'lar umuman ko'rinmasdi. Juda qisqa davomiylik esa
+  yakuniy holatga darhol sakraydi.
+
+  ★ `scroll-behavior: auto` — chat "pastga siljish" harakati ham silliq
+  emas, bir zumda bo'ladi.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Nozik scrollbar — chat, filmstrip va jadval konteynerlari uchun */
 @utility scrollbar-slim {
   scrollbar-width: thin;
@@ -851,8 +931,15 @@ body {
 
 @layer components {
   /*
-    Jadval. Faqat DESKTOP uchun: telefonda sahifalar kartochka ko'rinishiga
-    o'tadi (`md:` dan yuqorida jadval ko'rinadi).
+    Jadval. Faqat DESKTOP uchun: telefon va planshetda sahifalar kartochka
+    ko'rinishiga o'tadi.
+
+    🔴 CHEGARA `lg:` (1024px), `md:` EMAS (loyiha egasi qarori, 2026-08-13).
+    Ilgari bu yerda `md:` (768px) yozilgan edi, yon menyu esa `lg:` da
+    ochilardi. Natijada iPad TIK holatida (aynan 768px) foydalanuvchi to'liq
+    desktop jadvalini yon menyusiz, gamburger tugmali joylashuvda ko'rardi.
+    Endi ikkala o'tish BITTA nuqtada — batafsil izoh `@theme` dagi
+    `--breakpoint-*` blokida.
 
     Yorug' temada sarlavha qatori KICHIK, UPPERCASE va kulrang bo'ladi
     (iOS/ Untitled UI naqshi), qator hover'i esa `ink-800`.
@@ -879,8 +966,16 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  .zn-table tbody tr:hover td {
-    background: var(--color-ink-800);
+  /*
+    ★ `hover: hover` shartida: teginish ekranida `:hover` bosilgandan keyin
+    "yopishib" qoladi va qator boshqa qatorga tegilguncha bo'yalgan turadi.
+    Tailwind v4 ning `hover:` variantida bu himoya BOR, lekin bu qoida sof
+    CSS — shuning uchun bu yerda qo'lda yozilgan.
+  */
+  @media (hover: hover) {
+    .zn-table tbody tr:hover td {
+      background: var(--color-ink-800);
+    }
   }
   .zn-table tbody tr:last-child td {
     border-bottom: none;
@@ -927,6 +1022,29 @@ body {
     background: var(--color-ink-800);
     opacity: 0.7;
     cursor: not-allowed;
+  }
+
+  /*
+    🔴 iOS SAFARI AVTOMATIK YAQINLASHTIRISHI (2026-08-13 da topildi).
+
+    iOS Safari fokuslangan maydonning shrifti 16px dan KICHIK bo'lsa sahifani
+    o'zi yaqinlashtiradi. Yaqinlashgandan keyin foydalanuvchi gorizontal
+    siljigan holda qoladi va ORQAGA QAYTA OLMAYDI — ilovadagi HAR BIR
+    formada shunday bo'lardi (`.zn-input` 113 joyda ishlatiladi).
+
+    ★ NEGA `pointer: coarse`, ekran kengligi EMAS: muammo ekran o'lchamiga
+    emas, teginish qurilmasiga bog'liq — iPad'da ham (1024px) aynan shunday
+    yaqinlashadi. Kenglik bo'yicha shart qo'yilsa iPad ochiqda qolardi.
+
+    ★ NEGA hamma joyda 16px EMAS: desktopda 14px — mavjud dizayn zichligi.
+    Uni 16px ga ko'tarish 113 ta maydonning ko'rinishini o'zgartirardi, ya'ni
+    dizayn pariteti shartnomasini buzardi (`docs/DIZAYN_KOCHIRISH_REJASI.md`
+    8-bo'lim). Teginish qurilmalarida esa 16px allaqachon TO'G'RI o'lcham.
+  */
+  @media (pointer: coarse) {
+    .zn-input {
+      font-size: 16px;
+    }
   }
 
   /* `select` variantlari: brauzer ochilma ro'yxatini o'zi chizadi — foni

@@ -149,6 +149,14 @@ const canSubmit = computed(
  * Yaratishda tasdiq so'ralmaydi: yangi yozuv hech narsani almashtirmaydi va
  * xato bo'lsa uni o'chirish mumkin — har "Yaratish" tugmasiga oyna qo'yish
  * esa formani ikki qadamli qilib yuborardi.
+ *
+ * 🔴 TASDIQ `changes` BO'SH BO'LGANDA HAM SO'RALADI (2026-08-13 da tuzatildi).
+ * Ilgari shart `changes.length > 0` edi va u ikki xil narsani chalkashtirardi:
+ * "foydalanuvchi hech nima o'zgartirmadi" va "`changedAssignmentFields`
+ * o'zgargan maydonni ko'ra olmadi". Ikkinchisida `PUT` TASDIQSIZ ketardi,
+ * ya'ni diff funksiyasidagi bitta unutilgan maydon butun himoyani jimgina
+ * o'chirib qo'yardi. `PUT` — TO'LIQ ALMASHTIRISH, shuning uchun tasdiq
+ * diffga emas, AMALGA bog'lanadi; diff faqat `details` ni boyitadi.
  */
 async function handleSubmit(): Promise<void> {
   submitted.value = true
@@ -162,18 +170,19 @@ async function handleSubmit(): Promise<void> {
   }
 
   const changes = changedAssignmentFields(assignment, form.value)
-  if (changes.length > 0) {
-    const ok = await confirm({
-      title: 'Vazifani saqlash',
-      message:
-        'Vazifa ma’lumotlari ALMASHTIRILADI. O‘quvchilar darhol yangi shartni '
-        + 'ko‘radi (topshirilgan javoblar va baholar saqlanadi).',
-      confirmLabel: 'Saqlash',
-      tone: 'primary',
-      details: changes,
-    })
-    if (!ok) return
-  }
+  const ok = await confirm({
+    title: 'Vazifani saqlash',
+    message:
+      'Vazifa ma’lumotlari ALMASHTIRILADI. O‘quvchilar darhol yangi shartni '
+      + 'ko‘radi (topshirilgan javoblar va baholar saqlanadi).',
+    confirmLabel: 'Saqlash',
+    tone: 'primary',
+    details:
+      changes.length > 0
+        ? changes
+        : ['Formada o‘zgarish topilmadi — barcha maydon eski qiymati bilan qayta yoziladi.'],
+  })
+  if (!ok) return
 
   errorMessage.value = null
   updateMutation.mutate(assignment.id)

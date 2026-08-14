@@ -8,7 +8,7 @@ import { useNow } from '@/shared/lib/use-now'
 import type { ScheduledSessionDto } from '@/shared/types'
 import { BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
-import type { CalendarEventTone } from '../model/calendar'
+import type { CalendarDay, CalendarEventTone } from '../model/calendar'
 import { buildMonthGrid, calendarEvent, TEACHER_WEEKDAYS } from '../model/calendar'
 import { useGroupSchedule, useSessionStart } from '../model/use-group-schedule'
 
@@ -73,17 +73,126 @@ const selectedState = computed(() =>
   selected.value === null ? null : sessionStartState(selected.value, now.value),
 )
 
+/* ═══════════════════════════════════════════════════════════════════════
+   R25 — "kalendar katagi darsda dars borligini ANIQROQ bildirsin"
+
+   Bugungi holat: katak faqat OYGA TEGISHLILIK va BUGUN ekanini
+   ko'rsatardi; darsning yagona belgisi — past kontrastli matnli pill.
+   58px lik katakda darsli va darssiz kun deyarli bir xil ko'rinardi.
+
+   🔴 ENG QATTIQ CHEKLOV: kenglik. `min-w-[520px]` va 7 ustun — yozma
+   qaror (`MOSLASHUVCHANLIK.md`, 145-qator): setka HAQIQIY oy kalendari,
+   ustunlar ma'no tashiydi. Shuning uchun "aniqroq" yechimlarning
+   HAMMASI kenglik TALAB QILMAYDIGANLARIDAN tanlandi:
+
+    1) KATAK SIRTI — darsli kun `ink-800` (kulrang), darssiz kun
+       `ink-900` (oq). Bir qarashda "shu haftada qaysi kunlarda dars
+       bor" ko'rinadi, 0px kenglik.
+    2) CHAP CHEKKADAGI CHIZIQ (`border-l-[3px]`) — kunning ustun
+       ohangi (jonli/o'tilmagan = qizil, o'tilgan = yashil, rejada =
+       indigo). Chegara katakning O'ZIDA, ya'ni ichki joyni yemaydi.
+    3) KUN RAQAMI darsli kunda to'q (`slate-100`), bo'sh kunda ochroq —
+       raqamning o'zi ham signalga aylanadi.
+    4) PILL'ga chegara qo'shildi: oq/kulrang sirtda 12–20% lik tint
+       chekkasi ko'rinmasdi, endi tugma "tugma" bo'lib turadi.
+
+   ★ Fon utility'lari BITTA funksiyada tanlanadi, shablonda ustma-ust
+   qo'yilmaydi: `bg-ink-900` va `bg-brand-500/12` bir vaqtda berilsa
+   qaysi biri g'olib bo'lishi CSS faylidagi tartibga bog'liq bo'lardi
+   (sinf atributidagi tartibga EMAS).
+   ═══════════════════════════════════════════════════════════════════════ */
+
 const TONE_CLASS: Record<CalendarEventTone, string> = {
-  live: 'bg-rose-500/20 text-rose-400 font-bold',
-  held: 'bg-green-500/15 text-green-400',
-  missed: 'bg-rose-500/12 text-rose-400',
-  teacher: 'bg-brand-500/14 text-brand-500',
-  assistant: 'bg-green-500/15 text-green-400',
+  live: 'border-rose-500/45 bg-rose-500/20 text-rose-400 font-bold',
+  held: 'border-green-500/35 bg-green-500/15 text-green-400',
+  missed: 'border-rose-500/35 bg-rose-500/12 text-rose-400',
+  teacher: 'border-brand-500/35 bg-brand-500/14 text-brand-500',
+  assistant: 'border-green-500/35 bg-green-500/15 text-green-400',
 }
 
-function eventOf(session: ScheduledSessionDto) {
-  return calendarEvent(session, now.value)
+/** Katakning chap chekkasidagi chiziq — pill bilan BIR XIL rang oilasi. */
+const ACCENT_CLASS: Record<CalendarEventTone, string> = {
+  live: 'border-l-[3px] border-l-rose-500',
+  held: 'border-l-[3px] border-l-green-500',
+  missed: 'border-l-[3px] border-l-rose-500',
+  teacher: 'border-l-[3px] border-l-brand-500',
+  assistant: 'border-l-[3px] border-l-green-500',
 }
+
+/**
+ * Kunda bir nechta dars bo'lsa chekka chizig'i BITTA — qaysi ohang
+ * ustun bo'lishi shu tartib bilan hal qilinadi.
+ *
+ * ★ Tartib "e'tibor talab qiladimi?" savoliga qarab tuzilgan: jonli dars
+ * hozir ketyapti (eng shoshilinch), o'tilmagan dars — muammo,
+ * o'tilgani — tugagan ish, qolgani — reja.
+ */
+const TONE_PRIORITY: readonly CalendarEventTone[] = [
+  'live',
+  'missed',
+  'held',
+  'teacher',
+  'assistant',
+]
+
+interface CalendarEventView {
+  session: ScheduledSessionDto
+  label: string
+  tone: CalendarEventTone
+}
+
+interface CalendarCell extends CalendarDay {
+  events: CalendarEventView[]
+  /** Katakning tayyor sinflari — shablonda shart qo'yilmaydi. */
+  classes: string[]
+  dayNumberClass: string
+}
+
+function cellClasses(day: CalendarDay, tone: CalendarEventTone | null): string[] {
+  // Oldingi oy quyrug'i: darsi bo'lsa ham xira qoladi — u boshqa oyning ishi.
+  if (!day.inMonth) return ['border-line', 'bg-ink-900', 'opacity-25']
+
+  const classes: string[] = day.isToday
+    ? ['border-brand-500', 'bg-brand-500/12']
+    : tone === null
+      ? ['border-line', 'bg-ink-900']
+      : ['border-line-strong', 'bg-ink-800']
+
+  if (tone !== null) classes.push(ACCENT_CLASS[tone])
+  return classes
+}
+
+/*
+  Bezash BIR MARTA, `computed` ichida: ilgari shablon har bir dars uchun
+  `eventOf()` ni IKKI marta chaqirardi (sinf uchun va `title` uchun) va
+  har qayta chizishda hammasi qaytadan hisoblanardi.
+*/
+const cells = computed<CalendarCell[]>(() =>
+  grid.value.map((day) => {
+    const events: CalendarEventView[] = day.sessions.map((session) => ({
+      session,
+      ...calendarEvent(session, now.value),
+    }))
+
+    let best = TONE_PRIORITY.length
+    for (const event of events) {
+      const index = TONE_PRIORITY.indexOf(event.tone)
+      if (index >= 0 && index < best) best = index
+    }
+    const tone = TONE_PRIORITY[best] ?? null
+
+    return {
+      ...day,
+      events,
+      classes: cellClasses(day, tone),
+      dayNumberClass: day.isToday
+        ? 'text-brand-500'
+        : events.length > 0
+          ? 'text-slate-100'
+          : 'text-slate-400',
+    }
+  }),
+)
 </script>
 
 <template>
@@ -142,63 +251,112 @@ function eventOf(session: ScheduledSessionDto) {
         empty-title="Hali darslar yo‘q"
         @retry="scheduleQuery.refetch()"
       >
-        <div class="grid grid-cols-7 gap-1.5">
-          <p
-            v-for="weekday in TEACHER_WEEKDAYS"
-            :key="weekday"
-            class="py-1 text-center text-[11px] font-semibold uppercase tracking-[0.4px] text-slate-400"
-            v-text="weekday"
-          />
+        <!--
+          ★ QAROR: 7 USTUN QOLADI, TELEFONDA GORIZONTAL SKROLL QO'SHILADI.
 
-          <div
-            v-for="cell in grid"
-            :key="cell.key"
-            class="min-h-[58px] rounded-lg border p-1.5 sm:min-h-[85px]"
-            :class="[
-              cell.inMonth ? 'border-line bg-ink-900' : 'border-line bg-ink-900 opacity-25',
-              cell.isToday ? 'border-brand-500 bg-brand-500/12' : '',
-            ]"
-          >
-            <p class="flex items-center justify-between text-[11px] font-bold text-slate-400">
-              <span
-                :class="cell.isToday ? 'text-brand-500' : ''"
-                v-text="cell.dayNumber"
-              />
-              <span
-                v-if="cell.isToday"
-                class="rounded-[10px] bg-brand-500 px-1.5 text-[9px] text-on-brand"
-              >Bugun</span>
-            </p>
+          Bu setka — HAQIQIY oy kalendari (`buildMonthGrid`): Du..Ya
+          sarlavhalari va oyning har kuni. Ya'ni 7 ustun bezak emas,
+          MA'NO: hafta kunlari ustma-ust turgani uchun ustoz "har seshanba
+          dars bor" degan naqshni bir qarashda ko'radi. Ustunlar sonini
+          kamaytirsak (masalan 4 ustun) qatorlar hafta bo'lishdan to'xtaydi
+          va kalendar kalendar bo'lmay qoladi.
 
-            <button
-              v-for="session in cell.sessions"
-              :key="session.id"
-              type="button"
-              class="mt-1 block w-full truncate rounded-md px-1.5 py-0.5 text-left text-[11px] font-medium"
-              :class="[
-                TONE_CLASS[eventOf(session).tone],
-                session.id === selectedId ? 'ring-1 ring-brand-500' : '',
-              ]"
-              :title="`${session.title ?? sessionTypeLabel(session.type)} — ${eventOf(session).label}`"
-              @click="selectedId = session.id"
+          Lekin o'quvchi kalendaridan (`StudentCalendarPage`) FARQI bor:
+          u yerda katakda faqat kun raqami va nuqta bor — 40px da ham
+          o'qiladi. Bu yerda katakda kun raqami + «Bugun» yorlig'i +
+          dars tugmalari («09:00 Dars») bor. 375px ekranda katak atigi
+          ~40px, padding'dan keyin ~28px — vaqt ham, «Bugun» ham sig'maydi.
+          Shuning uchun setkaga eng kichik kenglik berilib, skroll SHU
+          konteyner ichida qoldirildi (`scroll-x-safe` — `FinanceTrendCard`
+          dagi bilan bir xil naqsh): matnlar ham, tartib ham, 7 ustun ham
+          o'zgarmaydi, sahifaning o'zi esa yon skrollga tushmaydi.
+
+          ★ 520px — tasodifiy son emas: shunda katak ~69px bo'ladi, ya'ni
+          640px ekrandagi (sm) katak o'lchamiga teng. Kengroq ekranda
+          setka joyga sig'adi va skroll umuman paydo bo'lmaydi.
+        -->
+        <div class="scroll-x-safe scrollbar-slim">
+          <div class="grid min-w-[520px] grid-cols-7 gap-1.5">
+            <p
+              v-for="weekday in TEACHER_WEEKDAYS"
+              :key="weekday"
+              class="py-1 text-center text-[11px] font-semibold uppercase tracking-[0.4px] text-slate-400"
+              v-text="weekday"
+            />
+
+            <!--
+              Katak sinflari `cells` da tayyorlanadi (skriptdagi R25
+              izohiga qarang): darsli kun sirti, chap chekkadagi ohang
+              chizig'i va kun raqamining to'qligi — uchalasi ham
+              kenglikni oshirmasdan "bu kunda dars bor" deydi.
+            -->
+            <div
+              v-for="cell in cells"
+              :key="cell.key"
+              class="min-h-[58px] rounded-lg border p-1.5 sm:min-h-[85px]"
+              :class="cell.classes"
             >
-              {{ formatTime(session.scheduledStart) }} {{ eventOf(session).label }}
-            </button>
+              <p class="flex items-center justify-between text-[11px] font-bold">
+                <span
+                  :class="cell.dayNumberClass"
+                  v-text="cell.dayNumber"
+                />
+                <span
+                  v-if="cell.isToday"
+                  class="rounded-[10px] bg-brand-500 px-1.5 text-[9px] text-on-brand"
+                >Bugun</span>
+              </p>
+
+              <button
+                v-for="event in cell.events"
+                :key="event.session.id"
+                type="button"
+                class="mt-1 block w-full truncate rounded-md border px-1.5 py-0.5 text-left text-[11px] font-medium"
+                :class="[
+                  TONE_CLASS[event.tone],
+                  event.session.id === selectedId ? 'ring-1 ring-brand-500' : '',
+                ]"
+                :title="`${event.session.title ?? sessionTypeLabel(event.session.type)} — ${event.label}`"
+                @click="selectedId = event.session.id"
+              >
+                {{ formatTime(event.session.scheduledStart) }} {{ event.label }}
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Eski `.legend` — kalendar ranglarining ma'nosi. -->
+        <!--
+          Eski `.legend` — kalendar ranglarining ma'nosi.
+
+          ★ TUZATILDI: legenda NUQTA chizardi, kataklar esa to'ldirilgan
+          PILL — bir xil ma'noning ikki xil alifbosi (reja hujjatining
+          "yo'l-yo'lakay topilgan xatolar" ro'yxatida ham qayd etilgan).
+          Endi namuna katakdagi pill'ning AYNAN o'zi: bir xil fon, bir
+          xil chegara, bir xil radius. Matnlar o'zgarmadi.
+        -->
         <div
           class="mt-3.5 flex flex-wrap gap-4 rounded-lg border border-line bg-ink-950 px-4 py-3 text-xs text-slate-400"
         >
           <span class="inline-flex items-center gap-1.5">
-            <b class="text-brand-500">●</b>Rejadagi dars
+            <span
+              class="h-3.5 w-6 shrink-0 rounded-md border"
+              :class="TONE_CLASS.teacher"
+              aria-hidden="true"
+            />Rejadagi dars
           </span>
           <span class="inline-flex items-center gap-1.5">
-            <b class="text-green-400">●</b>O‘tilgan
+            <span
+              class="h-3.5 w-6 shrink-0 rounded-md border"
+              :class="TONE_CLASS.held"
+              aria-hidden="true"
+            />O‘tilgan
           </span>
           <span class="inline-flex items-center gap-1.5">
-            <b class="text-rose-400">●</b>O‘tilmagan / jonli
+            <span
+              class="h-3.5 w-6 shrink-0 rounded-md border"
+              :class="TONE_CLASS.missed"
+              aria-hidden="true"
+            />O‘tilmagan / jonli
           </span>
         </div>
 

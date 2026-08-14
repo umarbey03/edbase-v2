@@ -431,6 +431,21 @@ public static class DependencyInjection
         // bitta, ulanish hovuzi ham bitta bo'lishi kerak. Imzo esa har
         // chaqiruvda `S3SigV4` bilan qaytadan hisoblanadi — holat yo'q.
         services.AddSingleton<IMediaStorage, R2MediaStorage>();
+
+        // ---------------------------------------------------------------- WAVE 2 (R6)
+        //
+        // O'YNATISH CHIPTASI: `<video src>` `Authorization` sarlavhasini
+        // yubora olmaydi, shuning uchun kimlikni aniqlashning IKKINCHI,
+        // FAQAT SHU MAQSADGA atalgan yo'li kerak bo'ldi.
+        //
+        // ★ SINGLETON va HOLATSIZ: imzo har chaqiruvda HMAC bilan
+        //   qaytadan hisoblanadi, hech nima saqlanmaydi (shu sababli
+        //   bir nechta API nusxasi bo'lsa ham chipta har qaysisida
+        //   ishlaydi — kalit bitta).
+        //
+        // 🔴 Chipta RUXSAT BERMAYDI — u faqat "kim" ekanini aytadi.
+        //    Batafsil: `IMediaAccessTicketService` izohi.
+        services.AddSingleton<IMediaAccessTicketService, HmacMediaAccessTicketService>();
     }
 
     /// <summary>

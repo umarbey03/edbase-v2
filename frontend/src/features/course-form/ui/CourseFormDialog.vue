@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 
 import { createCourse, updateCourse } from '@/entities/course'
 import { toUserMessage } from '@/shared/api'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { CourseDto, CourseWriteRequest } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -74,10 +75,45 @@ const updateMutation = useMutation({
 const isPending = computed(() => createMutation.isPending.value || updateMutation.isPending.value)
 const canSubmit = computed(() => name.value.trim().length > 0 && !isPending.value)
 
-function handleSubmit(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — TASDIQ FAQAT "FAOL KURS" BELGISI OLINGANDA.
+ *
+ * ★ NEGA HAR SAQLASHDA EMAS: nom va tavsifni tahrirlash qaytariladigan va
+ * ko'rinadigan amal — natija darhol ekranda. Bu forma esa kunda bir necha
+ * marta ochiladi, ya'ni har saqlashga oyna qo'yish uni ikki qadamli
+ * qilardi va foydali ogohlantirishni ham "har safar chiqadigan" shovqinga
+ * aylantirardi.
+ *
+ * 🔴 "FAOL" BELGISINI OLISH ESA — NIQOBLANGAN ARXIVLASH. U checkbox
+ * ko'rinishida, "arxivlash" so'zisiz, boshqa maydonlar bilan yonma-yon
+ * turadi; natijasi esa kursning tanlash oynalaridan yo'qolishi. Shuning
+ * uchun tasdiq AYNAN o'tish paytida (`true` → `false`) so'raladi:
+ * o'zi allaqachon nofaol kursni qayta saqlash yangi oqibat bermaydi.
+ */
+async function handleSubmit(): Promise<void> {
   if (!canSubmit.value) return
-  errorMessage.value = null
+
   const course = props.course
+  const deactivating = course !== null && course.isActive && !isActive.value
+
+  if (deactivating) {
+    const ok = await confirm({
+      title: 'Kursni arxivlash',
+      message: `“${course.name}” arxivlanadi — “Faol kurs” belgisi olib tashlanmoqda.`,
+      confirmLabel: 'Arxivlash',
+      tone: 'warning',
+      details: [
+        'Kurs yangi guruhlarga biriktirilmaydi va tanlash ro‘yxatlaridan chiqadi.',
+        'Allaqachon biriktirilgan guruhlar ishlashda davom etadi.',
+        'Modullar, darslar va materiallar saqlanadi — belgini qaytarsangiz hammasi joyida.',
+      ],
+    })
+    if (!ok) return
+  }
+
+  errorMessage.value = null
   if (course !== null) updateMutation.mutate(course.id)
   else createMutation.mutate()
 }

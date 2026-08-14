@@ -3,7 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { fetchUserProfile, isAdminRole, isManagerRole, roleLabel, roleTone } from '@/entities/user'
+import {
+  canSeeStudentContact,
+  fetchUserProfile,
+  isAdminRole,
+  isManagerRole,
+  roleLabel,
+  roleTone,
+} from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDialog.vue'
 import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDialog.vue'
@@ -112,6 +119,17 @@ const student = computed(() =>
 */
 const canUnlink = computed(() => isManagerRole(auth.role ?? ''))
 const canManageMoney = computed(() => isAdminRole(auth.role ?? ''))
+
+/*
+  🔴 KONTAKT USTOZDAN KESILGAN (talab R27) — bu YO'QLIK, "yashirish" emas:
+  `profile.user.phone/email` va `profile.telegram.telegramId/username`
+  serverdan `null` bo'lib keladi (moliya bloki bilan aynan bir printsip).
+
+  Bu yerdagi shart faqat SABABNI to'g'ri yozish uchun ("Ko'rsatilmaydi",
+  "—" emas): bo'sh maydonni ko'rgan ustoz aks holda ma'lumot kiritilmagan
+  deb o'ylardi.
+*/
+const contactHidden = computed(() => !canSeeStudentContact(auth.role ?? ''))
 
 /* -------------------------------------------------------- ichki oynalar -- */
 
@@ -228,6 +246,7 @@ function openGroup(groupId: number): void {
           :user="profile.user"
           :telegram="profile.telegram"
           :can-unlink="canUnlink"
+          :contact-hidden="contactHidden"
           @unlink="unlinkOpen = true"
         />
 

@@ -516,7 +516,7 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(string email, string password)
     {
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

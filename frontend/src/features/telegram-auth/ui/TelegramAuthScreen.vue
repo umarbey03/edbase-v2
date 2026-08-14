@@ -13,21 +13,33 @@ import { INIT_DATA_YOQ, useTelegramAuth } from '../model/useTelegramAuth'
 /**
  * TELEGRAM MINI APP KIRISH EKRANI.
  *
- * Ilova Telegram ichida ochilganda `LoginPage` email formasi o'rniga SHU
- * ekranni ko'rsatadi. Oddiy brauzerda bu komponent umuman mount bo'lmaydi —
- * ya'ni xodimlarning email+parol oqimi tegilmagan holda qoladi.
+ * Ilova Telegram ichida ochilganda `LoginPage` telefon formasi o'rniga SHU
+ * ekranni ko'rsatadi. Oddiy brauzerda bu komponent umuman mount bo'lmaydi.
  *
- * 🔴 BU YERDA TELEFON RAQAM (yoki boshqa shaxsiy ma'lumot) SO'RALADIGAN
- * MAYDON YO'Q va bo'lmasligi kerak. Eski tizimda aynan shunday oyna bor edi
- * (audit X-1b) va odam u yerga BOSHQA odamning raqamini yozib, uning
- * akkauntiga kirib olardi. Bog'lash faqat botda, `contact_shared` orqali
- * bo'ladi — o'quvchi bu yerdan faqat BOTGA yo'naltiriladi.
+ * ══════════════════════════════════════════════════════════════════════
+ * 🔴 BU YERDA TELEFON RAQAM SO'RALADIGAN MAYDON YO'Q — VA ENDI HAM YO'Q.
+ *
+ * Eski tizimda aynan shunday oyna bor edi (audit X-1b): odam u yerga
+ * BOSHQA odamning raqamini yozib, uning akkauntiga kirib olardi.
+ *
+ * ⚠️ 2026-08-13 da platformaga "telefon bilan kirish" QO'SHILDI — lekin
+ *    u BU EKRANDA emas, `LoginPage` da va u BUTUNLAY BOSHQA narsa:
+ *    u yerda raqam faqat "kimga kod yuborilsin" degan savolga javob
+ *    beradi, kirish esa KOD bilan bo'ladi va kod hujumchi ko'ra
+ *    olmaydigan kanalga — jabrlanuvchining Telegram hisobiga — ketadi.
+ *    Bu yerda esa raqamning O'ZI kirish berardi. Farqni yo'qotmang.
+ * ══════════════════════════════════════════════════════════════════════
  */
 const emit = defineEmits<{
   /** Kirish muvaffaqiyatli — sahifa foydalanuvchini yo'naltiradi. */
   success: [user: User]
-  /** Foydalanuvchi email+parol formasini so'radi (xodim yoki 503 holati). */
-  emailLogin: []
+  /**
+   * Foydalanuvchi BRAUZERDAGI telefon + kod formasini so'radi.
+   *
+   * ⚠️ Ilgari bu hodisa `emailLogin` deb atalardi va email+parol
+   *    formasini ochardi — o'sha forma 2026-08-13 da olib tashlandi.
+   */
+  phoneLogin: []
 }>()
 
 const flow = useTelegramAuth((user) => {
@@ -52,8 +64,8 @@ const manualHint = ref(false)
   o'quvchi paneli oltin-navy bo'lib almashardi — Telegram sarlavhasi esa
   allaqachon `#051e2d` ga bo'yalgan bo'lardi (`applyMiniAppChrome`).
 
-  Atribut olib tashlanadi, chunki 403/503 holatida foydalanuvchi email
-  formasiga o'tadi — u ataylab temasiz (eski ilovadagidek yashil).
+  Atribut olib tashlanadi, chunki 503 holatida foydalanuvchi telefon
+  formasiga o'tadi — u ataylab temasiz (xodimlar ekrani bilan bir xil).
 */
 onMounted(() => {
   document.documentElement.dataset['theme'] = 'student'
@@ -70,8 +82,8 @@ interface ErrorView {
   title: string
   /** NIMA QILISH kerakligi. Xato SABABINI server aytadi (`flow.message`). */
   hint: string
-  primary: 'bot' | 'close' | 'retry' | 'email'
-  secondary: 'retry' | 'email' | 'none'
+  primary: 'bot' | 'close' | 'retry' | 'phone'
+  secondary: 'retry' | 'phone' | 'none'
 }
 
 /*
@@ -86,7 +98,7 @@ const ERROR_VIEWS: Record<string, ErrorView> = {
     title: 'Kirish ma’lumoti topilmadi',
     hint: 'Ilovani bot chatidagi tugma orqali qayta oching.',
     primary: 'close',
-    secondary: 'email',
+    secondary: 'phone',
   },
   // Tarmoq xatosi — `ApiError` uni `status: 0` bilan beradi.
   0: {
@@ -103,11 +115,21 @@ const ERROR_VIEWS: Record<string, ErrorView> = {
     primary: 'close',
     secondary: 'retry',
   },
+  /*
+    403 — endi FAQAT "profil faol emas" degani.
+
+    ⚠️ Ilgari bu kod "siz xodimsiz, Telegram orqali kira olmaysiz" ni ham
+       bildirardi va matnda "Xodimlar email va parol bilan kiradi" deb
+       yozilgan edi. 2026-08-13 dan xodim ham Mini App orqali kiradi
+       (rol filtri olib tashlandi), ya'ni bu kod endi boshqa sababdan
+       kelmaydi. Eski matn foydalanuvchini mavjud bo'lmagan ekranga
+       yo'naltirardi.
+  */
   403: {
     icon: 'user',
-    title: 'Bu ilova o‘quvchilar uchun',
-    hint: 'Xodimlar email va parol bilan kiradi.',
-    primary: 'email',
+    title: 'Profil faol emas',
+    hint: 'O‘quv bo‘limi bilan bog‘laning — profilingiz vaqtincha yopilgan.',
+    primary: 'close',
     secondary: 'none',
   },
   409: {
@@ -131,15 +153,23 @@ const ERROR_VIEWS: Record<string, ErrorView> = {
     primary: 'retry',
     secondary: 'none',
   },
+  /*
+    🔴 503 — TELEGRAM INTEGRATSIYASI SOZLANMAGAN (bot tokeni yo'q/buzuq).
+
+    ⚠️ HALOL OGOHLANTIRISH: brauzerdagi telefon oqimi HAM AYNI tokenga
+       tayanadi (kod bot orqali yuboriladi), ya'ni bu holatda u ham
+       ishlamaydi. Shuning uchun "telefon bilan kiring" tugmasi bu yerda
+       ASOSIY harakat sifatida KO'RSATILMAYDI — u foydalanuvchini
+       ishlamaydigan ekranga yuborardi. Ikkinchi darajali havola sifatida
+       qoldirilgan: nosozlik faqat Mini App tomonida bo'lishi ham mumkin.
+  */
   503: {
     icon: 'alert',
-    title: 'Telegram vaqtincha ishlamayapti',
-    // Server 503 da "email va parol bilan kiring" deb ALLAQACHON aytadi
-    // (jonli javobda tekshirildi) — takrorlamaymiz, faqat vaqtinchaligini
-    // qo'shamiz, aks holda o'quvchi Telegram butunlay o'chgan deb o'ylardi.
-    hint: 'Bu vaqtinchalik holat — keyinroq Telegram orqali kirish yana ishlaydi.',
-    primary: 'email',
-    secondary: 'retry',
+    title: 'Kirish vaqtincha ishlamayapti',
+    hint: 'Bu vaqtinchalik holat. Biroz kutib, qaytadan urinib ko‘ring — '
+      + 'muammo davom etsa o‘quv bo‘limiga xabar bering.',
+    primary: 'retry',
+    secondary: 'phone',
   },
 }
 
@@ -148,7 +178,7 @@ const FALLBACK_VIEW: ErrorView = {
   title: 'Kirib bo‘lmadi',
   hint: 'Birozdan so‘ng qayta urinib ko‘ring.',
   primary: 'retry',
-  secondary: 'email',
+  secondary: 'phone',
 }
 
 const view = computed(() => lookup(ERROR_VIEWS, String(flow.status.value), FALLBACK_VIEW))
@@ -171,13 +201,26 @@ function handleClose(): void {
 <template>
   <div class="flex min-h-dvh items-center justify-center bg-ink-950 px-5 py-10">
     <div class="w-full max-w-sm text-center">
+      <!--
+        R19 — plita radiusi boshqa qobiqlarniki bilan tenglashtirildi
+        (`rounded-xl` -> `rounded-2xl`). `AppSidebar`/`StudentSidebar` da
+        `size-9` + `rounded-xl`, bu yerda esa plita KATTA (`size-12`) —
+        ayni radius katta kvadratda sezilarli darajada "o'tkirroq"
+        ko'rinadi. `LoginPage` dagi ayni o'lchamdagi plita bilan bir xil
+        qiymat: ikkalasi ham kirish oqimida, ketma-ket ko'rinadi.
+      -->
       <div
-        class="mx-auto flex size-12 items-center justify-center rounded-xl bg-brand-500 text-lg font-bold text-on-brand"
+        class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-500 text-lg font-bold text-on-brand"
       >
         Z
       </div>
-      <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-50">
-        Zin<span class="text-brand-500">-Nur</span>
+      <!--
+        R19 — brend nomi BITTA rangda ("Zin" tanadan meros olgan
+        `slate-50` va "-Nur" ning aksenti o'rniga butun so'z aksentda).
+        ★ Matn O'ZGARMADI.
+      -->
+      <h1 class="mt-4 text-2xl font-bold tracking-tight text-brand-500">
+        Zin-Nur
       </h1>
 
       <!-- YUKLANISH: oq ekran emas, nima bo'layotgani yozilgan. -->
@@ -262,12 +305,12 @@ function handleClose(): void {
             Ilovani yopish
           </BaseButton>
           <BaseButton
-            v-else-if="view.primary === 'email'"
+            v-else-if="view.primary === 'phone'"
             size="lg"
             block
-            @click="emit('emailLogin')"
+            @click="emit('phoneLogin')"
           >
-            Email va parol bilan kirish
+            Telefon raqami bilan kirish
           </BaseButton>
           <BaseButton
             v-else
@@ -290,13 +333,13 @@ function handleClose(): void {
             {{ retryLabel }}
           </BaseButton>
           <BaseButton
-            v-else-if="view.secondary === 'email'"
+            v-else-if="view.secondary === 'phone'"
             variant="ghost"
             size="md"
             block
-            @click="emit('emailLogin')"
+            @click="emit('phoneLogin')"
           >
-            Email va parol bilan kirish
+            Telefon raqami bilan kirish
           </BaseButton>
         </div>
 

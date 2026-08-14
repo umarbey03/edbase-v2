@@ -10,6 +10,7 @@ import { useNow } from '@/shared/lib/use-now'
 
 import StudentAppBar from './StudentAppBar.vue'
 import StudentProfileSheet from './StudentProfileSheet.vue'
+import StudentSidebar from './StudentSidebar.vue'
 import StudentTabBar from './StudentTabBar.vue'
 import StudentToast from './StudentToast.vue'
 
@@ -17,6 +18,22 @@ import StudentToast from './StudentToast.vue'
  * O'QUVCHI KARKASI — eski `student.html` ning Telegram Mini App tuzilishi:
  * yopishqoq appbar, 520px kenglikdagi markazlashgan ustun, pastda 5 tabli
  * panel.
+ *
+ * ★ 2026-08-13: USTIGA DESKTOP QATLAMI QO'SHILDI (≥1024px) — yon menyu,
+ * kengroq ustun, tab panelisiz. TELEFON YO'LI TEGILMAGAN va bu shunchaki
+ * ehtiyotkorlik emas: o'quvchi paneli AYNI PAYTDA Telegram Mini App'ning
+ * o'zi (alohida bundle yo'q, `telegram-web-app.ts` ish vaqtida
+ * tarmoqlanadi), Telegram esa Mini App'ni HAR DOIM telefon kengligidagi
+ * oynada ochadi — Telegram Desktop'da ham. Ya'ni 1024px dan past hamma
+ * narsa Mini App tajribasi bo'lib qoladi.
+ *
+ * Shuning uchun DESKTOP QOIDALARI FAQAT `lg:` PREFIKSI OSTIDA yoziladi,
+ * JS chegara tekshiruvi bilan EMAS: `useBreakpoint()` bor, lekin uni bu
+ * yerda ishlatsak chegarani IKKI hakam belgilardi (CSS `64rem`, JS
+ * `1024px`) va foydalanuvchi brauzerning asosiy shrift o'lchamini
+ * kattalashtirsa ular ajralib ketardi — yon menyu chiqib, kontent hali
+ * telefon rejimida qolgan oraliq holat. Bitta hakam = bunday holat
+ * mumkin emas.
  *
  * NEGA XODIM KARKASI (`AppShell`) DAN ALOHIDA: ikkalasi bir-biriga o'xshamaydi
  * (yon menyu vs pastki tab) va ularni bitta komponentda `v-if` bilan
@@ -86,8 +103,8 @@ onBeforeUnmount(() => {
 
   Brauzerda chiqish = sessiyani tozalab, kirish formasiga qaytish. Telegram
   ichida bu MA'NOSIZ bo'lardi: o'quvchi kim ekanini Telegram akkaunti
-  belgilaydi, u email va parolni umuman bilmaydi — forma unga BOSHI BERK
-  ko'cha. Shu bilan birga tugmani butunlay olib tashlash ham to'g'ri emas:
+  belgilaydi, ya'ni forma unga BOSHI BERK ko'cha — u yerda raqam so'raladi
+  va kod AYNI shu Telegram hisobiga qaytib kelardi. Shu bilan birga tugmani butunlay olib tashlash ham to'g'ri emas:
   telefon boshqa odam qo'lida qolishi mumkin va sessiyani tozalash kerak.
 
   Shuning uchun Mini App'da chiqish = SESSIYANI TOZALAB, ILOVANI YOPISH.
@@ -122,15 +139,78 @@ async function handleLogout(): Promise<void> {
   <!--
     Tema `<html>` da (yuqoridagi izohga qarang), bu yerda faqat JOYLASHUV va
     tipografiya: eski ilovaning `body { font-size: 15px; line-height: 1.5 }`.
+
+    `lg:flex` — desktop qatlamining YAGONA tuzilish o'zgarishi: yon menyu va
+    kontent yonma-yon. 1024px dan pastda bu klass umuman qo'llanmaydi.
   -->
-  <div class="min-h-dvh bg-ink-950 font-sans text-[15px] leading-normal text-slate-100">
+  <div class="min-h-dvh bg-ink-950 font-sans text-[15px] leading-normal text-slate-100 lg:flex">
+    <!--
+      ===================== Desktop: doimiy yon ustun =====================
+      `hidden lg:block` — xodim karkasidagi (`AppShell`) bilan AYNAN bir xil
+      naqsh va bir xil kenglik (230px). Telefonda `display:none`, ya'ni
+      ko'rinish daraxtidan ham, a11y daraxtidan ham butunlay chiqadi:
+      pastki tab paneli bilan hech qachon birga bo'lmaydi.
+    -->
+    <aside class="sticky top-0 hidden h-dvh w-[230px] shrink-0 border-r border-line lg:block">
+      <StudentSidebar
+        :display-name="auth.displayName"
+        @open-profile="profileOpen = true"
+      />
+    </aside>
+
     <!--
       Eski `body { max-width: 520px; margin: 0 auto }`. 560px dan keng
       ekranlarda chap/o'ng chegara chiziladi — ustun "osilib qolmasin".
       Pastki bo'shliq tab paneli + safe-area balandligiga teng.
+
+      ★ DESKTOPDA TO'RT QO'SHIMCHA, hammasi `lg:` ostida:
+        • `lg:max-w-[1600px]` — 520px qulfi yechiladi.
+
+          🔴 ILGARI 960px EDI — LOYIHA EGASI RAD ETDI (2026-08-13):
+          *"desktop variantida menudan tashqari contentlar to'liq ekran va
+          kenglik bo'yicha moslangan holda joylashmayapti… shunchaki
+          centerga tartiblab qo'ymang"*. 2560px monitorda 960px lik ustun
+          ikki yonida ~700px dan bo'sh joy qoldirardi — ilova "buzilgan"
+          ko'rinardi.
+
+          ★ LEKIN CHEKSIZ HAM EMAS, va bu ZIDDIYAT EMAS: 15px shriftdagi
+          BITTA ustun 2330px ga cho'zilsa qator 300+ belgi bo'lib o'qilmay
+          qoladi. Yechim kenglikni cheklashda emas — uni ISHLATISHDA:
+          sahifalar desktopda KO'P USTUNGA bo'linadi (`docs/
+          MOSLASHUVCHANLIK.md` 6-bo'lim), ya'ni bo'sh joyni chiziq
+          uzunligi emas, KONTENT to'ldiradi. 1600px — ikki-uch ustun
+          bemalol sig'adigan, lekin ultra-keng monitorda ham o'lchovi
+          buzilmaydigan kenglik.
+        • `lg:border-x-0` — chap tomonda yon menyu chegarasi bor, ustunning
+          o'z ramkasi endi ortiqcha "ikkinchi quti" bo'lib ko'rinardi.
+
+      ★ PLANSHET BOSQICHI — `md:max-w-[840px]` (2026-08-13, loyiha egasi:
+        *"ipad qismlarida ham to'liq ekran holatida ishlamayapti"*).
+
+        Desktop qatlami `lg:` (1024px) dan boshlanadi, lekin iPad TIK holati
+        768px, iPad Air esa 820px — ya'ni ikkalasi ham `lg:` dan PAST. Ular
+        520px lik ustunda qolib, yon tomonlarida ~124px dan bo'sh joy va
+        ko'rinib turgan `xs:border-x` chegaralari bilan "tugallanmagan"
+        ko'rinardi.
+
+        ★ NEGA YON MENYU EMAS, KENGROQ USTUN: 768px da yon menyu (230px)
+        kontentga atigi 538px qoldirardi — bu 520px dan deyarli farq
+        qilmaydi, ya'ni menyu qo'shib hech narsa yutilmasdi. Shuning uchun
+        planshetda pastki tab paneli QOLADI (iPad ilovalarida odatiy naqsh),
+        faqat ustun kengayadi. Yon menyu `lg:` da paydo bo'ladi — o'shanda
+        kontentga 1370px qoladi.
+
+        ★ Ikki ustunli sahifa setkalari ATAYLAB `lg:` da qoladi: 840px da
+        600px lik kalendar + darslar ro'yxati yonma-yon sig'masdi.
+        • `lg:pb-0!` — tab paneli desktopda yo'q, uning o'rniga qoldirilgan
+          80px ham kerak emas. ★ `!` SHART: bu bo'shliq inline `style` da
+          (ichida `env(safe-area-inset-bottom)` bor, uni utility bilan
+          berib bo'lmaydi), inline'ni esa faqat `!important` yenga oladi.
+          Inline `style` ning O'ZIGA ATAYLAB tegilmadi — telefon yo'li bir
+          bayt ham o'zgarmasligi kerak edi.
     -->
     <div
-      class="mx-auto w-full max-w-[520px] min-[560px]:border-x min-[560px]:border-line"
+      class="mx-auto w-full max-w-[520px] xs:border-x xs:border-line md:max-w-[840px] lg:min-w-0 lg:max-w-[1600px] lg:flex-1 lg:border-x-0 lg:pb-0!"
       style="padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px))"
     >
       <StudentAppBar
@@ -141,13 +221,18 @@ async function handleLogout(): Promise<void> {
       />
 
       <!-- Eski `.wrap { padding: 4px 16px 24px }` -->
-      <main class="px-4 pb-6 pt-1">
+      <main class="px-4 pb-6 pt-1 md:px-6 lg:px-8 lg:pb-12">
         <RouterView v-slot="{ Component }">
           <component :is="Component" />
         </RouterView>
       </main>
     </div>
 
+    <!--
+      Pastki 5 tab — `lg:hidden` komponentning O'ZIDA. Desktopda uning
+      o'rnini yuqoridagi yon ustun egallaydi; ikkalasi ham BITTA ro'yxatdan
+      oziqlanadi (`useStudentNav` -> `STUDENT_NAV`).
+    -->
     <StudentTabBar />
     <StudentToast />
 

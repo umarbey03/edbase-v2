@@ -33,14 +33,20 @@ public sealed class RecordingsController(IRecordingService recordings) : Control
     // ================================================================= dars ichidan
 
     /// <summary>
-    /// Yozuvni boshlaydi (faqat JONLI dars, faqat host).
+    /// Yozuvni QO'LDA boshlaydi (faqat JONLI dars, faqat host).
     ///
-    /// ★ QAROR: yozuv AVTOMATIK boshlanmaydi — ustoz tugma bosadi. Sabab
-    /// va eski tizim bilan farqi <see cref="IRecordingService"/> izohida
-    /// batafsil (qisqasi: rozilik, javobgarlik va "yozuv nosozligi darsni
-    /// to'xtatmasligi" talabi).
+    /// ★ QAROR (2026-08-13): yozuv AVTOMATIK boshlanadi — guruhda
+    /// <c>RecordEnabled</c> yoqilgan bo'lsa, dars boshlanishi bilan
+    /// navbatga tushadi (<see cref="IAutoRecordingScheduler"/>). BU ENDPOINT
+    /// esa OVERRIDE bo'lib qoladi: yozuvi o'chiq guruhning bitta darsini
+    /// yozib olish, sozlama tuzatilgandan keyin darsni qayta boshlamasdan
+    /// yozuvni yoqish va to'xtatilgan yozuvni qaytadan boshlash uchun.
+    /// Sabab, bekor qilingan eski qaror va uning dalillari
+    /// <see cref="IRecordingService"/> izohida.
     ///
-    /// IDEMPOTENT: tugma ikki marta bosilsa AYNI yozuv qaytadi.
+    /// IDEMPOTENT: tugma ikki marta bosilsa AYNI yozuv qaytadi. ⚠️
+    /// Avtomatik navbat allaqachon qator qo'ygan bo'lsa ham AYNI qator
+    /// qaytadi — ikkinchi egress ochilmaydi.
     /// </summary>
     /// <response code="200">Yozuv so'raldi (holat DTO'da).</response>
     /// <response code="403">Host emas.</response>
@@ -73,10 +79,42 @@ public sealed class RecordingsController(IRecordingService recordings) : Control
         Ok(await recordings.StopAsync(sessionId, CurrentUserId, ct));
 
     /// <summary>
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 "HOZIR YOZIB OLINYAPTIMI" — JONLI XONADAGI INDIKATOR UCHUN
+    /// ══════════════════════════════════════════════════════════════════
+    ///
+    /// ★ BU YAGONA YOZUV ENDPOINTI KI, UNDA <c>[Authorize(Roles = …)]</c>
+    /// ATAYLAB YO'Q. Sinf darajasidagi <c>[Authorize]</c> qoladi (tizimga
+    /// kirgan bo'lish shart), lekin ROL DARVOZASI QO'YILMAYDI: indikatorni
+    /// aynan O'QUVCHI ko'rishi kerak — avtomatik yozuv qarorining shartli
+    /// qismi shu (izoh: <see cref="IRecordingService"/>, 1-dalil).
+    ///
+    /// Ruxsat servisda va u DARSGA bog'liq: guruhda bo'lmagan o'quvchi
+    /// baribir 403 oladi (<c>ILiveSessionService.GetAsync</c>).
+    ///
+    /// ⚠️ FRONTEND UCHUN: klient bu manzilni xonada bo'lgan VAQTNING
+    /// HAMMASIDA so'rab turadi, faqat yozuv ketayotganda emas — aks holda
+    /// yozuvning BOSHLANISHINI hech qachon sezmasdi.
+    /// </summary>
+    /// <response code="200">Holat (yozuv ketyaptimi va qachondan beri).</response>
+    /// <response code="403">Bu darsni ko'rish huquqi yo'q.</response>
+    [HttpGet("~/api/v1/live-sessions/{sessionId:long}/recording-status")]
+    [ProducesResponseType<RecordingLiveStatusDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RecordingLiveStatusDto>> LiveStatus(
+        long sessionId, CancellationToken ct) =>
+        Ok(await recordings.GetLiveStatusAsync(sessionId, CurrentUserId, ct));
+
+    /// <summary>
     /// Darsning yozuv urinishlari (yangisi birinchi).
     ///
     /// O'quvchi faqat TAYYOR yozuvlarni ko'radi; xodim — barchasini, xato
     /// sababi bilan (sabab servisda).
+    ///
+    /// ⚠️ SHUNING UCHUN BU ENDPOINT INDIKATOR UCHUN YARAMAYDI: ketayotgan
+    /// yozuv o'quvchiga umuman ko'rinmaydi. Indikator yuqoridagi
+    /// <c>recording-status</c> dan oziqlanadi.
     /// </summary>
     [HttpGet("~/api/v1/live-sessions/{sessionId:long}/recordings")]
     [ProducesResponseType<IReadOnlyList<RecordingDto>>(StatusCodes.Status200OK)]

@@ -2,6 +2,7 @@ export {
   fetchRecordingLink,
   fetchRecordings,
   fetchSessionRecordings,
+  fetchSessionRecordingStatus,
   startRecording,
   stopRecording,
 } from './api/recording-api'

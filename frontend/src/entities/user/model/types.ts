@@ -61,6 +61,25 @@ export function isAdminRole(role: string): boolean {
   return role === 'Admin'
 }
 
+/**
+ * O'quvchining KONTAKT ma'lumoti (email, telefon, Telegram) shu rolga
+ * yuboriladimi — talab R27.
+ *
+ * ⚠️ BU XAVFSIZLIK TEKSHIRUVI EMAS va bo'la olmaydi: kesish SERVERDA
+ * (`StudentAudience`), maydonlar javobga `null` bo'lib tushadi. Bu yerdagi
+ * funksiya faqat MATNNI to'g'ri tanlash uchun: bo'sh telefonni ko'rgan
+ * interfeys "Telefon kiritilmagan" deb yozib qo'ysa, ustozga YOLG'ON
+ * aytgan bo'lardi (raqam bor, shunchaki berilmagan). Render qilish
+ * qarorining o'zi baribir `null` tekshiruviga tayanadi.
+ *
+ * ★ KURATOR ATAYLAB ISTISNO: qo'ng'iroq — uning asosiy amali (dars
+ * qoldirgan o'quvchini u qidiradi). Sabab serverdagi `StudentAudience`
+ * izohida to'liq yozilgan.
+ */
+export function canSeeStudentContact(role: string): boolean {
+  return role !== 'Teacher'
+}
+
 /** Rol bo'yicha saralash og'irligi: ustoz -> kurator -> qolganlar. */
 export function roleWeight(role: string): number {
   if (role === 'Teacher') return 0

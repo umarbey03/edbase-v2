@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Zinnur.Application.Common.Interfaces;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.IntegrationTests.Infrastructure;
 
@@ -168,17 +169,30 @@ public sealed class UserProfileQueryCountTests(ZinnurApiFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
     }
 
+    /// <summary>
+    /// Admin uchun kirish tokeni.
+    ///
+    /// ⚠️ 2026-08-13: ilgari bu yerda `POST /api/v1/auth/login` chaqirilardi —
+    /// endpoint olib tashlandi (email va parol bilan kirish yo'q). Token
+    /// endi `ZinnurApiFactory.LoginAsAdminAsync` bilan AYNI yo'ldan,
+    /// haqiqiy `IJwtTokenService` orqali yasaladi.
+    ///
+    /// ★ BU SINF UCHUN AYNIQSA MUHIM: u SQL so'rovlarini SANAYDI. Kirish
+    ///   HTTP orqali bo'lganda o'lchovga kirishning o'z so'rovlari ham
+    ///   tushib, chegara sababsiz "oshib ketardi".
+    /// </summary>
     private static async Task<string> LoginAsAdminAsync(WebApplicationFactory<Program> host)
     {
-        using var client = host.CreateClient();
+        using var scope = host.Services.CreateScope();
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email = "admin@zinnur.uz", password = "Admin!2345" });
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
 
-        response.EnsureSuccessStatusCode();
+        var admin = await db.Users
+            .AsNoTracking()
+            .FirstAsync(u => u.Email == DbInitializer.AdminEmail);
 
-        var tokens = await response.Content.ReadFromJsonAsync<AuthTokens>();
-        return tokens!.AccessToken;
+        return jwt.CreateAccessToken(admin);
     }
 
     // ---------------------------------------------------------------- o'lchov vositalari

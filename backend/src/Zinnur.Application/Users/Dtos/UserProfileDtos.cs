@@ -12,10 +12,13 @@ namespace Zinnur.Application.Users.Dtos;
 // so'rov — bitta loader.
 //
 // 🔴 RUXSAT SERVERDA KESILADI, frontendda yashirish YETARLI EMAS:
-//   Academic/Admin  -> hammasi;
-//   Teacher/Assistant -> faqat O'Z guruhidagi o'quvchi va `Finance` = null;
+//   Academic/Admin -> hammasi;
+//   Assistant (kurator) -> faqat O'Z guruhidagi o'quvchi, `Finance` = null;
+//   Teacher (ustoz)     -> yuqoridagining USTIGA KONTAKT ham kesiladi —
+//                          `User.Email/Phone/TelegramId/TelegramUsername` va
+//                          `Telegram.TelegramId/Username` = null (talab R27);
 //   Student -> faqat o'zi, `Notes` = null va `Finance.Transactions` = null.
-// Qoida `UserProfileService` da BITTA joyda.
+// Qoida `UserProfileService` da BITTA joyda, auditoriya `StudentAudience` da.
 // ============================================================================
 
 /// <summary>
@@ -47,8 +50,21 @@ public sealed record UserProfileDto(
 /// <summary>
 /// Telegram ulanish holati va oxirgi uzishning izi.
 /// </summary>
-/// <param name="Linked">Hosila: <c>TelegramId != null</c>.</param>
-/// <param name="Username"><c>@</c> BELGISIZ (frontend o'zi qo'shadi).</param>
+/// <param name="Linked">
+/// Hosila: bazada <c>TelegramId != null</c>.
+/// ★ Ustoz uchun ham HAQIQIY qiymat keladi: bu HOLAT ("kira oladimi"),
+/// kontakt emas — u orqali o'quvchiga bog'lanib bo'lmaydi.
+/// </param>
+/// <param name="TelegramId">
+/// 🔴 Ustozga DOIM <c>null</c> (talab R27) — <see cref="Linked"/> bilan
+/// birga o'qing: <c>Linked = true</c>, lekin id yo'q degani "bog'langan,
+/// ammo sizga ko'rsatilmaydi".
+/// </param>
+/// <param name="Username">
+/// <c>@</c> BELGISIZ (frontend o'zi qo'shadi).
+/// 🔴 Ustozga DOIM <c>null</c>: <c>t.me/&lt;username&gt;</c> — bu
+/// to'g'ridan-to'g'ri bog'lanish kanali, ya'ni KONTAKT.
+/// </param>
 /// <param name="UnlinkedAt">
 /// OXIRGI uzish vaqti (<c>TelegramUnlinkAudit</c> dan). Bog'lanish hozir
 /// mavjud bo'lsa ham to'lishi mumkin — "uzilgan, keyin qaytadan bog'langan"

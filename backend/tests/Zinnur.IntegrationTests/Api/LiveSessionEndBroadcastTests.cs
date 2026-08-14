@@ -81,7 +81,7 @@ public sealed class LiveSessionEndBroadcastTests(NotifierSpyFactory factory)
     {
         var sessionId = await CreateScheduledSessionAsync();
         var (email, password) = await CreateOutsiderStudentAsync();
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var response = await client.PostAsync(

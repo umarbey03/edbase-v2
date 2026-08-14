@@ -76,6 +76,7 @@ public sealed class SettingsService(
 
         var definition = Require(key);
         EnsureEditable(definition);
+        await EnsureNotOverriddenAsync(definition, actorId, ct).ConfigureAwait(false);
 
         if (!SettingValueParser.TryNormalize(definition, request.Value, out var normalized, out var error))
             throw Invalid(definition.Key, error);
@@ -122,6 +123,7 @@ public sealed class SettingsService(
 
         var definition = Require(key);
         EnsureEditable(definition);
+        await EnsureNotOverriddenAsync(definition, actorId, ct).ConfigureAwait(false);
 
         var targets = await ResolveResetTargetsAsync(definition, ct).ConfigureAwait(false);
         var anyRemoved = false;
@@ -306,6 +308,39 @@ public sealed class SettingsService(
             definition.ReadOnlyReason ?? "Bu sozlama paneldan o'zgartirilmaydi.");
     }
 
+    /// <summary>
+    /// 🔴 Qiymat shoshilinch muhit o'zgaruvchisi bilan ustidan yozilgan
+    /// bo'lsa yozishni RAD ETADI.
+    ///
+    /// ★ NIMA UCHUN <see cref="EnsureEditable"/> GA QO'SHILMADI: u sof
+    /// funksiya (faqat registrga qaraydi) va shu sababli testda bazasiz
+    /// tekshiriladi. Bu shart esa MUHITGA bog'liq, ya'ni hisoblash uchun
+    /// resolver kerak. Ikkalasini aralashtirish sof funksiyani ham
+    /// asinxron qilib, oddiy holatni qimmatlashtirardi.
+    ///
+    /// ★ 400 (403 emas): sabab administratorning huquqida emas — bu
+    /// kalitni hozir HECH KIM o'zgartira olmaydi. Frontend
+    /// <c>problem.errors[key][0]</c> ni o'qib, sababni maydon yonida
+    /// ko'rsatadi (registrdagi "faqat o'qish" holati bilan bir xil naqsh).
+    /// </summary>
+    private async Task EnsureNotOverriddenAsync(
+        SettingDefinition definition, long actorId, CancellationToken ct)
+    {
+        if (definition.OverrideConfigurationKey is not { Length: > 0 })
+            return;
+
+        var resolved = await resolver.ResolveAsync(definition, ct).ConfigureAwait(false);
+
+        if (!resolved.IsOverridden)
+            return;
+
+        SettingsLog.OverrideBlocked(logger, definition.Key, actorId);
+
+        throw Invalid(
+            definition.Key,
+            definition.OverrideReason ?? "Bu qiymat muhit o'zgaruvchisi bilan ustidan yozilgan.");
+    }
+
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
 
@@ -366,6 +401,32 @@ public sealed class SettingsService(
         var definition = resolved.Definition;
         var secret = definition.IsSecret;
 
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 SHOSHILINCH USTIDAN YOZISH — MAYDON QULFLANADI.
+        //
+        // `IsEditable` odatda STATIK (registrdagi manbaga qarab). Bu
+        // yagona holat uni ISH JARAYONIDA pasaytiradi, chunki sabab ham
+        // ish jarayonida paydo bo'ladi: muhit o'zgaruvchisi qo'yilgan.
+        //
+        // ★ BUNSIZ NIMA BO'LARDI: administrator tokenni paneldan
+        //   almashtirardi, server "saqlandi" deb 200 qaytarardi, qator
+        //   bazaga tushardi — va tizim baribir muhitdagi eski qiymat
+        //   bilan ishlayverardi. Sozlamalar registrining butun izohi
+        //   aynan shu holatni ("jimgina yolg'on") eng yomon xato deb
+        //   ataydi.
+        //
+        // ★ NIMA UCHUN YOZISH HAM TO'SILADI (`EnsureEditable`): faqat
+        //   UI'da yashirish yetarli emasdi — API to'g'ridan-to'g'ri
+        //   chaqirilishi mumkin, va bazaga tushib qolgan qator
+        //   o'zgaruvchi olib tashlangan kunda KUTILMAGANDA kuchga
+        //   kirardi.
+        // ══════════════════════════════════════════════════════════════
+        var editable = definition.IsEditable && !resolved.IsOverridden;
+
+        var readOnlyReason = resolved.IsOverridden
+            ? definition.OverrideReason
+            : definition.ReadOnlyReason;
+
         return new SettingDto(
             definition.Key,
             definition.Group,
@@ -374,8 +435,8 @@ public sealed class SettingsService(
             definition.Description,
             definition.Kind,
             secret,
-            definition.IsEditable,
-            definition.ReadOnlyReason,
+            editable,
+            readOnlyReason,
             resolved.Origin,
             resolved.IsSet,
 
@@ -423,4 +484,18 @@ internal static partial class SettingsLog
         Level = LogLevel.Warning,
         Message = "Sozlamalarga ruxsatsiz urinish. actorId={ActorId} rol={Role}")]
     internal static partial void AccessDenied(ILogger logger, long actorId, string role);
+
+    /// <summary>
+    /// ★ NIMA UCHUN OGOHLANTIRISH DARAJASIDA: bu hodisa tizim SHOSHILINCH
+    /// rejimda ekanini bildiradi — kimdir tokenni paneldan tuzatmoqchi,
+    /// lekin muhit o'zgaruvchisi hali olib tashlanmagan. Aynan shu
+    /// "yarim tiklangan" holat unutilib ketishi mumkin, shuning uchun u
+    /// logda ko'rinib turishi kerak.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6002,
+        Level = LogLevel.Warning,
+        Message = "Sozlama muhit o'zgaruvchisi bilan ustidan yozilgan — yozish rad etildi. "
+                  + "key={Key} actorId={ActorId}")]
+    internal static partial void OverrideBlocked(ILogger logger, string key, long actorId);
 }

@@ -69,11 +69,30 @@ function handleNextClick(): void {
 </script>
 
 <template>
+  <!--
+    Desktopda (≥1024px) panelning O'ZI saqlanadi — "keyingi dars" chipi va
+    profil avatari u yerda ham kerak. Faqat gorizontal bo'shliq `<main>`
+    bilan tenglashadi (`lg:px-8`) va `lg:justify-end` qo'shiladi: pastdagi
+    logotip `lg:hidden` bo'lgani uchun panelda bitta bola qoladi, uni esa
+    `justify-between` CHAPGA qo'yib yuborardi.
+  -->
   <header
-    class="sticky top-0 z-30 flex items-center justify-between px-[18px] pb-3 pt-4 backdrop-blur-[8px]"
+    class="sticky top-0 z-30 flex items-center justify-between px-[18px] pb-3 pt-4 backdrop-blur-[8px] lg:justify-end lg:px-8 lg:pt-6"
     style="background: linear-gradient(180deg, var(--color-ink-950) 72%, transparent)"
   >
-    <p class="text-[19px] font-extrabold leading-tight tracking-[-0.4px] text-brand-500">
+    <!--
+      ★ LOGOTIP DESKTOPDA YASHIRINADI: u yerda brend yon menyu tepasida
+      turadi (`StudentSidebar`), va ekranning eng qimmat burchagini ikki
+      marta bir xil yozuvga sarflash mumkin emas.
+
+      Uning o'rniga SAHIFA SARLAVHASI ham ATAYLAB qo'yilmadi: desktopda
+      "qaysi bo'limdaman" savoliga yon menyudagi faol band javob beradi,
+      ichki sahifalarda esa `StudentSubHeader` ning `<h1>` i — uchinchi
+      nusxa faqat shovqin bo'lardi.
+    -->
+    <p
+      class="text-[19px] font-extrabold leading-tight tracking-[-0.4px] text-brand-500 lg:hidden"
+    >
       ZIN-NUR
       <span class="block text-[10px] font-bold tracking-[2.5px] text-dim">TALABA</span>
     </p>

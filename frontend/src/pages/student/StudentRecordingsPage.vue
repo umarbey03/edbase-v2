@@ -60,7 +60,18 @@ function play(recordingId: number, title: string): void {
 </script>
 
 <template>
-  <div>
+  <!--
+    ★ `@container` — pastdagi ro'yxat setkasi OYNANI emas, SHU USTUNNI
+    o'lchaydi (xuddi "Testlarim" sahifasidagidek). Ildizda, chunki element
+    o'zini so'rovga sola olmaydi: `@container` va `@2xl:` bitta tugunda
+    tursa, so'rov yuqoridagi konteynerga murojaat qilardi.
+
+    `container-type: inline-size` faqat `layout style inline-size`
+    cheklovini beradi (`paint` emas), shuning uchun quyidagi guruh
+    tanlagichining `-mx-4` chetga chiqishi ham, fokus halqasi ham
+    qirqilmaydi.
+  -->
+  <div class="@container">
     <div class="mb-3 ml-1 mt-2 flex items-center justify-between gap-2">
       <h2
         class="flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-slate-400"
@@ -125,11 +136,31 @@ function play(recordingId: number, title: string): void {
       empty-text="Dars yozib olingach shu yerda paydo bo‘ladi."
       @retry="list.refetch()"
     >
-      <div class="flex flex-col gap-2.5">
+      <!--
+        ★ 2026-08-13: `flex flex-col` O'RNIGA SETKA (bo'shliq AYNAN o'sha
+        10px — `gap-2.5`, ya'ni bitta ustunda ko'rinish bir piksel ham
+        o'zgarmaydi). Karkas ustuni 1600px bo'lgach yozuv qatori ~1536px ga
+        cho'zilardi: chapda nom, o'ngda "Ko'rish" tugmasi va orada bir metr
+        bo'sh joy — eng ko'zga tashlanadigan "cho'zilgan telefon" joyi.
+
+        Qator kartochkasi GORIZONTAL (nom + sana·davomiylik·hajm + tugma),
+        shuning uchun unga ixcham test kartochkasidan ko'ra kengroq joy
+        kerak: 2 ustun uchun 42rem, 3 ustun uchun 64rem — 1536px da har
+        biri ~505px, meta qatori bitta satrga sig'adi. To'rtinchi ustun
+        (~375px) sana·davomiylik·hajm zanjirini ikkiga bo'lib yuborardi.
+
+        ★ Telefon: eng past chegara 42rem = 672px, karkas ustuni esa `lg`
+        gacha 520px — birorta so'rov yonmaydi.
+      -->
+      <div class="grid gap-2.5 @2xl:grid-cols-2 @5xl:grid-cols-3">
+        <!--
+          Bu qator kartochkasida ham hover FAQAT chegarada: bosiladigan
+          element — "Ko'rish" tugmasi, kartochkaning o'zi emas.
+        -->
         <article
           v-for="item in list.items.value"
           :key="item.recording.id"
-          class="flex items-center justify-between gap-2.5 rounded-[15px] border border-line bg-ink-900 p-3.5"
+          class="flex items-center justify-between gap-2.5 rounded-[15px] border border-line bg-ink-900 p-3.5 transition-colors hover:border-line-strong"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -160,9 +191,16 @@ function play(recordingId: number, title: string): void {
           >
             {{ recordingStatusLabel(item.recording.status) }}
           </BaseBadge>
+          <!--
+            ★ `tap-expand`: `size="sm"` 36px baland, WCAG 2.5.5 esa 44px
+            so'raydi. `BaseButton` o'lchov xaritasiga TEGILMAYDI — u butun
+            ilovaniki va o'zgarsa har panelda joylashuv siljirdi. Bu yerda
+            faqat bosiladigan maydon ko'rinmas `::after` bilan har tomondan
+            6px kengayadi (36 + 12 = 48px), tugma o'zi o'sha-o'sha.
+          -->
           <BaseButton
             v-else
-            class="shrink-0"
+            class="tap-expand shrink-0"
             size="sm"
             @click="play(item.recording.id, recordingItemTitle(item))"
           >

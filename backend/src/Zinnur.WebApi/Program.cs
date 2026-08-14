@@ -339,13 +339,22 @@ builder.Services.AddRateLimiter(options =>
         return ValueTask.CompletedTask;
     };
 
-    // Kirish — parol taxmin qilinadigan YAGONA joy.
+    // Kirish — bir martalik kod so'raladigan va tekshiriladigan joy.
     //
-    // 20/daqiqa (ilgari 10). BCrypt WorkFactor=11 da bitta urinish ~120 ms,
-    // ya'ni hujumchi uchun 10 ham, 20 ham bir xil darajada umidsiz. Farq
-    // FOYDALANUVCHI tomonida: 10 talik budjet bilan bitta NAT orqasidagi
-    // sinf dars boshida o'zini o'zi bloklardi — bu hujum emas, oddiy ish
-    // kuni. Hisob darajasidagi (email bo'yicha) bloklash — keyingi qadam.
+    // 20/daqiqa. Ilgari bu chegara PAROL topishga qarshi edi; 2026-08-13
+    // dan parol yo'q, lekin chegara AYNI darajada kerak — endi u kod
+    // so'rovlari toshqiniga qarshi.
+    //
+    // 🔴 BU CHEGARA YOLG'IZ YETARLI EMAS va u ASOSIY himoya ham EMAS.
+    // Sabab quyidagi `FixedWindowByIp` izohida: proksi ortida hamma
+    // bitta bo'limga tushadi, ya'ni bitta maktab o'zini o'zi bloklaydi,
+    // hujumchi esa IP almashtirib chetlab o'tadi.
+    //
+    // ★ ASOSIY HIMOYA — TELEFON RAQAMI BO'YICHA va u use-case ichida:
+    //   `IPhoneLoginCodeStore` (60 s qayta yuborish oynasi, sutkada 10 ta
+    //   kod, bitta kodga 5 ta urinish). U IP'ga umuman bog'liq emas va
+    //   Redis'da atomar hisoblanadi. Ya'ni bu yerdagi cheklov —
+    //   birinchi, qo'pol filtr; hisob darajasidagi chegara esa pastda.
     options.AddPolicy(AuthController.LoginRateLimitPolicy,
         context => FixedWindowByIp(context, authPermitLimit, authWindowSeconds));
 

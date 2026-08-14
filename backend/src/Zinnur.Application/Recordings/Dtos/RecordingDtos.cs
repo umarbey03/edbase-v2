@@ -60,6 +60,37 @@ public sealed record RecordingListItemDto(
 /// </summary>
 public sealed record RecordingLinkDto(string Url, DateTimeOffset ExpiresAt);
 
+/// <summary>
+/// "Hozir yozib olinyaptimi" — JONLI XONADAGI INDIKATOR javobi.
+///
+/// 🔴 BU JAVOB O'QUVCHIGA HAM BERILADI, shuning uchun unda ICHKI
+/// TAFSILOT YO'Q: na ombor kaliti, na egress Id'si, na xato matni, na
+/// urinishlar soni. Ikki maydon — indikator chizish uchun yetarli va
+/// undan ortig'i shunchaki oshkorlik bo'lardi.
+///
+/// ★ HAJMI MUHIM: bu javob xonadagi HAR ODAMDAN har 10 soniyada
+/// so'raladi (80 daqiqalik darsda 25 kishilik guruh uchun ~12 000
+/// so'rov). <see cref="RecordingDto"/> ni qaytarish o'sha trafikni
+/// bekorga o'n barobar oshirardi.
+/// </summary>
+/// <param name="IsRecording">
+/// Yakunlanmagan yozuv qatori bormi (<c>Requested</c>, <c>Starting</c>
+/// yoki <c>Active</c>).
+///
+/// ⚠️ ATAYLAB "<c>Active</c> emas": sabab —
+/// <c>IRecordingService.GetLiveStatusAsync</c> izohidagi ASIMMETRIYA
+/// bo'limi. Qisqasi: rozilik indikatorida shubha "ha" foydasiga hal
+/// qilinadi.
+/// </param>
+/// <param name="StartedAt">
+/// Yozuv HAQIQATAN boshlangan payt (<c>egress_started</c> hodisasidan).
+/// <c>null</c> — hali boshlanmagan, lekin navbatda
+/// (<see cref="IsRecording"/> shunda ham <c>true</c>). Klient buni
+/// faqat izoh matnida ("… dan beri") ishlatadi, indikatorni yoqish
+/// qaroriga U EMAS, <see cref="IsRecording"/> javob beradi.
+/// </param>
+public sealed record RecordingLiveStatusDto(bool IsRecording, DateTimeOffset? StartedAt);
+
 /// <summary>Egress'ni boshlash so'rovi (port kirishi).</summary>
 /// <param name="RoomName">LiveKit xona nomi (<c>LiveSession.RoomName</c>).</param>
 /// <param name="ObjectKey">Ombordagi to'liq kalit — Egress AYNAN shu yo'lga yozadi.</param>

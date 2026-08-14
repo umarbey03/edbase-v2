@@ -34,15 +34,33 @@ namespace Zinnur.Application.Recordings.Jobs;
 /// yo'qligini anglatmaydi. Faqat fayl ham yo'q bo'lsa yozuv
 /// <c>Failed</c> deb belgilanadi.
 ///
-/// ── NIMA QILMAYDI ───────────────────────────────────────────────────────
+/// ── NIMA QILMAYDI (2026-08-13 da QAYTA KO'RIB CHIQILDI) ─────────────────
 ///
-/// ⚠️ YANGI YOZUV BOSHLAMAYDI. Faqat MAVJUD qatorlarni tuzatadi. Eski
-/// tizimning watchdog'i aksincha edi: u `record_enabled` guruhlarning
-/// jonli darslarini o'zi qidirib, yozuvni O'ZI boshlardi — ya'ni AYNI
-/// ishni uch joy (dars boshlash, `room_started` webhook'i va watchdog)
-/// bir-biridan bexabar bajarardi. Bu yerda yozuvni BOSHLASH qarori faqat
-/// ustozda (sabab: <see cref="IRecordingService"/>), watchdog esa faqat
-/// TUZATADI.
+/// ⚠️ YOZUVNI BOSHLASH QARORINI O'ZI QABUL QILMAYDI — va bu qoida
+/// avtomatik yozuvga o'tilganda ham SAQLANDI. Eski tizimning watchdog'i
+/// aksincha edi: u `record_enabled` guruhlarning jonli darslarini O'ZI
+/// qidirib topib, yozuvni O'ZI boshlardi — ya'ni AYNI ishni uch joy (dars
+/// boshlash, `room_started` webhook'i va watchdog) bir-biridan bexabar
+/// bajarardi.
+///
+/// ★ FARQ NOZIK, LEKIN AYNAN U BUTUN ARXITEKTURANI USHLAB TURADI:
+///
+///   • QAROR ("bu dars yozilishi kerakmi") — BITTA joyda:
+///     <c>LiveSessionService.StartAsync</c> → <see cref="IAutoRecordingScheduler"/>.
+///     Watchdog guruhlarni SKANERLAMAYDI va <c>Group.RecordEnabled</c> ni
+///     UMUMAN O'QIMAYDI.
+///   • IJRO ("Egress'ga murojaat qilish") — BITTA joyda: shu vazifa,
+///     <c>RecordingStarter</c> orqali.
+///
+/// Ya'ni <c>SessionRecordings</c> jadvali NAVBAT, watchdog esa uni
+/// bo'shatuvchi. Qator qayerdan kelgani (host tugmasi yoki avtomatik
+/// navbat) vazifaga BATAMOM AHAMIYATSIZ — u <c>Requested</c> holatini
+/// ko'radi, xolos. AVTOMATIK YOZUVLAR SHU TUFAYLI QAYTA URINISH, MUHLAT
+/// VA TASLIM BO'LISH MANTIQINI BEPUL MEROS QILIB OLADI: bitta qator ham
+/// yangi kod yozilmadi.
+///
+/// ⚠️ Agar bu vazifaga "yozuvi yoqilgan guruhlarni qidirish" qo'shilsa,
+/// eski tizimning aynan o'sha uch nusxali holati QAYTADI. Qo'shilmasin.
 ///
 /// ⚠️ TUGALLANGAN YOZUVGA TEGMAYDI — buni Domain kafolatlaydi
 /// (<c>MarkFailed</c> ichida <c>if (Status == Completed) return;</c>).
@@ -276,7 +294,15 @@ public sealed class RecordingWatchdogJob(
 /// bilan AYNI naqsh. Shu tufayli vazifani testda istalgan (juda qisqa)
 /// chegaralar bilan yurgizish mumkin.
 /// </summary>
-/// <param name="Interval">Ikki yurish orasidagi masofa.</param>
+/// <param name="Interval">
+/// Ikki yurish orasidagi masofa.
+///
+/// 🔴 AVTOMATIK YOZUVDA BU QIYMAT ENDI FOYDALANUVCHI SEZADIGAN KECHIKISH.
+/// Dars boshlanganda navbatga qator tushadi, Egress'ga esa AYNAN shu
+/// vazifa murojaat qiladi — ya'ni yozuv darsdan ko'pi bilan
+/// <c>Interval</c> qadar kech boshlanadi. Ilgari bu shunchaki "nosozlikni
+/// qancha tez sezamiz" degan raqam edi.
+/// </param>
 /// <param name="RetryDelay">
 /// Ikki urinish orasidagi eng qisqa tanaffus. Busiz Egress yiqilgan paytda
 /// urinishlar chegarasi bir daqiqada tugab qolardi.
@@ -314,9 +340,31 @@ public sealed record RecordingWatchdogSettings(
     /// hali ketayotgan yozuvni uzib qo'yish amalda mumkin emas.
     /// <c>MaxAttempts = 5</c> — 2 daqiqalik tanaffus bilan ~10 daqiqa
     /// urinish; bundan uzog'i darsning yarmini yeb qo'yardi.
+    ///
+    /// ★ <c>Interval</c> 60 s DAN 15 s GA TUSHIRILDI (2026-08-13,
+    /// avtomatik yozuv bilan birga). Sabab: endi bu raqam darsning
+    /// yozilmay qoladigan boshi (yuqoridagi 🔴). 15 s — darsning
+    /// boshlanish shovqini (ustoz kirib, o'quvchilarni kutadi) ichida
+    /// yo'qoladigan, lekin bo'sh yurishlarni ham ko'paytirmaydigan
+    /// qiymat.
+    ///
+    /// ⚠️ QOLGAN CHEGARALARGA TA'SIR QILMAYDI va bu TASODIF EMAS:
+    /// <c>RetryDelay</c>, <c>StartTimeout</c>, <c>FinalizeGrace</c> va
+    /// <c>MaxDuration</c> — MUTLAQ muddatlar (qatordagi vaqt bilan
+    /// solishtiriladi), yurishlar SONI bilan emas. Ya'ni tez-tez yurish
+    /// faqat aniqlikni oshiradi: Egress yiqilganda urinishlar chegarasi
+    /// baribir 2 daqiqalik tanaffus bilan sanaladi. Agar bu chegaralardan
+    /// birortasi "har yurishda bir marta" mantiqiga o'tkazilsa, bu
+    /// qiymatni o'zgartirish JIM ravishda ularni ham o'zgartirib
+    /// yuborardi.
+    ///
+    /// ⚠️ BO'SH YURISH ARZON: kutayotgan yozuv bo'lmasa vazifa bitta
+    /// indeksli so'rov qiladi (<c>IX_SessionRecordings_Status_LastAttemptAt</c>)
+    /// va <c>JobRunResult.Nothing</c> qaytaradi — `SaveChanges` ham,
+    /// tashqi chaqiruv ham yo'q.
     /// </summary>
     public static RecordingWatchdogSettings Default { get; } = new(
-        Interval: TimeSpan.FromSeconds(60),
+        Interval: TimeSpan.FromSeconds(15),
         RetryDelay: TimeSpan.FromMinutes(2),
         StartTimeout: TimeSpan.FromMinutes(10),
         FinalizeGrace: TimeSpan.FromMinutes(10),

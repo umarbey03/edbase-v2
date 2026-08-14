@@ -39,6 +39,21 @@ public interface ILessonAssetService
     Task<LessonAssetDownload> OpenAsync(
         long assetId, string? rangeHeader, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// O'YNATISH CHIPTASINI beradi — `&lt;video src&gt;` uchun.
+    ///
+    /// 🔴 RUXSAT AYNAN <see cref="OpenAsync"/> DAGIDEK tekshiriladi
+    /// (to'lov bloki + gating). Bu ATAYLAB: qulflangan darsning chiptasi
+    /// UMUMAN berilmasin — o'quvchi 403 ni videoni bosgandan keyin emas,
+    /// DARHOL va tushunarli xabar bilan ko'rsin.
+    ///
+    /// ⚠️ Chipta ruxsat BERMAYDI, u faqat "kim" ekanini aytadi. Har bayt
+    /// so'rovida ruxsat QAYTADAN tekshiriladi — batafsil:
+    /// <see cref="IMediaAccessTicketService"/>.
+    /// </summary>
+    Task<MediaAccessTicket> CreateTicketAsync(
+        long assetId, long actorId, CancellationToken ct = default);
+
     /// <summary>Faylni o'chiradi (bazadan, so'ng ombordan).</summary>
     Task DeleteAsync(long assetId, long actorId, CancellationToken ct = default);
 

@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { debtAmount, periodLabel, waivePayment } from '@/entities/payment'
 import { toUserMessage } from '@/shared/api'
 import { formatSum } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { PaymentDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -23,6 +24,8 @@ import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 const props = defineProps<{ open: boolean; payment: PaymentDto | null }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
+
+const confirm = useConfirm()
 
 /** Baza ustuni `varchar(500)`; server tekshirmaydi (uzun matn 409 ga aylanadi). */
 const REASON_MAX = 500
@@ -60,8 +63,33 @@ const canSubmit = computed(
   () => props.payment !== null && reason.value.length <= REASON_MAX && !mutation.isPending.value,
 )
 
-function submit(): void {
+/**
+ * R4 — kechirim QAYTARILMAYDI, shuning uchun `danger` tasdiq.
+ *
+ * ★ "UNWAIVE" ENDPOINTI YO'Q (`payment-api.ts`: `waivePayment` bor, teskarisi
+ * yo'q). Ya'ni noto'g'ri qatorda bosilgan "Kechirish" ni interfeys orqali
+ * qaytarib bo'lmaydi — markaz o'sha pulni yo'qotadi. Bu oynaning o'zi
+ * o'quvchi/oy/summani ko'rsatsa ham, u FORMA: xodim sabab yozib turib
+ * "Kechirish" ni forma tugmasi sifatida bosadi. Tasdiq esa amalning
+ * QAYTARILMASLIGINI aytadi — formada bunday jumla yo'q edi.
+ */
+async function submit(): Promise<void> {
   if (!canSubmit.value) return
+
+  const payment = props.payment
+  if (payment === null) return
+
+  const ok = await confirm({
+    title: 'Oyni kechirish',
+    message:
+      `${payment.studentName} — ${periodLabel(payment.period)} uchun `
+      + `${formatSum(debtAmount(payment))} qarz hisoblanmaydi. Kechirimni bekor qilib bo‘lmaydi.`,
+    confirmLabel: 'Kechirish',
+    tone: 'danger',
+    details: [payment.groupName, 'Pul olinmaydi — oy shunchaki yopiq deb belgilanadi.'],
+  })
+  if (!ok) return
+
   errorMessage.value = null
   mutation.mutate()
 }

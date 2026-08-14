@@ -6,6 +6,7 @@ import { assignmentTitle, fetchAssignments, fetchSubmissions } from '@/entities/
 import { fetchGroupMembers } from '@/entities/group'
 import { toUserMessage } from '@/shared/api'
 import { truncate } from '@/shared/lib/text'
+import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { AssignmentDto, SubmissionDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
@@ -93,10 +94,29 @@ const byCell = computed(() => {
   return map
 })
 
+/**
+ * TELEFON uchun bitta katak: baho + U QAYSI VAZIFAGA tegishli ekani.
+ *
+ * Jadvalda bu bog'lanishni SARLAVHA qatori beradi ("qaysi ustundaman?"),
+ * kartochkada esa sarlavha qatori yo'q — shuning uchun har katak o'z nomini
+ * va maksimal ballini o'zi olib yuradi.
+ */
+interface GradeChip {
+  assignmentId: number
+  /** Chipga sig'adigan qisqartma (jadval sarlavhasidagidek, lekin qisqaroq). */
+  label: string
+  /** To'liq nom — `title` maslahatida. */
+  fullLabel: string
+  maxScore: number
+  cell: SubmissionDto | null
+}
+
 interface GradeRow {
   studentId: number
   name: string
   cells: (SubmissionDto | null)[]
+  /** `cells` ning telefon ko'rinishi uchun boyitilgan nusxasi (bir xil tartib). */
+  chips: GradeChip[]
   /** Baholangan ishlarning foizdagi o'rtachasi. `null` — baho yo'q. */
   average: number | null
   gradedCount: number
@@ -104,9 +124,20 @@ interface GradeRow {
 
 const rows = computed<GradeRow[]>(() =>
   students.value.map((member) => {
-    const cells = columns.value.map(
-      (assignment) => byCell.value.get(`${assignment.id}:${member.studentId}`) ?? null,
-    )
+    // Bitta o'tishda ikkala shakl ham yig'iladi: `byCell` dan ikki marta
+    // qidirish (jadval uchun alohida, kartochka uchun alohida) ikki manba
+    // yaratardi va biri ikkinchisidan farq qilib qolishi mumkin edi.
+    const chips = columns.value.map<GradeChip>((assignment) => {
+      const fullLabel = assignmentTitle(assignment.title, assignment.id)
+      return {
+        assignmentId: assignment.id,
+        label: truncate(fullLabel, 12),
+        fullLabel,
+        maxScore: assignment.maxScore,
+        cell: byCell.value.get(`${assignment.id}:${member.studentId}`) ?? null,
+      }
+    })
+    const cells = chips.map((chip) => chip.cell)
     const percents = cells
       .filter((cell): cell is SubmissionDto => cell !== null && cell.status === 'Graded')
       .map((cell) => cell.scorePercent)
@@ -116,6 +147,7 @@ const rows = computed<GradeRow[]>(() =>
       studentId: member.studentId,
       name: member.fullName ?? `#${member.studentId}`,
       cells,
+      chips,
       average:
         percents.length === 0
           ? null
@@ -142,6 +174,33 @@ function refetch(): void {
   void assignmentsQuery.refetch()
   void membersQuery.refetch()
   void submissionsQuery.refetch()
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TELEFON KO'RINISHI — O'QUVCHI KARTOCHKASI, BAHOLAR CHIP BO'LIB
+
+   Bu ham matritsa, LEKIN "Davomat" tabidagi yechim (avval darsni tanlash,
+   keyin ro'yxatni ko'rish) BU YERGA TO'G'RI KELMAYDI — uchta farq bor:
+
+   1. USTUNLAR SONI CHEKLANGAN: `MAX_COLUMNS` = {{ MAX_COLUMNS }}. Davomatda
+      ustunlar 69 tagacha o'sadi, bu yerda esa sakkiztadan oshmaydi — ya'ni
+      bitta o'quvchining BUTUN qatori chip sifatida ikki-uch qatorga
+      sig'adi va gorizontal skroll umuman kerak emas.
+   2. BU TAB FAQAT KO'RSATADI (baholash "Vazifalar" tabida). Katakni
+      bosish oynasi yo'q, demak "avval mezonni tanla" bosqichi hech qanday
+      amalni osonlashtirmaydi — faqat qo'shimcha bosish qo'shardi.
+   3. XULOSA USTUNLARI O'QUVCHI KESIMIDA: "O'rtacha" va "Soni" — qatorning
+      o'zi haqida. Vazifa kesimiga o'tilsa ular bo'sh qolardi, ya'ni
+      jadvalning eng qimmatli ikki ustuni yo'qolardi.
+
+   Shuning uchun bu yerda ikkala o'q ham saqlanadi: kartochka — o'quvchi,
+   ichidagi chiplar — uning sakkiz vazifasi.
+   ═══════════════════════════════════════════════════════════════════════ */
+const { isDesktop } = useBreakpoint()
+
+/** Ikki ko'rinishda bir xil bo'lishi uchun: `null` — baho yo'q, nol emas. */
+function averageText(row: GradeRow): string {
+  return row.average === null ? '—' : `${row.average}%`
 }
 
 function cellText(cell: SubmissionDto | null): string {
@@ -212,7 +271,63 @@ function exportCsv(): void {
         empty-text="Guruhda faol o‘quvchi va kamida bitta uy vazifasi bo‘lgach jadval to‘ladi."
         @retry="refetch"
       >
-        <div class="scroll-x-safe scrollbar-slim">
+        <!--
+          Telefon: har o'quvchi — bitta kartochka, baholari chip bo'lib
+          ichida. Nega dars/vazifa tanlagichi EMASligi skriptdagi izohda.
+        -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
+          <li
+            v-for="row in rows"
+            :key="row.studentId"
+            class="rounded-lg border border-line bg-ink-950 p-3"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <p
+                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
+                v-text="row.name"
+              />
+              <span class="shrink-0 whitespace-nowrap">
+                <b class="text-[15px] tabular-nums text-brand-500">{{ averageText(row) }}</b>
+                <span class="ml-1 text-[10px] text-dim">O‘rtacha</span>
+              </span>
+            </div>
+            <!-- Jadvaldagi "Soni" ustuni. Maxraj QO'SHILDI: yolg'iz "3"
+                 kartochkada nimaning uchdanligini bildirmasdi. -->
+            <p class="mt-0.5 text-[11px] text-dim">
+              Soni: {{ row.gradedCount }} / {{ columns.length }}
+            </p>
+
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span
+                v-for="chip in row.chips"
+                :key="chip.assignmentId"
+                class="inline-flex items-baseline gap-1 rounded-md border border-line bg-ink-900 px-1.5 py-1 text-[11px]"
+                :title="chip.fullLabel"
+              >
+                <span class="text-dim">{{ chip.label }}</span>
+                <b
+                  class="tabular-nums"
+                  :class="cellClass(chip.cell)"
+                >{{ cellText(chip.cell) }}</b>
+                <!-- `/maks` FAQAT baholangan katakda: "—/10" yoki "•/10"
+                     ma'nosiz bo'lardi (baho hali yo'q). -->
+                <span
+                  v-if="chip.cell !== null && chip.cell.status === 'Graded'"
+                  class="text-dim"
+                >/{{ chip.maxScore }}</span>
+              </span>
+            </div>
+          </li>
+        </ul>
+
+        <!-- Desktop: jadval. Gorizontal skroll SHU konteynerda. -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
           <table class="zn-table">
             <thead>
               <tr>
@@ -248,7 +363,7 @@ function exportCsv(): void {
                   {{ cellText(cell) }}
                 </td>
                 <td class="font-bold tabular-nums text-brand-500">
-                  {{ row.average === null ? '—' : `${row.average}%` }}
+                  {{ averageText(row) }}
                 </td>
                 <td
                   class="tabular-nums text-slate-400"

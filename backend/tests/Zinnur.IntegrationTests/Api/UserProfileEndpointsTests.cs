@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Zinnur.Domain.Enums;
@@ -20,7 +21,10 @@ namespace Zinnur.IntegrationTests.Api;
 ///   • o'quvchi o'zi haqidagi ichki izohni ("otasi bilan gaplashildi")
 ///     ko'rsa — xodimlar bunday yozuvni umuman yozmay qo'yadi;
 ///   • begona guruh ustozi profilni ochsa — butun markazning ma'lumoti
-///     har bir ustozga ochiq bo'lardi.
+///     har bir ustozga ochiq bo'lardi;
+///   • ustoz o'quvchining telefonini ko'rsa — talab R27 buziladi
+///     (*"student kontakt ma'lumotlari teacherga ko'rinmasligi kerak"*), va
+///     amalda markazning mijoz bazasi har bir ustozda nusxalanardi.
 ///
 /// Shu sababli tekshiruvlar JONLI JAVOB ustida: kod o'qib "shunday
 /// yozilgan" deb ishonish yetarli emas.
@@ -172,11 +176,77 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
         profile.Notes.Should().NotBeNull("ustoz izohlarni ko'rishi kerak");
     }
 
-    /// <summary>Kurator (yordamchi) ham o'z guruhidagi o'quvchini ko'radi — moliyasiz.</summary>
+    /// <summary>
+    /// 🔴 R27: USTOZ JAVOBIDA KONTAKT YO'Q — email, telefon, Telegram id
+    /// va Telegram nomi.
+    ///
+    /// Moliya testi bilan AYNI naqsh (xom JSON + tiplangan javob) va AYNI
+    /// sabab: bu ma'lumot oddiy JSON'da keladi, ya'ni frontendda yashirish
+    /// hech narsani bermaydi — brauzer konsoli yetarli bo'lardi.
+    ///
+    /// ★ NIMA UCHUN "ISM QOLADI" HAM TEKSHIRILADI: kesish HADDAN TASHQARI
+    /// bo'lib ketsa (masalan butun `user` bloki `null` qilinsa) ustozning
+    /// jurnali ishlamay qolardi va buni faqat brauzerda sezish mumkin bo'lardi.
+    /// </summary>
     [Fact]
-    public async Task Profile_ForOwnCurator_IsAllowedWithoutFinance()
+    public async Task Profile_ForOwnTeacher_HidesStudentContact()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "prof-kontakt");
+
+        // Telegram ham BOG'LANADI: aks holda maydonlar shundoq ham `null`
+        // bo'lib, test kesishni emas, bo'sh ma'lumotni tekshirardi.
+        var telegramId = ProfileWorldBuilder.NextTelegramId();
+        await ProfileWorldBuilder.LinkTelegramAsync(
+            factory, world.Student.Id, telegramId, "maxfiy_nom");
+
+        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
+        phone.Should().NotBeNullOrEmpty("dunyo quruvchi o'quvchiga ham raqam beradi");
+
+        using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
+
+        var (status, json) = await ProfileWorldBuilder.GetProfileRawAsync(teacher, world.Student.Id);
+
+        status.Should().Be(HttpStatusCode.OK, json);
+
+        json.Should().NotContain(email, "o'quvchi emaili ustoz javobiga tushmasligi kerak");
+        json.Should().NotContain(phone!, "o'quvchi telefoni ustoz javobiga tushmasligi kerak");
+        json.Should().NotContain("maxfiy_nom", "Telegram nomi ham kontakt — u orqali yozib bo'ladi");
+        json.Should().NotContain(
+            telegramId.ToString(CultureInfo.InvariantCulture),
+            "Telegram id ham kontakt");
+
+        var profile = await ProfileWorldBuilder.GetProfileAsync(teacher, world.Student.Id);
+
+        profile.User.Email.Should().BeNull();
+        profile.User.Phone.Should().BeNull();
+        profile.User.TelegramId.Should().BeNull();
+        profile.User.TelegramUsername.Should().BeNull();
+        profile.Telegram.TelegramId.Should().BeNull();
+        profile.Telegram.Username.Should().BeNull();
+
+        // Ustozning ishi uchun kerak bo'lgani QOLADI.
+        profile.User.Id.Should().Be(world.Student.Id);
+        profile.User.FullName.Should().NotBeNullOrEmpty();
+        profile.Telegram.Linked.Should().BeTrue(
+            "\"kira oladimi\" — HOLAT, kontakt emas: u orqali bog'lanib bo'lmaydi");
+        profile.Groups.Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// 🔴 R27 NING IKKINCHI YARMI: KURATORDA KONTAKT QOLADI.
+    ///
+    /// Bu test ATAYLAB "hech narsa buzilmaganini" emas, QAROR ni qulflaydi:
+    /// kurator uchun qo'ng'iroq — asosiy amal (dars qoldirgan o'quvchini u
+    /// qidiradi). Kimdir kelajakda R27 ni "hamma xodimga yopamiz" deb
+    /// kengaytirsa, kuratorning ish oqimi JIMGINA sinardi — shu test uni
+    /// to'xtatadi.
+    /// </summary>
+    [Fact]
+    public async Task Profile_ForOwnCurator_IsAllowedWithoutFinanceButWithContact()
     {
         var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-kurator");
+
+        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
 
         using var curator = await WorldBuilder.ClientAsync(factory, world.Curator);
 
@@ -184,6 +254,9 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
 
         profile.User.Id.Should().Be(world.Student.Id);
         profile.Finance.Should().BeNull();
+
+        profile.User.Email.Should().Be(email);
+        profile.User.Phone.Should().Be(phone, "kuratorning ASOSIY amali — qo'ng'iroq");
     }
 
     /// <summary>🔴 BEGONA guruh ustozi — 403 (butun markaz ma'lumoti ochiq qolmasin).</summary>

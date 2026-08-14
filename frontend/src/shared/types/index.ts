@@ -11,6 +11,7 @@ export type {
   AuthoringQuestionDto,
   AuthResponse,
   AvailableTestDto,
+  CenterLeaderboardDto,
   ChatMessageDto,
   ConversationDto,
   CourseDto,
@@ -43,6 +44,7 @@ export type {
   GroupTypeName,
   GroupWriteRequest,
   LeaderboardRowDto,
+  LeaderboardScopeName,
   LessonAssetDto,
   LessonAssetKindName,
   LessonAssetUploadFields,
@@ -51,7 +53,6 @@ export type {
   LessonWriteRequest,
   LiveKitJoinDto,
   LiveSessionDto,
-  LoginRequest,
   MarkGroupChatReadRequest,
   MarkReadResultDto,
   MemberStatusName,
@@ -80,12 +81,16 @@ export type {
   PaymentSummaryKpiDto,
   PaymentTransactionDto,
   PaymentTransactionKindName,
+  PhoneCodeRequest,
+  PhoneCodeResponse,
+  PhoneVerifyRequest,
   PositionDto,
   ProblemDetails,
   QuestionAnswerRequest,
   RecordingDto,
   RecordingLinkDto,
   RecordingListItemDto,
+  RecordingLiveStatusDto,
   RecordingStatusName,
   RecordPaymentRequest,
   RefreshRequest,
@@ -165,6 +170,15 @@ export type {
   UserProfileDto,
 } from './api'
 /* ===== /WAVE 2 · FOYDALANUVCHI ===== */
+
+/* ===== R31 · DARSLAR JADVALI AGREGATI =====
+
+   ★ NEGA ALOHIDA BLOK, alifbo ro'yxatiga qo'shilmadi: yuqoridagi
+   `wave2/users` bloki bilan AYNI sabab — bu faylga bir necha tarmoq ayni
+   vaqtda qo'shadi va alifbo bo'yicha aralashtirilgan bitta qator merge
+   paytida to'qnashuv beradi.                                            */
+export type { SessionStatsDto } from './api'
+/* ===== /R31 ===== */
 
 export { GroupChatHubEvent, GroupChatHubMethod, HubEvent, HubMethod } from './realtime'
 export type {

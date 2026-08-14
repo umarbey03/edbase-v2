@@ -56,13 +56,27 @@ public class SessionRecording : BaseEntity
     public LiveSession? Session { get; set; }
 
     /// <summary>
-    /// Yozuvni kim so'ragan (dars hosti). <c>null</c> — fon vazifasi
-    /// tiklagan holat.
+    /// Yozuvni kim so'ragan. Ikki ma'no bor va ular TENG HUQUQLI:
+    ///
+    ///   • <c>userId</c> — dars HOSTI tugmani bosgan (qo'lda boshlash);
+    ///   • <c>null</c> — TIZIM boshlagan. Bu ikki holni qamraydi:
+    ///     guruhning <c>Group.RecordEnabled</c> kaliti bo'yicha avtomatik
+    ///     navbatga tushgan yozuv (2026-08-13) va fon vazifasi tiklagan
+    ///     holat.
     ///
     /// ★ NIMA UCHUN SAQLANADI: yozuv — ishtirokchilar roziligiga tegadigan
     /// amal. "Kim yozib olishga qaror qildi" degan savolga javob bo'lishi
     /// SHART. Eski tizimda yozuv jimgina, hech kimning qaroriga
     /// bog'lanmagan holda boshlanardi.
+    ///
+    /// ★ <c>null</c> BU SAVOLNI JAVOBSIZ QOLDIRMAYDI, JAVOBNI BOSHQA
+    /// JOYGA KO'CHIRADI: qaror manbai — guruh sozlamasi va uni yoqqan
+    /// o'quv bo'limi xodimi (u <c>AppSettings</c> auditida emas, guruh
+    /// tahriri orqali ko'rinadi). Ya'ni "hech kim qaror qilmagan" holati
+    /// hamon mavjud emas.
+    ///
+    /// ⚠️ MAYDON ALLAQACHON <c>nullable</c> EDI — avtomatik yozuv uchun
+    /// MIGRATSIYA KERAK BO'LMADI.
     /// </summary>
     public long? RequestedBy { get; set; }
 

@@ -19,9 +19,24 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), { subtitle: ''
         v-text="subtitle"
       />
     </div>
+    <!--
+      🔴 `max-w-full` — `shrink-0` BILAN BIRGA bo'lishi SHART (2026-08-13).
+
+      `shrink-0` konteynerni `max-content` kengligida QOTIRADI: u parent'dan
+      kichrayolmaydi. Natijada yonidagi `flex-wrap` HECH QACHON ishga
+      tushmasdi — o'ralish uchun element avval torayishi kerak. Slot ichida
+      qidiruv maydoni + ikkita `select` + tugma bo'lgan sahifalarda
+      (ManageUsersPage, ManageGroupsPage, ManagePaymentsPage) bu butun
+      SAHIFANI gorizontal skrollga majbur qilardi.
+
+      ★ `shrink-0` OLIB TASHLANMADI: usiz amallar bloki uzun sarlavha
+      yonida siqilib, tugma yozuvlari ikki qatorga bo'linib ketardi.
+      `max-w-full` esa faqat YUQORI chegara qo'yadi — joy yetganda
+      `shrink-0` avvalgidek ishlaydi, yetmaganda `flex-wrap` uyg'onadi.
+    -->
     <div
       v-if="$slots.actions"
-      class="flex shrink-0 flex-wrap items-center gap-2"
+      class="flex max-w-full shrink-0 flex-wrap items-center gap-2"
     >
       <slot name="actions" />
     </div>

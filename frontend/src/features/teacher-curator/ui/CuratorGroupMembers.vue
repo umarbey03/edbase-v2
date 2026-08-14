@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 
 import { fetchGroupMembers, memberStatusLabel, memberStatusTone } from '@/entities/group'
+import { canSeeStudentContact } from '@/entities/user'
+import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { AppIcon, BaseBadge, DataStatus } from '@/shared/ui'
 
@@ -12,8 +14,16 @@ import { AppIcon, BaseBadge, DataStatus } from '@/shared/ui'
  * NEGA TALAB BO'YICHA: kuratorda 10+ guruh bo'lishi mumkin va hammasining
  * ro'yxatini oldindan tortish 10+ so'rov degani. Eski ilova ham `viewSubs()`
  * da shu naqshni ishlatardi.
+ *
+ * ★ QO'NG'IROQ TUGMASI KURATOR UCHUN SAQLANDI (talab R27 qarori): server
+ * telefonni faqat USTOZDAN kesadi, kuratorga beradi — chunki dars qoldirgan
+ * o'quvchini qidirish aynan uning ishi. Bu ekran KURATORLIK bo'limida
+ * yashaydi, lekin unga ustoz ham kirishi mumkin; shu sababli quyida ikki
+ * qatlam bor: `null` tekshiruvi (render) va rol (MATN).
  */
 const props = defineProps<{ groupId: number }>()
+
+const auth = useAuthStore()
 
 const membersQuery = useQuery({
   queryKey: ['group', props.groupId, 'members'],
@@ -21,6 +31,14 @@ const membersQuery = useQuery({
 })
 
 const members = computed(() => membersQuery.data.value ?? [])
+
+/**
+ * "Telefon kiritilmagan" matni FAQAT shu rost bo'lganda ko'rsatiladi.
+ * Ustozda telefon bo'sh keladi, lekin sabab BOSHQA — raqam bor, shunchaki
+ * berilmagan. O'sha matnni unga ko'rsatish yolg'on bo'lardi va u o'quv
+ * bo'limiga "raqam kiriting" deb murojaat qilardi.
+ */
+const showMissingPhoneNote = computed(() => canSeeStudentContact(auth.role ?? ''))
 
 const errorMessage = computed(() =>
   membersQuery.error.value !== null ? toUserMessage(membersQuery.error.value) : null,
@@ -55,6 +73,10 @@ const errorMessage = computed(() =>
           Qo'ng'iroq — eski kuratorlik jadvalidagi yashil `i-phone` tugmasi.
           Telefon raqami bo'lmasa tugma UMUMAN chizilmaydi: eski ilovada ham
           shunday edi (`x.phone ? iBtn(...) : ''`).
+
+          🔴 R27 dan keyin `phone === null` ning IKKI sababi bor: raqam
+          kiritilmagan YOKI so'rovchi ustoz (server kesgan). Render qarori
+          ikkalasida ham bir xil — tugma yo'q; farq faqat pastdagi MATNDA.
         -->
         <a
           v-if="member.phone !== null && member.phone.length > 0"
@@ -69,7 +91,7 @@ const errorMessage = computed(() =>
           <span v-text="member.phone" />
         </a>
         <span
-          v-else
+          v-else-if="showMissingPhoneNote"
           class="text-[11px] text-dim"
         >Telefon kiritilmagan</span>
       </li>

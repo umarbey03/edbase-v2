@@ -25,6 +25,17 @@ const ORIGIN_LABELS: Record<SettingOriginName, string> = {
   Default: 'Standart',
   Environment: 'Muhitdan',
   Database: 'Paneldan',
+
+  /*
+    🔴 SHOSHILINCH REJIM — "Muhitdan" dan ATAYLAB boshqacha atalgan.
+
+    Ikkalasi ham texnik jihatdan muhit o'zgaruvchisi, lekin admin uchun
+    savol boshqa. "Muhitdan" = "bazada hali qiymat yo'q" (normal holat).
+    Bu esa = "bazada qiymat BOR, lekin u chetlab o'tilyapti" — ya'ni
+    tizim avariyadan chiqarilgan va o'zgaruvchini KEYIN olib tashlash
+    kerak. Ikkalasi bir xil atalsa, o'sha "keyin" hech qachon kelmasdi.
+  */
+  EnvironmentOverride: 'Shoshilinch (muhitdan)',
 }
 
 const ORIGIN_TONES: Record<SettingOriginName, SettingTone> = {
@@ -34,6 +45,9 @@ const ORIGIN_TONES: Record<SettingOriginName, SettingTone> = {
   Environment: 'accent',
   // Paneldan — kimdir qo'lda o'zgartirgan; ko'zga tashlanishi kerak.
   Database: 'warning',
+  // Shoshilinch — vaqtinchalik holat va u UNUTILMASLIGI kerak: `danger`
+  // yagona rang bo'lib, "bu shunday qolib ketmasin" degan ma'noni beradi.
+  EnvironmentOverride: 'danger',
 }
 
 export function settingOriginLabel(origin: SettingOriginName): string {

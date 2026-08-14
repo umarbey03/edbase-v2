@@ -40,14 +40,35 @@ namespace Zinnur.Domain.Entities;
 /// so'rovda <c>WHERE ... IS NULL</c> filtri kerak bo'lardi — bitta joyda
 /// unutilsa o'quvchining shaxsiy savoli butun guruhga ko'rinib qolardi.
 ///
-/// ★ TAHRIRLASH VA O'CHIRISH YO'Q (qaror, sabab bilan):
+/// ★ FOYDALANUVCHI TAHRIRLAY VA O'CHIRA OLMAYDI (qaror kuchida):
 /// eski ilovada chat xabari uchun tahrirlash yoki o'chirish endpointi
 /// UMUMAN bo'lmagan (<c>student_router</c> / <c>teacher_router</c> da
 /// faqat GET va POST bor). Ya'ni foydalanuvchilar buni kutmaydi, va
 /// chatning o'zi ustoz-o'quvchi muloqotining YOZMA IZI: "savolimni
 /// o'chirdim" degan imkoniyat nizoli holatda dalilni yo'qotardi.
-/// Kerak bo'lsa keyin qo'shiladi — teskarisi (mavjud imkoniyatni olib
-/// tashlash) ancha og'ir.
+/// Bu qoida O'ZGARMADI: bugun ham na o'quvchi, na xodim bitta xabarni
+/// tanlab o'chira olmaydi va tahrirlash endpointi yo'q.
+///
+/// ★ 🔴 LEKIN MUDDATLI (retention) O'CHIRISH BOR — QAROR QAYTA KO'RILDI.
+///
+/// Avvalgi izohda "o'chirish umuman yo'q, kerak bo'lsa keyin qo'shiladi"
+/// deb yozilgan edi. Egasi TALAB QILDI: belgilangan muddatdan (standart
+/// 3 oy) eski guruh yozishmalari Telegram'dagi kabi DOIMIY o'chirilib
+/// borishi kerak. Shu sababli <c>ChatRetentionJob</c> qo'shildi va u
+/// kesimdan eski qatorlarni QATTIQ (hard) o'chiradi.
+///
+/// ★ NIMA UCHUN "YOZMA IZ" ARGUMENTI BUNI RAD ETMAYDI: u argument
+/// TANLAB o'chirishga qarshi edi — ya'ni "o'z savolimni o'chirib
+/// tashlayman" degan imkoniyatga. Muddatli tozalash tanlamaydi: u
+/// hammaga, hamma guruhga va faqat VAQT bo'yicha tegishli, ya'ni
+/// tomonlardan biri dalilni yo'qota olmaydi. Nizo esa amalda YAQIN
+/// o'tmish ustida bo'ladi; 3 oydan eski yozishmani saqlash narxi
+/// (eng katta jadval, cheksiz o'sish) undan yuqori.
+///
+/// ⚠️ TIKLASH YO'LI YO'Q (loyihada soft-delete yo'q) — batafsili va
+/// zaxiradan tiklash tartibi <c>ChatRetentionJob</c> izohida. Aynan
+/// shuning uchun tozalash STANDART HOLDA O'CHIQ va uni administrator
+/// paneldan ongli ravishda yoqadi.
 /// </summary>
 public class GroupChatMessage : BaseEntity
 {

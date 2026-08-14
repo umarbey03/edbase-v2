@@ -33,7 +33,7 @@ public sealed class AccessTokenRevocationTests(ZinnurApiFactory factory)
     public async Task DeactivatedUser_ExistingAccessToken_IsRejected()
     {
         var (email, password, userId) = await CreateStudentAsync();
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         // O'chirishdan OLDIN token ishlaydi.
@@ -60,7 +60,7 @@ public sealed class AccessTokenRevocationTests(ZinnurApiFactory factory)
     public async Task DeactivatedUser_CannotRequestLiveKitToken()
     {
         var (email, password, userId) = await CreateStudentAsync();
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var sessionId = await FirstSessionIdAsync();
@@ -82,7 +82,7 @@ public sealed class AccessTokenRevocationTests(ZinnurApiFactory factory)
     public async Task AfterLogout_ExistingAccessToken_IsRejected()
     {
         var (email, password, _) = await CreateStudentAsync();
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var logout = await client.PostAsJsonAsync(
@@ -112,7 +112,7 @@ public sealed class AccessTokenRevocationTests(ZinnurApiFactory factory)
         await adminClient.PostAsync(
             new Uri($"/api/v1/users/{userId}/activate", UriKind.Relative), content: null);
 
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var response = await client.GetAsync(new Uri("/api/v1/auth/me", UriKind.Relative));

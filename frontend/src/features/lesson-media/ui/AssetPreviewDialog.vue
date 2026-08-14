@@ -132,7 +132,7 @@ function download(): void {
           v-else-if="preview.url.value !== null"
           :src="preview.url.value"
           :alt="props.asset.title ?? 'Imtihon rasmi'"
-          class="max-h-[60vh] w-full rounded-lg border border-line bg-ink-950 object-contain"
+          class="max-h-[60dvh] w-full rounded-lg border border-line bg-ink-950 object-contain"
         >
       </template>
 

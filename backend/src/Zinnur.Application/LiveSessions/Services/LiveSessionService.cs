@@ -5,6 +5,7 @@ using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
@@ -22,6 +23,7 @@ public sealed class LiveSessionService(
     ILiveSessionNotifier notifier,
     IPaymentBlockService paymentBlock,
     IScheduleTimeZoneProvider timeZone,
+    IAutoRecordingScheduler autoRecording,
     TimeProvider clock) : ILiveSessionService
 {
     /// <summary>
@@ -119,6 +121,111 @@ public sealed class LiveSessionService(
             row.MyAttendance?.ToString()));
     }
 
+    /// <inheritdoc />
+    public async Task<PagedResult<SessionStatsDto>> GetStatsAsync(
+        SessionStatsQuery query, long userId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var user = await LoadUserAsync(userId, ct);
+
+        // 🔴 O'QUVCHI CHETLATILADI. Controller atributi ham shuni aytadi,
+        // lekin qoida SHU YERDA ham bor: hub yoki kelajakdagi boshqa
+        // chaqiruvchi atributdan o'tmaydi va sanoqlar guruhdagi BOSHQA
+        // o'quvchilar haqida ma'lumot beradi.
+        if (user.Role == UserRole.Student)
+            throw new ForbiddenException("Darslar jadvali faqat xodimlar uchun.");
+
+        var page = Math.Max(query.Page, 1);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxStatsPageSize);
+
+        var rows = db.LiveSessions.AsNoTracking();
+
+        // ★ RUXSAT QAYTA IXTIRO QILINMAYDI — `ScopeByRole` ro'yxat va
+        //   kalendar bilan AYNI qoida. Uchinchi nusxa yozilsa, ulardan biri
+        //   vaqt o'tib zaifroq qolib ketardi (izoh `ScopeByRole` da).
+        rows = ScopeByRole(rows, user);
+
+        if (query.Status is { } status)
+            rows = rows.Where(s => s.Status == status);
+
+        if (query.GroupId is { } groupId)
+            rows = rows.Where(s => s.GroupId == groupId);
+
+        var total = await rows.CountAsync(ct);
+
+        // ★ TARTIB — YANGIDAN ESKIGA. Jadval "qanday o'tdi" savoliga javob
+        //   beradi, ya'ni eng qiziq qator — oxirgi dars. O'sish tartibida
+        //   ustoz 8 oy oldingi darsdan boshlab varaqlashi kerak bo'lardi.
+        //   `Id` — teng vaqtli darslarda tartib so'rovdan so'rovga sakramasin.
+        var items = await rows
+            .OrderByDescending(s => s.ScheduledStart)
+            .ThenByDescending(s => s.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => new StatsRow(
+                s.Id,
+                s.GroupId,
+                s.Group!.Name,
+                s.Title,
+                s.Type,
+                s.Status,
+                s.HostId,
+                s.Group.TeacherId,
+                s.Group.AssistantId,
+                s.ScheduledStart,
+                s.ScheduledEnd,
+                s.ActualStart,
+                s.ActualEnd,
+
+                // ★ N+1 YO'Q: ikkala sanoq ham AYNI `SELECT` ichidagi
+                //   korrelyatsion so'rov. Har dars uchun alohida so'rov
+                //   yuborilsa, 20 qatorlik sahifa 40 ta borish-kelish
+                //   bo'lardi — aynan `attendance-matrix.ts` qochgan narsa.
+                //
+                // A'ZOLAR SANOG'I `GroupService.Project` bilan AYNI ifoda:
+                // kurator guruhida a'zolar bevosita yo'q, ular bog'langan
+                // ustoz guruhlaridan keladi. Ikki shart bitta ifodada —
+                // oddiy guruhda ikkinchisi hech qachon rost bo'lmaydi.
+                db.GroupMembers.Count(m => m.Status == MemberStatus.Active
+                    && (m.GroupId == s.GroupId
+                        || (s.Group.Type == GroupType.Curator
+                            && m.Group!.CuratorGroupId == s.GroupId))),
+
+                // QATNASHGANLAR: `Present` + `Late` + `Partial`. Sabab va
+                // yozuvi yo'q o'quvchi holati — `SessionStatsDto` izohida.
+                db.Attendances.Count(a => a.SessionId == s.Id
+                    && (a.Status == AttendanceStatus.Present
+                     || a.Status == AttendanceStatus.Late
+                     || a.Status == AttendanceStatus.Partial))))
+            .ToListAsync(ct);
+
+        var mapped = items.ConvertAll(row => new SessionStatsDto(
+            row.Id,
+            row.GroupId,
+            row.GroupName,
+            row.Title,
+            row.Type.ToString(),
+            row.Status.ToString(),
+            row.ScheduledStart,
+            row.ScheduledEnd,
+            row.ActualStart,
+            row.ActualEnd,
+
+            // Davomiylik SQL'da emas, XOTIRADA: qoida Domain'da
+            // (`LiveSession.PlannedMinutesOf` / `ActualMinutesOf`) va u
+            // yerda bitta nusxada turadi. `DateTimeOffset` ayirmasini
+            // Postgres'ga o'girishga tayanmaymiz — `GroupService` da
+            // `AddMonths` bilan AYNI mulohaza.
+            LiveSession.PlannedMinutesOf(row.ScheduledStart, row.ScheduledEnd),
+            LiveSession.ActualMinutesOf(row.ActualStart, row.ActualEnd),
+            row.StudentCount,
+            row.AttendedCount,
+            IsHost(user, row.HostId, row.TeacherId, row.AssistantId)));
+
+        return new PagedResult<SessionStatsDto>(mapped, page, pageSize, total);
+    }
+
     public async Task<LiveSessionDto> GetAsync(long sessionId, long userId, CancellationToken ct = default)
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
@@ -133,6 +240,36 @@ public sealed class LiveSessionService(
             throw new ForbiddenException("Faqat dars hosti darsni boshlay oladi.");
 
         session.Start(clock.GetUtcNow());       // biznes qoidalari Domain'da
+
+        // ═══════════════════════════════════════════════════════════════
+        // AVTOMATIK YOZUV — TRIGGER AYNAN SHU YERDA (2026-08-13)
+        //
+        // ★ NIMA UCHUN SHU NUQTA, BOSHQASI EMAS. Bu — darsning `Live`
+        //   holatiga o'tadigan YAGONA joyi, ya'ni "yozuv boshlanishi
+        //   kerak" degan qaror bir marta va bir joyda tug'iladi. Muqobil
+        //   nuqtalar ATAYLAB rad etildi:
+        //     • `room_started` webhook'i — u LiveKit'dan keladi, ya'ni
+        //       bizning holat mashinamizdan MUSTAQIL; xona ustoz "Darsni
+        //       boshlash" ni bosmasdan ham ochilishi mumkin (birinchi
+        //       kirgan odam ochadi) va yozuv rejalashtirilgan darsdan
+        //       oldin ketardi;
+        //     • watchdog'ning o'zi guruhlarni skanerlashi — bu eski
+        //       tizimning naqshi va u AYNAN shu uch nuqtani bir-biridan
+        //       bexabar qilib qo'ygan edi (izoh: `RecordingWatchdogJob`).
+        //
+        // 🔴 EGRESS BU YERDA KUTILMAYDI. Metod faqat navbatga qator
+        //    qo'shadi va tashqi xizmatga UMUMAN bormaydi — sabab va
+        //    narxi `IAutoRecordingScheduler` izohida. Ya'ni yozuvning
+        //    nosozligi darsni boshlashni SEKINLASHTIRA OLMAYDI, chunki
+        //    boshlash yo'lida yozuv xizmati umuman ishtirok etmaydi.
+        //
+        // ★ AYNI TRANZAKSIYA: qator quyidagi `SaveChanges` bilan darsning
+        //   `Live` holati bilan BIRGA yoziladi. Alohida saqlash bo'lsa
+        //   "dars jonli, lekin navbat qatori yo'q" (yoki teskarisi)
+        //   holati yuzaga kelardi.
+        // ═══════════════════════════════════════════════════════════════
+        await autoRecording.EnqueueAsync(session, ct);
+
         await db.SaveChangesAsync(ct);
 
         return Map(session, isHost: true);
@@ -371,6 +508,35 @@ public sealed class LiveSessionService(
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
+
+    /// <summary>Darslar jadvali sahifasining eng katta hajmi.</summary>
+    private const int MaxStatsPageSize = 100;
+
+    /// <summary>
+    /// Darslar jadvalining tor proyeksiyasi (butun entity tortilmaydi).
+    ///
+    /// ★ <see cref="CalendarRow"/> DAN ALOHIDA: bu yerda ikkita SANOQ va
+    /// <c>ActualEnd</c> bor, kalendarda esa o'quvchining O'Z davomati.
+    /// Bitta umumiy qatorga birlashtirilsa, kalendar so'rovi hech kimga
+    /// kerak bo'lmagan ikkita korrelyatsion <c>COUNT</c> ni har oyning har
+    /// darsi uchun hisoblardi.
+    /// </summary>
+    private sealed record StatsRow(
+        long Id,
+        long GroupId,
+        string GroupName,
+        string? Title,
+        SessionType Type,
+        SessionStatus Status,
+        long? HostId,
+        long? TeacherId,
+        long? AssistantId,
+        DateTimeOffset ScheduledStart,
+        DateTimeOffset ScheduledEnd,
+        DateTimeOffset? ActualStart,
+        DateTimeOffset? ActualEnd,
+        int StudentCount,
+        int AttendedCount);
 
     /// <summary>Kalendar so'rovining tor proyeksiyasi (butun entity tortilmaydi).</summary>
     private sealed record CalendarRow(

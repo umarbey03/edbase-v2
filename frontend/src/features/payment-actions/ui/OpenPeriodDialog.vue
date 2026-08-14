@@ -6,6 +6,7 @@ import { fetchGroups } from '@/entities/group'
 import { currentPeriod, isValidPeriod, openPeriod, periodLabel } from '@/entities/payment'
 import { toUserMessage } from '@/shared/api'
 import { formatSum } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { OpenPeriodResult } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -26,6 +27,8 @@ import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 const props = defineProps<{ open: boolean }>()
 
 const emit = defineEmits<{ close: []; done: [] }>()
+
+const confirm = useConfirm()
 
 const period = ref(currentPeriod())
 const groupId = ref<number | null>(null)
@@ -66,8 +69,43 @@ const mutation = useMutation({
   },
 })
 
-function submit(): void {
+/** Tasdiq matnida qamrovni aytish uchun: tanlangan guruh nomi yoki "barcha". */
+const scopeLabel = computed(() => {
+  const id = groupId.value
+  if (id === null) return 'Barcha faol guruhlar'
+  return groups.value.find((group) => group.id === id)?.name ?? 'Tanlangan guruh'
+})
+
+/**
+ * R4 — YON TA'SIRI KATTA amal, shuning uchun tasdiq so'raladi.
+ *
+ * Bitta bosishda BUTUN markaz bo'ylab har bir faol o'quvchiga to'lov yozuvi
+ * ochiladi va oldindan to'laganlarning BALANSI avtomatik sarflanadi — ya'ni
+ * pul harakati ham bo'ladi. "Guruh" maydoni bo'sh qolib ketsa qamrov bitta
+ * guruhdan butun markazgacha kengayadi va buni natija ekranigacha bilib
+ * bo'lmasdi. Tasdiq aynan shu ikki narsani — OY va QAMROVni — qaytarib
+ * o'qiydi.
+ *
+ * ★ TON `warning`, `danger` EMAS: amal idempotent (fayl boshidagi izoh),
+ * takror bosilsa dublikat yaratmaydi. Qo'rqitadigan ohang bu yerda noto'g'ri
+ * signal berardi — xodim kerakli amalni bajarishdan tortinardi.
+ */
+async function submit(): Promise<void> {
   if (!periodValid.value || mutation.isPending.value) return
+
+  const ok = await confirm({
+    title: 'Oy yozuvlarini ochish',
+    message: `${periodLabel(period.value)} uchun har bir faol o‘quvchiga to‘lov yozuvi ochiladi.`,
+    confirmLabel: 'Yaratish',
+    tone: 'warning',
+    details: [
+      `Qamrov: ${scopeLabel.value}`,
+      'Oldindan to‘laganlarning balansi shu oyga avtomatik sarflanadi.',
+      'Amal takrorlansa xavfsiz — mavjud yozuvlar qayta yaratilmaydi.',
+    ],
+  })
+  if (!ok) return
+
   errorMessage.value = null
   mutation.mutate()
 }
@@ -123,7 +161,15 @@ const warnings = computed(() => {
           uchun yozuvlar ochildi.
         </p>
 
-        <dl class="mt-3 grid grid-cols-2 gap-2.5">
+        <!--
+          ★ TELEFONDA BITTA USTUN. 320px ekranda oyna ichi 288px
+          (`BaseModal` `px-4`) — ikki ustunda kartochka paddingidan keyin
+          115px qoladi va «oy balansdan yopildi (1 250 000 so'm)» kabi
+          yorliqlar to'rt qatorga bo'linib, qaysi raqam qaysi izohga
+          tegishli ekani ko'rinmay qolardi. 560px (`xs`) dan yuqorida
+          avvalgi ikki ustunli ko'rinish. Tartib va matnlar O'ZGARMADI.
+        -->
+        <dl class="mt-3 grid grid-cols-1 gap-2.5 xs:grid-cols-2">
           <div class="rounded-lg border border-line bg-ink-800 p-3">
             <dd
               class="text-lg font-bold tabular-nums text-green-400"

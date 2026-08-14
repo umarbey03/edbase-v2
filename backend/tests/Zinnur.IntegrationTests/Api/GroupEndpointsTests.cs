@@ -382,6 +382,73 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         resumed.PausedUntil.Should().BeNull("tiklanganda muddat tozalanadi");
     }
 
+    // =============================================== a'zolar ro'yxati va KONTAKT
+
+    /// <summary>
+    /// ========================================================================
+    /// 🔴 R27: <c>GET /groups/{id}/members</c> — USTOZGA KONTAKT BERMAYDI
+    /// ========================================================================
+    ///
+    /// Bu endpoint — ustoz yeta oladigan IKKI proyeksiyadan biri (ikkinchisi
+    /// <c>GET /users/{id}/profile</c>, u <c>UserProfileEndpointsTests</c> da
+    /// qo'riqlanadi). Sinf darajasidagi
+    /// <c>[Authorize(Roles="Teacher,Assistant,Academic,Admin")]</c> faqat
+    /// DARVOZA: u "kira oladimi" degan savolga javob beradi, "nima ko'radi"
+    /// degan savolga emas.
+    ///
+    /// Uchala rol BITTA testda tekshiriladi (ustoz / kurator / o'quv bo'limi):
+    /// qoida — bu ULARNING FARQI, va farqni bitta joyda ko'rish uni keyinroq
+    /// buzib qo'yishni qiyinlashtiradi.
+    /// </summary>
+    [Fact]
+    public async Task Members_HideContactFromTeacherOnly()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "azo-kontakt");
+
+        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
+        phone.Should().NotBeNullOrEmpty("dunyo quruvchi o'quvchiga ham raqam beradi");
+
+        var uri = $"/api/v1/groups/{world.GroupId}/members";
+
+        // ---- USTOZ: kontakt YO'Q
+        using (var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher))
+        {
+            using var raw = await teacher.GetAsync(new Uri(uri, UriKind.Relative));
+            var json = await raw.Content.ReadAsStringAsync();
+
+            raw.StatusCode.Should().Be(HttpStatusCode.OK, json);
+            json.Should().NotContain(email, "email ustoz javobiga tushmasligi kerak");
+            json.Should().NotContain(phone!, "telefon ustoz javobiga tushmasligi kerak");
+
+            var members = await teacher.GetFromJsonAsync<List<MemberResponse>>(uri);
+            var row = members!.Single(m => m.StudentId == world.Student.Id);
+
+            row.Email.Should().BeNull();
+            row.Phone.Should().BeNull();
+            row.FullName.Should().NotBeNullOrEmpty("ism qoladi — jurnal ishlashi kerak");
+        }
+
+        // ---- KURATOR: kontakt BOR (qo'ng'iroq — uning asosiy amali)
+        using (var curator = await WorldBuilder.ClientAsync(factory, world.Curator))
+        {
+            var members = await curator.GetFromJsonAsync<List<MemberResponse>>(uri);
+            var row = members!.Single(m => m.StudentId == world.Student.Id);
+
+            row.Email.Should().Be(email);
+            row.Phone.Should().Be(phone);
+        }
+
+        // ---- O'QUV BO'LIMI: hammasi ochiq
+        using (var admin = await AdminClientAsync())
+        {
+            var members = await admin.GetFromJsonAsync<List<MemberResponse>>(uri);
+            var row = members!.Single(m => m.StudentId == world.Student.Id);
+
+            row.Email.Should().Be(email);
+            row.Phone.Should().Be(phone);
+        }
+    }
+
     /// <summary>
     /// ★ KURATOR guruhida o'quvchilar BEVOSITA a'zo bo'lmaydi — ular
     /// <c>curatorGroupId</c> havolasi orqali bog'langan ustoz guruhlaridan
@@ -479,7 +546,7 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         using var admin = await AdminClientAsync();
         var (email, password) = await CreateStaffWithLoginAsync(admin, UserRole.Teacher);
 
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var teacherClient = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var response = await teacherClient.PostAsJsonAsync("/api/v1/groups",
@@ -508,7 +575,7 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         var mine = await CreateGroupAsync(admin, Payload("IT-mening", startDate, ownerId));
         var theirs = await CreateGroupAsync(admin, Payload("IT-begona", startDate, strangerId));
 
-        var tokens = await factory.LoginAsync(email, password);
+        var tokens = await factory.LoginAsync(email);
         using var teacherClient = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var page = await teacherClient.GetFromJsonAsync<PagedGroups>("/api/v1/groups?pageSize=100");
@@ -545,12 +612,146 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    // ================================================================= R22: qidiruv
+
+    /// <summary>
+    /// ★★ R22 — QIDIRUV "BARCHA PARAMETRLAR" BO'YICHA.
+    ///
+    /// Talab: *"guruhlar bo'limida qidiruv barcha parametrlar bo'yicha
+    /// ishlasin"*. Ilgari server FAQAT <c>Groups.Name</c> ni qarardi, ya'ni
+    /// "ustozim kim edi?" degan savolga jadval javob bera olmasdi.
+    ///
+    /// ★ HAR BELGI BOSHQA-BOSHQA: guruh nomi, ustoz ismi va kurator ismi
+    /// uchun UCHTA MUSTAQIL tasodifiy satr ishlatiladi. Bitta umumiy belgi
+    /// bo'lsa test "ustoz bo'yicha topildi" deb yozib, aslida nom bo'yicha
+    /// topilganini yashirardi — ya'ni yashil bo'lib turgan holda hech
+    /// narsani isbotlamasdi.
+    ///
+    /// ★ KURS NOMI shu yerda alohida tekshirilmaydi: u kod shaklida kurator
+    /// guruhi nomi bilan AYNAN bir xil tarmoq (nullable navigatsiya +
+    /// <c>LIKE</c>), kurs yaratish esa testga aloqasiz uchta so'rov
+    /// qo'shardi.
+    /// </summary>
+    [Fact]
+    public async Task List_Search_MatchesTeacherAndCuratorNamesNotOnlyGroupName()
+    {
+        using var client = await AdminClientAsync();
+
+        var groupMark = SearchMarker();
+        var teacherMark = SearchMarker();
+        var assistantMark = SearchMarker();
+        var curatorGroupMark = SearchMarker();
+
+        var teacherId = await CreateNamedStaffAsync(client, UserRole.Teacher, "Ustoz " + teacherMark);
+        var assistantId = await CreateNamedStaffAsync(
+            client, UserRole.Assistant, "Kurator " + assistantMark);
+
+        var startDate = FutureStart(DayOfWeek.Monday);
+
+        var curatorGroup = await CreateGroupAsync(client, new
+        {
+            name = "K-" + curatorGroupMark,
+            startDate = startDate.ToString("O", CultureInfo.InvariantCulture),
+            weekdays = new[] { "Monday", "Wednesday", "Friday" },
+            startTime = StartTime,
+            type = nameof(GroupType.Curator),
+            durationMinutes = DurationMinutes,
+            courseMonths = CourseMonths,
+            assistantId,
+            isActive = true,
+        });
+
+        var group = await CreateGroupAsync(client, new
+        {
+            name = "IT-" + groupMark,
+            startDate = startDate.ToString("O", CultureInfo.InvariantCulture),
+            weekdays = MondayWednesday,
+            startTime = StartTime,
+            type = nameof(GroupType.Group),
+            durationMinutes = DurationMinutes,
+            courseMonths = CourseMonths,
+            teacherId,
+            assistantId,
+            curatorGroupId = curatorGroup.Group.Id,
+            isActive = true,
+        });
+
+        var id = group.Group.Id;
+
+        (await SearchGroupIdsAsync(client, groupMark))
+            .Should().Contain(id, "guruh nomi bo'yicha qidiruv AVVALGIDEK ishlashi kerak");
+
+        (await SearchGroupIdsAsync(client, teacherMark))
+            .Should().Contain(id, "R22: ustoz ismi bo'yicha");
+
+        (await SearchGroupIdsAsync(client, assistantMark))
+            .Should().Contain(id, "R22: kurator ismi bo'yicha");
+
+        (await SearchGroupIdsAsync(client, curatorGroupMark))
+            .Should().Contain(id, "R22: biriktirilgan kurator guruhi nomi bo'yicha");
+
+        (await SearchGroupIdsAsync(client, SearchMarker()))
+            .Should().NotContain(id, "hech qayerda uchramaydigan satr hech nima topmasin");
+    }
+
+    /// <summary>
+    /// ⚠️ Minimal uzunlik SAQLANDI (2 belgi) — qamrov kengaygani bilan
+    /// shartnoma o'zgarmadi. Frontend qo'riqchisi (`TeacherGroupsPage`,
+    /// `ManageGroupsPage`) aynan shu 400 ga tayanadi.
+    /// </summary>
+    [Fact]
+    public async Task List_SearchShorterThanMinimum_ReturnsBadRequest()
+    {
+        using var client = await AdminClientAsync();
+
+        var response = await client.GetAsync(new Uri("/api/v1/groups?search=a", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     // ================================================================= yordamchi
 
     private async Task<HttpClient> AdminClientAsync()
     {
         var tokens = await factory.LoginAsAdminAsync();
         return factory.CreateAuthorizedClient(tokens.AccessToken);
+    }
+
+    /// <summary>
+    /// Boshqa testlar bilan TO'QNASHMAYDIGAN qidiruv satri.
+    ///
+    /// Baza testlar orasida BO'LISHILADI, ya'ni "Ustoz" kabi haqiqiy so'z
+    /// begona qatorlarni ham tortib kelardi va `NotContain` tekshiruvi
+    /// tasodifan yiqilardi. Harflar bilan boshlanadi — raqamli satr
+    /// telefon/Id qidiruvi bilan chalkashmasin.
+    /// </summary>
+    private static string SearchMarker() => "qq" + Guid.NewGuid().ToString("N")[..8];
+
+    private static async Task<List<long>> SearchGroupIdsAsync(HttpClient client, string term)
+    {
+        var page = await client.GetFromJsonAsync<PagedGroups>(
+            $"/api/v1/groups?pageSize=100&search={Uri.EscapeDataString(term)}");
+
+        page.Should().NotBeNull();
+        return [.. page!.Items.Select(g => g.Id)];
+    }
+
+    /// <summary>ANIQ ism bilan xodim — qidiruv testi shunga tayanadi.</summary>
+    private static async Task<long> CreateNamedStaffAsync(
+        HttpClient client, UserRole role, string fullName)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/users", new
+        {
+            fullName,
+            email = $"ig-{Guid.NewGuid():N}"[..16] + "@zinnur.uz",
+            role = role.ToString(),
+            phone = TestPhones.Next(),
+        });
+
+        await EnsureStatusAsync(response, HttpStatusCode.Created);
+
+        var created = await response.Content.ReadFromJsonAsync<CreatedUserResponse>();
+        return created!.User.Id;
     }
 
     /// <summary>Barcha darslari KELAJAKDA bo'ladigan boshlanish sanasi.</summary>
@@ -662,7 +863,9 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
             fullName = "Test " + role.ToString(),
             email,
             role = role.ToString(),
-            password,
+
+            // 🔴 Xodim uchun telefon MAJBURIY (2026-08-13) — izoh `TestPhones` da.
+            phone = TestPhones.Next(),
         });
 
         await EnsureStatusAsync(response, HttpStatusCode.Created);
@@ -731,10 +934,17 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         long? HostId,
         string RoomName);
 
+    /// <summary>
+    /// ★ <c>Email</c>/<c>Phone</c> — <c>string?</c>: ustoz javobida ikkalasi
+    /// ham <c>null</c> (talab R27). Email bazada MAJBURIY, ya'ni bo'shlik
+    /// faqat serverning kesganidan darak beradi.
+    /// </summary>
     private sealed record MemberResponse(
         long Id,
         long StudentId,
         string FullName,
+        string? Email,
+        string? Phone,
         string Status,
         DateOnly? PausedUntil,
         long SourceGroupId,

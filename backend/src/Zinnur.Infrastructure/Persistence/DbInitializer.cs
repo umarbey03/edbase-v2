@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Domain.Entities;
@@ -17,17 +19,57 @@ namespace Zinnur.Infrastructure.Persistence;
 /// </summary>
 public static class DbInitializer
 {
-    /// <summary>Birinchi ishga tushirishdagi admin. Kirgandan keyin parol ALMASHTIRILSIN.</summary>
+    /// <summary>Birinchi ishga tushirishdagi admin (kontakt/identifikator sifatida).</summary>
     public const string AdminEmail = "admin@zinnur.uz";
 
     /// <summary>
-    /// Faqat BO'SH bazadagi birinchi kirish uchun. Bu "sir" emas —
-    /// SPEC 9.8 dagi "kodda sir bo'lmasin" qoidasi ishlab turgan tizim
-    /// kalitlariga tegishli; bu esa ataylab ommaviy, bir martalik parol.
+    /// ⚠️ ENDI KIRISH VOSITASI EMAS. 2026-08-13 dan email va parol bilan
+    /// kirish olib tashlandi; bu qiymat faqat <c>PasswordHash</c>
+    /// ustunini to'ldirish uchun qoldi (ustun <c>required</c>, sabab
+    /// <c>User.PasswordHash</c> izohida). Uni bilgan odam HECH QAYERGA
+    /// kira olmaydi — kirish endi telefon + Telegram kodi bilan.
     /// </summary>
     public const string AdminPassword = "Admin!2345";
 
     private const string DemoPassword = "Demo!2345";
+
+    // ════════════════════════════════════════════════════════════════════
+    // 🔴 BOSHLANG'ICH ADMIN TELEFONI — YANGI O'RNATISHNING YAGONA KALITI
+    //
+    // Email va parol bilan kirish olib tashlangach, telefonsiz va
+    // Telegram'siz yaratilgan admin BUTUNLAY ERISHIB BO'LMAYDIGAN bo'lib
+    // qoladi: kirish uchun raqam kerak, raqamni kiritish uchun esa
+    // tizimga kirish kerak. Ya'ni bo'sh bazaga qurilgan yangi deploy
+    // HECH QANDAY administratorsiz ishga tushardi va uni faqat `psql`
+    // bilan tuzatish mumkin bo'lardi.
+    //
+    // Shuning uchun raqam MUHITDAN olinadi va u yo'q bo'lsa seeding
+    // TO'XTATILADI (Development'dan tashqarida).
+    // ════════════════════════════════════════════════════════════════════
+
+    /// <summary>Muhit o'zgaruvchisi: <c>Bootstrap__AdminPhone</c>.</summary>
+    public const string AdminPhoneKey = "Bootstrap:AdminPhone";
+
+    /// <summary>
+    /// Muhit o'zgaruvchisi: <c>Bootstrap__AdminTelegramId</c> — IXTIYORIY.
+    ///
+    /// ★ NIMA UCHUN IXTIYORIY: raqam yetarli. Admin botga
+    /// «📱 Raqamni ulashish» tugmasi orqali bog'lanadi va Telegram ID
+    /// o'sha yerda yoziladi. Oldindan berish faqat bitta qadamni
+    /// tejaydi — LEKIN xato ID berilsa admin hisobi BOSHQA odamga
+    /// bog'lanib qolardi, shuning uchun u majburiy emas va hujjatda
+    /// tavsiya ham etilmaydi.
+    /// </summary>
+    public const string AdminTelegramIdKey = "Bootstrap:AdminTelegramId";
+
+    /// <summary>
+    /// Development uchun standart raqam. Prod'da ISHLATILMAYDI —
+    /// u yerda o'zgaruvchi majburiy.
+    /// </summary>
+    public const string DevAdminPhone = "+998900000001";
+
+    private const string DevTeacherPhone = "+998900000002";
+    private const string DevStudentPhone = "+998900000003";
 
     /// <summary>DI konteyneridan kerakli xizmatlarni olib to'liq initsializatsiya qiladi.</summary>
     public static async Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
@@ -41,25 +83,31 @@ public static class DbInitializer
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(DbInitializer));
 
-        await InitializeAsync(db, hasher, logger, ct).ConfigureAwait(false);
+        var bootstrap = BootstrapAdmin.Read(configuration, environment.IsDevelopment());
+
+        await InitializeAsync(db, hasher, bootstrap, logger, ct).ConfigureAwait(false);
     }
 
     /// <summary>Testlar va migratsiya vositalari uchun to'g'ridan-to'g'ri variant.</summary>
     public static async Task InitializeAsync(
         ApplicationDbContext db,
         IPasswordHasher hasher,
+        BootstrapAdmin bootstrap,
         ILogger logger,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(hasher);
+        ArgumentNullException.ThrowIfNull(bootstrap);
 
         await ApplySchemaAsync(db, logger, ct).ConfigureAwait(false);
-        await SeedAsync(db, hasher, logger, ct).ConfigureAwait(false);
+        await SeedAsync(db, hasher, bootstrap, logger, ct).ConfigureAwait(false);
     }
 
     private static async Task ApplySchemaAsync(
@@ -84,7 +132,11 @@ public static class DbInitializer
     }
 
     private static async Task SeedAsync(
-        ApplicationDbContext db, IPasswordHasher hasher, ILogger logger, CancellationToken ct)
+        ApplicationDbContext db,
+        IPasswordHasher hasher,
+        BootstrapAdmin bootstrap,
+        ILogger logger,
+        CancellationToken ct)
     {
         // YAGONA shart: baza bo'sh bo'lsa. Bitta ham foydalanuvchi bo'lsa
         // demo ma'lumot yozilmaydi — prod bazasiga demo guruh tushib qolmasin.
@@ -93,6 +145,21 @@ public static class DbInitializer
             DbInitializerLog.SeedSkipped(logger);
             return;
         }
+
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 TEKSHIRUV AYNAN SHU YERDA — "baza bo'sh" shartidan KEYIN.
+        //
+        // Tartib ATAYLAB shunday. Agar u yuqorida, `InitializeAsync`
+        // boshida turganda, ISHLAB TURGAN har bir o'rnatish keyingi
+        // qayta ishga tushishda YIQILARDI: ularda `Bootstrap__AdminPhone`
+        // yo'q va kerak ham emas (administrator allaqachon bazada).
+        // Ya'ni lockout'dan himoya qiladigan tekshiruvning O'ZI butun
+        // platformani to'xtatib qo'yardi.
+        //
+        // Shart faqat "hozir birinchi administrator YARATILAYOTGAN
+        // bo'lsa" ma'noga ega — va aynan o'shanda u qattiq.
+        // ══════════════════════════════════════════════════════════════
+        bootstrap.EnsureUsable();
 
         var now = DateTimeOffset.UtcNow;
 
@@ -109,6 +176,19 @@ public static class DbInitializer
             Role = UserRole.Admin,
         };
 
+        // 🔴 TELEFON — `SetPhone` ORQALI, qo'lda EMAS. Faqat shu metod
+        //    `PhoneNormalized` ni to'ldiradi, kirish esa AYNAN o'sha
+        //    ustun bo'yicha izlaydi. To'g'ridan-to'g'ri `Phone = "..."`
+        //    yozilsa admin CRM'da normal ko'rinardi, lekin kirish uni
+        //    hech qachon topa olmasdi — bu aynan migratsiya qoldirgan
+        //    nosozlik turi.
+        admin.SetPhone(bootstrap.AdminPhone);
+
+        // Telegram ID berilgan bo'lsa — darhol bog'laymiz, aks holda
+        // administrator botga bir marta raqamini ulashadi.
+        if (bootstrap.AdminTelegramId is { } telegramId)
+            admin.LinkTelegram(telegramId, username: null, now);
+
         var teacher = new User
         {
             FullName = "Demo Ustoz",
@@ -117,6 +197,8 @@ public static class DbInitializer
             Role = UserRole.Teacher,
         };
 
+        teacher.SetPhone(DevTeacherPhone);
+
         var student = new User
         {
             FullName = "Demo O'quvchi",
@@ -124,6 +206,8 @@ public static class DbInitializer
             PasswordHash = demoHash,
             Role = UserRole.Student,
         };
+
+        student.SetPhone(DevStudentPhone);
 
         db.Users.AddRange(admin, teacher, student);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -189,7 +273,7 @@ public static class DbInitializer
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        DbInitializerLog.Seeded(logger, AdminEmail);
+        DbInitializerLog.Seeded(logger, AdminEmail, bootstrap.AdminPhone ?? "-");
     }
 }
 
@@ -213,9 +297,16 @@ internal static partial class DbInitializerLog
         Message = "Bazada ma'lumot bor — boshlang'ich yozuvlar o'tkazib yuborildi.")]
     internal static partial void SeedSkipped(ILogger logger);
 
+    /// <summary>
+    /// ⚠️ MATN 2026-08-13 DA O'ZGARDI: "parolni almashtiring" maslahati
+    /// endi ma'nosiz (parol bilan kirish yo'q) va u operatorni noto'g'ri
+    /// ishga yo'naltirardi. Endi logda AYNAN kerakli fakt turadi —
+    /// administrator qaysi RAQAM bilan kira oladi.
+    /// </summary>
     [LoggerMessage(
         EventId = 1002,
         Level = LogLevel.Warning,
-        Message = "Boshlang'ich ma'lumotlar yozildi. Admin: {Email} — PAROLNI DARHOL ALMASHTIRING.")]
-    internal static partial void Seeded(ILogger logger, string email);
+        Message = "Boshlang'ich ma'lumotlar yozildi. Admin: {Email}, telefon: {Phone}. "
+                  + "Kirish uchun shu raqamni botga ulang (docs/DEPLOY_UBUNTU.md).")]
+    internal static partial void Seeded(ILogger logger, string email, string phone);
 }

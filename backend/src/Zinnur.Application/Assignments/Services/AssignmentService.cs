@@ -191,12 +191,11 @@ public sealed class AssignmentService(
 
         var actor = await LoadActorAsync(actorId, ct);
 
-        // RUXSAT NISHONGA BOG'LIQ:
-        //   • KURS vazifasi (dars) — faqat o'quv bo'limi/admin: u BARCHA
-        //     guruhlarga taalluqli, ya'ni bitta ustoz butun platformaga
-        //     vazifa berib qo'ymasligi kerak;
-        //   • GURUH vazifasi — o'z guruhiga ustoz/kurator ham beradi.
-        await EnsureCanCreateAsync(actor, request.GroupId, request.ModuleLessonId, ct);
+        // R32: RUXSAT NISHONGA BOG'LIQ EMAS — kurs vazifasi ham, guruh
+        // vazifasi ham faqat o'quv bo'limi/admin tomonidan yaratiladi.
+        // (Ilgari guruh vazifasini ustoz o'z guruhiga bera olardi; sabab va
+        // bekor qilinishi — `CanManageEverything` ustidagi izohda.)
+        EnsureCanCreate(actor);
         await EnsureTargetExistsAsync(request.GroupId, request.ModuleLessonId, ct);
 
         RequireAnswerFormats(request.AllowedFormats);
@@ -235,7 +234,7 @@ public sealed class AssignmentService(
         var assignment = await db.Assignments.AsTracking().FirstOrDefaultAsync(a => a.Id == id, ct)
             ?? throw new NotFoundException(nameof(Assignment), id);
 
-        await EnsureCanWriteAsync(actor, assignment, ct);
+        EnsureCanWrite(actor);
 
         RequireAnswerFormats(request.AllowedFormats);
 
@@ -566,16 +565,36 @@ public sealed class AssignmentService(
     ///
     /// | Amal                     | Admin/Academic | Teacher/Assistant        |
     /// |--------------------------|----------------|--------------------------|
-    /// | Kurs vazifasi yaratish   | ✔              | ✘ (barcha guruhga tegadi)|
-    /// | Guruh vazifasi yaratish  | ✔              | ✔ faqat O'Z guruhiga     |
-    /// | Tahrirlash               | ✔              | ✔ faqat O'Z guruh vazifasi|
+    /// | Kurs vazifasi yaratish   | ✔              | ✘                        |
+    /// | Guruh vazifasi yaratish  | ✔              | ✘ (R32 — quyida)         |
+    /// | Tahrirlash               | ✔              | ✘ (R32)                  |
+    /// | Shart biriktirmasi       | ✔              | ✘ (R32)                  |
     /// | O'chirish                | ✔              | ✘                        |
+    /// | Vazifani KO'RISH         | ✔ hammasi      | ✔ o'z guruhi + kurs vaz. |
     /// | Javoblarni ko'rish       | ✔ hammasi      | ✔ faqat O'Z o'quvchilari |
     /// | Baholash / qayta ochish  | ✔              | ✔ faqat O'Z o'quvchisini |
     ///
     /// Admin/Academic baholashdan CHETLATILMAGAN (ro'yxatdagi "Teacher/Assistant"
     /// dan ko'proq): o'quv bo'limi ustozning xatosini tuzatishi kerak, aks
     /// holda noto'g'ri baho butun tizimda tuzatilmas bo'lib qolardi.
+    ///
+    /// ═══════════════════════════════════════════════════════════════════
+    /// R32 (2026-08-13) — BEKOR QILINGAN QATOR: "ustoz O'Z guruhiga beradi"
+    /// ═══════════════════════════════════════════════════════════════════
+    /// Ilgari ustoz/kurator O'Z guruhiga vazifa YARATA VA TAHRIRLAY olardi
+    /// (kurs vazifasi allaqachon faqat o'quv bo'limida edi). Loyiha egasi
+    /// buni ham yopdi: *"teacher vazifa yaratishi kerakmas, o'quv bo'limi
+    /// yaratadi vazifalarni"* — Q10 QAT'IY o'qilishda.
+    ///
+    /// ★ NIMA UCHUN QOIDA O'CHIRILDI, SHUNCHAKI ROL RO'YXATI QISQARTIRILMADI:
+    /// "ustoz o'z guruhiga" tarmog'i qolib, unga hech qachon kirilmasa,
+    /// keyingi o'quvchi kod uni TIRIK deb o'qirdi va yangi endpointda
+    /// takrorlardi. Endi <see cref="EnsureCanCreateAsync"/> va
+    /// <see cref="EnsureCanWriteAsync"/> bitta gapni aytadi.
+    ///
+    /// ⚠️ O'QISH va BAHOLASH tarmoqlari TEGILMADI: ustoz vazifani ko'rishi
+    /// va javoblarni baholashi kerak, aks holda talab baholashni ham
+    /// o'chirib yuborardi — egasi bunday demagan.
     /// </summary>
     private static bool CanManageEverything(User actor) =>
         actor.Role is UserRole.Admin or UserRole.Academic;
@@ -589,24 +608,23 @@ public sealed class AssignmentService(
             throw new ForbiddenException("Bu ro'yxatga ruxsatingiz yo'q.");
     }
 
-    private async Task EnsureCanCreateAsync(
-        User actor, long? groupId, long? moduleLessonId, CancellationToken ct)
+    /// <summary>
+    /// YARATISH ruxsati.
+    ///
+    /// ★ IMZO ATAYLAB QISQARDI: ilgari u <c>groupId</c>, <c>moduleLessonId</c>
+    /// va <c>CancellationToken</c> olardi va bazaga borardi ("bu ustozning
+    /// guruhimi?"). R32 dan keyin qaror NISHONGA ham, bazaga ham qaramaydi —
+    /// ya'ni endi u sinxron va argumentsiz. Eski imzoni saqlab, ichini
+    /// bo'shatish "bu yerda hali ham nishon tekshirilyapti" degan yolg'on
+    /// taassurot qoldirardi.
+    /// </summary>
+    private static void EnsureCanCreate(User actor)
     {
         if (CanManageEverything(actor)) return;
 
-        if (!IsStaff(actor))
-            throw new ForbiddenException("Vazifa yaratishga ruxsatingiz yo'q.");
-
-        if (moduleLessonId is not null)
-        {
-            throw new ForbiddenException(
-                "KURS vazifasini faqat o'quv bo'limi biriktiradi — u barcha "
-                + "guruhlarga taalluqli. O'z guruhingizga vazifa berish uchun "
-                + "`groupId` ni ko'rsating.");
-        }
-
-        if (groupId is not { } id || !await IsStaffOfGroupAsync(actor.Id, id, ct))
-            throw new ForbiddenException("Faqat o'z guruhingizga vazifa bera olasiz.");
+        throw new ForbiddenException(
+            "Vazifani faqat o'quv bo'limi yaratadi. Ustoz va kurator "
+            + "topshirilgan ishlarni ko'radi va baholaydi.");
     }
 
     /// <summary>
@@ -632,17 +650,24 @@ public sealed class AssignmentService(
 
     /// <summary>
     /// WAVE 1: YOZISH darvozasi — OSHKOR yo'l (shart biriktirmalari uchun).
+    ///
+    /// ★ Vazifa RUXSATDAN OLDIN yuklanadi, garchi R32 dan keyin qoida uni
+    /// o'qimasa ham: mavjud bo'lmagan vazifa 404 olishi kerak, 403 emas.
+    /// Aks holda o'quv bo'limi xodimi noto'g'ri Id kiritganda "ruxsatingiz
+    /// yo'q" degan chalg'ituvchi xabar ko'rardi.
     /// </summary>
     public async Task EnsureCanWriteAssignmentAsync(
         long assignmentId, long actorId, CancellationToken ct = default)
     {
         var actor = await LoadActorAsync(actorId, ct);
 
-        var assignment = await db.Assignments.AsNoTracking()
-            .FirstOrDefaultAsync(a => a.Id == assignmentId, ct)
-            ?? throw new NotFoundException(nameof(Assignment), assignmentId);
+        var exists = await db.Assignments.AsNoTracking()
+            .AnyAsync(a => a.Id == assignmentId, ct);
 
-        await EnsureCanWriteAsync(actor, assignment, ct);
+        if (!exists)
+            throw new NotFoundException(nameof(Assignment), assignmentId);
+
+        EnsureCanWrite(actor);
     }
 
     /// <summary>O'QISH ruxsati (vazifa kartochkasi, javoblar ro'yxati).</summary>
@@ -663,21 +688,23 @@ public sealed class AssignmentService(
         throw new ForbiddenException("Bu vazifa sizning guruhingizga tegishli emas.");
     }
 
-    /// <summary>YOZISH ruxsati (tahrirlash) — o'qishdan qat'iyroq.</summary>
-    private async Task EnsureCanWriteAsync(User actor, Assignment assignment, CancellationToken ct)
+    /// <summary>
+    /// YOZISH ruxsati (tahrirlash va shart biriktirmalari) — o'qishdan
+    /// qat'iyroq.
+    ///
+    /// ★ R32 dan keyin YARATISH bilan AYNI qoida
+    /// (<see cref="EnsureCanCreate"/>), shuning uchun u ham nishonni
+    /// so'ramaydi va bazaga bormaydi. Ikkitasi ataylab ALOHIDA metod bo'lib
+    /// qoldi: xato XABARI boshqa ("yaratadi" / "tahrirlaydi") va kelajakda
+    /// biri yumshasa (masalan ustoz o'z vazifasining muddatini surishi),
+    /// ikkinchisi bexosdan yumshab qolmasin.
+    /// </summary>
+    private static void EnsureCanWrite(User actor)
     {
         if (CanManageEverything(actor)) return;
 
-        if (!IsStaff(actor))
-            throw new ForbiddenException("Vazifani tahrirlashga ruxsatingiz yo'q.");
-
-        if (assignment.ModuleLessonId is not null)
-            throw new ForbiddenException("Kurs vazifasini faqat o'quv bo'limi tahrirlaydi.");
-
-        if (assignment.GroupId is { } groupId && await IsStaffOfGroupAsync(actor.Id, groupId, ct))
-            return;
-
-        throw new ForbiddenException("Bu vazifa sizning guruhingizga tegishli emas.");
+        throw new ForbiddenException(
+            "Vazifani faqat o'quv bo'limi tahrirlaydi.");
     }
 
     /// <summary>

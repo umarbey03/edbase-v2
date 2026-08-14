@@ -2,9 +2,10 @@
 import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
-import { createTest, TEST_TITLE_MAX, testKindLabel, updateTest } from '@/entities/test'
+import { createTest, TEST_TITLE_MAX, testKindLabel, testTitle, updateTest } from '@/entities/test'
 import { toUserMessage } from '@/shared/api'
 import { fromDateTimeLocalInput, toDateTimeLocalInput } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { CreateTestRequest, TestDto, TestKindName, UpdateTestRequest } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
@@ -155,10 +156,47 @@ const canSubmit = computed(
     !isPending.value,
 )
 
-function handleSubmit(): void {
+const confirm = useConfirm()
+
+/**
+ * R4 — TASDIQ FAQAT TAHRIRLASHDA (B2 jadvali: ma'lumotni ALMASHTIRUVCHI
+ * saqlash → `primary`). Yaratishda so'ralmaydi: yangi test hech narsani
+ * almashtirmaydi va e'lon qilinmagunicha o'quvchi uni ko'rmaydi.
+ *
+ * ★ MATN AYNAN "ALMASHTIRILADI" DEYDI, chunki `PUT` shu faylning boshidagi
+ * izohda yozilgan tuzoqni saqlaydi: server yuborilmagan maydonni JIMGINA
+ * `null` ga tushiradi. Forma hozir hammasini qaytaradi, lekin tasdiq matni
+ * foydalanuvchiga aynan shu xulqni aytadi — ya'ni "men faqat sarlavhani
+ * o'zgartirdim" degan taxminni oldindan buzadi.
+ *
+ * ★ E'LON QILINGAN TESTDA QO'SHIMCHA QATOR: o'quvchi ayni damda testni
+ * yechayotgan bo'lishi mumkin va vaqt chegarasi/muddat o'zgarishi uning
+ * ochiq urinishiga tegadi.
+ */
+async function handleSubmit(): Promise<void> {
   if (!canSubmit.value) return
-  errorMessage.value = null
+
   const test = props.test
+  if (test !== null) {
+    const details = [
+      'Tavsif, vaqt chegarasi va muddat formadagi qiymatlar bilan qayta yoziladi.',
+      'Savollar va topshirilgan natijalar tegilmaydi.',
+    ]
+    if (test.isPublished) {
+      details.unshift('Test E’LON QILINGAN — o‘zgarish o‘quvchilarga darhol ko‘rinadi.')
+    }
+
+    const ok = await confirm({
+      title: 'Testni saqlash',
+      message: `“${testTitle(test)}” ma’lumotlari ALMASHTIRILADI.`,
+      confirmLabel: 'Saqlash',
+      tone: 'primary',
+      details,
+    })
+    if (!ok) return
+  }
+
+  errorMessage.value = null
   if (test !== null) updateMutation.mutate(test.id)
   else createMutation.mutate()
 }

@@ -4,15 +4,29 @@ import { computed, ref, watch } from 'vue'
 
 import { createUser, ROLE_OPTIONS, updateUser } from '@/entities/user'
 import { toUserMessage } from '@/shared/api'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import type { UserDetailsDto, UserRoleName } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
 /**
  * Foydalanuvchi yaratish/tahrirlash oynasi.
  *
- * Yaratishda parol IXTIYORIY: bo'sh qoldirilsa server vaqtinchalik parol
- * generatsiya qiladi va uni FAQAT BIR MARTA qaytaradi — shuning uchun
- * javob kelgach oyna yopilmaydi, parol ekranda ko'rsatiladi.
+ * ══════════════════════════════════════════════════════════════════════
+ * ⚠️ PAROL MAYDONI OLIB TASHLANDI (2026-08-13, loyiha egasining qarori).
+ *
+ * Ilgari bu yerda ixtiyoriy parol maydoni bor edi va server bo'sh
+ * qoldirilganda vaqtinchalik parol qaytarardi (u ekranda ko'rsatilardi).
+ * Endi parol bilan kirish YO'Q — ya'ni o'sha satr foydalanuvchiga
+ * uzatiladigan "kirish ma'lumoti" emas, hech qayerda ishlamaydigan
+ * belgilar to'plami bo'lib qolardi. Xodim uni foydalanuvchiga aytardi,
+ * u esa kirish ekranida qaerga yozishni topa olmasdi.
+ *
+ * 🔴 YANGI FOYDALANUVCHI QANDAY KIRADI: botga `/start` yozib,
+ *    «Raqamni ulashish» tugmasini bosadi — shundan keyin saytda telefon
+ *    raqamini kiritib, Telegramga keladigan kod bilan kiradi. Shuning
+ *    uchun TELEFON endi eng muhim maydon va xodim rollari uchun u
+ *    MAJBURIY (server ham talab qiladi).
+ * ══════════════════════════════════════════════════════════════════════
  */
 const props = defineProps<{
   open: boolean
@@ -22,20 +36,40 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: []; saved: [] }>()
 
+const confirm = useConfirm()
+
 const fullName = ref('')
 const email = ref('')
 const phone = ref('')
 const role = ref<UserRoleName>('Student')
-const password = ref('')
 const isActive = ref(true)
 const errorMessage = ref<string | null>(null)
-const temporaryPassword = ref<string | null>(null)
 
 const isEdit = computed(() => props.user !== null)
+
+/**
+ * 🔴 XODIM ROLLARI UCHUN TELEFON MAJBURIY.
+ *
+ * ★ NIMA UCHUN MIJOZDA HAM TEKSHIRILADI (server baribir 400 qaytaradi):
+ *   serverning javobi maydon YONIDA emas, forma ostida umumiy xato
+ *   sifatida chiqadi va xodim qaysi maydon aybdor ekanini darrov
+ *   tushunmasdi. Bu yerdagi tekshiruv — QULAYLIK; HAQIQIY qoida esa
+ *   serverda va u yagona (`UserService.RequirePhoneForStaff`).
+ */
+const phoneRequired = computed(() => role.value !== 'Student')
+
+const phoneMissing = computed(
+  () => phoneRequired.value && phone.value.replace(/\D/g, '').length === 0,
+)
 
 /** Backend `role` ni oddiy `string` sifatida yuboradi — qat'iy turga tekshiramiz. */
 function isRoleName(value: string | null): value is UserRoleName {
   return ROLE_OPTIONS.some((option) => option.value === value)
+}
+
+/** Tasdiq matnida rol KODI emas, xodim ko'radigan yorliq turishi kerak. */
+function roleLabel(value: UserRoleName): string {
+  return ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
 
 function resetForm(): void {
@@ -45,10 +79,8 @@ function resetForm(): void {
   email.value = user?.email ?? ''
   phone.value = user?.phone ?? ''
   role.value = isRoleName(rawRole) ? rawRole : 'Student'
-  password.value = ''
   isActive.value = user?.isActive ?? true
   errorMessage.value = null
-  temporaryPassword.value = null
 }
 
 watch(() => [props.open, props.user], resetForm, { immediate: true })
@@ -60,16 +92,11 @@ const createMutation = useMutation({
       email: email.value.trim(),
       role: role.value,
       phone: phone.value.trim().length > 0 ? phone.value.trim() : null,
-      password: password.value.length > 0 ? password.value : null,
       isActive: isActive.value,
     }),
-  onSuccess: (response) => {
+  onSuccess: () => {
     emit('saved')
-    if (response.temporaryPassword !== null && response.temporaryPassword.length > 0) {
-      temporaryPassword.value = response.temporaryPassword
-    } else {
-      emit('close')
-    }
+    emit('close')
   },
   onError: (error: Error) => {
     errorMessage.value = toUserMessage(error)
@@ -95,15 +122,57 @@ const updateMutation = useMutation({
 
 const isPending = computed(() => createMutation.isPending.value || updateMutation.isPending.value)
 const canSubmit = computed(
-  () => fullName.value.trim().length > 0 && email.value.trim().length > 0 && !isPending.value,
+  () => fullName.value.trim().length > 0
+    && email.value.trim().length > 0
+    && !phoneMissing.value
+    && !isPending.value,
 )
 
-function handleSubmit(): void {
+/**
+ * R4 — bu yerda FAQAT ROL ALMASHUVI tasdiqlanadi.
+ *
+ * ★ NEGA HAR SAQLASH EMAS: xodim oynani ataylab ochib, "Saqlash" ni ataylab
+ * bosdi — ism yoki telefonni tuzatishga ikkinchi bosish qo'shish himoya emas,
+ * ishqalanish (yozib qo'yilgan qoida: tasodifiy ZARARdan himoya, har amalga
+ * qadam qo'shish emas). Ism/telefon/email xatosi bir zumda qaytariladi.
+ *
+ * ★ ROL ESA BOSHQA GAP: u — RUXSAT. "Ustoz" ni "Administrator" ga aylantirish
+ * butun moliya va sozlamalarni ochadi; teskarisi esa odamni o'z paneliDAN
+ * chiqarib yuboradi. Select bitta g'ildirak harakati bilan almashadi va
+ * o'zgarish formada hech qanday ogohlantirish bermasdi. `warning` — amal
+ * qaytariladi (rolni qayta tanlash mumkin), lekin oralig'da odam noto'g'ri
+ * ruxsat bilan yuradi.
+ *
+ * ★ YARATISHDA tasdiq YO'Q — yangi yozuv hech narsani almashtirmaydi
+ * (`LessonEditDrawer` dagi bilan bir xil qoida).
+ */
+async function handleSubmit(): Promise<void> {
   if (!canSubmit.value) return
-  errorMessage.value = null
+
   const user = props.user
-  if (user !== null) updateMutation.mutate(user.id)
-  else createMutation.mutate()
+  if (user === null) {
+    errorMessage.value = null
+    createMutation.mutate()
+    return
+  }
+
+  const previous = user.role
+  if (isRoleName(previous) && previous !== role.value) {
+    const name = user.fullName ?? 'Foydalanuvchi'
+    const ok = await confirm({
+      title: 'Rolni o‘zgartirish',
+      message:
+        `${name} “${roleLabel(previous)}” dan “${roleLabel(role.value)}” ga o‘tkaziladi. `
+        + 'Ruxsatlari darhol almashadi.',
+      confirmLabel: 'O‘zgartirish',
+      tone: 'warning',
+      details: [`${roleLabel(previous)} → ${roleLabel(role.value)}`],
+    })
+    if (!ok) return
+  }
+
+  errorMessage.value = null
+  updateMutation.mutate(user.id)
 }
 </script>
 
@@ -113,25 +182,7 @@ function handleSubmit(): void {
     :title="isEdit ? 'Foydalanuvchini tahrirlash' : 'Yangi foydalanuvchi'"
     @close="emit('close')"
   >
-    <!-- Vaqtinchalik parol: qayta olib bo'lmaydi, shuning uchun alohida ajratilgan. -->
-    <div
-      v-if="temporaryPassword !== null"
-      class="rounded-lg border border-brand-500/30 bg-brand-500/10 p-4"
-    >
-      <p class="text-sm font-semibold text-brand-300">
-        Foydalanuvchi yaratildi
-      </p>
-      <p class="mt-1 text-xs text-slate-300">
-        Vaqtinchalik parolni hoziroq nusxalang — u boshqa ko‘rsatilmaydi.
-      </p>
-      <p
-        class="mt-3 select-all break-all rounded-lg bg-ink-950 px-3 py-2 font-mono text-sm text-slate-100"
-        v-text="temporaryPassword"
-      />
-    </div>
-
     <form
-      v-else
       novalidate
       @submit.prevent="handleSubmit"
     >
@@ -157,12 +208,22 @@ function handleSubmit(): void {
       </div>
 
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        <BaseField label="Telefon">
+        <!--
+          🔴 TELEFON — KIRISH KALITI, shunchaki kontakt emas. Xodim uni
+             kiritmasa yaratilgan profil hech qachon tizimga kira olmaydi.
+        -->
+        <BaseField
+          :label="phoneRequired ? 'Telefon (majburiy)' : 'Telefon'"
+          :hint="phoneRequired
+            ? 'Kirish kodi shu raqamga ulangan Telegram hisobiga yuboriladi.'
+            : undefined"
+        >
           <input
             v-model="phone"
             class="zn-input"
             type="tel"
             inputmode="tel"
+            :required="phoneRequired"
             placeholder="+998…"
           >
         </BaseField>
@@ -182,22 +243,13 @@ function handleSubmit(): void {
         </BaseField>
       </div>
 
-      <div
-        v-if="!isEdit"
-        class="mt-3"
+      <p
+        v-if="phoneMissing"
+        class="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300 ring-1 ring-inset ring-amber-500/25"
       >
-        <BaseField
-          label="Parol"
-          hint="Bo‘sh qoldirsangiz server vaqtinchalik parol yaratadi."
-        >
-          <input
-            v-model="password"
-            class="zn-input"
-            type="text"
-            autocomplete="new-password"
-          >
-        </BaseField>
-      </div>
+        Xodim uchun telefon raqami majburiy — tizimga kirish faqat telefon
+        orqali bo‘ladi.
+      </p>
 
       <label
         v-if="!isEdit"
@@ -220,26 +272,19 @@ function handleSubmit(): void {
     </form>
 
     <template #footer>
-      <template v-if="temporaryPassword !== null">
-        <BaseButton @click="emit('close')">
-          Yopish
-        </BaseButton>
-      </template>
-      <template v-else>
-        <BaseButton
-          variant="secondary"
-          @click="emit('close')"
-        >
-          Bekor qilish
-        </BaseButton>
-        <BaseButton
-          :disabled="!canSubmit"
-          :loading="isPending"
-          @click="handleSubmit"
-        >
-          {{ isEdit ? 'Saqlash' : 'Yaratish' }}
-        </BaseButton>
-      </template>
+      <BaseButton
+        variant="secondary"
+        @click="emit('close')"
+      >
+        Bekor qilish
+      </BaseButton>
+      <BaseButton
+        :disabled="!canSubmit"
+        :loading="isPending"
+        @click="handleSubmit"
+      >
+        {{ isEdit ? 'Saqlash' : 'Yaratish' }}
+      </BaseButton>
     </template>
   </BaseModal>
 </template>

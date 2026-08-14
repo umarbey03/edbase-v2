@@ -1272,6 +1272,11 @@ LiveKit__ApiKey=${LK_KEY}
 LiveKit__ApiSecret=${LK_SECRET}
 Cors__AllowedOrigins__0=https://app.domen.uz
 LIVEKIT_KEYS=${LK_KEY}: ${LK_SECRET}
+
+# 🔴 BIRINCHI ADMINISTRATORNING TELEFONI — BO'SH BAZAGA MAJBURIY.
+#    Bu raqamga bog'langan Telegram hisobiga kirish kodi keladi.
+#    Yo'q bo'lsa API ATAYLAB ko'tarilmaydi (sabab: 7.1.1).
+Bootstrap__AdminPhone=+998901234567
 EOF
 
 chmod 600 .env
@@ -1292,6 +1297,118 @@ ls -l .env      # -rw------- bo'lishi kerak
 
 `Cors__AllowedOrigins__0` prod'da `https://app.domen.uz` bo'lishi kerak —
 SPEC'dagi `http://localhost:5173` faqat dev uchun.
+
+---
+
+### 7.1.1. 🔴 KIRISH — FAQAT TELEFON ORQALI (2026-08-13 dan)
+
+Email va parol bilan kirish **butunlay olib tashlandi** (loyiha egasining
+qarori). Platformaga kirishning ikki eshigi qoldi va **ikkalasi ham
+Telegram botiga tayanadi**:
+
+| Eshik | Kim ishlatadi | Nimaga tayanadi |
+|---|---|---|
+| Mini App (`initData` imzosi) | o'quvchi, telefonda | bot tokeni |
+| Telefon + bir martalik kod | **hamma**, istalgan brauzerda | bot tokeni |
+
+**Operator uchun bu nimani anglatadi:** bot tokeni buzilsa — **hech kim,
+hech qayerdan kira olmaydi.** Bu holat uchun ikkita mexanizm qurilgan;
+ikkalasini ham *avariyadan oldin* o'qib chiqing.
+
+#### (a) Boshlang'ich administrator — `Bootstrap__AdminPhone`
+
+Bo'sh bazaga birinchi marta ko'tarilganda `DbInitializer` administrator
+yaratadi. Ilgari u **telefonsiz** yaratilardi — endi bu yangi
+o'rnatishni o'zini o'zi qulflab qo'yishga olib kelardi:
+
+```
+kirish uchun raqam kerak  ->  raqamni kiritish uchun kirish kerak
+```
+
+Shuning uchun raqam muhitdan olinadi va **u yo'q bo'lsa API ATAYLAB
+ko'tarilmaydi**:
+
+```bash
+Bootstrap__AdminPhone=+998901234567       # MAJBURIY (bo'sh bazada)
+Bootstrap__AdminTelegramId=123456789      # ixtiyoriy, TAVSIYA ETILMAYDI
+```
+
+> ⚠️ **Tekshiruv faqat baza BO'SH bo'lganda ishlaydi.** Ishlab turgan
+> o'rnatishda bu o'zgaruvchi kerak emas va uni qo'shmaslik hech narsani
+> buzmaydi — administrator allaqachon bazada.
+
+> ⚠️ **`Bootstrap__AdminTelegramId` ni qo'ymaganingiz ma'qul.** Xato ID
+> berilsa administrator hisobi **boshqa odamga** bog'lanib qoladi. Raqam
+> yetarli: admin botda «📱 Raqamni ulashish» tugmasini bosadi.
+
+Raqam **administratorning Telegram hisobiga ro'yxatdan o'tgan** raqami
+bo'lishi shart. Deploy'dan keyin darhol tekshiring:
+
+```bash
+docker compose logs api | grep "Boshlang'ich ma'lumotlar yozildi"
+# -> Admin: admin@zinnur.uz, telefon: +998901234567
+```
+
+#### (b) 🔴 BOT TOKENI BUZILSA — "break-glass" o'zgaruvchilari
+
+Bot tokeni va webhook siri **bazada** saqlanadi (admin paneldan
+almashtirish uchun). Bu odatda foyda, lekin bitta halokatli holat bor:
+
+```
+token buzuq  ->  hech kim kira olmaydi  ->  tokenni tuzatadigan panel
+             ->  o'sha kirish ortida qolgan  ->  faqat psql
+```
+
+Halqani uzish uchun **bazadagi qiymatdan USTUN turadigan** ikkita muhit
+o'zgaruvchisi bor:
+
+```bash
+# /opt/zinnur/.env ga qo'shing
+Telegram__BotTokenOverride=123456789:AA...          # @BotFather'dagi HAQIQIY token
+Telegram__WebhookSecretOverride=zinnur_yangi_sir    # A-Za-z0-9_- belgilari
+
+docker compose up -d api        # qayta ishga tushirish YETARLI
+```
+
+Shundan keyin buzuq baza qatori **e'tiborsiz qoladi** va tizim ochiladi.
+
+> 🔴 **IKKALASINI HAM QO'YING.** `TelegramOptions.IsConfigured` ikkala
+> qiymatni ham talab qiladi — faqat tokenni ustidan yozsangiz,
+> integratsiya baribir "sozlanmagan" holatida qoladi.
+
+> ⚠️ **WEBHOOK SIRINI O'ZGARTIRSANGIZ Telegram tomonida ham yangilang:**
+> ```bash
+> curl -sS "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+>   -d "url=https://api.domen.uz/api/v1/telegram/webhook" \
+>   -d "secret_token=<YANGI_SIR>"
+> ```
+
+**Tiklangandan KEYIN o'zgaruvchilarni OLIB TASHLANG.** Ular turgan
+ekan, tokenni paneldan almashtirib bo'lmaydi. Panel buni yashirmaydi:
+maydon qulflanadi, yonida sababi chiqadi va manba `Shoshilinch
+(muhitdan)` deb ko'rsatiladi (qizil belgi).
+
+```bash
+# tiklashdan keyin
+sed -i '/^Telegram__BotTokenOverride=/d;/^Telegram__WebhookSecretOverride=/d' .env
+docker compose up -d api
+```
+
+#### (c) 🔴 Xodim ishdan ketganda
+
+Xodim uchun parol **ikkinchi omil** vazifasini bajarardi — endi u yo'q.
+Hisobning butun xavfsizligi telefon raqamiga tayanadi, O'zbekistonda esa
+operator ishlatilmagan raqamni **qayta sotadi**. Shuning uchun:
+
+```
+Xodim ishdan ketgan kuni:
+  POST /api/v1/users/{id}/deactivate        # profilni yopish
+  POST /api/v1/users/{id}/telegram/unlink   # bog'lanishni uzish (audit izi bilan)
+```
+
+Ikkalasi ham mavjud sessiyalarni **darhol** bekor qiladi. Faqat
+birinchisini bajarish yetarli emas: profil qaytadan faollashtirilsa eski
+bog'lanish tiklanib qolardi.
 
 ### 7.2. Birinchi deploy
 

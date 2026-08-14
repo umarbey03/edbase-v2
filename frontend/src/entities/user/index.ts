@@ -1,4 +1,10 @@
-export { fetchMe, login, loginWithTelegram, logout } from './api/auth-api'
+export {
+  fetchMe,
+  loginWithTelegram,
+  logout,
+  requestPhoneCode,
+  verifyPhoneCode,
+} from './api/auth-api'
 export {
   createStudentNote,
   deleteStudentNote,
@@ -28,6 +34,7 @@ export {
 } from './model/profile'
 export type { TelegramFilterValue } from './model/profile'
 export {
+  canSeeStudentContact,
   isAdminRole,
   isManagerRole,
   isStaffRole,

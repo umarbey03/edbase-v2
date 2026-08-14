@@ -1,11 +1,11 @@
 using System.Globalization;
-using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Zinnur.Application.Common.Interfaces;
 using Zinnur.Infrastructure.Persistence;
 
 namespace Zinnur.IntegrationTests.Infrastructure;
@@ -211,21 +211,70 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             AuthWindowSeconds.ToString(CultureInfo.InvariantCulture)),
     ];
 
-    /// <summary>Seed qilingan admin bilan kirib, tokenlarni qaytaradi.</summary>
-    public async Task<AuthTokens> LoginAsAdminAsync() =>
-        await LoginAsync("admin@zinnur.uz", "Admin!2345");
+    // ════════════════════════════════════════════════════════════════════
+    // ★★ SESSIYA OCHISH — TOKEN TO'G'RIDAN-TO'G'RI YASALADI (2026-08-13)
+    //
+    // Ilgari bu yerda `POST /api/v1/auth/login` chaqirilardi. Email va
+    // parol bilan kirish olib tashlangach o'sha endpoint yo'q.
+    //
+    // ★ NIMA UCHUN YANGI TELEFON OQIMI HAYDALMAYDI (har testda kod
+    //   so'rab, uni navbatdan o'qib, tasdiqlash):
+    //
+    //   1) HAR test sinfi o'nlab marta kiradi. Oqim uch bosqichli va
+    //      Redis'da 60 sekundlik QAYTA YUBORISH OYNASI bor — ikkinchi
+    //      kirish shu oynaga urilib, ~60 ta test sababsiz yiqilardi.
+    //      Oynani testda o'chirib qo'yish esa aynan xavfsizlik
+    //      xossasini testdan olib tashlash bo'lardi.
+    //
+    //   2) Oqim TELEGRAM BOG'LANISHINI talab qiladi. Har test
+    //      foydalanuvchisiga soxta `TelegramId` yozish kerak bo'lardi —
+    //      ya'ni 24 ta yordamchi funksiya o'zgarardi va ular tekshirayotgan
+    //      narsaga (guruh, to'lov, dars) hech qanday aloqasi yo'q shart
+    //      qo'shilardi.
+    //
+    // 🔴 SHUNING UCHUN OQIMNING O'ZI ALOHIDA VA TO'LIQ TESTLANADI —
+    //    `PhoneLoginEndpointsTests`: u kodni HAQIQIY navbatdan (outbox)
+    //    o'qib, haqiqiy endpointlar orqali o'tadi. Ya'ni bu yerdagi
+    //    yorliq oqimni testsiz qoldirmaydi; u faqat QOLGAN 400+ testni
+    //    autentifikatsiya tafsilotidan ozod qiladi.
+    //
+    // ★ TOKEN YAGONA HAQIQIY XIZMAT ORQALI yasaladi (`IJwtTokenService`),
+    //   qo'lda JWT quramaymiz: claim'lar, `ver` va imzo — hammasi ishlab
+    //   turgan kodning O'ZI bergani. Shu tufayli `TokenVersion`,
+    //   `IsActive` va rol claim'i bilan bog'liq testlar (masalan
+    //   `AccessTokenRevocationTests`) haqiqiy xulqni tekshirishda davom
+    //   etadi.
+    // ════════════════════════════════════════════════════════════════════
 
-    public async Task<AuthTokens> LoginAsync(string email, string password)
+    /// <summary>Seed qilingan admin uchun sessiya (token to'g'ridan-to'g'ri yasaladi).</summary>
+    public Task<AuthTokens> LoginAsAdminAsync() => LoginAsync(DbInitializer.AdminEmail);
+
+    /// <summary>
+    /// Email bo'yicha foydalanuvchi topib, unga sessiya tokenlarini beradi.
+    ///
+    /// ★ EMAIL — endi KIRISH ma'lumoti emas, shunchaki testdagi
+    ///   IDENTIFIKATOR: u har test foydalanuvchisida unikal va yordamchi
+    ///   funksiyalarda allaqachon mavjud. Telefon bo'yicha izlash
+    ///   testlarni raqam yasashga majbur qilardi va hech qanday foyda
+    ///   bermasdi.
+    /// </summary>
+    public async Task<AuthTokens> LoginAsync(string email)
     {
-        using var client = CreateClient();
+        using var scope = Services.CreateScope();
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password });
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
 
-        response.EnsureSuccessStatusCode();
+        var user = await db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email == email)
+            ?? throw new InvalidOperationException(
+                $"Test uchun '{email}' emaili bo'yicha foydalanuvchi topilmadi.");
 
-        return await response.Content.ReadFromJsonAsync<AuthTokens>()
-               ?? throw new InvalidOperationException("Kirish javobi bo'sh.");
+        return new AuthTokens(
+            jwt.CreateAccessToken(user),
+            jwt.CreateRefreshToken(user),
+            new AuthUser(user.Id, user.FullName, user.Email, user.Phone, user.Role.ToString()));
     }
 
     /// <summary>Berilgan token bilan avtorizatsiyalangan HTTP klient.</summary>
@@ -256,7 +305,15 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         string.Create(CultureInfo.InvariantCulture, $"ZinnurApiFactory({_databaseName})");
 }
 
-/// <summary>`/api/v1/auth/login` javobi.</summary>
+/// <summary>
+/// Sessiya tokenlari — `AuthResponse` bilan AYNI shakl (telefon oqimi va
+/// Mini App oqimi ham AYNAN shuni qaytaradi).
+/// </summary>
 public sealed record AuthTokens(string AccessToken, string RefreshToken, AuthUser User);
 
-public sealed record AuthUser(long Id, string FullName, string Email, string Role);
+/// <param name="Phone">
+/// 2026-08-14 da qo'shildi (talab R8 — video ustidagi suv belgisi).
+/// <c>null</c> — raqam kiritilmagan.
+/// </param>
+public sealed record AuthUser(
+    long Id, string FullName, string Email, string? Phone, string Role);

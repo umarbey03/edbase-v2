@@ -1,7 +1,50 @@
 import { http } from '@/shared/api'
-import type { LiveKitJoinDto, LiveSessionDto } from '@/shared/types'
+import type {
+  LiveKitJoinDto,
+  LiveSessionDto,
+  PagedResult,
+  SessionStatsDto,
+  SessionStatusName,
+} from '@/shared/types'
 
 const BASE = '/api/v1/live-sessions'
+
+/** `GET /api/v1/live-sessions/stats` filtri (R31). */
+export interface SessionStatsParams {
+  status?: SessionStatusName
+  groupId?: number
+  page?: number
+  pageSize?: number
+}
+
+/**
+ * R31: darslar jadvali — o'quvchi soni, qatnashganlar soni va davomiylik.
+ *
+ * 🔴 BU YAGONA YO'L. Har dars uchun `/live-sessions/{id}/attendance` ga
+ * borish MUMKIN EMAS: bir guruhda 69 tagacha dars bo'ladi va davomat
+ * matritsasi aynan shu sababdan 10 ta ustun bilan cheklangan
+ * (`attendance-matrix.ts`). Sanoqlar SERVERDA hisoblanadi.
+ *
+ * ⚠️ Faqat XODIM uchun — o'quvchi 403 oladi.
+ */
+export function fetchSessionStats(
+  params: SessionStatsParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<PagedResult<SessionStatsDto>> {
+  return http.get<PagedResult<SessionStatsDto>>(`${BASE}/stats`, {
+    // ★ Nomlar KICHIK harf bilan: endpoint alohida `[FromQuery]`
+    //   parametrlarni oladi, `GET /groups` dagidek murakkab model EMAS.
+    //   (ASP.NET query nomlarini baribir katta-kichik farqlamasdan
+    //   bog'laydi — bu shunchaki serverdagi imzoning aksi.)
+    query: {
+      status: params.status,
+      groupId: params.groupId,
+      page: params.page,
+      pageSize: params.pageSize,
+    },
+    signal: options?.signal,
+  })
+}
 
 /** SPEC 5: `GET /api/v1/live-sessions` */
 export function fetchLiveSessions(options?: { signal?: AbortSignal }): Promise<LiveSessionDto[]> {

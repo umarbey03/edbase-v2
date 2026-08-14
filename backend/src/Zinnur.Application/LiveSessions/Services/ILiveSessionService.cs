@@ -1,3 +1,4 @@
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
 
 namespace Zinnur.Application.LiveSessions.Services;
@@ -25,6 +26,26 @@ public interface ILiveSessionService
     /// <param name="toDate">Mahalliy sana — KIRADI.</param>
     Task<IReadOnlyList<CalendarSessionDto>> GetCalendarAsync(
         long userId, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default);
+
+    /// <summary>
+    /// DARSLAR JADVALI (R31): xodimning darslari + har biriga UCHTA agregat —
+    /// o'quvchilar soni, qatnashganlar soni va davomiylik.
+    ///
+    /// ★ <see cref="ListForUserAsync"/> VA <see cref="GetCalendarAsync"/> DAN
+    /// FARQI — uchalasi UCH XIL savolga javob beradi va shu sababli uchta
+    /// alohida shartnoma:
+    ///
+    ///   • <c>ListForUserAsync</c> — "keyingi darsim qachon?" (yaqin darslar,
+    ///     kartochkalar uchun);
+    ///   • <c>GetCalendarAsync</c> — "shu oyda qaysi kunlarda darsim bor?";
+    ///   • bu metod — "o'tgan darslarim QANDAY o'tdi?" (jadval, sanoqlar).
+    ///
+    /// 🔴 FAQAT XODIM UCHUN. O'quvchi 403 oladi: sanoqlar guruhdagi
+    /// boshqalar haqidagi ma'lumot va o'quvchi o'z davomatini kalendardan
+    /// (<see cref="CalendarSessionDto.MyAttendance"/>) ko'radi.
+    /// </summary>
+    Task<PagedResult<SessionStatsDto>> GetStatsAsync(
+        SessionStatsQuery query, long userId, CancellationToken ct = default);
 
     Task<LiveSessionDto> GetAsync(long sessionId, long userId, CancellationToken ct = default);
 

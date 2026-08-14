@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-
-import { navItemsForRole } from '@/entities/user'
 import { AppIcon } from '@/shared/ui'
 
+import { useStudentNav } from './useStudentNav'
+
 /**
- * Pastki 5 tab (eski `.tabbar`).
+ * Pastki 5 tab (eski `.tabbar`) — `lg` (1024px) DAN PASTDA.
  *
  * Faol tab: brend rangi, ikonka `translateY(-2px) scale(1.12)` va tepasida
  * 26×3 px indikator — uchalasi ham eski ilovadan aynan (u yerda rang oltin
@@ -33,28 +31,28 @@ import { AppIcon } from '@/shared/ui'
  * bo'lmaydi. Fon esa `color-mix` bilan TOKENGA bog'landi — 96% shaffoflik
  * `backdrop-blur` uchun kerak (to'liq xira fonda blur ko'rinmaydi).
  *
- * `RouterLink` EMAS, `router-link` bilan qo'lda `isActive` hisoblanadi: "O'quv"
- * tabi `/oquv` dan tashqari `/oquv/vazifalarim` va `/oquv/testlarim` da ham
- * yonib turishi kerak (eski ilovada vazifa/test "O'quv" ichida edi), buni
- * `exact-active-class` bera olmaydi.
+ * ★ RO'YXAT VA "FAOL BAND" QOIDASI `useStudentNav` GA KO'CHIRILDI: aynan
+ * shu beshtasi desktopda `StudentSidebar` da yon ustun bo'lib chiziladi va
+ * ikkalasi bitta qoidadan yonishi kerak. Ko'chirilgan mantiq O'ZGARMADI —
+ * bu faylning chizadigan narsasi ham, klasslari ham o'sha-o'sha.
+ *
+ * ★ `lg:hidden` — desktopda (≥1024px) tab paneli o'rniga yon menyu turadi.
+ * Bu YAGONA desktop qoidasi va u `lg:` ostida: 1024px dan pastda, ya'ni
+ * telefon brauzerida ham, Telegram Mini App'ning tor oynasida ham panel
+ * avvalgidek to'liq ishlaydi (safe-area bo'shlig'i bilan birga).
+ *
+ * ★ `md:max-w-[840px]` — panel kengligi karkas ustuni bilan BIR XIL bo'lishi
+ * SHART. `StudentShell` planshetda 840px ga kengaygani uchun panel 520px da
+ * qolsa, u kontentdan tor bo'lib "markazga osilgan" ko'rinardi. Ikki qiymat
+ * juft: birini o'zgartirsangiz IKKINCHISINI ham (`StudentShell.vue` dagi
+ * ustun klassi).
  */
-const route = useRoute()
-
-const items = computed(() => navItemsForRole('Student'))
-
-function isActive(routeName: string): boolean {
-  if (route.name === routeName) return true
-  // Pastki sahifalar: `student-assignments`, `student-tests`, `student-test-take`
-  // ota-tab sifatida "O'quv" ni yoqadi.
-  if (routeName !== 'student-learn') return false
-  return typeof route.name === 'string' && route.name.startsWith('student-')
-    && route.path.startsWith('/oquv')
-}
+const { items, isActive } = useStudentNav()
 </script>
 
 <template>
   <nav
-    class="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[520px] -translate-x-1/2 border-t backdrop-blur-[22px]"
+    class="fixed bottom-0 left-1/2 z-40 flex w-full max-w-[520px] -translate-x-1/2 border-t backdrop-blur-[22px] md:max-w-[840px] lg:hidden"
     style="
       background: color-mix(in oklab, var(--color-ink-900) 96%, transparent);
       border-top-color: var(--color-line);

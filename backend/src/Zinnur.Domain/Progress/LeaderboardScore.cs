@@ -108,11 +108,58 @@ public sealed record RankedScore(int Rank, LeaderboardScore Score);
 /// </summary>
 public static class LeaderboardRanking
 {
-    /// <summary>Guruh chegarasi — bir guruhda shuncha o'quvchidan oshmaydi.</summary>
+    /// <summary>
+    /// GURUH chegarasi — bir guruhda shuncha o'quvchidan oshmaydi.
+    ///
+    /// ★ BU SON MARKAZ REYTINGIGA TEGISHLI EMAS va ataylab
+    /// KO'TARILMADI (2026-08-13). U ikki ishni bajaradi:
+    ///
+    ///   1) MA'LUMOT SOG'LIG'I: 500 kishilik "guruh" — bu guruh emas,
+    ///      bu ma'lumotdagi xato (masalan noto'g'ri import). Jimgina
+    ///      500 ta qator chizib berish xatoni yashirardi.
+    ///
+    ///   2) JAVOB HAJMI: guruh jadvali TO'LIQ yuboriladi (o'quvchi o'z
+    ///      guruhidagi hammani ko'radi) — chegarasiz u cheksiz o'sardi.
+    ///
+    /// Markaz jadvalida ikkala sabab ham ISHLAMAYDI: 3000 o'quvchili
+    /// markaz mutlaqo normal holat, va javob baribir TOP-N gacha
+    /// qisqartiriladi (<c>LeaderboardService.CenterTopRows</c>).
+    /// Shuning uchun markaz yo'li <see cref="RankAll"/> ni chaqiradi.
+    /// </summary>
     public const int MaxRows = 500;
 
-    /// <summary>Ballarni tartiblaydi va o'rin beradi (eng yuqori ball — 1-o'rin).</summary>
+    /// <summary>
+    /// GURUH jadvali: tartiblaydi, o'rin beradi va
+    /// <see cref="MaxRows"/> chegarasini QO'RIQLAYDI.
+    /// </summary>
+    /// <exception cref="DomainException">Qatorlar soni chegaradan oshdi.</exception>
     public static IReadOnlyList<RankedScore> Rank(IEnumerable<LeaderboardScore> scores)
+    {
+        var ranked = RankAll(scores);
+
+        if (ranked.Count > MaxRows)
+            throw new DomainException($"Reyting jadvali {MaxRows} qatordan oshmasligi kerak.");
+
+        return ranked;
+    }
+
+    /// <summary>
+    /// CHEGARASIZ tartiblash — markaz (butun o'quv markaz) jadvali uchun.
+    ///
+    /// ★ O'RINLAR HAMMA UCHUN HISOBLANADI, keyin javob qisqartiriladi.
+    /// Teskarisi (avval kesib, keyin o'rin berish) 101-o'rindagi
+    /// o'quvchiga "1-o'rin" deb ko'rsatardi — chunki u kesilgan
+    /// ro'yxatning birinchisi bo'lib qolardi.
+    ///
+    /// 🔴 XOTIRA O'QUVCHILAR SONIGA CHIZIQLI: butun markaz ro'yxati
+    ///    xotirada tartiblanadi. Bugungi hajmda (yuzlab o'quvchi) bu
+    ///    arzon va natija keshlanadi, ya'ni hisob daqiqada bir marta
+    ///    bo'ladi. Markaz o'n minglab o'quvchiga yetganda bu yondashuv
+    ///    o'rniga snapshot jadvali kerak bo'ladi — o'shanda
+    ///    <c>LeaderboardService</c> izohidagi "snapshot qo'shilmadi"
+    ///    qarori QAYTA KO'RIB CHIQILSIN.
+    /// </summary>
+    public static IReadOnlyList<RankedScore> RankAll(IEnumerable<LeaderboardScore> scores)
     {
         ArgumentNullException.ThrowIfNull(scores);
 
@@ -121,9 +168,6 @@ public static class LeaderboardRanking
             .ThenBy(s => s.StudentName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(s => s.StudentId)
             .ToList();
-
-        if (ordered.Count > MaxRows)
-            throw new DomainException($"Reyting jadvali {MaxRows} qatordan oshmasligi kerak.");
 
         var result = new List<RankedScore>(ordered.Count);
         var rank = 0;
