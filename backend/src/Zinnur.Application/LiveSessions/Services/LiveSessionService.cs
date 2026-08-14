@@ -316,7 +316,7 @@ public sealed class LiveSessionService(
         // ★ COMMIT-THEN-SEND: xabar faqat ma'lumot YOZILGANDAN keyin ketadi.
         // Teskarisi bo'lsa (avval xabar, keyin saqlash) saqlash yiqilganda
         // o'quvchilarda "dars tugadi" ekrani chiqib, baza esa darsni jonli deb
-        // turaverardi — eski tizimning xatosi aynan shu edi (`docs/ROADMAP.md`).
+        // turaverardi — eski tizimning xatosi aynan shu edi.
         //
         // Yuborish O'ZI hech qachon istisno ko'tarmaydi (port kelishuvi),
         // shuning uchun bu yerda try/catch YO'Q: xato ikki joyda yutilsa

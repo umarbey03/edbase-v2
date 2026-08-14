@@ -13,7 +13,7 @@ namespace Zinnur.Application.Common.Interfaces;
 /// NIMA UCHUN CONTROLLER'DA EMAS:
 /// darsni yakunlash bitta yo'l bilan cheklanmaydi — rejada muddati o'tgan
 /// darslarni avtomatik yakunlaydigan fon xizmati ham bor
-/// (`docs/ROADMAP.md`, FAZA 5.5). Broadcast controller'da bo'lsa, o'sha yo'l
+/// (`SessionAutoCloseJob`). Broadcast controller'da bo'lsa, o'sha yo'l
 /// jimgina xabarsiz qolardi va "ba'zan ishlaydi, ba'zan yo'q" xatosi
 /// tug'ilardi. Use-case ichida bo'lsa — dars QANDAY yakunlansa ham xabar ketadi.
 ///

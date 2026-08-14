@@ -297,7 +297,7 @@ const routes: RouteRecordRaw[] = [
           amallari `[Authorize(Roles = "Academic,Admin")]` bilan yopiq va
           `TestService.LoadAuthorAsync` ni takroran tekshiradi — ustoz o'z
           guruhiga test tuza olmaydi, chunki test kurs darsiga yoki butun
-          platformaga taalluqli (ROADMAP 3.4).
+          platformaga taalluqli.
         */
         path: 'boshqaruv/testlar',
         name: 'manage-tests',

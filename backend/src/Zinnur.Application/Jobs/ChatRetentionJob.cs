@@ -86,9 +86,9 @@ namespace Zinnur.Application.Jobs;
 ///
 /// 🔴 NIMA UCHUN RAD ETILDI: bu yo'l YOZILMAGAN taxminga tayanadi —
 /// "`SentAt` tartibi `Id` tartibi bilan bir xil". Taxminni HECH NARSA
-/// qo'riqlamaydi: <c>SentAt</c> — oddiy o'rnatiladigan xossa, ko'chirish
-/// vositasi esa `Id` ni ham, `SentAt` ni ham ESKI bazadan yozadi
-/// (<c>tools/migration</c>: <c>chat_messages -> GroupChatMessages</c>).
+/// qo'riqlamaydi: <c>SentAt</c> — oddiy o'rnatiladigan xossa, ya'ni import
+/// yoki ko'chirish yo'li `Id` ni ham, <c>SentAt</c> ni ham tashqi manbadan
+/// yozib qo'yishi mumkin.
 /// Bitta backfill yoki ma'lumot tuzatishi tartibni buzsa, ikkilik qidiruv
 /// noto'g'ri chegara topadi va vazifa HECH NIMA O'CHIRMAY qo'yadi —
 /// xatosiz, log'siz, JIMGINA. Ya'ni egasi so'ragan funksiya "yoqilgan"

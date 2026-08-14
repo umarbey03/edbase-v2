@@ -157,5 +157,5 @@ printf '\n--- konteynerlar ---\n'
 "${COMPOSE[@]}" ps || true
 printf '\nOrqaga qaytarish:\n'
 printf '  git reset --hard <oldingi-commit> && ./infra/scripts/deploy.sh\n'
-printf '  Baza zaxirasidan tiklash: docs/BACKUP.md\n\n'
+printf '  Baza zaxirasidan tiklash: docs/DEPLOY_UBUNTU.md — 7.7\n\n'
 exit 1

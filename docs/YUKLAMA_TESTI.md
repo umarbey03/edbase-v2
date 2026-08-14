@@ -24,7 +24,7 @@ bemalol ko'taradi, 1500 da esa API'ning PROTSESSORI to'yinadi.
 
 ---
 
-## 2. BIRINCHI NIMA YIQILADI (ROADMAP FAZA 7 savoli)
+## 2. BIRINCHI NIMA YIQILADI
 
 **Javob: API konteynerining PROTSESSORI.** Baza ham, Redis ham emas.
 

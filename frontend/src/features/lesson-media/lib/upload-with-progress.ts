@@ -31,7 +31,7 @@ import type { ProblemDetails } from '@/shared/types'
  * ── 🔴 `xhr.status === 0` — IKKI MA'NOLI HOLAT ────────────────────────
  *
  * nginx yuklash `location` ida `proxy_request_buffering off` bilan ishlaydi
- * (`YANGI_TALABLAR_REJASI.md` 13-bo'lim, 40-tuzoq). Bunda backend so'rovni
+ * (`infra/nginx/zinnur.conf`). Bunda backend so'rovni
  * ERTA rad etsa (401, 413) nginx tanani hali qabul qilayotgan bo'ladi va
  * ulanish uziladi — brauzer status kod O'RNIGA "network error" ko'rsatadi.
  * Ya'ni status 0 ni faqat "internet yo'q" deb tarjima qilish YOLG'ON

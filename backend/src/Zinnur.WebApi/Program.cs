@@ -396,7 +396,7 @@ static RateLimitPartition<string> FixedWindowByIp(
 
         // DIQQAT: proksi orqasida bu proksining IP'si bo'ladi va hamma
         // bitta bo'limga tushadi. `X-Forwarded-For` ni to'g'ri hisobga
-        // olish uchun `ForwardedHeaders` middleware kerak (ROADMAP);
+        // olish uchun `ForwardedHeaders` middleware kerak;
         // ishonchsiz header'ni shu yerda o'qish esa cheklovni bitta
         // qalbaki qator bilan chetlab o'tish imkonini berardi.
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

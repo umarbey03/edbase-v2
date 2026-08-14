@@ -11,8 +11,8 @@ namespace Zinnur.Domain.Entities;
 /// butunlay chiqarib tashlaydi (o'quvchi faqat Telegram orqali kiradi), va
 /// undan keyin BOSHQA Telegram hisobini o'sha profilga bog'lash yo'li
 /// ochiladi. Ya'ni bu akkauntni egallab olishning YAGONA qolgan yo'li va u
-/// ataylab insayder harakatini talab qiladi (<c>docs/PROGRESS.md</c>:
-/// "Eski bog'lanishni faqat o'quv bo'limi bekor qiladi"). Bunday amal izsiz
+/// ataylab insayder harakatini talab qiladi ("eski bog'lanishni faqat o'quv
+/// bo'limi bekor qiladi" qoidasi). Bunday amal izsiz
 /// qolsa, "kim mening hisobimni uzdi?" degan savolga javob bo'lmasdi.
 ///
 /// ========================================================================

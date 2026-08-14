@@ -66,8 +66,8 @@ const CURATOR_HIDDEN_TABS: readonly GroupTabKey[] = ['tests', 'board']
  * ★ O'QUV BO'LIMI/ADMIN UCHUN BIRINCHI TAB — o'quvchilar ro'yxati.
  *
  * Talab (loyiha egasi): *"guruh ichiga kirilganda o'quvchilar ro'yxati
- * birinchi o'rinda"*. Bu `DIZAYN_KOCHIRISH_REJASI.md` ning "tartib aynan"
- * mezoniga ATAYLAB qilingan chekinish.
+ * birinchi o'rinda"*. Bu eski ilova bilan dizayn paritetining "tartib
+ * aynan" mezoniga ATAYLAB qilingan chekinish.
  *
  * 🔴 QAMROV FAQAT `Academic`/`Admin`: ular guruhga ro'yxat bilan ishlash
  * uchun kiradi. USTOZ VA KURATORDA TARTIB TEGILMAYDI — ular kunda darsga

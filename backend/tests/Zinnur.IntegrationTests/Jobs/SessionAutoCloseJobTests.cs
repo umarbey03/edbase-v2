@@ -9,7 +9,7 @@ namespace Zinnur.IntegrationTests.Jobs;
 /// MUDDATI O'TGAN DARSLARNI AVTO-YAKUNLASH (FAZA 5.5)
 /// ════════════════════════════════════════════════════════════════════════
 ///
-/// Tekshiriladigan xavflar (ikkalasi ham ROADMAP'da qayd etilgan):
+/// Tekshiriladigan ikki xavf:
 ///
 ///  • YOPILMASLIK: ustoz "Yakunlash" ni bosmasa dars abadiy <c>Live</c>
 ///    qolardi -> davomat yakunlanmaydi, hisobotlar esa faqat <c>Ended</c>

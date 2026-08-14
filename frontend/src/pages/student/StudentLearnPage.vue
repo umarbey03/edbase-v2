@@ -264,8 +264,8 @@ function plannedCount(lessons: CourseLessonDto[]): number {
             EDI: `CourseLessonDto.completed` WAVE 2 dan beri keladi, faqat
             frontend tipida maydon yo'q edi. Endi hisob AYNAN eski
             ilovadagidek — "N / M dars tugatilgan"
-            (`DIZAYN_KOCHIRISH_REJASI.md` 8-bo'lim, 2-band: matn eski ilova
-            bilan bir xil bo'lishi shart, "ochilgan" esa CHEKINISH edi).
+            (dizayn pariteti qoidasi: matn eski ilova bilan bir xil bo'lishi
+            shart, "ochilgan" esa CHEKINISH edi).
 
             ★ MAXRAJ `lessonCount` EMAS, `plannedCount`: guruh boshlamagan
               qismdagi darslar (`BeforeGroupStart`) hech qachon o'tilmaydi va

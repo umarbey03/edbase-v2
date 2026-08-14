@@ -9,7 +9,7 @@ namespace Zinnur.Domain.Entities;
 /// ========================================================================
 ///
 /// Eski tizimdagi <c>student_notes</c> jadvalining o'rnini bosadi (u v2 ga
-/// ko'chirilmagan edi — <c>docs/MA_LUMOT_KOCHIRISH.md</c>).
+/// ko'chirilmagan edi).
 ///
 /// 🔴 BU ICHKI YOZUV: "darsga kech qoladi", "otasi bilan gaplashildi",
 /// "sinovdan o'tmadi" kabi matnlar bo'ladi. O'QUVCHI O'Z IZOHLARINI

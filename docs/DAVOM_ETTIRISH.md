@@ -3,12 +3,13 @@
 > Bu fayl **kontekst tugaganda** ish uzilib qolmasligi uchun yuritiladi.
 > Yangi sessiya shu faylni o'qib, oldingi suhbatsiz davom eta oladi.
 >
-> **Oxirgi yangilanish:** 2026-07-31, tungi sessiya (PM + parallel agentlar)
-> **Holat:** ish COMMIT QILINMAGAN — `main` da, working tree'da turibdi.
-> Repo LOKAL, GitHub remote sozlanmagan.
+> **Oxirgi yangilanish:** 2026-08-14 — loyiha tozalandi: bajarilib bo'lgan
+> reja va jurnal hujjatlari o'chirildi (git tarixida qoladi).
+> **Holat:** ish `main` ga commit qilingan, working tree toza.
+> Remote: `https://github.com/umarbey03/edbase-v2`.
 >
-> Batafsil jurnal: `docs/PROGRESS.md` · Reja: `docs/ROADMAP.md` ·
-> Dizayn ko'chirish: `docs/DIZAYN_KOCHIRISH_REJASI.md` · Shartnoma: `docs/SPEC.md`
+> Shartnoma: `docs/SPEC.md` · Deploy: `docs/DEPLOY_UBUNTU.md` ·
+> Moslashuvchanlik: `docs/MOSLASHUVCHANLIK.md`
 
 ---
 
@@ -155,8 +156,9 @@ Migratsiya  : 13 ta, oxirgisi AddSessionRecordings
 - **5.4** fayl ombori (MinIO + `GET /submissions/files/{id}`)
 - **5.5** fon vazifalari + Postgres advisory leader lock
 
-**FAZA 7:** ma'lumot ko'chirish vositasi + sintetik sinov + hujjat
-(`docs/MA_LUMOT_KOCHIRISH.md`). 🔴 **Prod'da hech qachon yurgizilmagan.**
+**FAZA 7:** ma'lumot ko'chirish vositasi qurilgan va sintetik ma'lumotda
+sinalgan edi, lekin prod'da hech qachon yurgizilmadi va **2026-08-14 da olib
+tashlandi** (3.2 ga qarang).
 
 **Boshqa:**
 - Guruh chati backend (ikki kanal, cursor sahifalash, o'qilmaganlar, SignalR)
@@ -192,16 +194,15 @@ ko'rinadi.
 ⚠️ Brauzer sinovida **ikki alohida kontekst** naqshi bu muhitda ikki marta
 qotib qolgan. Bitta kontekst + protokol darajasidagi Node sinovi ishonchli.
 
-### 3.2. FAZA 7 — ko'chirishdan OLDIN o'qing
+### 3.2. Eski tizimdan ma'lumot ko'chirish — BEKOR QILINDI
 
-Vosita tayyor va sintetik ma'lumotda isbotlangan, lekin **prod'da hech qachon
-yurgizilmagan**. Majburiy birinchi qadam: prod bazasining **nusxasida**
-`--only=preflight`.
+**Qaror (2026-08-14, loyiha egasi):** v2 yangi serverda **noldan** ishlatiladi,
+eski Python/FastAPI bazasi ko'chirilmaydi.
 
-🔴 **Loyiha egasi qaror qabul qilishi kerak:** 18 ta jadval ko'chmaydi
-(`grades`, `student_notes`, `lesson_videos`…) va `users` dagi butun shaxsiy
-anketa yo'qoladi — v2 da bu maydonlar yo'q. To'liq ro'yxat:
-`docs/MA_LUMOT_KOCHIRISH.md`.
+Shu sababli olib tashlandi: `tools/migration` vositasi, uning hujjati
+(`MA_LUMOT_KOCHIRISH.md`) va eski tizimning butun Docker izi —
+`zinnur-legacy` konteynerlari, volume'lari (baza ham), tarmog'i va
+image'lari. Vosita va hujjat git tarixida qoladi.
 
 ### 3.3. Ochiq biznes savoli
 
@@ -304,8 +305,7 @@ zaiflikda esa raqamning O'ZI kirish berardi.
     ❌ **2026-08-11 dan kuchda emas:** aksent indigo (`#4f4de8`), `on-brand`
     hamma joyda oq. Ranglar `frontend/src/style.css` da yagona yorug' palitra;
     qo'lda hisoblash o'rniga `frontend/scripts/contrast-audit.mjs` darvozasi
-    ishlatiladi (`exit 1` bilan yiqiladi). Batafsil:
-    `docs/YANGI_TALABLAR_REJASI.md` 1-bo'limi.
+    ishlatiladi (`exit 1` bilan yiqiladi).
 11. **`DayOfWeek`:** eski Python dushanba=0, .NET yakshanba=0 →
     `dotnet = (python + 1) % 7`. Ma'lumot ko'chirishda MAJBURIY.
 12. **LiveKit ICE:** prod'da `NODE_IP=127.0.0.1` qolib ketsa media hech qachon

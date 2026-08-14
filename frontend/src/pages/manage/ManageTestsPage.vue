@@ -25,7 +25,7 @@ import {
  * NEGA FAQAT SHU IKKI ROL: `TestsController` da tuzish amallari
  * `[Authorize(Roles = "Academic,Admin")]` bilan yopiq va `TestService`
  * `LoadAuthorAsync` da qayta tekshiradi — ustoz test tuza olmaydi, chunki
- * test kurs darsiga yoki butun platformaga taalluqli (ROADMAP 3.4).
+ * test kurs darsiga yoki butun platformaga taalluqli.
  * Marshrutdagi rol ro'yxati shu qoidaning nusxasi, o'rnini bosuvchi emas.
  *
  * NOM BO'YICHA QIDIRUV YO'Q — server `TestListQuery` da faqat `Kind`,

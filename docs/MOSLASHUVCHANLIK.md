@@ -6,8 +6,8 @@
 > fully responsive that could work in desktop mobile, ipad versions too"*.
 
 Bu hujjat IKKI narsani qayd etadi: (1) endi kuchga kirgan chegara tizimi va
-(2) `docs/DIZAYN_KOCHIRISH_REJASI.md` 8-bo'limidagi parite shartnomasi talab
-qilgan **chekinishlar ro'yxati**. Shartnomaning 4-bandi: chekinish
+(2) eski ilova bilan dizayn pariteti shartnomasi talab qilgan
+**chekinishlar ro'yxati**. Shartnomaning 4-bandi: chekinish
 o'zboshimchalik bilan qilinmaydi — sababi bilan yoziladi, qarorni loyiha
 egasi qabul qiladi.
 

@@ -13,8 +13,7 @@ import type { DownloadedFile } from '@/shared/api'
  * MUAMMO: media endpointlari (`/lessons/assets/{id}`,
  * `/assignments/attachments/{id}`, `/submissions/files/{id}`) `Authorization`
  * sarlavhasini TALAB qiladi, brauzer esa `<img src>` / `<audio src>`
- * so'rovlarida uni YUBORMAYDI — oddiy havola doim 401 olardi
- * (`YANGI_TALABLAR_REJASI.md` 13-bo'lim, 39-tuzoq).
+ * so'rovlarida uni YUBORMAYDI — oddiy havola doim 401 olardi.
  *
  * YECHIM (loyihada allaqachon isbotlangan naqsh — `SubmissionAttachment.vue`):
  * fayl token bilan Blob sifatida olinadi va `URL.createObjectURL` bilan

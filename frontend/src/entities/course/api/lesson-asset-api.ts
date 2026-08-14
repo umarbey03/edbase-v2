@@ -78,9 +78,9 @@ export function reorderLessonAssets(
  * `GET /api/v1/lessons/assets/{assetId}` — faylni Blob sifatida oladi.
  *
  * ★ NEGA BLOB, ya'ni `<img src>` EMAS: endpoint `Authorization` sarlavhasini
- * talab qiladi, brauzer esa rasm/video so'rovlarida uni YUBORMAYDI
- * (`YANGI_TALABLAR_REJASI.md` 13-bo'lim, 39-tuzoq). `http.download` token
- * bilan oladi va yo'lda 401 bo'lsa tokenni yangilaydi. Naqsh
+ * talab qiladi, brauzer esa rasm/video so'rovlarida uni YUBORMAYDI.
+ * `http.download` token bilan oladi va yo'lda 401 bo'lsa tokenni
+ * yangilaydi. Naqsh
  * `fetchSubmissionFile` bilan AYNI.
  *
  * 🔴 FAQAT RASM UCHUN. Video (1 GB gacha) bu yo'ldan O'TMASLIGI kerak:

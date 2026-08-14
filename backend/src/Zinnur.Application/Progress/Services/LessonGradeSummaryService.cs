@@ -134,7 +134,7 @@ public sealed class LessonGradeSummaryService(
     /// <c>ILessonGradeService</c> izohida: qoidalar kelajakda ajralishi
     /// mumkin).
     ///
-    /// ⚠️ QOLDIQ CHEKLOV (ochiq qaror #2, `ISH_REJASI_2026-08-13.md` §0b):
+    /// ⚠️ QOLDIQ CHEKLOV (ochiq qaror — arxivlangan guruh reytingi):
     /// filtr FAOL a'zolik va FAOL guruh bo'yicha, ya'ni bitirgan o'quvchi
     /// o'z tarixini KO'RMAYDI. Bu ATAYLAB davomat bilan bir xil qoldirildi:
     /// arxiv masalasi ikkala ekran uchun BIRGA hal qilinishi kerak.

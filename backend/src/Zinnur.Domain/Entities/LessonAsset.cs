@@ -17,8 +17,8 @@ namespace Zinnur.Domain.Entities;
 /// shunday bo'lgan: `/media` katalogi tekshiruvsiz ochiq edi).
 ///
 /// ★ ESKI TIZIMDAN KO'CHIRILMAYDI: eski `lesson_videos` jadvali
-/// `MA_LUMOT_KOCHIRISH.md` dagi "ko'chirilmaydigan 18 jadval" ro'yxatida —
-/// ya'ni bu funksiya v2 da NOLDAN quriladi.
+/// ko'chirilmaydigan jadvallar qatorida edi — ya'ni bu funksiya v2 da
+/// NOLDAN quriladi.
 ///
 /// ── INVARIANT ──────────────────────────────────────────────────────────
 /// Dars turi asset turini QAT'IY belgilaydi:

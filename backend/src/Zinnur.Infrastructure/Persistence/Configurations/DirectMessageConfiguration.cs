@@ -96,8 +96,8 @@ public sealed class DirectMessageConfiguration : IEntityTypeConfiguration<Direct
         //   ORDER BY "Id" DESC LIMIT 50
         //
         // Bu ustun bugungacha HECH QAYERDA filtrlanmagan va shuning
-        // uchun indekssiz edi (`docs/ISH_REJASI_2026-08-13.md` §4.6).
-        // Indekssiz bu so'rov butun yozishma jadvalini skanerlardi —
+        // uchun indekssiz edi. Indekssiz bu so'rov butun yozishma
+        // jadvalini skanerlardi —
         // u esa markazdagi eng katta jadvallardan biri.
         //
         // QISMAN (partial): xabarlarning KATTA QISMI umumiy savol

@@ -735,7 +735,7 @@ public sealed class TestService(
     ///
     /// Faqat o'quv bo'limi va admin: test butun platformaga (yoki kurs
     /// darsiga) taalluqli, shuning uchun ustoz o'z guruhiga test tuza
-    /// olmaydi — bu ATAYLAB (ROADMAP 3.4 doirasi).
+    /// olmaydi — bu ATAYLAB.
     /// </summary>
     private async Task<User> LoadAuthorAsync(long actorId, CancellationToken ct)
     {

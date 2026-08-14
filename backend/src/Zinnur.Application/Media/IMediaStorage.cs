@@ -24,7 +24,7 @@ namespace Zinnur.Application.Media;
 ///     ATAYLAB yo'q edi.
 ///
 /// ★ PRESIGNED URL ISHLATILMAYDI — loyihaning mavjud qarori
-/// (`ISubmissionStorage` izohi va `PROGRESS.md`): presigned havola
+/// (`ISubmissionStorage` izohi): presigned havola
 /// CHIQARILGACH uni ushlagan har kim ochadi va bekor qilib bo'lmaydi
 /// (eski tizimning X-6 kamchiligi). Bu yerda "havola" tushunchasi YO'Q:
 /// HAR BAYT SO'ROVI gating va to'lov tekshiruvidan o'tadi

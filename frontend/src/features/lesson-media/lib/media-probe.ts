@@ -2,10 +2,9 @@
  * MEDIA METAMA'LUMOTINI BRAUZERDA O'QISH (davomiylik, o'lcham).
  *
  * ★ NEGA KLIENTDA: serverda media dekoder YO'Q — `durationSec`, `width` va
- * `height` AYNAN shu yerdan keladi (`YANGI_TALABLAR_REJASI.md` 13-bo'lim,
- * 47-tuzoq). Shu sababli ular FAQAT KO'RSATISH uchun va ularga hech qanday
- * qaror bog'lanmaydi: qiymat noto'g'ri bo'lsa ham eng yomon oqibat — ro'yxatda
- * xato davomiylik ko'rinishi.
+ * `height` AYNAN shu yerdan keladi. Shu sababli ular FAQAT KO'RSATISH uchun
+ * va ularga hech qanday qaror bog'lanmaydi: qiymat noto'g'ri bo'lsa ham eng
+ * yomon oqibat — ro'yxatda xato davomiylik ko'rinishi.
  *
  * 🔴 SHUNING UCHUN BU FUNKSIYA HECH QACHON XATO TASHLAMAYDI. Brauzer faylni
  * dekodlay olmasa (masalan HEIC Chrome'da) yoki metama'lumot kelmasa —

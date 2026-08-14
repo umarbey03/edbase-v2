@@ -29,7 +29,7 @@ import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
   🔴 JONLI DARS SAHNASI QORONG'I QOLADI.
 
   Ilova 2026-08-10 da yagona YORUG' temaga o'tdi, lekin video sahnasi bundan
-  MUSTASNO (`docs/YANGI_TALABLAR_REJASI.md` A5). Uch sabab:
+  MUSTASNO. Uch sabab:
    1) ko'z charchaydi — kino qoidasi: video atrofi to'q bo'ladi;
    2) ekran ulashishda oq ramka video kontrastini "yeydi";
    3) hech bir jonli dars mahsuloti (Zoom, Meet, LiveKit) yorug' emas.

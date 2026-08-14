@@ -201,7 +201,7 @@ public sealed class TestsController(ITestService tests) : ControllerBase
 
     /// <summary>
     /// Test TUZISH darvozasi. Ustoz kirmaydi: test kurs darsiga yoki butun
-    /// platformaga taalluqli (ROADMAP 3.4).
+    /// platformaga taalluqli.
     /// </summary>
     private const string AuthorRoles = "Academic,Admin";
 
