@@ -90,6 +90,30 @@ useNotificationHub()
 
 const drawerOpen = ref(false)
 
+/* ---------------------- YON MENYUNI YIG'ISH/YOYISH (2026-08-15) ----------- */
+
+/**
+ * Loyiha egasi: *"o'ng tarafdagi navbarga toggle qo'shishing kerak"* —
+ * DESKTOP doimiy ustunining O'NG CHETIGA yig'ish/yoyish tugmasi.
+ *
+ * ★ FAQAT DESKTOP: telefon/planshetdagi drawer VAQTINCHALIK ustma-ust
+ * panel (ochib-yopiladigan), uni siqish hech qanday joy tejamaydi va
+ * faqat matnni bekor yo'qotardi. `AppSidebar` shu sabab drawer
+ * nusxasiga `collapsed` UMUMAN uzatilmaydi (standart `false` qoladi).
+ *
+ * ★ `localStorage`DA SAQLANADI: xodim bir marta siqib qo'ysa, keyingi
+ * kirishda ham siqiq holat kutiladi — har sahifa yangilanishida to'liq
+ * ustunga "sakrab qaytish" tanlovni yo'qqa chiqargandek tuyulardi.
+ */
+const SIDEBAR_COLLAPSED_KEY = 'zn:sidebar-collapsed'
+
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value ? '1' : '0')
+}
+
 /* ---------------------- PROFILNI TAHRIRLASH (2026-08-15) ----------------- */
 
 /**
@@ -161,12 +185,37 @@ async function handleLogout(): Promise<void> {
   <div class="flex min-h-dvh bg-ink-950">
     <!-- ===================== Desktop: doimiy ustun ====================== -->
     <aside
-      class="sticky top-0 hidden h-dvh w-[230px] shrink-0 border-r border-line lg:block"
+      class="sticky top-0 hidden h-dvh shrink-0 border-r border-line transition-[width] duration-200 lg:block"
+      :class="sidebarCollapsed ? 'w-[76px]' : 'w-[230px]'"
     >
       <AppSidebar
+        :collapsed="sidebarCollapsed"
         @logout="handleLogout"
         @edit="editOpen = true"
       />
+
+      <!--
+        YIG'ISH/YOYISH TUGMASI — ustunning O'NG CHETIDA, yarim tashqarida
+        ("VS Code"/ko'p boshqaruv panellaridagi odatiy joylashuv): shu
+        chegara chizig'i ustida turgani uchun "shu yerni bos" ma'nosi
+        o'z-o'zidan tushunarli.
+
+        `hidden lg:flex` — `aside` bilan BIR XIL chegara: mobil drawer'da
+        bu tugma umuman yo'q (drawer allaqachon vaqtinchalik).
+      -->
+      <button
+        type="button"
+        class="absolute top-20 -right-3 z-10 hidden size-6 items-center justify-center rounded-full border border-line bg-ink-800 text-slate-400 shadow-sm transition-colors hover:bg-ink-700 hover:text-slate-100 lg:flex"
+        :title="sidebarCollapsed ? 'Menyuni yoyish' : 'Menyuni yig‘ish'"
+        :aria-label="sidebarCollapsed ? 'Menyuni yoyish' : 'Menyuni yig‘ish'"
+        :aria-expanded="!sidebarCollapsed"
+        @click="toggleSidebar"
+      >
+        <AppIcon
+          :name="sidebarCollapsed ? 'chevron-right' : 'chevron-left'"
+          :size="14"
+        />
+      </button>
     </aside>
 
     <!-- ============ Telefon/planshet: chekkadan chiquvchi drawer ========= -->

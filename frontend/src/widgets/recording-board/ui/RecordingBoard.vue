@@ -69,10 +69,14 @@ function closePlayer(): void {
  */
 const reviewSessionId = ref<number | null>(null)
 const reviewTitle = ref('')
+const reviewGroupName = ref('')
+const reviewScheduledStart = ref('')
 
 function openReview(sessionId: number): void {
   const item = list.items.value.find((row) => row.recording.sessionId === sessionId)
   reviewTitle.value = item === undefined ? '' : recordingItemTitle(item)
+  reviewGroupName.value = item?.groupName ?? ''
+  reviewScheduledStart.value = item?.scheduledStart ?? ''
   reviewSessionId.value = sessionId
 }
 
@@ -246,6 +250,8 @@ async function toggleVisibility(recordingId: number, visible: boolean): Promise<
     <SessionReviewModal
       :session-id="reviewSessionId"
       :title="reviewTitle"
+      :group-name="reviewGroupName"
+      :scheduled-start="reviewScheduledStart"
       @close="reviewSessionId = null"
       @saved="list.refetch()"
     />

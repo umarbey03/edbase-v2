@@ -24,12 +24,19 @@ public sealed class LessonGradeConfiguration : IEntityTypeConfiguration<LessonGr
     /// AYNI mulohaza). Ikkalasi BIRGA o'zgartiriladi, aks holda baza kod
     /// ruxsat bergan qiymatni rad etadi.
     /// </summary>
-    private const string ScoreCheck =
+    /// <remarks>
+    /// <c>ReplaceLineEndings("\n")</c> SHART: bu raw string literal fayldagi
+    /// qator oxiri belgisini (CRLF/LF) AYNAN saqlaydi. `core.autocrlf=true`
+    /// bo'lgan Windows checkout'da CRLF bo'ladi, migratsiya esa LF bilan
+    /// yaratilgan edi — natijada `EF Core` ikkalasini boshqa SQL deb hisoblab
+    /// <c>PendingModelChangesWarning</c> bilan ilovani ko'tarmasdi.
+    /// </remarks>
+    private static readonly string ScoreCheck =
         """
         "Score" >= 0
         AND ("MaxScore" IS NULL OR "MaxScore" > 0)
         AND "Score" <= COALESCE("MaxScore", 5)
-        """;
+        """.ReplaceLineEndings("\n");
 
     public void Configure(EntityTypeBuilder<LessonGrade> builder)
     {

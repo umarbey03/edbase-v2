@@ -82,9 +82,15 @@ const ASSISTANT_NAV: NavItem[] = [
 
 /*
   TARTIB eski `academic.html` menyusidan: Guruhlar -> Foydalanuvchilar ->
-  Testlar -> Dars yozuvlari -> To'lovlar -> Moliya -> Kurs quruvchi.
-  "Jonli darslar" va "Uy vazifalari" — v2 qo'shimchalari, ular eski
-  bandlarning KETMA-KETLIGINI buzmasligi uchun oxiriga qo'yilgan.
+  Testlar -> Dars yozuvlari -> Kurs quruvchi. "Jonli darslar" va "Uy
+  vazifalari" — v2 qo'shimchalari, ular eski bandlarning KETMA-KETLIGINI
+  buzmasligi uchun oxiriga qo'yilgan.
+
+  ★ "TO'LOVLAR" VA "MOLIYA" BU YERDA YO'Q (loyiha egasi, 2026-08-15):
+  *"to'lovlar va moliya qismi o'quv bo'limi uchun kerak emas, u qismi admin
+  panelda bo'lsa yetadi"*. Ikkalasi endi FAQAT `ADMIN_NAV`da — "Tizim
+  sozlamalari" bilan AYNI mulohaza (moliyaviy ma'lumot — o'quv jarayoni
+  emas, markaz boshqaruvi).
 
   ★ "Dars yozuvlari" — eski `academic.html` menyusining 481-qatoridagi band
   (`showPage('recordings')`, `#i-video` ikonkasi). U yerda AYNAN "Testlar" dan
@@ -105,30 +111,36 @@ const MANAGE_NAV: NavItem[] = [
     takrorlash o'rniga mavjudi ishlatildi.
   */
   { routeName: 'manage-recordings', label: 'Dars yozuvlari', icon: 'camera' },
-  { routeName: 'manage-payments', label: 'To\u2018lovlar', icon: 'star' },
-  { routeName: 'manage-finance', label: 'Moliya', icon: 'chart' },
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },
   { routeName: 'manage-sessions', label: 'Jonli darslar', icon: 'calendar' },
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },
+  // O'quv jarayoni sozlamalari (hozircha — dars tahlili mezonlari,
+  // R29/R30 kengaytmasi). `sliders` (Admin'ning "Tizim sozlamalari")
+  // bilan aralashmasin deb boshqa shakl tanlangan.
+  { routeName: 'manage-academic-settings', label: 'O‘quv bo‘limi sozlamalari', icon: 'check-square' },
 ]
 
 /*
-  ADMIN menyusi = o'quv bo'limi menyusi + BITTA band.
+  ADMIN menyusi = o'quv bo'limi menyusi + moliyaviy bandlar + sozlamalar.
 
   ★ `MANAGE_NAV` NUSXA QILINMAYDI, ustiga qo'shiladi: eski `academic.html`
-  dan ko'chirilgan sakkiztaning TARTIBI ham, NOMI ham shu bilan o'z-o'zidan
+  dan ko'chirilgan bandlarning TARTIBI ham, NOMI ham shu bilan o'z-o'zidan
   saqlanadi. Ro'yxatni qo'lda qayta yozsak, kelajakda `MANAGE_NAV` ga
   qo'shilgan band adminda paydo bo'lmay qolardi.
 
-  ★ "Tizim sozlamalari" AYNAN OXIRIDA: u kundalik ish emas (yiliga bir necha
-  marta ochiladi), va boshiga qo'yilsa o'quv bo'limi xodimi bilan bitta
-  kompyuterda ishlaydigan admin uchun menyu "siljib ketgan"dek ko'rinardi.
+  ★ "To'lovlar"/"Moliya" VA "Tizim sozlamalari" AYNAN OXIRIDA: ular
+  kundalik o'quv jarayoni emas, va boshiga qo'yilsa o'quv bo'limi xodimi
+  bilan bitta kompyuterda ishlaydigan admin uchun menyu "siljib ketgan"dek
+  ko'rinardi.
 
-  ★ FAQAT ADMIN: `/api/v1/settings/*` serverda `[Authorize(Roles = "Admin")]`.
-  O'quv bo'limiga ko'rsatilsa, bosgan zahoti 403 olardi.
+  ★ FAQAT ADMIN: `/api/v1/settings/*`, `/api/v1/payments/*`, `/api/v1/finance/*`
+  serverda `[Authorize(Roles = "Admin")]`. O'quv bo'limiga ko'rsatilsa,
+  bosgan zahoti 403 olardi.
 */
 const ADMIN_NAV: NavItem[] = [
   ...MANAGE_NAV,
+  { routeName: 'manage-payments', label: 'To‘lovlar', icon: 'star' },
+  { routeName: 'manage-finance', label: 'Moliya', icon: 'chart' },
   { routeName: 'manage-settings', label: 'Tizim sozlamalari', icon: 'sliders' },
 ]
 

@@ -22,6 +22,39 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.AnalysisCriterion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("AnalysisCriteria", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Assignment", b =>
                 {
                     b.Property<long>("Id")
@@ -726,8 +759,21 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("JoinedAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<DateTimeOffset?>("LeftAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("LeftById")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("MovedToGroupId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateOnly?>("PausedUntil")
                         .HasColumnType("date");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -739,6 +785,10 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamptz");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LeftById");
+
+                    b.HasIndex("MovedToGroupId");
 
                     b.HasIndex("GroupId", "Status")
                         .HasDatabaseName("IX_GroupMembers_GroupId_Status");
@@ -1460,13 +1510,21 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<long>("AuthorId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Body")
+                    b.Property<string>("Conclusion")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz");
+
+                    b.Property<string>("Minus")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Plus")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<long>("SessionId")
                         .HasColumnType("bigint");
@@ -1486,6 +1544,48 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_SessionReviews_SessionId");
 
                     b.ToTable("SessionReviews", (string)null);
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionReviewScore", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("CriterionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CriterionName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<decimal>("Score")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<long>("SessionReviewId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CriterionId");
+
+                    b.HasIndex("SessionReviewId");
+
+                    b.ToTable("SessionReviewScores", (string)null);
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.StudentAccount", b =>
@@ -2559,6 +2659,16 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Zinnur.Domain.Entities.User", "LeftBy")
+                        .WithMany()
+                        .HasForeignKey("LeftById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.Group", "MovedToGroup")
+                        .WithMany()
+                        .HasForeignKey("MovedToGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Zinnur.Domain.Entities.User", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
@@ -2566,6 +2676,10 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Group");
+
+                    b.Navigation("LeftBy");
+
+                    b.Navigation("MovedToGroup");
 
                     b.Navigation("Student");
                 });
@@ -2796,6 +2910,24 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Author");
 
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionReviewScore", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.AnalysisCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("CriterionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Zinnur.Domain.Entities.SessionReview", "SessionReview")
+                        .WithMany("Scores")
+                        .HasForeignKey("SessionReviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Criterion");
+
+                    b.Navigation("SessionReview");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.StudentAccount", b =>
@@ -3067,6 +3199,11 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Zinnur.Domain.Entities.ModuleLesson", b =>
                 {
                     b.Navigation("Assets");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionReview", b =>
+                {
+                    b.Navigation("Scores");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.Submission", b =>

@@ -897,16 +897,19 @@ internal sealed class DemoWorld(
             _past3.Id,
             _academic.Id,
             SessionReviewVerdict.HasIssue,
-            "Darsning 12-daqiqasida ovoz yo'qolgan. Ustoz bilan gaplashildi, "
-            + "keyingi darsda mikrofon oldindan tekshiriladi.",
-            now.AddDays(-1)));
+            plus: "Mavzuni tushuntirish tizimli, misollar aniq.",
+            minus: "Darsning 12-daqiqasida ovoz yo'qolgan.",
+            conclusion: "Ustoz bilan gaplashildi, keyingi darsda mikrofon oldindan tekshiriladi.",
+            now: now.AddDays(-1)));
 
         db.SessionReviews.Add(SessionReview.Create(
             _past1.Id,
             _academic.Id,
             SessionReviewVerdict.Approved,
-            "Dars reja bo'yicha o'tdi, savol-javob faol.",
-            now.AddDays(-6)));
+            plus: "Dars reja bo'yicha o'tdi, savol-javob faol.",
+            minus: null,
+            conclusion: "Ushbu tajribani boshqa guruhlarda ham qo'llash tavsiya etiladi.",
+            now: now.AddDays(-6)));
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }

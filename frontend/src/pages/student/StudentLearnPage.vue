@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
-import { fetchRecordingSection } from '@/entities/recording'
 import {
   countsTowardProgress,
   useStudentCourse,
 } from '@/features/student-course/model/useStudentCourse'
 import CourseLessonPath from '@/features/student-course/ui/CourseLessonPath.vue'
-import LessonSheet from '@/features/student-course/ui/LessonSheet.vue'
+import LessonDashboard from '@/features/lesson-dashboard/ui/LessonDashboard.vue'
 import type { CourseLessonDto } from '@/shared/types'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
@@ -16,47 +14,17 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  * O'QUV — eski `#learn` bo'limi.
  *
  * Tuzilishi: kurs jarayoni doirasi -> modullar akkordeoni (ichida "ilon izi"
- * dars yo'lakchasi) -> vazifa/test bo'limlariga o'tish.
+ * dars yo'lakchasi).
  *
- * ★ VAZIFALAR VA TESTLAR SHU TABDA: eski ilovada ular alohida tab EMAS,
- *   dars ichidagi "Vazifa" va "Test" segmentlari edi — ya'ni o'quvchi ularni
- *   "O'quv" ostida qidiradi. v2 da esa server ro'yxatlarni dars bilan
- *   bog'lamasdan beradi (`/assignments/mine`, `/tests/available`), shuning
- *   uchun ular shu tabning pastki sahifalari qilindi. Oltinchi tab qo'shish
- *   variantidan VOZ KECHILDI: pastki panelda tab soni va tartibi o'zgarsa
- *   o'quvchi qayta o'rganishga majbur bo'lardi.
+ * ★ "Vazifa va testlar" tezkor havolalari BU SAHIFADA endi YO'Q — Bosh
+ *   sahifaga ko'chirildi (`StudentHomePage.vue`). Sabab: dars bosilganda
+ *   endi to'liq Dars Dashboard ochiladi (video + shu darsning
+ *   vazifasi/testi/chati bitta joyda, `LessonDashboard`), ya'ni bu
+ *   sahifaning o'zi asosiy yo'l bo'lib qoladi — pastdagi statik panel
+ *   endi ikkilamchi va Bosh sahifada mantiqiyroq (guruhga bog'langan,
+ *   darssiz vazifa/testlar uchun yagona qolgan kirish nuqtasi).
  */
 const course = useStudentCourse()
-
-/* ==========================================================================
-   R5 — "DARS YOZUVLARI" KIRISH KARTOCHKASI DINAMIK
-   ========================================================================== */
-
-/**
- * Loyiha egasi: *"dars yozuvlari qismi student uchun dynamic bo'lishi
- * kerak … ko'rinish yoki ko'rinmasligi, entire part of records"*.
- *
- * 🔴 KARTOCHKA HAM YASHIRILISHI SHART, FAQAT RO'YXAT EMAS. Bo'lim
- * yopilganda kartochka qolsa, o'quvchi uni bosib ABADIY BO'SH sahifaga
- * tushardi va buni ilovaning nosozligi deb o'ylardi — ya'ni sozlamani
- * yoqqan xodim o'zi bilmagan holda "buzuq" ekran yasagan bo'lardi.
- *
- * ★ NEGA ALOHIDA SO'ROV, RO'YXATNI O'QIB KO'RISH EMAS: bo'sh ro'yxat
- * IKKI xil ma'noga ega — "yopilgan" va "hali yozuv yo'q". Ikkinchisida
- * kartochka QOLISHI kerak (ertaga yozuv paydo bo'ladi), birinchisida esa
- * yo'q. Ro'yxat bu ikkisini ajrata olmaydi, bu endpoint esa aynan shu
- * savolga javob beradi.
- *
- * ⚠️ XATO BO'LSA KARTOCHKA KO'RSATILADI (`?? true`): tarmoq nosozligi
- * o'quvchidan bo'limni olib qo'ymasin. Eng yomon holatda u bo'sh sahifa
- * ko'radi — bu kartochkaning "sababsiz yo'qolishi" dan ancha yaxshi.
- */
-const sectionQuery = useQuery({
-  queryKey: ['recordings', 'section'],
-  queryFn: ({ signal }) => fetchRecordingSection({ signal }),
-})
-
-const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? true)
 
 /** Ochiq modul id'si. Boshida — hozirgi dars turgan modul. */
 const openModuleId = ref<number | null>(null)
@@ -350,130 +318,7 @@ function plannedCount(lessons: CourseLessonDto[]): number {
       </div>
     </template>
 
-    <!--
-      ==================== Vazifalar va testlar ====================
-      Desktopda o'ng reykaning pastki qismi (`lg:col-start-2 lg:row-start-2`).
-
-      ★ `lg:top-24` — appbar `sticky top-0` va desktopda 76px baland
-      (pt-6 24 + avatar 40 + pb-3 12), ustiga 20px nafas. Modullar ro'yxati
-      uzun bo'lsa ham havolalar ekranda qolib turadi.
-
-      ★ DOIRA REYKAGA QO'SHILMAYDI (u satr 1 da): telefonda doira modullar
-      ustida turishi shart, ya'ni uni shu o'ramga kiritsak DOM tartibi
-      buzilardi. Skrollda doira tepaga chiqib ketishi — ONGLI chekinish:
-      foizni o'quvchi bir marta o'qiydi, havolalarga esa qayta-qayta
-      qaytadi.
-
-      ★ `lg:mt-0` sarlavhada: setka bandi mustaqil formatlash konteksti
-      yaratadi, ya'ni ichkaridagi `mt-6` tashqariga "chiqib" yig'ilmaydi va
-      reyka chapdagi birinchi modul kartochkasidan 24px pastga siljib
-      qolardi. Telefonda `mt-6` avvalgidek ishlaydi.
-    -->
-    <div class="lg:col-start-2 lg:row-start-2 lg:sticky lg:top-24">
-      <h2
-        class="mb-3 ml-1 mt-6 flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-slate-400 lg:mt-0"
-      >
-        <AppIcon
-          name="clipboard"
-          :size="15"
-        />
-        Vazifa va testlar
-      </h2>
-
-      <!--
-        ★ INTERAKTIVLIK (`MOSLASHUVCHANLIK.md` 6.5): uchala qator ham
-        BOSILADIGAN havola, shuning uchun ular to'liq holat oladi — fon,
-        chegara va o'ngdagi burchak ("qadam tashlaydi"). Kartochkalardan
-        farqi shu: bu yerda butun sirt bosiladi.
-      -->
-      <div class="flex flex-col gap-2.5">
-        <RouterLink
-          :to="{ name: 'student-assignments' }"
-          class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
-        >
-          <span
-            class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400"
-            aria-hidden="true"
-          >
-            <AppIcon
-              name="clipboard"
-              :size="20"
-            />
-          </span>
-          <span class="min-w-0 flex-1">
-            <b class="block text-base">Vazifalarim</b>
-            <span class="block text-xs text-dim">Topshirish va baholar</span>
-          </span>
-          <AppIcon
-            name="chevron-right"
-            :size="20"
-            class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
-          />
-        </RouterLink>
-
-        <RouterLink
-          :to="{ name: 'student-tests' }"
-          class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
-        >
-          <!--
-            Pastel nishon: tint + to'q ikonka. Ilgari `rgb(34 211 238 / .17)`
-            fon va `#67e8f9` ikonka QOTIB QOLGAN edi (yorug' firuza qorong'i
-            fon uchun) — oq sirtda u 1.6:1 berardi.
-          -->
-          <span
-            class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-cyan-500/12 text-cyan-300"
-            aria-hidden="true"
-          >
-            <AppIcon
-              name="award"
-              :size="20"
-            />
-          </span>
-          <span class="min-w-0 flex-1">
-            <b class="block text-base">Testlarim</b>
-            <span class="block text-xs text-dim">Ochiq testlar va natijalar</span>
-          </span>
-          <AppIcon
-            name="chevron-right"
-            :size="20"
-            class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
-          />
-        </RouterLink>
-
-        <!--
-          ★ "Dars yozuvlari" — eski `student.html` da yozuvlar hisoblagichi
-          (`learn-rec-meta`) AYNAN shu "O'quv" ekranida turgan, shuning uchun
-          kirish nuqtasi ham shu yerda. Pastki 5 tab TEGILMAGAN.
-        -->
-        <RouterLink
-          v-if="recordingsVisible"
-          :to="{ name: 'student-recordings' }"
-          class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
-        >
-          <!-- Pastel nishon (ilgari `rgb(139 92 246 / .18)` + `#c4b5fd`). -->
-          <span
-            class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-violet-500/12 text-violet-200"
-            aria-hidden="true"
-          >
-            <AppIcon
-              name="camera"
-              :size="20"
-            />
-          </span>
-          <span class="min-w-0 flex-1">
-            <b class="block text-base">Dars yozuvlari</b>
-            <span class="block text-xs text-dim">O‘tilgan darslarni qayta ko‘rish</span>
-          </span>
-          <AppIcon
-            name="chevron-right"
-            :size="20"
-            class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
-          />
-        </RouterLink>
-      </div>
-    </div>
-
-    <LessonSheet
+    <LessonDashboard
       :lesson="selectedLesson"
       :module-name="selectedModuleName"
       @close="selectedLesson = null"

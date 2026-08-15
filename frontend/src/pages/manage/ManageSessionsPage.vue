@@ -9,6 +9,6 @@ import { SessionBoard } from '@/widgets/session-board'
       title="Jonli darslar"
       subtitle="Platformadagi barcha rejalashtirilgan va jonli darslar"
     />
-    <SessionBoard />
+    <SessionBoard searchable />
   </div>
 </template>

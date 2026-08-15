@@ -134,9 +134,13 @@ function openSession(sessionId: number): void {
  */
 const reviewSessionId = ref<number | null>(null)
 const reviewTitle = ref('')
+const reviewGroupName = ref('')
+const reviewScheduledStart = ref('')
 
 function openReview(row: SessionStatsDto): void {
   reviewTitle.value = sessionTitleOf(row)
+  reviewGroupName.value = row.groupName
+  reviewScheduledStart.value = row.scheduledStart
   reviewSessionId.value = row.id
 }
 </script>
@@ -369,6 +373,8 @@ function openReview(row: SessionStatsDto): void {
     <SessionReviewModal
       :session-id="reviewSessionId"
       :title="reviewTitle"
+      :group-name="reviewGroupName"
+      :scheduled-start="reviewScheduledStart"
       @close="reviewSessionId = null"
     />
   </section>

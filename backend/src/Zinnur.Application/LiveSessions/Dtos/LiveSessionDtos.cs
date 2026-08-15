@@ -1,5 +1,15 @@
 namespace Zinnur.Application.LiveSessions.Dtos;
 
+/// <param name="HostName">
+/// Shu darsni olib borishi kerak bo'lgan xodimning ismi — <c>Type</c>ga
+/// qarab guruhning ustozi yoki kuratori (<c>Group.TeacherId</c>/
+/// <c>AssistantId</c>). <c>null</c> — guruhga hali xodim biriktirilmagan.
+///
+/// ★ NEGA <c>HostId</c>DAN EMAS: <c>HostId</c> darsni HAQIQATDA boshlagan
+/// kishini bildiradi va u `Scheduled` holatdagi darsda hali <c>null</c>
+/// — o'quv bo'limining "Jonli darslar" ro'yxati esa hali boshlanmagan
+/// darslar uchun ham "kim olib boradi" savoliga javob berishi kerak.
+/// </param>
 public sealed record LiveSessionDto(
     long Id,
     long GroupId,
@@ -11,7 +21,8 @@ public sealed record LiveSessionDto(
     DateTimeOffset ScheduledEnd,
     DateTimeOffset? ActualStart,
     DateTimeOffset? EndsAt,
-    bool IsHost);
+    bool IsHost,
+    string? HostName);
 
 /// <summary>
 /// KALENDAR uchun dars.

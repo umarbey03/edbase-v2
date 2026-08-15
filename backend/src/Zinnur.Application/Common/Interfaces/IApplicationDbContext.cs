@@ -188,6 +188,12 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<SessionReview> SessionReviews { get; }
 
+    /// <summary>Bitta <see cref="SessionReview"/> ichidagi mezon ballari.</summary>
+    DbSet<SessionReviewScore> SessionReviewScores { get; }
+
+    /// <summary>Dars tahlili mezonlari katalogi (o'quv bo'limi sozlaydi).</summary>
+    DbSet<AnalysisCriterion> AnalysisCriteria { get; }
+
     /* ===== /R29/R30 ===== */
 
     /* ===== R21b · GURUH KATEGORIYASI =====

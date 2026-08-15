@@ -288,6 +288,16 @@ public sealed record UpdateGroupResponse(
 /// bog'langan USTOZ guruhi bo'ladi — kurator o'quvchi qaysi guruhdan
 /// kelganini ko'rishi kerak.
 /// </param>
+/// <param name="LeftAt">
+/// <c>Status</c> <c>Stopped</c>/<c>Moved</c>ga o'tgan vaqt. <c>null</c> —
+/// hozir faol yoki pauzada (arxiv jadvali shu maydon bo'yicha filtrlaydi).
+/// </param>
+/// <param name="LeftByName">Chiqarish/ko'chirishni bajargan xodim ismi.</param>
+/// <param name="MovedToGroupId">
+/// <c>Status == Moved</c>da — qaysi guruhga ko'chirilgan. Boshqa holatda <c>null</c>.
+/// </param>
+/// <param name="MovedToGroupName">Yuqoridagi bilan JUFT — ko'rsatish uchun tayyor nom.</param>
+/// <param name="Reason">Ko'chirish sababi (ko'chirishda MAJBURIY yozilgan).</param>
 public sealed record GroupMemberDto(
     long Id,
     long StudentId,
@@ -298,7 +308,12 @@ public sealed record GroupMemberDto(
     DateTimeOffset JoinedAt,
     DateOnly? PausedUntil,
     long SourceGroupId,
-    string SourceGroupName);
+    string SourceGroupName,
+    DateTimeOffset? LeftAt,
+    string? LeftByName,
+    long? MovedToGroupId,
+    string? MovedToGroupName,
+    string? Reason);
 
 /// <param name="StudentId">Faqat <c>Student</c> rolidagi foydalanuvchi.</param>
 public sealed record AddMemberRequest(long StudentId);
@@ -309,7 +324,12 @@ public sealed record AddMemberRequest(long StudentId);
 public sealed record PauseMemberRequest(DateOnly? PausedUntil = null);
 
 /// <param name="TargetGroupId">Qaysi guruhga ko'chiriladi.</param>
-public sealed record MoveMemberRequest(long TargetGroupId);
+/// <param name="Reason">
+/// Ko'chirish sababi — MAJBURIY (loyiha egasi, 2026-08-15: *"guruhdan
+/// guruhga olib o'tishda sabab kiritilishi shart"*). Bo'sh bo'lsa 409
+/// (`GroupService.MoveMemberAsync`).
+/// </param>
+public sealed record MoveMemberRequest(long TargetGroupId, string Reason);
 
 /// <summary>Ko'chirish natijasi — ikki tomon ham qaytadi (UI ikkalasini yangilaydi).</summary>
 /// <param name="Left">Eski guruhdagi yozuv (holati <c>Moved</c>).</param>

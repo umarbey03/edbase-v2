@@ -1,6 +1,7 @@
 import { http } from '@/shared/api'
 import type { DownloadedFile } from '@/shared/api'
-import type { LessonAssetUploadFields, PositionDto } from '@/shared/types'
+import { apiUrl } from '@/shared/config/env'
+import type { LessonAssetUploadFields, MediaAccessTicketDto, PositionDto } from '@/shared/types'
 
 /**
  * DARS MEDIASI API'si (video qismlari / imtihon rasmlari).
@@ -95,4 +96,26 @@ export function fetchLessonAssetFile(
     signal: options?.signal,
     headers: { Accept: '*/*' },
   })
+}
+
+/**
+ * `GET /api/v1/lessons/assets/{assetId}/ticket` — VIDEO PLEYER uchun.
+ *
+ * ★ NEGA `fetchLessonAssetFile` (Blob) EMAS: video (1 GB gacha) Blob'ga
+ * sig'maydi va `Range` (seek) ma'nosini yo'qotadi. Chipta esa to'g'ridan-
+ * to'g'ri `<video src>` ga qo'yiladigan manzil yasaydi —
+ * `useRecordingLink` bilan AYNI g'oya, faqat manba S3 presigned URL emas,
+ * o'zimiz yasagan `?ticket=` so'rov parametri (sabab: server chiptasi
+ * `assetId`ga bog'langan imzo, S3 emas).
+ *
+ * ⚠️ Chipta ~15 daqiqada o'ladi — pleyer `expiresAt`ni kuzatib, kerak
+ * bo'lsa YANGISINI so'rashi kerak (`lessonAssetTicketUrl` bilan birga).
+ */
+export function fetchLessonAssetTicket(assetId: number): Promise<MediaAccessTicketDto> {
+  return http.get<MediaAccessTicketDto>(`${LESSONS_BASE}/assets/${assetId}/ticket`)
+}
+
+/** Chiptadan `<video src>` ga qo'yiladigan to'liq manzilni yasaydi. */
+export function lessonAssetTicketUrl(assetId: number, token: string): string {
+  return `${apiUrl(`${LESSONS_BASE}/assets/${assetId}`)}?ticket=${encodeURIComponent(token)}`
 }

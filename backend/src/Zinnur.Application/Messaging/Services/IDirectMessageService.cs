@@ -70,8 +70,14 @@ public interface IDirectMessageService
     /// <summary>Yozishma tarixi (kursorli sahifalash).</summary>
     /// <param name="beforeId">Shu Id'dan ESKIROQ xabarlar. <c>null</c> — eng yangi sahifa.</param>
     /// <param name="take">1..100, standart 50.</param>
+    /// <param name="moduleLessonId">
+    /// Berilsa — faqat SHU kurs darsidan yozilgan xabarlar (o'quvchi Dars
+    /// Dashboard'idagi mini-chat uchun). <c>null</c> — butun yozishma
+    /// (mavjud xatti-harakat, o'zgarishsiz).
+    /// </param>
     Task<MessagePageDto> GetThreadAsync(
-        long userId, long peerId, long? beforeId, int take, CancellationToken ct = default);
+        long userId, long peerId, long? beforeId, int take, long? moduleLessonId = null,
+        CancellationToken ct = default);
 
     /// <summary>Xabar yuboradi.</summary>
     Task<DirectMessageDto> SendAsync(

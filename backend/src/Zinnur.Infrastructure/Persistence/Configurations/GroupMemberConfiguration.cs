@@ -30,6 +30,8 @@ public sealed class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMem
         // Batafsil va keyingi qadam: `Zinnur.Application.Groups.GroupMemberFields`.
         builder.Property<DateOnly?>(GroupMemberFields.PausedUntil).HasColumnType("date");
 
+        builder.Property(m => m.Reason).HasMaxLength(GroupMember.MaxReasonLength);
+
         builder.HasOne(m => m.Group)
             .WithMany(g => g.Members)
             .HasForeignKey(m => m.GroupId)
@@ -38,6 +40,19 @@ public sealed class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMem
         builder.HasOne(m => m.Student)
             .WithMany()
             .HasForeignKey(m => m.StudentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // TARIX: xodim yoki nishon guruh o'chsa ham yozuv QOLADI — bu
+        // o'quvchining guruh tarixi, ular o'chganda yo'qolmasligi kerak
+        // (`SessionReview.Author` bilan AYNI `Restrict` mulohazasi).
+        builder.HasOne(m => m.LeftBy)
+            .WithMany()
+            .HasForeignKey(m => m.LeftById)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(m => m.MovedToGroup)
+            .WithMany()
+            .HasForeignKey(m => m.MovedToGroupId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // BITTA o'quvchi bitta guruhda BITTA marta. Eski tizimda bu faqat

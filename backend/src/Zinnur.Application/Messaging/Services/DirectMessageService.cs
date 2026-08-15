@@ -186,7 +186,8 @@ public sealed class DirectMessageService(
     // ================================================================= tarix
 
     public async Task<MessagePageDto> GetThreadAsync(
-        long userId, long peerId, long? beforeId, int take, CancellationToken ct = default)
+        long userId, long peerId, long? beforeId, int take, long? moduleLessonId = null,
+        CancellationToken ct = default)
     {
         var pair = await ResolvePairAsync(userId, peerId, ct);
 
@@ -197,6 +198,11 @@ public sealed class DirectMessageService(
 
         if (beforeId is { } cursor)
             query = query.Where(m => m.Id < cursor);
+
+        // Dars Dashboard'idagi mini-chat: faqat SHU darsdan yozilgan
+        // xabarlar (`askAboutLesson` bilan yozilgan teg bilan AYNI maydon).
+        if (moduleLessonId is { } lessonId)
+            query = query.Where(m => m.ModuleLessonId == lessonId);
 
         // `take + 1` — "yana bormi?" savoliga qo'shimcha COUNT so'rovisiz
         // javob berish uchun klassik usul.

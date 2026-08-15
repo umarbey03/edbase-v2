@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 
 import { fetchAttendanceSummary } from '@/entities/progress'
+import { fetchRecordingSection } from '@/entities/recording'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import NextLessonCard from '@/features/student-schedule/ui/NextLessonCard.vue'
 import { useNow } from '@/shared/lib/use-now'
@@ -50,6 +51,26 @@ function statValue(value: number | undefined): string {
   if (attendanceQuery.isPending.value) return '…'
   return value === undefined ? '—' : String(value)
 }
+
+/*
+  ============================================================================
+   "VAZIFA VA TESTLAR" — "O'quv" sahifasidan BU YERGA ko'chirildi
+  ============================================================================
+
+  Sabab: "Darslar" bosilganda endi to'liq Dars Dashboard ochiladi (video +
+  shu darsning vazifasi/testi/chati bitta joyda) — o'quvchi ko'p hollarda
+  vazifa/testga ALOHIDA emas, dars ORQALI keladi. Lekin GURUHGA bog'langan
+  (biror darsga bog'liq bo'lmagan) vazifa/testlar ham bo'ladi
+  (`Assignment.GroupId`/`Test.Kind=Competition`) — ularning boshqa kirish
+  nuqtasi yo'q, shuning uchun umumiy ro'yxatga havola BUTUNLAY o'chirilmaydi,
+  faqat shu yerga (Bosh sahifa) ko'chadi. Marshrutlar o'zgarmadi.
+*/
+const sectionQuery = useQuery({
+  queryKey: ['recordings', 'section'],
+  queryFn: ({ signal }) => fetchRecordingSection({ signal }),
+})
+
+const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? true)
 </script>
 
 <template>
@@ -301,6 +322,97 @@ function statValue(value: number | undefined): string {
           Ketma-ket {{ attendanceQuery.data.value?.streak }} darsda qatnashdingiz.
         </p>
       </section>
+    </div>
+  </div>
+
+  <!--
+    ==================== Vazifa va testlar ("O'quv"dan ko'chirilgan) ====================
+    Sabab va tafsilot — skriptdagi `recordingsVisible` izohi.
+  -->
+  <div class="mt-6">
+    <h2
+      class="mb-3 ml-1 flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-slate-400"
+    >
+      <AppIcon
+        name="clipboard"
+        :size="15"
+      />
+      Vazifa va testlar
+    </h2>
+
+    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+      <RouterLink
+        :to="{ name: 'student-assignments' }"
+        class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="clipboard"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Vazifalarim</b>
+          <span class="block text-xs text-dim">Topshirish va baholar</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
+        />
+      </RouterLink>
+
+      <RouterLink
+        :to="{ name: 'student-tests' }"
+        class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-cyan-500/12 text-cyan-300"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="award"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Testlarim</b>
+          <span class="block text-xs text-dim">Ochiq testlar va natijalar</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
+        />
+      </RouterLink>
+
+      <RouterLink
+        v-if="recordingsVisible"
+        :to="{ name: 'student-recordings' }"
+        class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-violet-500/12 text-violet-200"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="camera"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Dars yozuvlari</b>
+          <span class="block text-xs text-dim">O‘tilgan darslarni qayta ko‘rish</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
+        />
+      </RouterLink>
     </div>
   </div>
 </template>

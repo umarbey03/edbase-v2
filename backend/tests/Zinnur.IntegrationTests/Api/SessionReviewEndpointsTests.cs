@@ -47,7 +47,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
         var saved = await SaveAsync(academic, sessionId, "HasIssue", "Vaqt sust taqsimlangan.");
 
         saved.Verdict.Should().Be("HasIssue");
-        saved.Body.Should().Be("Vaqt sust taqsimlangan.");
+        saved.Conclusion.Should().Be("Vaqt sust taqsimlangan.");
         saved.AuthorName.Should().NotBeNullOrEmpty();
         saved.CanEdit.Should().BeTrue();
     }
@@ -109,7 +109,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
     }
 
     [Fact]
-    public async Task Review_WithEmptyBody_IsRejected()
+    public async Task Review_WithEmptyConclusion_IsRejected()
     {
         var world = await WorldBuilder.CreateAsync(factory, "tahlil-bosh");
         var sessionId = await AddSessionAsync(world.GroupId);
@@ -117,9 +117,9 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
         using var academic = await AcademicClientAsync("tahlil-bosh");
 
         var response = await academic.PutAsJsonAsync(
-            Uri(sessionId), new { verdict = "Approved", body = "   " });
+            Uri(sessionId), new { verdict = "Approved", conclusion = "   " });
 
-        // Bo'sh matn — Domain qoidasi (`DomainException` -> 409).
+        // Bo'sh xulosa — Domain qoidasi (`DomainException` -> 409).
         response.StatusCode.Should().Be(HttpStatusCode.Conflict, await WorldBuilder.Body(response));
     }
 
@@ -151,7 +151,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
         (await read.Content.ReadAsStringAsync()).Should().NotContain("Ichki baho");
 
         var write = await student.PutAsJsonAsync(
-            Uri(sessionId), new { verdict = "Approved", body = "Men yozdim" });
+            Uri(sessionId), new { verdict = "Approved", conclusion = "Men yozdim" });
 
         write.StatusCode.Should().Be(HttpStatusCode.Forbidden, await WorldBuilder.Body(write));
     }
@@ -170,7 +170,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
 
         var dto = await teacher.GetFromJsonAsync<ReviewResponse>(Uri(sessionId));
 
-        dto!.Body.Should().Be("Yaxshi olib borildi.");
+        dto!.Conclusion.Should().Be("Yaxshi olib borildi.");
 
         // ⚠️ LEKIN TAHRIRLAY OLMAYDI: u sifat nazoratining obyekti.
         dto.CanEdit.Should().BeFalse();
@@ -185,7 +185,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
         using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
 
         var response = await teacher.PutAsJsonAsync(
-            Uri(sessionId), new { verdict = "Approved", body = "O'zimni tasdiqlayman" });
+            Uri(sessionId), new { verdict = "Approved", conclusion = "O'zimni tasdiqlayman" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden, await WorldBuilder.Body(response));
     }
@@ -285,9 +285,9 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
     }
 
     private static async Task<ReviewResponse> SaveAsync(
-        HttpClient client, long sessionId, string verdict, string body)
+        HttpClient client, long sessionId, string verdict, string conclusion)
     {
-        var response = await client.PutAsJsonAsync(Uri(sessionId), new { verdict, body });
+        var response = await client.PutAsJsonAsync(Uri(sessionId), new { verdict, conclusion });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
 
@@ -331,7 +331,7 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
         });
 
     private sealed record ReviewResponse(
-        long Id, long SessionId, string Verdict, string Body,
+        long Id, long SessionId, string Verdict, string? Plus, string? Minus, string Conclusion,
         long AuthorId, string AuthorName, bool CanEdit,
         DateTimeOffset CreatedAt, DateTimeOffset? UpdatedAt);
 

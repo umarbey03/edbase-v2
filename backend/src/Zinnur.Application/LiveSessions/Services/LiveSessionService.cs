@@ -54,7 +54,36 @@ public sealed class LiveSessionService(
             .Take(100)
             .ToListAsync(ct);
 
-        return rows.Select(s => Map(s, IsHost(s, user))).ToList();
+        var hostNames = await ResolveHostNamesAsync(rows, ct);
+
+        return rows
+            .Select(s => Map(s, IsHost(s, user), HostUserId(s) is { } hostId ? hostNames.GetValueOrDefault(hostId) : null))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Shu darsni olib borishi KERAK bo'lgan xodimning User Id'si —
+    /// <c>Type</c>ga qarab guruhning ustozi yoki kuratori.
+    /// <c>HostName</c> izohidagi sabab bilan AYNI: bu <c>HostId</c> emas.
+    /// </summary>
+    private static long? HostUserId(LiveSession s) =>
+        s.Type == SessionType.Assistant ? s.Group?.AssistantId : s.Group?.TeacherId;
+
+    /// <summary>
+    /// Ro'yxat uchun ismlarni BITTA qo'shimcha so'rovda oladi — har qator
+    /// uchun alohida so'rov N+1 bo'lardi (100 tagacha dars bir sahifada).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<long, string>> ResolveHostNamesAsync(
+        IReadOnlyList<LiveSession> sessions, CancellationToken ct)
+    {
+        var ids = sessions.Select(HostUserId).Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<long, string>();
+
+        return await db.Users
+            .AsNoTracking()
+            .Where(u => ids.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName })
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
     }
 
     /// <inheritdoc />
@@ -246,7 +275,7 @@ public sealed class LiveSessionService(
     public async Task<LiveSessionDto> GetAsync(long sessionId, long userId, CancellationToken ct = default)
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
-        return Map(session, IsHost(session, user));
+        return Map(session, IsHost(session, user), await ResolveHostNameAsync(session, ct));
     }
 
     public async Task<LiveSessionDto> StartAsync(long sessionId, long userId, CancellationToken ct = default)
@@ -289,7 +318,7 @@ public sealed class LiveSessionService(
 
         await db.SaveChangesAsync(ct);
 
-        return Map(session, isHost: true);
+        return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
 
     public async Task<LiveSessionDto> EndAsync(long sessionId, long userId, CancellationToken ct = default)
@@ -323,7 +352,7 @@ public sealed class LiveSessionService(
         // sababini topib bo'lmay qolardi.
         await notifier.SessionEndedAsync(sessionId, ct);
 
-        return Map(session, isHost: true);
+        return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
 
     public async Task<LiveKitJoinDto> CreateJoinTokenAsync(
@@ -510,7 +539,7 @@ public sealed class LiveSessionService(
                     m.Status == MemberStatus.Active)),
         };
 
-    private static LiveSessionDto Map(LiveSession s, bool isHost) => new(
+    private static LiveSessionDto Map(LiveSession s, bool isHost, string? hostName) => new(
         s.Id,
         s.GroupId,
         s.Group?.Name ?? string.Empty,
@@ -521,7 +550,19 @@ public sealed class LiveSessionService(
         s.ScheduledEnd,
         s.ActualStart,
         s.EndsAt,
-        isHost);
+        isHost,
+        hostName);
+
+    private async Task<string?> ResolveHostNameAsync(LiveSession s, CancellationToken ct)
+    {
+        var id = HostUserId(s);
+        if (id is null) return null;
+
+        return await db.Users.AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync(ct);
+    }
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });

@@ -13,7 +13,9 @@ public sealed class SessionReviewConfiguration : IEntityTypeConfiguration<Sessio
         builder.ToTable("SessionReviews");
         builder.HasKey(r => r.Id);
 
-        builder.Property(r => r.Body).IsRequired().HasMaxLength(SessionReview.MaxBodyLength);
+        builder.Property(r => r.Plus).HasMaxLength(SessionReview.MaxSectionLength);
+        builder.Property(r => r.Minus).HasMaxLength(SessionReview.MaxSectionLength);
+        builder.Property(r => r.Conclusion).IsRequired().HasMaxLength(SessionReview.MaxSectionLength);
 
         // Enum -> int (loyihaning umumiy uslubi). Nomi o'zgarsa baza
         // tegilmaydi; tartibi o'zgarsa `SessionReviewVerdict` izohidagi
@@ -21,6 +23,9 @@ public sealed class SessionReviewConfiguration : IEntityTypeConfiguration<Sessio
         builder.Property(r => r.Verdict).HasConversion<int>();
 
         builder.Ignore(r => r.IsDecided);
+        builder.Ignore(r => r.TotalScore);
+        builder.Ignore(r => r.TotalMaxScore);
+        builder.Ignore(r => r.ScorePercent);
 
         // Dars o'chirilsa tahlil ham ketadi: u yakka o'zi hech narsani
         // anglatmaydi (`SessionRecordings` bilan AYNI qoida va AYNI

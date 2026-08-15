@@ -48,14 +48,18 @@ const timeRange = computed(
         >
           {{ sessionStatusLabel(props.session.status) }}
         </BaseBadge>
-        <BaseBadge
-          v-if="props.session.isHost"
-          tone="teacher"
-        >
-          Siz olib borasiz
-        </BaseBadge>
       </div>
 
+      <!--
+        ★ "Siz olib borasiz" YORLIG'I OLIB TASHLANDI (loyiha egasi,
+        2026-08-15): u FAQAT `isHost` chaqiruvchiga nisbatan haqiqat edi,
+        boshqa hech kim uchun hech narsa demasdi. Ustoz/kurator o'z
+        darsini ko'rganda `isHost` DOIM `true` (ScopeByRole ularni faqat
+        O'Z guruhlariga cheklaydi), ya'ni yorliq har doim ko'rinar va
+        ma'lumot bermas edi. O'quv bo'limi esa (`isHost` doim `false`)
+        buni umuman ko'rmasdi — aynan ular "kim olib boradi?" savolini
+        beradigan auditoriya. Xodim ISMI endi HAMMAGA bir xil ko'rinadi.
+      -->
       <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
         <span class="inline-flex min-w-0 items-center gap-1.5">
           <AppIcon
@@ -65,6 +69,19 @@ const timeRange = computed(
           <span
             class="truncate"
             v-text="props.session.groupName"
+          />
+        </span>
+        <span
+          v-if="props.session.hostName !== null"
+          class="inline-flex min-w-0 items-center gap-1.5"
+        >
+          <AppIcon
+            name="user"
+            :size="13"
+          />
+          <span
+            class="truncate"
+            v-text="props.session.hostName"
           />
         </span>
         <span class="inline-flex items-center gap-1.5">

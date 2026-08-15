@@ -138,6 +138,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<SessionReview> SessionReviews => Set<SessionReview>();
 
+    public DbSet<SessionReviewScore> SessionReviewScores => Set<SessionReviewScore>();
+
+    public DbSet<AnalysisCriterion> AnalysisCriteria => Set<AnalysisCriterion>();
+
     /* ===== /R29/R30 ===== */
 
     /* ===== R21b · GURUH KATEGORIYASI =====

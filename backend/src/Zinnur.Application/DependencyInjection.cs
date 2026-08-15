@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.AnalysisCriteria.Services;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
@@ -280,6 +281,12 @@ public static class DependencyInjection
         //   birini ikkinchisi bilan adashtirish faqat vaqt masalasi
         //   bo'lardi (sabab batafsil `ISessionReviewService` izohida).
         services.AddScoped<ISessionReviewService, SessionReviewService>();
+
+        // Dars tahlili mezonlari katalogi (R29/R30 kengaytmasi — mezon
+        // asosidagi ballash). `ISessionReviewService`dan MUSTAQIL: bu
+        // servisda "faqat o'z darsi" kabi qo'shimcha ruxsat qatlami yo'q,
+        // controller darvozasi (`Academic,Admin`) yetarli.
+        services.AddScoped<IAnalysisCriterionService, AnalysisCriterionService>();
 
         // AVTOMATIK YOZUV NAVBATI (2026-08-13).
         //

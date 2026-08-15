@@ -43,6 +43,10 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
     /// <param name="peerId">Suhbatdosh.</param>
     /// <param name="beforeId">Shu Id'dan eskiroq xabarlar (keyingi sahifa).</param>
     /// <param name="take">1..100, standart 50.</param>
+    /// <param name="moduleLessonId">
+    /// Berilsa — faqat shu kurs darsidan yozilgan xabarlar (Dars Dashboard
+    /// mini-chat'i). Berilmasa — butun yozishma (mavjud xatti-harakat).
+    /// </param>
     [HttpGet("conversations/{peerId:long}/messages")]
     [ProducesResponseType<MessagePageDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -51,8 +55,9 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
         long peerId,
         [FromQuery] long? beforeId,
         [FromQuery] int take = 50,
+        [FromQuery] long? moduleLessonId = null,
         CancellationToken ct = default) =>
-        Ok(await messages.GetThreadAsync(CurrentUserId, peerId, beforeId, take, ct));
+        Ok(await messages.GetThreadAsync(CurrentUserId, peerId, beforeId, take, moduleLessonId, ct));
 
     /// <summary>Xabar yuborish.</summary>
     [HttpPost("conversations/{peerId:long}/messages")]

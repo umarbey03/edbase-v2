@@ -279,8 +279,8 @@ const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus
           "
           :title="
             recording.isVisibleToStudents
-              ? 'Yozuv o‘quvchilarga ochiq'
-              : 'Yozuv o‘quvchilardan yashirilgan'
+              ? 'Hozir o‘quvchilarga ko‘rinadi. Bosilsa — yashiriladi (masalan sifati past yoki mazmuni noto‘g‘ri bo‘lsa, o‘quvchidan vaqtincha berkitish uchun; yozuvning o‘zi o‘chmaydi).'
+              : 'O‘quvchilardan yashirilgan — faqat xodimlar ko‘radi. Bosilsa — qayta ochiladi.'
           "
           @click="emit('visibility', recording.id, !recording.isVisibleToStudents)"
         >

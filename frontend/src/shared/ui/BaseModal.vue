@@ -57,6 +57,12 @@ const props = withDefaults(
     /** Kengroq oyna (jadval yoki ikki ustunli forma uchun). */
     wide?: boolean
     /**
+     * ENG KENG oyna (`sm:max-w-5xl`) — `wide`dan ham kattaroq. Video +
+     * bir nechta bo'lim (vazifa/test/chat) kabi zich tarkib uchun
+     * (`LessonDashboard`). `wide` bilan BIRGA berilsa bu USTUN turadi.
+     */
+    xl?: boolean
+    /**
      * "Varaq" ko'rinishi — TELEFONDA pastdan surilib chiqadi (yuqori
      * burchaklari 20px, kengligi 520px bilan cheklangan).
      *
@@ -90,7 +96,7 @@ const props = withDefaults(
      */
     sheet?: boolean
   }>(),
-  { wide: false, sheet: false },
+  { wide: false, xl: false, sheet: false },
 )
 
 const emit = defineEmits<{ close: [] }>()
@@ -149,7 +155,7 @@ useModalHost({
             ? 'max-w-[520px] rounded-t-[1.25rem] border-x border-t sm:max-h-[92dvh] sm:max-w-[27.5rem] sm:animate-fade-up sm:rounded-[1.25rem] sm:border'
             : [
               'sm:max-h-[92dvh] sm:animate-fade-up sm:rounded-[1.25rem] sm:border',
-              props.wide ? 'sm:max-w-3xl' : 'sm:max-w-lg',
+              props.xl ? 'sm:max-w-5xl' : props.wide ? 'sm:max-w-3xl' : 'sm:max-w-lg',
             ]
         "
         role="dialog"

@@ -75,7 +75,7 @@ public sealed class UserListFilterTests(ZinnurApiFactory factory)
 
         var move = await admin.PostAsJsonAsync(
             $"/api/v1/groups/{source.GroupId}/members/{source.Student.Id}/move",
-            new { targetGroupId = target.GroupId });
+            new { targetGroupId = target.GroupId, reason = "Jadval mos kelmadi." });
 
         move.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(move));
 

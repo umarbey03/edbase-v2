@@ -399,6 +399,15 @@ public sealed class GroupService(
             // yerda dublikat yozuv yaratardi va davomat ikki marta sanalardi.
             member.Status = MemberStatus.Active;
             member.JoinedAt = clock.GetUtcNow();
+
+            // ARXIV IZI TOZALANADI: o'quvchi endi FAOL, eski "chiqarilgan/
+            // ko'chirilgan" izi hozirgi holatga aloqasi yo'q — qolib ketsa
+            // arxiv jadvalida ko'rinmasa ham, keyingi safar chiqarilganda
+            // eski sababni yangisiga aralashtirib qo'yardi.
+            member.LeftAt = null;
+            member.LeftById = null;
+            member.MovedToGroupId = null;
+            member.Reason = null;
         }
 
         SetPausedUntil(member, null);
@@ -464,6 +473,8 @@ public sealed class GroupService(
         if (member.Status != MemberStatus.Stopped)
         {
             member.Status = MemberStatus.Stopped;
+            member.LeftAt = clock.GetUtcNow();
+            member.LeftById = actorId;
             SetPausedUntil(member, null);
             await db.SaveChangesAsync(ct);
         }
@@ -479,6 +490,22 @@ public sealed class GroupService(
 
         if (request.TargetGroupId == id)
             throw new ConflictException("Manba va nishon guruh bir xil.");
+
+        // MAJBURIY SABAB (loyiha egasi, 2026-08-15): ko'chirish — boshqa
+        // xodim keyinroq "nega bu o'quvchi shu yerda emas?" deb so'raganda
+        // javob topadigan yagona joy. `DomainException` emas, shu yerda:
+        // `GroupMember` hali ham "sababsiz" holatga tushmaydigan sodda
+        // entity (`RemoveMemberAsync`dagi IXTIYORIY sabab bilan farqi
+        // aynan shu — talab faqat ko'chirishga tegishli).
+        var reason = request.Reason.Trim();
+        if (reason.Length == 0)
+            throw Invalid(nameof(request.Reason), "Ko'chirish sababini kiriting.");
+
+        if (reason.Length > GroupMember.MaxReasonLength)
+        {
+            throw Invalid(
+                nameof(request.Reason), $"Sabab {GroupMember.MaxReasonLength} belgidan oshmasin.");
+        }
 
         var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
 
@@ -497,6 +524,10 @@ public sealed class GroupService(
         var now = clock.GetUtcNow();
 
         member.Status = MemberStatus.Moved;
+        member.LeftAt = now;
+        member.LeftById = actorId;
+        member.MovedToGroupId = target.Id;
+        member.Reason = reason;
         SetPausedUntil(member, null);
 
         if (arrived is null)
@@ -515,6 +546,14 @@ public sealed class GroupService(
         {
             arrived.Status = MemberStatus.Active;
             arrived.JoinedAt = now;
+
+            // Nishon guruhda ILGARI chiqarilgan/ko'chirilgan qator bo'lsa
+            // (o'quvchi shu guruhga QAYTA ko'chirilmoqda) — eski arxiv izi
+            // endi noto'g'ri, `AddMemberAsync`dagi AYNI tozalash.
+            arrived.LeftAt = null;
+            arrived.LeftById = null;
+            arrived.MovedToGroupId = null;
+            arrived.Reason = null;
         }
 
         SetPausedUntil(arrived, null);
@@ -780,7 +819,12 @@ public sealed class GroupService(
             m.JoinedAt,
             EF.Property<DateOnly?>(m, GroupMemberFields.PausedUntil),
             m.GroupId,
-            m.Group!.Name));
+            m.Group!.Name,
+            m.LeftAt,
+            m.LeftBy!.FullName,
+            m.MovedToGroupId,
+            m.MovedToGroup!.Name,
+            m.Reason));
 
     /// <summary>
     /// ========================================================================

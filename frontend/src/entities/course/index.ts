@@ -20,6 +20,8 @@ export {
   buildLessonAssetForm,
   deleteLessonAsset,
   fetchLessonAssetFile,
+  fetchLessonAssetTicket,
+  lessonAssetTicketUrl,
   lessonAssetUploadPath,
   reorderLessonAssets,
 } from './api/lesson-asset-api'

@@ -26,16 +26,20 @@ public sealed class SessionReviewService(
     public async Task<SessionReviewDto?> GetAsync(
         long sessionId, long actorId, CancellationToken ct = default)
     {
-        var (_, role) = await AuthorizeAsync(sessionId, actorId, canWrite: false, ct)
+        var (session, role) = await AuthorizeAsync(sessionId, actorId, canWrite: false, ct)
             .ConfigureAwait(false);
 
         var review = await db.SessionReviews
             .AsNoTracking()
             .Include(r => r.Author)
+            .Include(r => r.Scores)
             .FirstOrDefaultAsync(r => r.SessionId == sessionId, ct)
             .ConfigureAwait(false);
 
-        return review is null ? null : Map(review, role);
+        if (review is null) return null;
+
+        var hostName = await ResolveHostNameAsync(session, ct).ConfigureAwait(false);
+        return Map(review, role, session, hostName);
     }
 
     /// <inheritdoc />
@@ -45,13 +49,14 @@ public sealed class SessionReviewService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (_, role) = await AuthorizeAsync(sessionId, actorId, canWrite: true, ct)
+        var (session, role) = await AuthorizeAsync(sessionId, actorId, canWrite: true, ct)
             .ConfigureAwait(false);
 
         var now = clock.GetUtcNow();
 
         var existing = await db.SessionReviews
             .AsTracking()
+            .Include(r => r.Scores)
             .FirstOrDefaultAsync(r => r.SessionId == sessionId, ct)
             .ConfigureAwait(false);
 
@@ -62,7 +67,8 @@ public sealed class SessionReviewService(
             // keyin bittasini o'zgartirib qo'yish mumkin emas
             // (`StudentNoteService.CreateAsync` dagi AYNI qoida).
             existing = SessionReview.Create(
-                sessionId, actorId, request.Verdict, request.Body, now);
+                sessionId, actorId, request.Verdict,
+                request.Plus, request.Minus, request.Conclusion, now);
 
             db.SessionReviews.Add(existing);
         }
@@ -71,7 +77,19 @@ public sealed class SessionReviewService(
             // ⚠️ MUALLIF O'ZGARMAYDI. Ikkinchi xodim tahrirlaganda ham
             //    ismi BIRINCHISINIKI bo'lib qoladi — sabab
             //    `SessionReview.Edit` izohida.
-            existing.Edit(request.Verdict, request.Body, now);
+            existing.Edit(request.Verdict, request.Plus, request.Minus, request.Conclusion, now);
+        }
+
+        // `Scores` NULLABLE (DTO izohi): eski klient uni umuman yubormasligi
+        // mumkin — bu holda mezon ballari TEGILMAYDI (faqat erkin matn).
+        if (request.Scores is { Count: > 0 } scores)
+        {
+            var catalog = await CatalogAsync(scores, ct).ConfigureAwait(false);
+
+            existing.SetScores(
+                scores.Select(s => (s.CriterionId, s.Score)).ToList(),
+                catalog,
+                now);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -82,10 +100,31 @@ public sealed class SessionReviewService(
         var saved = await db.SessionReviews
             .AsNoTracking()
             .Include(r => r.Author)
+            .Include(r => r.Scores)
             .FirstAsync(r => r.Id == existing.Id, ct)
             .ConfigureAwait(false);
 
-        return Map(saved, role);
+        var hostName = await ResolveHostNameAsync(session, ct).ConfigureAwait(false);
+        return Map(saved, role, session, hostName);
+    }
+
+    /// <summary>
+    /// So'ralgan mezonlarni katalogdan Id bo'yicha xaritalaydi.
+    ///
+    /// 🔴 SETSCORES SHU BILAN XAVFSIZ: <c>request.Scores</c> ichidagi nom/
+    /// maksimal ball SERVERGA yuborilmaydi ham — faqat <c>CriterionId</c>.
+    /// Shuning uchun klient ixtiyoriy shkalada ball "o'ylab topa" olmaydi.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<long, AnalysisCriterion>> CatalogAsync(
+        IReadOnlyList<SaveSessionReviewScoreRequest> scores, CancellationToken ct)
+    {
+        var ids = scores.Select(s => s.CriterionId).Distinct().ToList();
+
+        return await db.AnalysisCriteria
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, ct)
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -195,11 +234,41 @@ public sealed class SessionReviewService(
         return (session, role);
     }
 
-    private static SessionReviewDto Map(SessionReview review, UserRole role) => new(
+    /// <summary>
+    /// Shu darsni olib borishi kutilayotgan xodimning ismi —
+    /// <c>LiveSessionService.ResolveHostNameAsync</c> BILAN AYNI qoida
+    /// (Type'ga qarab guruhning ustozi yoki kuratori). Ikkalasi mustaqil
+    /// nusxa: bu servis <c>LiveSessionService</c>ga bog'lanmaydi (sabab —
+    /// <c>ISessionReviewService</c> izohidagi "nega ILiveSessionService
+    /// qayta ishlatilmaydi").
+    /// </summary>
+    private async Task<string?> ResolveHostNameAsync(LiveSession session, CancellationToken ct)
+    {
+        var hostUserId = session.Type == SessionType.Assistant
+            ? session.Group?.AssistantId
+            : session.Group?.TeacherId;
+
+        if (hostUserId is null) return null;
+
+        return await db.Users.AsNoTracking()
+            .Where(u => u.Id == hostUserId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+    }
+
+    private static SessionReviewDto Map(
+        SessionReview review, UserRole role, LiveSession session, string? hostName) => new(
         review.Id,
         review.SessionId,
         review.Verdict.ToString(),
-        review.Body,
+        review.Plus,
+        review.Minus,
+        review.Conclusion,
+        session.ScheduledStart,
+        session.Group?.Name ?? string.Empty,
+        session.Title,
+        hostName,
         review.AuthorId,
 
         // Muallif `Restrict` bilan bog'langan, ya'ni u DOIM mavjud. `??`
@@ -210,5 +279,11 @@ public sealed class SessionReviewService(
         // ★ QULAYLIK BAYROG'I, RUXSAT EMAS (izoh: `SessionReviewDto`).
         CanEdit: role is UserRole.Academic or UserRole.Admin,
         review.CreatedAt,
-        review.UpdatedAt);
+        review.UpdatedAt,
+        review.Scores
+            .Select(s => new SessionReviewScoreDto(s.CriterionId, s.CriterionName, s.MaxScore, s.Score))
+            .ToList(),
+        review.TotalScore,
+        review.TotalMaxScore,
+        review.ScorePercent);
 }

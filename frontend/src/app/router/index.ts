@@ -261,16 +261,25 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Dars yozuvlari', roles: MANAGERS },
       },
       {
+        /*
+          FAQAT ADMIN (loyiha egasi, 2026-08-15): *"to'lovlar va moliya
+          qismi o'quv bo'limi uchun kerak emas, u qismi admin panelda
+          bo'lsa yetadi"*. `PaymentsController.ManageRoles` o'zi
+          o'zgarmadi ("Academic,Admin" qoladi) \u2014 student profilidagi
+          moliya bo'limi (`ProfileFinanceSection`) kabi BOSHQA ekranlar
+          O'SHA endpointlarni O'QISH uchun ishlatadi va ular bu talabga
+          aloqasi yo'q. Faqat bu IKKI SAHIFANING o'zi Admin'ga qulflandi.
+        */
         path: 'boshqaruv/tolovlar',
         name: 'manage-payments',
         component: () => import('@/pages/manage/ManagePaymentsPage.vue'),
-        meta: { title: 'To\u2018lovlar', roles: MANAGERS },
+        meta: { title: 'To\u2018lovlar', roles: ADMIN_ONLY },
       },
       {
         path: 'boshqaruv/moliya',
         name: 'manage-finance',
         component: () => import('@/pages/manage/ManageFinancePage.vue'),
-        meta: { title: 'Moliya', roles: MANAGERS },
+        meta: { title: 'Moliya', roles: ADMIN_ONLY },
       },
       {
         path: 'boshqaruv/kurslar',
@@ -335,6 +344,19 @@ const routes: RouteRecordRaw[] = [
         name: 'manage-settings',
         component: () => import('@/pages/manage/ManageSettingsPage.vue'),
         meta: { title: 'Tizim sozlamalari', roles: ADMIN_ONLY },
+      },
+      {
+        /*
+          O'QUV BO'LIMI SOZLAMALARI — Admin'ning "Tizim sozlamalari"
+          (`manage-settings`, INFRATUZILMA) dan MUSTAQIL: bu yerdagilar
+          o'quv jarayoni sozlamalari (hozircha — dars tahlili mezonlari,
+          R29/R30 kengaytmasi). Rollar `SessionReviewsController.WriteRoles`
+          bilan AYNI.
+        */
+        path: 'boshqaruv/oquv-sozlamalari',
+        name: 'manage-academic-settings',
+        component: () => import('@/pages/manage/ManageAcademicSettingsPage.vue'),
+        meta: { title: 'O‘quv bo‘limi sozlamalari', roles: MANAGERS },
       },
     ],
   },

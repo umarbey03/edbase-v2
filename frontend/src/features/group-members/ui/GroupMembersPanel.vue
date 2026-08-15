@@ -112,7 +112,35 @@ const membersQuery = useQuery({
 })
 
 const members = computed(() => membersQuery.data.value ?? [])
-const studentIds = computed(() => members.value.map((member) => member.studentId))
+
+/**
+ * ARXIV JADVALI (loyiha egasi, 2026-08-15): *"chiqarilgan o'quvchi asosiy
+ * jadvalda turishi kerak emas, uni tagida arxiv jadval bo'lishi kerak"*.
+ * Bo'linish mezoni — `isHistorical` bilan AYNI (`Stopped`/`Moved`),
+ * shuning uchun bugungi "Qayta qo'shib bo'lmayapti" bug tuzatuvi bilan
+ * ATAYLAB bir xil funksiyaga tayanadi.
+ */
+const activeMembers = computed(() => members.value.filter((member) => !isHistorical(member)))
+const archivedMembers = computed(() => members.value.filter((member) => isHistorical(member)))
+
+/**
+ * 🔴 BUG TUZATILDI (2026-08-15): "chiqarilgan o'quvchini guruhga qayta
+ * qo'shib bo'lmayapti".
+ *
+ * SABAB: bu ro'yxat `AddMemberDialog`ga "kim ALLAQACHON a'zo" deb
+ * beriladi va u yerda `isMember()` shu Id borligini ko'rsa "Qo'shish"
+ * tugmasi o'rniga doimiy "A'zo" nishonini chizadi. `members` esa
+ * TARIXNI ham o'z ichiga oladi (`Stopped`/`Moved`) — ya'ni chiqarilgan
+ * o'quvchi bu ro'yxatda ABADIY qolib, uni qayta tanlashning yo'li
+ * yopiq edi, garchi backend (`GroupService.AddMemberAsync`) uni
+ * TIKLASHGA aslida tayyor bo'lsa ham.
+ *
+ * TUZATISH: faqat HOZIR haqiqiy a'zo bo'lganlar (`Active`/`Paused`)
+ * beriladi — `isHistorical` bilan AYNI mezon.
+ */
+const studentIds = computed(() =>
+  members.value.filter((member) => !isHistorical(member)).map((member) => member.studentId),
+)
 
 const membersError = computed(() =>
   membersQuery.error.value !== null ? toUserMessage(membersQuery.error.value) : null,
@@ -228,7 +256,7 @@ function isHistorical(member: GroupMemberDto): boolean {
   <BaseCard
     flush
     title="O‘quvchilar"
-    :subtitle="`Jami: ${members.length}`"
+    :subtitle="`Faol: ${activeMembers.length}`"
   >
     <template
       v-if="props.canManage"
@@ -259,7 +287,7 @@ function isHistorical(member: GroupMemberDto): boolean {
       <DataStatus
         :pending="membersQuery.isPending.value"
         :error="membersError"
-        :empty="members.length === 0"
+        :empty="activeMembers.length === 0"
         :retrying="membersQuery.isFetching.value"
         :skeleton-rows="2"
         empty-icon="users"
@@ -273,7 +301,7 @@ function isHistorical(member: GroupMemberDto): boolean {
           class="space-y-2"
         >
           <li
-            v-for="member in members"
+            v-for="member in activeMembers"
             :key="member.id"
             class="rounded-lg border border-line bg-ink-950 p-3"
           >
@@ -392,7 +420,7 @@ function isHistorical(member: GroupMemberDto): boolean {
             </thead>
             <tbody>
               <tr
-                v-for="member in members"
+                v-for="member in activeMembers"
                 :key="member.id"
               >
                 <td
@@ -476,6 +504,118 @@ function isHistorical(member: GroupMemberDto): boolean {
           </table>
         </div>
       </DataStatus>
+
+      <!--
+        ==================== ARXIV (chiqarilgan / ko'chirilgan) ====================
+        Loyiha egasi: bu o'quvchilar asosiy jadvalda TURMAYDI, lekin YO'QOLMAYDI
+        ham — sana, ko'chirilgan bo'lsa nishon guruh va kim bajargani bilan
+        shu yerda saqlanadi.
+      -->
+      <div
+        v-if="archivedMembers.length > 0"
+        class="mt-6 border-t border-line pt-4"
+      >
+        <h3 class="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[1px] text-slate-400">
+          <AppIcon
+            name="user-x"
+            :size="14"
+          />
+          Arxiv — chiqarilgan / ko‘chirilgan ({{ archivedMembers.length }})
+        </h3>
+
+        <!-- Telefon/planshet: kartochka -->
+        <ul
+          v-if="!isDesktop"
+          class="space-y-2"
+        >
+          <li
+            v-for="member in archivedMembers"
+            :key="member.id"
+            class="rounded-lg border border-line bg-ink-950 p-3 opacity-80"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <p
+                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
+                v-text="member.fullName ?? '—'"
+              />
+              <BaseBadge :tone="memberStatusTone(member.status)">
+                {{ memberStatusLabel(member.status) }}
+              </BaseBadge>
+            </div>
+            <p
+              v-if="member.leftAt !== null"
+              class="mt-1 text-xs text-slate-400"
+            >
+              {{ formatDateTime(member.leftAt) }}
+              <span v-if="member.leftByName !== null"> · {{ member.leftByName }} tomonidan</span>
+            </p>
+            <p
+              v-if="member.status === 'Moved' && member.movedToGroupName !== null"
+              class="text-xs text-dim"
+            >
+              Ko‘chirilgan guruh: {{ member.movedToGroupName }}
+            </p>
+            <p
+              v-if="member.reason !== null && member.reason.length > 0"
+              class="mt-1 text-xs text-slate-400"
+            >
+              Sabab: {{ member.reason }}
+            </p>
+          </li>
+        </ul>
+
+        <!-- Desktop: jadval -->
+        <div
+          v-else
+          class="scroll-x-safe scrollbar-slim"
+        >
+          <table class="zn-table opacity-80">
+            <thead>
+              <tr>
+                <th>Ism</th>
+                <th>Holat</th>
+                <th>Sana</th>
+                <th>Ko‘chirilgan guruh</th>
+                <th>Kim tomonidan</th>
+                <th>Sabab</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="member in archivedMembers"
+                :key="member.id"
+              >
+                <td
+                  class="font-medium text-slate-100"
+                  v-text="member.fullName ?? '—'"
+                />
+                <td>
+                  <BaseBadge :tone="memberStatusTone(member.status)">
+                    {{ memberStatusLabel(member.status) }}
+                  </BaseBadge>
+                </td>
+                <td
+                  class="tabular-nums text-slate-400"
+                  v-text="member.leftAt !== null ? formatDateTime(member.leftAt) : '—'"
+                />
+                <td
+                  class="text-slate-400"
+                  v-text="member.status === 'Moved' ? (member.movedToGroupName ?? '—') : '—'"
+                />
+                <td
+                  class="text-slate-400"
+                  v-text="member.leftByName ?? '—'"
+                />
+                <td
+                  class="max-w-[220px] truncate text-slate-400"
+                  :title="member.reason ?? ''"
+                  v-text="member.reason ?? '—'"
+                />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <AddMemberDialog

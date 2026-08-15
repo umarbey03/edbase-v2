@@ -13,6 +13,21 @@ import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
  * desktopda doimiy ustun, telefon/planshetda esa chekka drawer. Nusxa
  * ko'chirilsa — menyu bir joyda yangilanib, ikkinchisida eskirib qolardi.
  */
+const props = withDefaults(
+  defineProps<{
+    /**
+     * `true` — ikonka-yaqqol rejim (faqat AppIcon + tap maydoni, matn
+     * yashirin). Loyiha egasi, 2026-08-15: *"o'ng tarafdagi navbarga
+     * toggle"* — DESKTOP doimiy ustunidagi yig'ish/yoyish tugmasi
+     * (`AppShell`). Telefon/planshet drawer'ida HAR DOIM `false`: u
+     * allaqachon vaqtinchalik ustma-ust panel, uni yana siqish foyda
+     * bermaydi.
+     */
+    collapsed?: boolean
+  }>(),
+  { collapsed: false },
+)
+
 const emit = defineEmits<{ navigate: []; logout: []; edit: [] }>()
 
 const auth = useAuthStore()
@@ -41,7 +56,10 @@ const panelLabel = computed(() =>
 <template>
   <div class="flex h-full min-h-0 flex-col bg-ink-900">
     <!-- Logotip (eski `.logo`) -->
-    <div class="flex shrink-0 items-center gap-3 border-b border-line px-4.5 py-5">
+    <div
+      class="flex shrink-0 items-center gap-3 border-b border-line px-4.5 py-5"
+      :class="{ 'justify-center px-2': props.collapsed }"
+    >
       <!--
         Indigo gradient plitka — ekran suratlaridagi belgi. Gradient
         TOKENLAR orqali (`from-brand-500 to-brand-700`), qotib qolgan
@@ -53,7 +71,10 @@ const panelLabel = computed(() =>
       >
         Z
       </span>
-      <div class="min-w-0">
+      <div
+        v-if="!props.collapsed"
+        class="min-w-0"
+      >
         <!--
           R19 — brend nomi BITTA rangda. Ilgari "Zin" tanadan rang meros olardi
           (`slate-100`), "-Nur" esa `text-brand-500` edi: bitta so'z ikki xil
@@ -91,8 +112,14 @@ const panelLabel = computed(() =>
         ★ Panel CHAPGA tekislanadi: yon menyu ekranning chap chekkasida,
         o'ngga tekislangan panel menyuning tor ustunidan chiqib, kontent
         ustiga noto'g'ri tomondan tushardi.
+
+        ★ SIQILGAN HOLATDA YASHIRILADI: tor ustunda (72px) qo'ng'iroqcha
+        logotip plitkasi bilan to'qnashardi. Xabarlar SIQIQ holatda ham
+        kelaveradi — bildirishnoma nishoni yo'qolmaydi, faqat yig'ilgan
+        paytda ko'rinmay turadi (yoyilganda darrov ko'rinadi).
       -->
       <NotificationBell
+        v-if="!props.collapsed"
         align="left"
         class="ml-auto hidden shrink-0 lg:flex"
       />
@@ -121,7 +148,9 @@ const panelLabel = computed(() =>
         :key="item.routeName"
         :to="{ name: item.routeName }"
         class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+        :class="{ 'justify-center px-0': props.collapsed }"
         active-class="bg-brand-500! font-semibold text-on-brand! shadow-xs hover:bg-brand-600! hover:text-on-brand!"
+        :title="props.collapsed ? item.label : undefined"
         @click="emit('navigate')"
       >
         <AppIcon
@@ -129,6 +158,7 @@ const panelLabel = computed(() =>
           :size="17"
         />
         <span
+          v-if="!props.collapsed"
           class="truncate"
           v-text="item.label"
         />
@@ -137,7 +167,10 @@ const panelLabel = computed(() =>
 
     <!-- Foydalanuvchi bloki (eski `.userbox`) -->
     <div class="shrink-0 border-t border-line px-4 py-3.5">
-      <div class="flex items-center gap-2.5">
+      <div
+        class="flex items-center gap-2.5"
+        :class="{ 'flex-col gap-2': props.collapsed }"
+      >
         <!--
           ★ AVATAR VA ISM — BOSILADIGAN (2026-08-15): xodim uchun bu
           profilni tahrirlashning YAGONA kirish nuqtasi. Talab "har
@@ -147,11 +180,16 @@ const panelLabel = computed(() =>
           Alohida "Tahrirlash" tugmasi QO'YILMADI: yon menyuning eng
           pastida joy tor va uchinchi ikonka (chiqish yonida) tasodifan
           bosiladigan bo'lardi.
+
+          ★ SIQIQ HOLATDA FAQAT AVATAR: ism/badge 72px ustunda sig'maydi.
+          Kim ekanligi avatar harfidan va sichqoncha bosilganda ochiladigan
+          profil oynasidan bilinadi — sarlavha (`title`) ham qo'shildi.
         -->
         <button
           type="button"
           class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-left transition-colors hover:bg-ink-800"
-          title="Profilni tahrirlash"
+          :class="{ 'flex-none justify-center': props.collapsed }"
+          :title="props.collapsed ? `${auth.displayName} — profilni tahrirlash` : 'Profilni tahrirlash'"
           @click="emit('edit')"
         >
           <BaseAvatar
@@ -159,7 +197,10 @@ const panelLabel = computed(() =>
             :src="avatarUrl"
             size="sm"
           />
-          <span class="min-w-0 flex-1">
+          <span
+            v-if="!props.collapsed"
+            class="min-w-0 flex-1"
+          >
             <span
               class="block truncate text-[13px] font-semibold text-slate-100"
               v-text="auth.displayName"

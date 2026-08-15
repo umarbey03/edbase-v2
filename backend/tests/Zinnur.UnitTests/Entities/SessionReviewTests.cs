@@ -31,28 +31,47 @@ public sealed class SessionReviewTests
     public void Create_WithoutAVerdict_IsADraft_NotAnApproval()
     {
         var review = SessionReview.Create(
-            sessionId: 1, authorId: 2, default, "Kuzatuv boshlandi.", Now);
+            sessionId: 1, authorId: 2, default, null, null, "Kuzatuv boshlandi.", Now);
 
         review.Verdict.Should().Be(SessionReviewVerdict.NotReviewed);
         review.IsDecided.Should().BeFalse();
     }
 
     [Fact]
-    public void Create_TrimsTheBody_AndKeepsTheAuthorAndSession()
+    public void Create_TrimsAllSections_AndKeepsTheAuthorAndSession()
     {
         var review = SessionReview.Create(
-            sessionId: 5, authorId: 9, SessionReviewVerdict.HasIssue, "  Vaqt sust taqsimlangan.  ", Now);
+            sessionId: 5, authorId: 9, SessionReviewVerdict.HasIssue,
+            "  Tushuntirish aniq.  ", "  Vaqt sust taqsimlangan.  ", "  Mikrofon tekshiriladi.  ", Now);
 
         review.SessionId.Should().Be(5);
         review.AuthorId.Should().Be(9);
-        review.Body.Should().Be("Vaqt sust taqsimlangan.");
+        review.Plus.Should().Be("Tushuntirish aniq.");
+        review.Minus.Should().Be("Vaqt sust taqsimlangan.");
+        review.Conclusion.Should().Be("Mikrofon tekshiriladi.");
         review.Verdict.Should().Be(SessionReviewVerdict.HasIssue);
         review.IsDecided.Should().BeTrue();
         review.CreatedAt.Should().Be(Now);
     }
 
     /// <summary>
-    /// Bo'sh tahlil — ma'nosiz qator. Uni ruxsat etish ro'yxatda "tahlil
+    /// <see cref="SessionReview.Plus"/>/<see cref="SessionReview.Minus"/>
+    /// IXTIYORIY: ko'p tahlilda ijobiy yoki kamchilik yozadigan narsa
+    /// bo'lavermaydi, faqat xulosa.
+    /// </summary>
+    [Fact]
+    public void Create_WithoutPlusOrMinus_Succeeds()
+    {
+        var review = SessionReview.Create(
+            1, 2, SessionReviewVerdict.Approved, null, null, "Yaxshi dars.", Now);
+
+        review.Plus.Should().BeNull();
+        review.Minus.Should().BeNull();
+        review.Conclusion.Should().Be("Yaxshi dars.");
+    }
+
+    /// <summary>
+    /// Bo'sh xulosa — ma'nosiz qator. Uni ruxsat etish ro'yxatda "tahlil
     /// bor" nishonini yoqib, ochilganda bo'sh oyna ko'rsatardi: ustoz
     /// uchun bu eng chalg'ituvchi holat.
     /// </summary>
@@ -60,23 +79,34 @@ public sealed class SessionReviewTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_WithAnEmptyBody_Throws(string? body)
+    public void Create_WithAnEmptyConclusion_Throws(string? conclusion)
     {
-        var act = () => SessionReview.Create(1, 2, SessionReviewVerdict.Approved, body, Now);
+        var act = () => SessionReview.Create(1, 2, SessionReviewVerdict.Approved, null, null, conclusion, Now);
 
         act.Should().Throw<DomainException>();
     }
 
     /// <summary>
-    /// Chegara <c>StudentNote</c> nikidan KATTA (4000 va 2000), lekin
-    /// mavjud — sabab <c>SessionReview.MaxBodyLength</c> izohida.
+    /// Chegara <c>StudentNote</c> nikidan KICHIK EMAS (2000) — sabab
+    /// <c>SessionReview.MaxSectionLength</c> izohida: yagona 4000 belgilik
+    /// `Body` endi uchta aniq maqsadli bo'limga bo'lingan.
     /// </summary>
     [Fact]
-    public void Create_WithAnOverlongBody_Throws()
+    public void Create_WithAnOverlongConclusion_Throws()
     {
-        var body = new string('a', SessionReview.MaxBodyLength + 1);
+        var conclusion = new string('a', SessionReview.MaxSectionLength + 1);
 
-        var act = () => SessionReview.Create(1, 2, SessionReviewVerdict.Approved, body, Now);
+        var act = () => SessionReview.Create(1, 2, SessionReviewVerdict.Approved, null, null, conclusion, Now);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_WithAnOverlongPlus_Throws()
+    {
+        var plus = new string('a', SessionReview.MaxSectionLength + 1);
+
+        var act = () => SessionReview.Create(1, 2, SessionReviewVerdict.Approved, plus, null, "Xulosa.", Now);
 
         act.Should().Throw<DomainException>();
     }
@@ -84,11 +114,11 @@ public sealed class SessionReviewTests
     [Fact]
     public void Create_AtExactlyTheLimit_IsAccepted()
     {
-        var body = new string('a', SessionReview.MaxBodyLength);
+        var conclusion = new string('a', SessionReview.MaxSectionLength);
 
-        var review = SessionReview.Create(1, 2, SessionReviewVerdict.Approved, body, Now);
+        var review = SessionReview.Create(1, 2, SessionReviewVerdict.Approved, null, null, conclusion, Now);
 
-        review.Body.Should().HaveLength(SessionReview.MaxBodyLength);
+        review.Conclusion.Should().HaveLength(SessionReview.MaxSectionLength);
     }
 
     // ================================================================= tahrirlash
@@ -103,25 +133,42 @@ public sealed class SessionReviewTests
     [Fact]
     public void Edit_DoesNotChangeTheAuthor()
     {
-        var review = SessionReview.Create(1, 2, SessionReviewVerdict.NotReviewed, "Qoralama.", Now);
+        var review = SessionReview.Create(1, 2, SessionReviewVerdict.NotReviewed, null, null, "Qoralama.", Now);
 
-        review.Edit(SessionReviewVerdict.Approved, "Yakuniy xulosa.", Now.AddDays(1));
+        review.Edit(SessionReviewVerdict.Approved, "Kuchli tomon.", null, "Yakuniy xulosa.", Now.AddDays(1));
 
         review.AuthorId.Should().Be(2);
         review.Verdict.Should().Be(SessionReviewVerdict.Approved);
-        review.Body.Should().Be("Yakuniy xulosa.");
+        review.Plus.Should().Be("Kuchli tomon.");
+        review.Conclusion.Should().Be("Yakuniy xulosa.");
         review.UpdatedAt.Should().Be(Now.AddDays(1));
     }
 
     [Fact]
-    public void Edit_WithAnEmptyBody_Throws_AndLeavesTheReviewIntact()
+    public void Edit_WithAnEmptyConclusion_Throws_AndLeavesTheReviewIntact()
     {
-        var review = SessionReview.Create(1, 2, SessionReviewVerdict.Approved, "Yaxshi dars.", Now);
+        var review = SessionReview.Create(1, 2, SessionReviewVerdict.Approved, null, null, "Yaxshi dars.", Now);
 
-        var act = () => review.Edit(SessionReviewVerdict.HasIssue, "  ", Now.AddDays(1));
+        var act = () => review.Edit(SessionReviewVerdict.HasIssue, null, null, "  ", Now.AddDays(1));
 
         act.Should().Throw<DomainException>();
-        review.Body.Should().Be("Yaxshi dars.");
+        review.Conclusion.Should().Be("Yaxshi dars.");
         review.Verdict.Should().Be(SessionReviewVerdict.Approved);
+    }
+
+    /// <summary>
+    /// TO'LIQ ALMASHTIRISH: <see cref="SessionReview.Edit"/> chaqirilganda
+    /// avvalgi <c>Plus</c> berilmasa (<c>null</c>) — O'CHADI, "saqlab
+    /// qolinmaydi" (`LessonGrade.Apply` bilan AYNI qoida).
+    /// </summary>
+    [Fact]
+    public void Edit_WithoutPlus_ClearsThePreviousValue()
+    {
+        var review = SessionReview.Create(
+            1, 2, SessionReviewVerdict.Approved, "Eski ijobiy fikr.", null, "Xulosa.", Now);
+
+        review.Edit(SessionReviewVerdict.Approved, null, null, "Xulosa.", Now.AddDays(1));
+
+        review.Plus.Should().BeNull();
     }
 }

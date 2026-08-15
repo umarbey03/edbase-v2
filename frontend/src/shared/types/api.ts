@@ -160,6 +160,8 @@ export interface LiveSessionDto {
   actualStart: string | null
   endsAt: string | null
   isHost: boolean
+  /** Shu darsni olib borishi kutilayotgan xodim (guruhning ustozi/kuratori). `null` — biriktirilmagan. */
+  hostName: string | null
 }
 
 /**
@@ -234,7 +236,19 @@ export interface SessionReviewDto {
   id: number
   sessionId: number
   verdict: SessionReviewVerdictName
-  body: string
+  /** Ijobiy tomonlar. `null` — kiritilmagan (ixtiyoriy). */
+  plus: string | null
+  /** Kamchiliklar. `null` — kiritilmagan (ixtiyoriy). */
+  minus: string | null
+  /** Xulosa va yechimlar — YAKUNIY, MAJBURIY qism. */
+  conclusion: string
+  /** DARSNING jadval bo'yicha boshlanish vaqti (tahlil yozilgan vaqt EMAS — u `createdAt`/`updatedAt`da). */
+  sessionScheduledStart: string
+  groupName: string
+  /** `null` — ustoz sarlavha kiritmagan (bunday holatda `groupName`ga tushiladi). */
+  sessionTitle: string | null
+  /** Darsni olib borishi kerak bo'lgan xodim. `null` — guruhga hali biriktirilmagan. */
+  teacherName: string | null
   authorId: number
   /** Xulosani yozgan xodim — ustoz uchun "kim aytdi" savoliga javob. */
   authorName: string
@@ -242,12 +256,50 @@ export interface SessionReviewDto {
   canEdit: boolean
   createdAt: string
   updatedAt: string | null
+  /** Mezon asosidagi ballar. Bo'sh massiv — hali ballanmagan yoki eski, ballashsiz tahlil. */
+  scores: SessionReviewScoreDto[]
+  totalScore: number
+  totalMaxScore: number
+  /** `null` — hali BIRORTA ham mezon bo'yicha ball qo'yilmagan (0% bilan ARALASHMASIN). */
+  scorePercent: number | null
+}
+
+/** Bitta mezon bo'yicha qo'yilgan ball — yozish vaqtidagi nom/maksimal ball bilan (snapshot). */
+export interface SessionReviewScoreDto {
+  criterionId: number | null
+  criterionName: string
+  maxScore: number
+  score: number
 }
 
 /** `PUT /api/v1/live-sessions/{id}/review` tanasi (UPSERT). */
 export interface SaveSessionReviewRequest {
   verdict: SessionReviewVerdictName
-  body: string
+  conclusion: string
+  plus?: string | null
+  minus?: string | null
+  scores: SaveSessionReviewScoreRequest[]
+}
+
+/** Bitta mezon uchun yuborilgan ball. */
+export interface SaveSessionReviewScoreRequest {
+  criterionId: number
+  score: number
+}
+
+/** Dars tahlili mezoni (Sozlamalar ro'yxati va tahlil formasi uchun). */
+export interface AnalysisCriterionDto {
+  id: number
+  name: string
+  maxScore: number
+  sortOrder: number
+}
+
+/** `POST`/`PUT /api/v1/analysis-criteria` tanasi. */
+export interface SaveAnalysisCriterionRequest {
+  name: string
+  maxScore: number
+  sortOrder: number
 }
 
 /** Frontend LiveKit'ga AYNAN shu bilan ulanadi (SPEC 5). */
@@ -424,6 +476,15 @@ export interface GroupMemberDto {
   pausedUntil: string | null
   sourceGroupId: number
   sourceGroupName: string | null
+  /** `Stopped`/`Moved`ga o'tgan vaqt. `null` — hozir faol yoki pauzada. */
+  leftAt: string | null
+  /** Chiqarish/ko'chirishni bajargan xodim ismi. */
+  leftByName: string | null
+  /** `status === 'Moved'`da — qaysi guruhga. Boshqa holatda `null`. */
+  movedToGroupId: number | null
+  movedToGroupName: string | null
+  /** Ko'chirish sababi (ko'chirishda majburiy yozilgan). */
+  reason: string | null
 }
 
 /** `GET /api/v1/groups/{id}/schedule` elementi. */
@@ -1052,6 +1113,8 @@ export interface PauseMemberRequest {
 
 export interface MoveMemberRequest {
   targetGroupId: number
+  /** MAJBURIY — bo'sh yuborilsa server 409 qaytaradi. */
+  reason: string
 }
 
 /**
@@ -2586,6 +2649,17 @@ export interface LessonAssetDto {
   width: number | null
   height: number | null
   createdAt: string
+}
+
+/**
+ * `GET /api/v1/lessons/assets/{assetId}/ticket` javobi — `<video src>` ga
+ * qo'yiladigan qisqa muddatli chipta (`?ticket=` so'rov parametri).
+ * `Authorization` sarlavhasi bilan EMAS: brauzerning `<video>` elementi uni
+ * yubora olmaydi.
+ */
+export interface MediaAccessTicketDto {
+  token: string
+  expiresAt: string
 }
 
 /**

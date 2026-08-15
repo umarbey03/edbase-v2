@@ -331,6 +331,9 @@ function openDetail(groupId: number): void {
             <p class="text-xs text-dim">
               {{ group.memberCount }} o‘quvchi · {{ group.sessionCount }} dars ·
               {{ group.teacherName ?? 'ustoz yo‘q' }}
+              <template v-if="group.assistantId !== null">
+                · {{ group.assistantName ?? 'kurator' }}
+              </template>
             </p>
             <!--
               R21b · yo'nalish. Kartochkada ALOHIDA qatorda, yuqoridagi
@@ -383,7 +386,7 @@ function openDetail(groupId: number): void {
                 <!-- R21b · yo'nalish TURDAN keyin: ikkalasi ham "bu qanday guruh" savoliga javob. -->
                 <th>Yo‘nalish</th>
                 <th>Jadval</th>
-                <th>Ustoz</th>
+                <th>Mas'ullar</th>
                 <th>O‘quvchi</th>
                 <th>Muddat</th>
                 <th>Holat</th>
@@ -412,10 +415,21 @@ function openDetail(groupId: number): void {
                   class="text-slate-400"
                   v-text="groupScheduleSummary(group)"
                 />
-                <td
-                  class="text-slate-400"
-                  v-text="group.teacherName ?? '—'"
-                />
+                <!--
+                  ★ IKKALASI HAM: guruh nomi ostidagi ikki qatorda —
+                  faqat ustoz turgan ilgari holatdan farqli, kurator ham
+                  ko'rinishi kerak (loyiha egasi, 2026-08-15: "mas'ullar
+                  (ustoz, kurator nomlari)"). `assistantId` bo'lmasa qator
+                  umuman chizilmaydi — bo'sh "—" ikki marta takrorlanmasin.
+                -->
+                <td class="text-slate-400">
+                  <p v-text="group.teacherName ?? 'ustoz yo‘q'" />
+                  <p
+                    v-if="group.assistantId !== null"
+                    class="text-xs text-dim"
+                    v-text="group.assistantName ?? 'kurator'"
+                  />
+                </td>
                 <td class="tabular-nums text-slate-400">
                   {{ group.memberCount }} / {{ group.sessionCount }} dars
                 </td>

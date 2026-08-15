@@ -66,18 +66,16 @@ namespace Zinnur.Domain.Entities;
 public class SessionReview : BaseEntity
 {
     /// <summary>
-    /// Tahlil matnining chegarasi.
+    /// Har bir bo'lim (<see cref="Plus"/>/<see cref="Minus"/>/
+    /// <see cref="Conclusion"/>) uchun chegara.
     ///
-    /// ★ <see cref="StudentNote.MaxBodyLength"/> (2000) DAN KATTA VA BU
-    /// ATAYLAB: o'quvchi izohi — bir-ikki jumlalik eslatma, dars tahlili
-    /// esa tuzilgan xulosa (kirish, kuchli tomonlar, tavsiyalar). 2000
-    /// belgida xodim matnni qisqartirishga majbur bo'lardi va eng
-    /// foydali qismi — tavsiyalar — tushib qolardi.
-    ///
-    /// ⚠️ Cheksiz ham EMAS: chegarasiz matn ustuni bir kun kimningdir
-    /// nusxa-joylashtirgan transkripti bilan to'lardi.
+    /// ★ <see cref="StudentNote.MaxBodyLength"/> BILAN AYNI (2000): eski
+    /// yagona <c>Body</c> maydoni (4000) endi UCHTA aniq maqsadli bo'limga
+    /// bo'lingani uchun har biriga o'sha yagona hajmning yarmi yetarli —
+    /// "Ijobiy tomonlar" yoki "Kamchiliklar" 2000 belgidan uzun bo'lsa,
+    /// bu allaqachon tuzilmasiz oqim, alohida bo'lim emas.
     /// </summary>
-    public const int MaxBodyLength = 4000;
+    public const int MaxSectionLength = 2000;
 
     /// <summary>Tahlil QAYSI dars haqida.</summary>
     public long SessionId { get; set; }
@@ -106,8 +104,33 @@ public class SessionReview : BaseEntity
     /// <summary>Yakuniy xulosa (eski ilovadagi uch holatli nishon).</summary>
     public SessionReviewVerdict Verdict { get; set; } = SessionReviewVerdict.NotReviewed;
 
-    /// <summary>Tahlil matni.</summary>
-    public required string Body { get; set; }
+    /// <summary>
+    /// Ijobiy tomonlar — kuchli jihatlar. IXTIYORIY: har tahlilda ijobiy
+    /// yozadigan narsa bo'lavermaydi.
+    /// </summary>
+    public string? Plus { get; set; }
+
+    /// <summary>
+    /// Kamchiliklar — yaxshilash kerak jihatlar. IXTIYORIY, <see cref="Plus"/>
+    /// bilan AYNI sabab.
+    /// </summary>
+    public string? Minus { get; set; }
+
+    /// <summary>
+    /// Xulosa va yechimlar — YAKUNIY, MAJBURIY qism (eski yagona <c>Body</c>
+    /// maydonining vorisi): "Ijobiy"/"Kamchilik" ixtiyoriy ro'yxat bo'lsa,
+    /// bu — ustozga yo'naltirilgan aniq tavsiya, tahlilning o'zagi.
+    /// </summary>
+    public required string Conclusion { get; set; }
+
+    /// <summary>
+    /// Mezon asosidagi ballar (R29/R30 kengaytmasi). Erkin matn
+    /// (<see cref="Verdict"/>/<see cref="Plus"/>/<see cref="Minus"/>/
+    /// <see cref="Conclusion"/>) ustiga QO'SHILADI — ularni ALMASHTIRMAYDI,
+    /// shuning uchun bo'sh bo'lishi ham NORMAL (eski, ballashsiz tahlillar
+    /// shunday qoladi).
+    /// </summary>
+    public ICollection<SessionReviewScore> Scores { get; set; } = new List<SessionReviewScore>();
 
     // ---------------------------------------------------------------- hisoblanuvchi
 
@@ -117,20 +140,38 @@ public class SessionReview : BaseEntity
     /// </summary>
     public bool IsDecided => Verdict != SessionReviewVerdict.NotReviewed;
 
+    /// <summary>Barcha mezonlar bo'yicha yig'ilgan ball.</summary>
+    public decimal TotalScore => Scores.Sum(s => s.Score);
+
+    /// <summary>Barcha mezonlar bo'yicha maksimal ball.</summary>
+    public decimal TotalMaxScore => Scores.Sum(s => s.MaxScore);
+
+    /// <summary>
+    /// Foiz (0 mezon bo'yicha ballansa — <c>null</c>, "0%" bilan
+    /// aralashtirmaslik uchun: ikkalasi ham UI'da BOSHQA-BOSHQA ko'rinishi
+    /// kerak, "ballanmagan" va "hamma narsaga 0 qo'yilgan" bir xil emas).
+    /// </summary>
+    public decimal? ScorePercent =>
+        TotalMaxScore > 0 ? Math.Round(TotalScore / TotalMaxScore * 100m, 1) : null;
+
     // ---------------------------------------------------------------- xatti-harakat
 
     public static SessionReview Create(
         long sessionId,
         long authorId,
         SessionReviewVerdict verdict,
-        string? body,
+        string? plus,
+        string? minus,
+        string? conclusion,
         DateTimeOffset now) =>
         new()
         {
             SessionId = sessionId,
             AuthorId = authorId,
             Verdict = verdict,
-            Body = RequireBody(body),
+            Plus = NormalizeOptional(plus),
+            Minus = NormalizeOptional(minus),
+            Conclusion = RequireConclusion(conclusion),
             CreatedAt = now,
         };
 
@@ -144,30 +185,86 @@ public class SessionReview : BaseEntity
     /// "kim boshladi" javobgarlikning asosi, "kim oxirgi tahrirladi" esa
     /// <see cref="BaseEntity.UpdatedAt"/> bilan birga hech kimga
     /// kerak bo'lmagan tafsilot edi.
+    ///
+    /// ★ TO'LIQ ALMASHTIRISH: <paramref name="plus"/>/<paramref name="minus"/>
+    /// berilmasa avvalgi qiymat O'CHADI (`LessonGrade.Apply`/
+    /// `SessionReview.Edit`(eski) dagi "saqlab qol" emas, "to'liq yozib
+    /// qo'y" qoidasi) — noto'g'ri yozilgan bo'limni olib tashlashning
+    /// yagona yo'li shu bo'lsin.
     /// </summary>
-    public void Edit(SessionReviewVerdict verdict, string? body, DateTimeOffset now)
+    public void Edit(
+        SessionReviewVerdict verdict, string? plus, string? minus, string? conclusion,
+        DateTimeOffset now)
     {
         // ★ AVVAL TEKSHIRUV, KEYIN O'ZGARTIRISH. Tartib teskari bo'lsa
         //   bo'sh matn bilan yuborilgan so'rov istisno tashlab, LEKIN
         //   xulosani allaqachon o'zgartirgan bo'lardi — ya'ni rad etilgan
         //   so'rov obyektni yarim o'zgargan holda qoldirardi.
-        var value = RequireBody(body);
+        var conclusionValue = RequireConclusion(conclusion);
+        var plusValue = NormalizeOptional(plus);
+        var minusValue = NormalizeOptional(minus);
 
         Verdict = verdict;
-        Body = value;
+        Plus = plusValue;
+        Minus = minusValue;
+        Conclusion = conclusionValue;
         UpdatedAt = now;
     }
 
-    private static string RequireBody(string? body)
+    /// <summary>
+    /// Mezon ballarini TO'LIQ ALMASHTIRADI (<c>LessonGrade.Apply</c> dagi
+    /// AYNI "saqlab qol" emas, "to'liq yozib qo'y" qoidasi): oldingi
+    /// baholashda bo'lgan-u yangisida yo'q mezon jimgina qolib ketmasin.
+    ///
+    /// ★ HAR BIR YOZUV KATALOGDAN <paramref name="catalog"/> orqali
+    /// hal qilinadi — klient yuborgan nom/maksimal ballga ISHONILMAYDI,
+    /// aks holda o'quv bo'limi mezon katalogini chetlab o'tib ixtiyoriy
+    /// shkalada ball qo'ya olardi.
+    /// </summary>
+    /// <exception cref="DomainException">
+    /// Noma'lum <c>criterionId</c> yuborilgan yoki ball chegaradan chiqqan.
+    /// </exception>
+    public void SetScores(
+        IReadOnlyCollection<(long CriterionId, decimal Score)> scores,
+        IReadOnlyDictionary<long, AnalysisCriterion> catalog,
+        DateTimeOffset now)
     {
-        var value = body?.Trim();
+        Scores.Clear();
+
+        foreach (var (criterionId, score) in scores)
+        {
+            if (!catalog.TryGetValue(criterionId, out var criterion))
+                throw new DomainException("Noma'lum mezon.");
+
+            Scores.Add(SessionReviewScore.Create(criterion.Id, criterion.Name, criterion.MaxScore, score));
+        }
+
+        UpdatedAt = now;
+    }
+
+    private static string RequireConclusion(string? conclusion)
+    {
+        var value = conclusion?.Trim();
 
         if (string.IsNullOrEmpty(value))
-            throw new DomainException("Tahlil matni bo'sh bo'lishi mumkin emas.");
+            throw new DomainException("Xulosa va yechimlar bo'sh bo'lishi mumkin emas.");
 
-        if (value.Length > MaxBodyLength)
-            throw new DomainException($"Tahlil {MaxBodyLength} belgidan oshmasin.");
+        if (value.Length > MaxSectionLength)
+            throw new DomainException($"Xulosa {MaxSectionLength} belgidan oshmasin.");
 
         return value;
+    }
+
+    /// <summary><see cref="Plus"/>/<see cref="Minus"/> uchun: bo'sh matn — <c>null</c> (maydon yo'q).</summary>
+    private static string? NormalizeOptional(string? value)
+    {
+        var trimmed = value?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed)) return null;
+
+        if (trimmed.Length > MaxSectionLength)
+            throw new DomainException($"Matn {MaxSectionLength} belgidan oshmasin.");
+
+        return trimmed;
     }
 }
