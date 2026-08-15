@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router'
 
 import ConfirmHost from '@/shared/ui/ConfirmHost.vue'
 import RouteProgress from '@/shared/ui/RouteProgress.vue'
+import ToastHost from '@/shared/ui/ToastHost.vue'
 </script>
 
 <template>
@@ -19,6 +20,10 @@ import RouteProgress from '@/shared/ui/RouteProgress.vue'
         shuning uchun sahifada emas, ildizda yashaydi.
       • `ConfirmHost` — `useConfirm()` navbatini chizadi. Ikkinchi nusxa
         qo'yilsa har tasdiq ikki marta ko'rinardi.
+      • `ToastHost` — `showToast()` navbati (amal tasdig'i). Ilgari toast
+        FAQAT o'quvchi karkasida bor edi va xodim panelida umuman
+        ishlamasdi; endi u ham ildizda, ya'ni ikkala karkasda ham
+        bir xil ishlaydi.
 
       Ikkisi ham `Teleport to="body"` bilan chiziladi, ya'ni bu `<div>` ning
       fon rangi yoki `transform` i ularga ta'sir qilmaydi. Tema esa `<html>`
@@ -27,5 +32,6 @@ import RouteProgress from '@/shared/ui/RouteProgress.vue'
     -->
     <RouteProgress />
     <ConfirmHost />
+    <ToastHost />
   </div>
 </template>

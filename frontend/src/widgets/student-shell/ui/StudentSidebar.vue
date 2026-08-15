@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { useAvatar } from '@/entities/user'
+import { useAuthStore } from '@/features/auth/model/auth.store'
 import { AppIcon } from '@/shared/ui'
 
 import { useStudentNav } from './useStudentNav'
@@ -30,6 +32,20 @@ const { items, isActive } = useStudentNav()
 
 /** `StudentAppBar` dagi avatar bilan bir xil qoida — bitta odam, bitta harf. */
 const initial = computed(() => (props.displayName.trim()[0] ?? '?').toUpperCase())
+
+/**
+ * Profil rasmi — `null` bo'lsa ism harfi chiziladi.
+ *
+ * ★ `props` ORQALI UZATILMADI, store'dan O'QILADI: bu blok DOIM
+ * chaqiruvchining O'ZINI ko'rsatadi (`displayName` ham shundan keladi),
+ * ya'ni ikkinchi prop faqat karkasda takror uzatish bo'lardi.
+ */
+const auth = useAuthStore()
+
+const avatarUrl = useAvatar(
+  computed(() => auth.user?.id ?? null),
+  computed(() => auth.user?.avatarUpdatedAt ?? null),
+)
 </script>
 
 <template>
@@ -117,7 +133,14 @@ const initial = computed(() => (props.displayName.trim()[0] ?? '?').toUpperCase(
         aria-label="Profil"
         @click="emit('open-profile')"
       >
+        <img
+          v-if="avatarUrl !== null"
+          :src="avatarUrl"
+          class="size-9 shrink-0 rounded-full object-cover"
+          alt=""
+        >
         <span
+          v-else
           class="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-400 text-sm font-bold text-white"
           aria-hidden="true"
         >

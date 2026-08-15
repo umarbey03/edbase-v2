@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { formatPhone } from '@/shared/lib/phone'
 import { BaseButton, BaseModal, BaseSpinner } from '@/shared/ui'
 
 import { useRecordingLink } from '../model/useRecordingLink'
@@ -90,7 +91,11 @@ const watermark = computed<string>(() => {
   const user = auth.user
   if (user === null) return ''
 
-  const phone = user.phone?.trim() ?? ''
+  // ★ SUV BELGISI HAM FORMATLANADI: u ekrandagi eng ko'p tikiladigan
+  // yozuvlardan biri va uni ZARURATDA (tergovda) odam KO'Z bilan o'qiydi
+  // — `+998901234567` dan ko'ra `+998 90 123 45 67` ni xatosiz o'qish
+  // ancha oson. Raqamning O'ZI o'zgarmaydi, faqat bo'shliq qo'shiladi.
+  const phone = formatPhone(user.phone)
   if (phone.length > 0) return phone
 
   return `${user.fullName} · #${user.id}`

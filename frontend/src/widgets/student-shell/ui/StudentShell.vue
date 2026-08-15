@@ -5,6 +5,7 @@ import { RouterView, useRouter } from 'vue-router'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { useNotificationHub } from '@/features/notifications'
+import { ProfileEditDialog } from '@/features/profile-edit'
 import { markMiniAppLogout } from '@/features/telegram-auth'
 import { closeMiniApp, isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { useNow } from '@/shared/lib/use-now'
@@ -13,7 +14,6 @@ import StudentAppBar from './StudentAppBar.vue'
 import StudentProfileSheet from './StudentProfileSheet.vue'
 import StudentSidebar from './StudentSidebar.vue'
 import StudentTabBar from './StudentTabBar.vue'
-import StudentToast from './StudentToast.vue'
 
 /**
  * O'QUVCHI KARKASI — eski `student.html` ning Telegram Mini App tuzilishi:
@@ -51,6 +51,16 @@ const now = useNow()
 const schedule = useStudentSchedule(now)
 
 const profileOpen = ref(false)
+/**
+ * ★ PROFIL VARAG'I OCHIQ QOLADI: foydalanuvchi "Tahrirlash" ni o'sha
+ * yerdan ochgan va yopgach o'sha yerga qaytishi tabiiy.
+ *
+ * ⚠️ Bu yerda `reloadProfile()` CHAQIRILMAYDI: oyna har muvaffaqiyatli
+ * saqlashdan KEYIN profilni o'zi yangilaydi — aks holda rasm yuklangani
+ * ekranda faqat oyna yopilgandan keyin bilinardi (2026-08-15 da
+ * tuzatilgan xato).
+ */
+const editOpen = ref(false)
 
 /*
   ★ BILDIRISHNOMA KANALI KARKAS DARAJASIDA OCHILADI (R35/R36).
@@ -218,8 +228,14 @@ async function handleLogout(): Promise<void> {
 
         ★ Ikki ustunli sahifa setkalari ATAYLAB `lg:` da qoladi: 840px da
         600px lik kalendar + darslar ro'yxati yonma-yon sig'masdi.
+        ★ 70px (2026-08-15 da 80 dan tushirildi): `StudentTabBar` ning
+          HAQIQIY balandligi 62px (`9px + 44px + 9px`), qolgan 8px — nafas
+          oralig'i. Ilgari 80 turardi va ortiqcha 18px chat sahifasida
+          yozish paneli bilan tab paneli orasida ko'zga tashlanadigan
+          bo'sh joy bo'lib qolardi (loyiha egasining shikoyati).
+
         • `lg:pb-0!` — tab paneli desktopda yo'q, uning o'rniga qoldirilgan
-          80px ham kerak emas. ★ `!` SHART: bu bo'shliq inline `style` da
+          joy ham kerak emas. ★ `!` SHART: bu bo'shliq inline `style` da
           (ichida `env(safe-area-inset-bottom)` bor, uni utility bilan
           berib bo'lmaydi), inline'ni esa faqat `!important` yenga oladi.
           Inline `style` ning O'ZIGA ATAYLAB tegilmadi — telefon yo'li bir
@@ -227,7 +243,7 @@ async function handleLogout(): Promise<void> {
     -->
     <div
       class="mx-auto w-full max-w-[520px] xs:border-x xs:border-line md:max-w-[840px] lg:min-w-0 lg:max-w-[1600px] lg:flex-1 lg:border-x-0 lg:pb-0!"
-      style="padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px))"
+      style="padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px))"
     >
       <StudentAppBar
         :display-name="auth.displayName"
@@ -250,13 +266,26 @@ async function handleLogout(): Promise<void> {
       oziqlanadi (`useStudentNav` -> `STUDENT_NAV`).
     -->
     <StudentTabBar />
-    <StudentToast />
 
     <StudentProfileSheet
       :open="profileOpen"
       :user="auth.user"
       @close="profileOpen = false"
       @logout="handleLogout"
+      @edit="editOpen = true"
+    />
+
+    <!--
+      ★ PROFIL VARAG'I BILAN BIR VAQTDA ochiq turadi (`BaseModal` ustiga
+      `BaseModal`). `useModalHost` qatlam steki aynan shu holat uchun
+      qurilgan: ESC faqat ENG USTIDAGI oynani yopadi va skroll qulfi
+      SANOQLI, ya'ni ustki oyna yopilganda ostidagi sahifa skrollga
+      tushib ketmaydi.
+    -->
+    <ProfileEditDialog
+      :open="editOpen"
+      :user="auth.user"
+      @close="editOpen = false"
     />
   </div>
 </template>

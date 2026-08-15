@@ -102,6 +102,36 @@ public class User : BaseEntity
     /// </summary>
     public DateTimeOffset? TelegramLinkedAt { get; private set; }
 
+    /// <summary>
+    /// PROFIL RASMI — obyekt omboridagi kalit (<c>avatars/…</c>).
+    ///
+    /// Loyiha egasi (2026-08-15): *"har qanday userlar o'z profiliga rasm
+    /// joylash imkoniyati bo'lsin"*.
+    ///
+    /// ★ BAZADA FAQAT KALIT, BAYTLAR EMAS: rasm <see cref="Zinnur.Domain"/>
+    /// uchun ko'rinmaydigan obyekt omborida (R2/MinIO) yotadi — vazifa
+    /// biriktirmalari va dars mediasi bilan AYNI joyda. Baytlarni ustunga
+    /// solish har <c>SELECT</c> ga yuzlab kilobayt qo'shardi va
+    /// <c>GET /auth/me</c> (u HAR sahifada chaqiriladi) og'irlashardi.
+    ///
+    /// <c>null</c> — rasm yo'q, ekranda ism harfi chiziladi.
+    /// </summary>
+    public string? AvatarKey { get; private set; }
+
+    /// <summary>
+    /// Rasm oxirgi marta qachon almashtirilgani.
+    ///
+    /// ★ NIMA UCHUN KERAK — KESH BUZISH (cache-busting): rasm manzili
+    /// foydalanuvchi Id'siga bog'langan (<c>…/avatar</c>), ya'ni rasm
+    /// almashsa ham MANZIL O'ZGARMAYDI va brauzer eskisini ko'rsatib
+    /// turardi. Bu vaqt tamg'asi manzilga so'rov parametri sifatida
+    /// qo'shiladi va yangi rasm darhol ko'rinadi.
+    ///
+    /// <see cref="AvatarKey"/> bilan birga o'zgaradi (<see cref="SetAvatar"/>),
+    /// shuning uchun "kalit bor, sanasi yo'q" holati mumkin emas.
+    /// </summary>
+    public DateTimeOffset? AvatarUpdatedAt { get; private set; }
+
     public UserRole Role { get; set; } = UserRole.Student;
 
     public bool IsActive { get; set; } = true;
@@ -245,6 +275,38 @@ public class User : BaseEntity
 
     /// <summary>Telegram'ning o'z chegarasi — 32 belgi.</summary>
     public const int MaxTelegramUsernameLength = 32;
+
+    /// <summary>
+    /// Profil rasmini o'rnatadi yoki olib tashlaydi (<paramref name="objectKey"/>
+    /// <c>null</c> bo'lsa).
+    /// </summary>
+    /// <returns>
+    /// ESKI kalit (yoki <c>null</c>). Chaqiruvchi uni OMBORDAN o'chirishi
+    /// kerak.
+    ///
+    /// ★ NIMA UCHUN QAYTARILADI, nega domen o'zi o'chirmaydi: domen
+    /// qatlami omborni KO'RMAYDI (u Application portida). Eski kalitni
+    /// jimgina tashlab yuborsak, ombor har almashtirishda "yetim" fayl
+    /// bilan to'lib borardi — foydalanuvchi rasmini kuniga bir marta
+    /// almashtirsa yiliga 365 ta ortiqcha obyekt.
+    /// </returns>
+    public string? SetAvatar(string? objectKey, DateTimeOffset now)
+    {
+        var previous = AvatarKey;
+
+        var value = string.IsNullOrWhiteSpace(objectKey) ? null : objectKey.Trim();
+
+        AvatarKey = value;
+
+        // Sana KALIT BILAN BIRGA o'zgaradi: rasm o'chirilganda ham
+        // yangilanadi, aks holda brauzer keshidagi eski rasm "o'chirilgan"
+        // holatda ham ko'rinib turardi.
+        AvatarUpdatedAt = value is null && previous is null ? AvatarUpdatedAt : now;
+
+        // O'ZI O'ZIGA almashtirilgan bo'lsa (nazariy holat) eski kalit
+        // QAYTARILMAYDI — aks holda hozirgina yozilgan fayl o'chirilardi.
+        return previous == value ? null : previous;
+    }
 
     /// <summary>
     /// Telefonni o'rnatadi va <see cref="PhoneNormalized"/> ni AVTOMATIK hisoblaydi.

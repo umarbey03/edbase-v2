@@ -57,13 +57,36 @@ const props = withDefaults(
     /** Kengroq oyna (jadval yoki ikki ustunli forma uchun). */
     wide?: boolean
     /**
-     * "Varaq" ko'rinishi: DESKTOPDA HAM pastdan surilib chiqadi, yuqori
-     * burchaklari 24px, kengligi 520px bilan cheklangan.
+     * "Varaq" ko'rinishi — TELEFONDA pastdan surilib chiqadi (yuqori
+     * burchaklari 20px, kengligi 520px bilan cheklangan).
      *
      * O'quvchi ilovasi (Telegram Mini App) uchun kerak: eski `.modal` aynan
      * shunday edi va o'quvchilar profilni "pastdan chiqadigan varaq" deb
-     * bilishadi. Xodim oynalari `sheet: false` bilan qoladi — ularning
-     * ko'rinishiga TEGILMAGAN.
+     * bilishadi.
+     *
+     * ══════════════════════════════════════════════════════════════════
+     *  ⚠️ 2026-08-15: ≥640px DA VARAQ EMAS, MARKAZLASHGAN OYNA
+     * ══════════════════════════════════════════════════════════════════
+     *
+     * Ilgari bu bayroq DESKTOPDA HAM varaqni pastga yopishtirib qo'yardi.
+     * Loyiha egasi: *"katta ekranda... juda xunuk chiqyapti, ekranning
+     * o'rtasidan chiqsin"*.
+     *
+     * Va u haqiqatan ham xato edi: pastdan chiquvchi varaq — TELEFON
+     * naqshi. U barmoq ekranning pastki qismiga yaqinligi uchun mavjud.
+     * Sichqonchali katta ekranda esa pastki chekkaga yopishgan panel
+     * ko'zning tabiiy markaziy nuqtasidan uzoqda qoladi, ostidagi
+     * sahifaning yarmini kesib o'tadi va "yuklanmay qolgan" tuyg'usini
+     * beradi.
+     *
+     * ★ ENDI `ConfirmDialog` BILAN AYNI NAQSH: <640px — varaq,
+     * ≥640px — markazlashgan dialog (`sm:animate-fade-up`). Ya'ni
+     * ilovadagi BARCHA qatlamlar bitta qonunga bo'ysunadi.
+     *
+     * ★ `sheet: false` DAN FARQI SAQLANDI: varaq telefonda pastdan
+     * chiqadi (oddiy modal to'liq ekranni egallaydi) va desktopda
+     * TORROQ bo'ladi (440px, oddiy modalda 512px) — uning ichidagi
+     * kontent bir ustunli, telefon kengligiga mo'ljallangan.
      */
     sheet?: boolean
   }>(),
@@ -98,7 +121,7 @@ useModalHost({
       class="fixed inset-0 z-50 flex bg-slate-900/35 backdrop-blur-sm"
       :class="
         props.sheet
-          ? 'items-end justify-center'
+          ? 'items-end justify-center sm:items-center sm:p-5'
           : 'sm:items-center sm:justify-center sm:p-5'
       "
       role="presentation"
@@ -110,13 +133,20 @@ useModalHost({
         `shadow-lg` chegara o'rniga IYERARXIYA beradi: yorug' temada
         1px `line` chegara oq panelda deyarli ko'rinmaydi va oyna sahifaga
         "yopishib" qolardi.
+
+        ★ `sheet` tarmog'idagi `sm:*` sinflari — varaqni ≥640px da
+        MARKAZLASHGAN dialogga aylantiradi (sabab `sheet` prop izohida).
+        `sm:animate-fade-up` bazadagi `animate-sheet-up` ni almashtiradi:
+        Tailwind v4 da `sm:` variantlari bazaviy utility'lardan KEYIN
+        chiqadi, ya'ni g'olib bo'ladi — quyidagi `sheet: false` tarmog'i
+        ham AYNI shu usulda ishlaydi, bu tekshirilgan naqsh.
       -->
       <div
         ref="panel"
         class="flex max-h-dvh w-full animate-sheet-up flex-col overflow-hidden border-line bg-ink-900 shadow-lg"
         :class="
           props.sheet
-            ? 'max-w-[520px] rounded-t-[1.25rem] border-x border-t'
+            ? 'max-w-[520px] rounded-t-[1.25rem] border-x border-t sm:max-h-[92dvh] sm:max-w-[27.5rem] sm:animate-fade-up sm:rounded-[1.25rem] sm:border'
             : [
               'sm:max-h-[92dvh] sm:animate-fade-up sm:rounded-[1.25rem] sm:border',
               props.wide ? 'sm:max-w-3xl' : 'sm:max-w-lg',

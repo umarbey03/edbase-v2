@@ -70,3 +70,24 @@ public sealed record NotificationUnreadDto(int UnreadCount);
 /// </param>
 /// <param name="UnreadCount">Amaldan KEYINGI o'qilmaganlar soni.</param>
 public sealed record NotificationReadResultDto(int MarkedCount, int UnreadCount);
+
+/// <summary>
+/// O'chirish natijasi.
+///
+/// ★ SHAKLI <see cref="NotificationReadResultDto"/> BILAN BIR XIL va bu
+/// ataylab: klient ikkala amaldan keyin AYNI ishni bajaradi — nishon
+/// raqamini javobdagi <c>UnreadCount</c> dan yangilaydi. Ikki xil shakl
+/// bo'lsa, qo'ng'iroqchada ikki xil tahlil yo'li paydo bo'lardi.
+/// </summary>
+/// <param name="DeletedCount">
+/// Nechta qator o'chdi. IDEMPOTENT: allaqachon o'chgan Id qayta
+/// yuborilsa <c>0</c> (begona Id ham shu holatda — sabab
+/// <see cref="Zinnur.Application.Notifications.Services.INotificationFeed.DeleteAsync"/> izohida).
+/// </param>
+/// <param name="UnreadCount">
+/// Amaldan KEYINGI o'qilmaganlar soni. ★ O'CHIRISH BU RAQAMNI HAM
+/// KAMAYTIRADI: o'qilmagan qator o'chsa, u endi hech qachon o'qilmaydi —
+/// nishonda esa qoldirilsa, foydalanuvchi ochib bo'lmaydigan raqamni
+/// ko'rib turardi.
+/// </param>
+public sealed record NotificationDeleteResultDto(int DeletedCount, int UnreadCount);

@@ -18,6 +18,7 @@ import type { TelegramFilterValue } from '@/entities/user'
 import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import UserFormDialog from '@/features/user-form/ui/UserFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
+import { formatPhone } from '@/shared/lib/phone'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
@@ -462,7 +463,7 @@ function telegramText(user: UserDetailsDto): string {
             <p
               v-if="user.phone !== null"
               class="text-xs text-dim"
-              v-text="user.phone"
+              v-text="formatPhone(user.phone)"
             />
             <div class="mt-2.5 flex flex-wrap items-center gap-2">
               <BaseBadge :tone="user.isActive ? 'success' : 'danger'">
@@ -537,7 +538,7 @@ function telegramText(user: UserDetailsDto): string {
                 />
                 <td
                   class="text-slate-400"
-                  v-text="user.phone ?? '—'"
+                  v-text="formatPhone(user.phone) || '—'"
                 />
                 <!--
                   🔴 Telegram nomi FAQAT ko'rsatish uchun: bo'shatilgan nom

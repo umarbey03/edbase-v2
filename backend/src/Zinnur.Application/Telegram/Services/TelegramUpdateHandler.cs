@@ -1,10 +1,12 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.Profile.Services;
 using Zinnur.Application.Telegram.Dtos;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -45,6 +47,8 @@ public sealed class TelegramUpdateHandler(
     IApplicationDbContext db,
     ITelegramUpdateLog updateLog,
     INotificationOutbox outbox,
+    IPhoneChangeStore phoneChanges,
+    IPhoneLoginCodeStore codes,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
     /// <summary>Faqat shaxsiy suhbat bilan ishlaymiz (guruhda bot hech nima bog'lamaydi).</summary>
@@ -253,6 +257,85 @@ public sealed class TelegramUpdateHandler(
             .AsTracking()
             .FirstOrDefaultAsync(u => u.PhoneNormalized == normalized, ct)
             .ConfigureAwait(false);
+
+        // ══════════════════════════════════════════════════════════════
+        // ★★ TELEFON ALMASHTIRISH SHOXI (2026-08-15) — QUYIDAGI RAD ETISH
+        //    SHOXLARIDAN OLDIN TURISHI SHART.
+        //
+        // Loyiha egasi: *"nomerini alishtirish imkoniyati ham bo'lsin,
+        // lekin registerdagi kabi telegram orqali tasdiqlash majburiy"*.
+        //
+        // 🔴 NEGA AYNAN SHU YERDA: yangi raqam hech kimga tegishli emas
+        // (`candidate is null`), ya'ni pastdagi qoida uni "AKKAUNT
+        // YARATILMAYDI" deb RAD ETARDI. Ilova esa u raqamni foydalanuvchi
+        // SO'RAGANINI biladi — bu ma'lumot `IPhoneChangeStore` da turadi.
+        //
+        // ★ BU YERDA HECH NARSA BOG'LANMAYDI VA HECH NARSA O'ZGARMAYDI.
+        // Yagona natija — Telegram hisobiga KOD ketadi. Raqam faqat
+        // foydalanuvchi kodni ILOVAGA kiritganda almashadi
+        // (`IProfileService.ConfirmPhoneChangeAsync`) — ya'ni bot bilan
+        // muloqotning O'ZI hech kimning profilini o'zgartira olmaydi.
+        // ══════════════════════════════════════════════════════════════
+        if (candidate is null)
+        {
+            var pending = await phoneChanges.FindByPhoneAsync(normalized, ct).ConfigureAwait(false);
+
+            if (pending is not null)
+            {
+                // 🔴 BU TELEGRAM HISOBI BOSHQA PROFILGA BOG'LANGAN BO'LSA — RAD.
+                //    Aks holda A odam o'z Telegram'i bilan B ning
+                //    almashtirish so'roviga kod olib, B ning profiliga
+                //    o'z hisobini biriktirib olardi.
+                if (alreadyLinked is not null && alreadyLinked.Id != pending.UserId)
+                {
+                    TelegramBotLog.TelegramTaken(logger, updateId, sender.Id, alreadyLinked.Id);
+
+                    await ReplyAsync(updateId, chatId, alreadyLinked.Id,
+                        TelegramTemplates.ContactTelegramTaken,
+                        TelegramTemplates.ContactTelegramTakenText(), ct).ConfigureAwait(false);
+
+                    return TelegramUpdateOutcome.TelegramTaken;
+                }
+
+                var owner = await db.Users.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == pending.UserId, ct)
+                    .ConfigureAwait(false);
+
+                // Profil o'chirilgan yoki bloklangan bo'lsa — niyat
+                // ma'nosini yo'qotadi. Javob NOTANISH RAQAM bilan AYNI:
+                // bot bu yerda hech qanday holatni oshkor qilmaydi.
+                if (owner is null || !owner.IsActive)
+                {
+                    await ReplyAsync(updateId, chatId, recipientUserId: null,
+                        TelegramTemplates.ContactUnknown,
+                        TelegramTemplates.ContactUnknownText(), ct).ConfigureAwait(false);
+
+                    return TelegramUpdateOutcome.PhoneNotFound;
+                }
+
+                // ★ KOD YAGONA GENERATORDAN va YAGONA omborga yoziladi
+                //   (`PhoneLoginCodeStore`): TTL, urinishlar chegarasi va
+                //   hash'lash allaqachon o'sha yerda. Ikkinchi mexanizm
+                //   yozilsa, uning chegaralari birinchisidan asta
+                //   ajralib ketardi.
+                var code = PhoneLoginService.GenerateCode();
+
+                await codes.SaveAsync(normalized, owner.Id, code, ct).ConfigureAwait(false);
+
+                await phoneChanges.SaveAsync(
+                    pending with { TelegramId = sender.Id, TelegramUsername = sender.Username },
+                    ct).ConfigureAwait(false);
+
+                await ReplyAsync(updateId, chatId, owner.Id,
+                    TelegramTemplates.PhoneChangeCode,
+                    TelegramTemplates.PhoneChangeCodeText(code, normalized, PhoneLoginCodeStore.CodeTtl),
+                    ct).ConfigureAwait(false);
+
+                TelegramBotLog.PhoneChangeCodeSent(logger, updateId, owner.Id);
+
+                return TelegramUpdateOutcome.PhoneChangeCodeSent;
+            }
+        }
 
         if (alreadyLinked is not null)
         {
@@ -518,4 +601,11 @@ internal static partial class TelegramBotLog
         Level = LogLevel.Debug,
         Message = "/start payload (shaxsni ANIQLAMAYDI): update={UpdateId} payload={Payload}")]
     internal static partial void StartPayload(ILogger logger, long updateId, string payload);
+
+    /// 🔴 RAQAM VA KOD LOGGA YOZILMAYDI — `PhoneLoginLog` dagi AYNI qoida.
+    [LoggerMessage(
+        EventId = 6210,
+        Level = LogLevel.Information,
+        Message = "Telefon almashtirish kodi yuborildi: update={UpdateId} profil={UserId}")]
+    internal static partial void PhoneChangeCodeSent(ILogger logger, long updateId, long userId);
 }

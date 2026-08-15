@@ -77,4 +77,15 @@ public enum TelegramUpdateOutcome
 
     /// <summary>Ishlashda xato bo'ldi (logga tushdi), Telegram'ga baribir 200.</summary>
     Failed = 12,
+
+    /// <summary>
+    /// TELEFON ALMASHTIRISH uchun kod yuborildi (2026-08-15).
+    ///
+    /// ★ `Linked` DAN FARQI: profil hali BOG'LANMADI va raqam hali
+    /// ALMASHMADI — bu shunchaki "kod ketdi" degani. Haqiqiy o'zgarish
+    /// foydalanuvchi kodni ILOVAGA kiritganda bo'ladi
+    /// (`IProfileService.ConfirmPhoneChangeAsync`). Ikkalasi bir natija
+    /// bilan belgilansa, "bog'landi" statistikasi yolg'on ko'rsatardi.
+    /// </summary>
+    PhoneChangeCodeSent = 13,
 }

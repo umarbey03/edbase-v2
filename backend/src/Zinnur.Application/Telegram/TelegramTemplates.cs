@@ -53,6 +53,16 @@ public static class TelegramTemplates
     public const string LoginCode = "auth_login_code";
 
     /// <summary>
+    /// TELEFON ALMASHTIRISH kodi (2026-08-15).
+    ///
+    /// ★ `LoginCode` DAN ALOHIDA KALIT: matn boshqa ("raqamni
+    /// biriktirish", "kirish" emas) va operator navbat jurnalida
+    /// ikkalasini AJRATA olishi kerak — "nega kirish kodlari ko'payib
+    /// ketdi?" degan savolga javob shu ajratmadan chiqadi.
+    /// </summary>
+    public const string PhoneChangeCode = "profile_phone_change_code";
+
+    /// <summary>
     /// ⚠️ ESKI KALIT — 2026-08-13 dan BOSHLAB ISHLATILMAYDI.
     ///
     /// Ilgari xodim raqami botga yuborilganda "Telegram orqali kirish
@@ -186,6 +196,35 @@ public static class TelegramTemplates
         + "⚠️ Bu kodni <b>hech kimga aytmang</b>. ZIN-NUR xodimlari uni "
         + "hech qachon so'ramaydi. Agar kirishga urinmagan bo'lsangiz — "
         + "xabarni e'tiborsiz qoldiring va o'quv bo'limiga bildiring.";
+
+    /// <summary>
+    /// TELEFON ALMASHTIRISH kodi.
+    ///
+    /// 🔴 MATN ATAYLAB "KIRISH" DEMAYDI: foydalanuvchi bu kodni
+    /// raqamini ALMASHTIRISH uchun so'ragan. "Kirish kodi" deb yozilsa,
+    /// u kirish oynasiga qaytib, kodni u yerga kiritishga urinardi —
+    /// va kod u yerda ishlamasdi (u BOSHQA raqam bo'yicha berilgan).
+    ///
+    /// ★ RAQAMNING O'ZI HAM YOZILADI: foydalanuvchi qaysi raqamni
+    /// biriktirayotganini ko'rib tursin. Agar u bu amalni qilmagan
+    /// bo'lsa — begona odam uning raqamini o'ziga biriktirmoqchi
+    /// bo'layotganini AYNAN shu xabardan biladi.
+    /// </summary>
+    /// <param name="code">6 xonali kod.</param>
+    /// <param name="phone">Biriktirilayotgan raqam (E.164).</param>
+    /// <param name="ttl">Kod qancha yashashi.</param>
+    public static string PhoneChangeCodeText(string code, string phone, TimeSpan ttl) =>
+        "📱 <b>Raqamni biriktirish kodi</b>\n\n"
+        + $"<code>{NotificationText.Parameter(code, MaxCodeLength)}</code>\n\n"
+        + $"Bu kod <b>{NotificationText.Parameter(phone, MaxPhoneLength)}</b> raqamini "
+        + "ZIN-NUR profilingizga biriktirish uchun.\n"
+        + $"Kod {Math.Max(1, (int)Math.Round(ttl.TotalMinutes))} daqiqa yaroqli va "
+        + "faqat <b>bir marta</b> ishlatiladi.\n\n"
+        + "⚠️ Agar siz raqam almashtirmayotgan bo'lsangiz — bu kodni "
+        + "<b>hech kimga aytmang</b> va darhol o'quv bo'limiga xabar bering.";
+
+    /// <summary>Raqam uzunligi chegarasi (E.164 — ko'pi bilan 16 belgi).</summary>
+    private const int MaxPhoneLength = 20;
 
     /// <summary>
     /// Kod uzunligi chegarasi (<see cref="LoginCodeText"/> parametri uchun).

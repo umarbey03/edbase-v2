@@ -26,6 +26,17 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // `private set` — EF backing field orqali o'qib-yozadi.
         builder.Property(u => u.PhoneNormalized).HasMaxLength(20);
 
+        // PROFIL RASMI — obyekt omboridagi kalit (`avatars/2026-08/….jpg`).
+        //
+        // 200 belgi: `R2MediaStorage.BuildKey` prefiks + papka + oy + 16
+        // belgilik tasodifiy nom + kengaytmadan yasaydi, ya'ni real kalit
+        // ~60 belgi. Zaxira `Storage:KeyPrefix` uzun sozlangan holat uchun.
+        //
+        // ⚠️ INDEKS YO'Q: kalit bo'yicha HECH QACHON qidirilmaydi — u faqat
+        // foydalanuvchi qatoridan O'QILADI (`WHERE Id = @id`).
+        builder.Property(u => u.AvatarKey).HasMaxLength(200);
+        builder.Property(u => u.AvatarUpdatedAt);
+
         // TELEGRAM @username — `@` belgisiz, Telegram chegarasi bo'yicha 32 belgi.
         // `private set` — EF backing field orqali o'qib-yozadi (`PhoneNormalized`
         // bilan AYNI naqsh).

@@ -10,6 +10,18 @@ export {
   requestPhoneCode,
   verifyPhoneCode,
 } from './api/auth-api'
+export { dropAvatar, useAvatar } from './model/useAvatar'
+export {
+  avatarPath,
+  cancelPhoneChange,
+  confirmPhoneChange,
+  fetchAvatarBlob,
+  fetchPhoneChange,
+  removeAvatar,
+  requestPhoneChange,
+  updateProfileName,
+  uploadAvatar,
+} from './api/profile-api'
 export {
   createStudentNote,
   deleteStudentNote,

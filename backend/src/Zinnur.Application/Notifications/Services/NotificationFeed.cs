@@ -113,6 +113,46 @@ public sealed class NotificationFeed(IApplicationDbContext db, TimeProvider cloc
         return new NotificationReadResultDto(marked, await UnreadAsync(userId, ct));
     }
 
+    /// <inheritdoc />
+    public async Task<NotificationDeleteResultDto> DeleteAsync(
+        long userId, IReadOnlyCollection<long> ids, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        // BO'SH RO'YXAT = HECH NIMA. `MarkReadAsync` dan farqli o'laroq bu
+        // yerda "hammasini" ma'nosi YO'Q — sabab interfeys izohida (xato
+        // narxi assimetrik). Controller ham buni 400 bilan qaytaradi;
+        // bu yerdagi tekshiruv esa xizmat to'g'ridan-to'g'ri chaqirilgan
+        // holat uchun (fon vazifasi, test).
+        if (ids.Count == 0) return new NotificationDeleteResultDto(0, await UnreadAsync(userId, ct));
+
+        var wanted = ids.Distinct().ToArray();
+
+        // 🔴 FILTR HAR DOIM `UserId` DAN BOSHLANADI — `MarkReadAsync` dagi
+        // AYNI qoida, lekin bu yerda narxi ancha qimmat: shart tushib
+        // qolsa har kim istalgan odamning bildirishnomasini BUTUNLAY
+        // o'chira olardi va orqaga qaytarish yo'li yo'q.
+        var rows = await db.Notifications
+            .Where(n => n.UserId == userId && wanted.Contains(n.Id))
+            .ToListAsync(ct);
+
+        if (rows.Count > 0)
+        {
+            // ★ `RemoveRange` + `SaveChanges`, `ExecuteDeleteAsync` EMAS:
+            // ro'yxat ko'pi bilan bir necha o'nta qator (klient bir sahifani
+            // belgilaydi), ya'ni to'plamli SQL ning tezligi bu yerda
+            // sezilmaydi. `ExecuteDelete` esa o'zgarish kuzatuvchisidan
+            // CHETLAB o'tadi va ayni tranzaksiyadagi boshqa yozuvlar bilan
+            // bir vaqtda ishlatilsa tartib buzilardi. Katta hajmli tozalash
+            // — `ChatRetentionJob` dagidek FON vazifasi, u yerda `ExecuteDelete`
+            // to'g'ri tanlov.
+            db.Notifications.RemoveRange(rows);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return new NotificationDeleteResultDto(rows.Count, await UnreadAsync(userId, ct));
+    }
+
     /// <summary>
     /// O'qilmaganlar soni — `(UserId, ReadAt, CreatedAt)` indeksidan
     /// to'liq o'qiladi (jadvalga tushmaydi).

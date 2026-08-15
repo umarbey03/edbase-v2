@@ -7,6 +7,13 @@ import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { TelegramAuthScreen } from '@/features/telegram-auth'
 import { toUserMessage } from '@/shared/api'
+import {
+  formatPhone,
+  maskPhoneField,
+  PHONE_INPUT_MAXLENGTH,
+  phoneDigits,
+  stripPhoneFormatting,
+} from '@/shared/lib/phone'
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import type { DevQuickLoginAccount, UserRoleName } from '@/shared/types'
 import { AppIcon, BaseButton } from '@/shared/ui'
@@ -40,6 +47,20 @@ import { AppIcon, BaseButton } from '@/shared/ui'
         ikkinchi nusxa yozilsa, ikkalasi asta bir-biridan uzoqlashib,
         "raqamim to'g'ri, lekin kod kelmayapti" turkumidagi nosozlik
         berardi.
+
+        ⚠️ 2026-08-15 — MAYDON FORMATLANADI, LEKIN QOIDA BUZILMADI.
+        Loyiha egasi raqam hamma joyda `+998 90 123 45 67` ko'rinishida
+        bo'lishini so'radi, shuning uchun maydonga maska qo'yildi
+        (`maskPhoneField`). Serverga yuborishdan oldin esa
+        `stripPhoneFormatting` FAQAT bo'shliqlarni oladi — mamlakat kodi
+        qo'shmaydi, raqam kesmaydi, `0` tashlamaydi. Ya'ni yuqoridagi
+        (b) qoidasi kuchida: normalizatsiya hamon SERVERDA va bu yerda
+        uning nusxasi YO'Q.
+
+        ★ CHET EL RAQAMI HAM ISHLAYDI: maska `+` bilan boshlangan va
+        `998` emas raqamga UMUMAN tegmaydi (sabab `phone.ts` da),
+        `stripPhoneFormatting` esa uni buzmaydi. Quyidagi
+        `canSendPhone` ham ataylab "≥7 raqam" bo'lib qoladi.
   ══════════════════════════════════════════════════════════════════════════
 */
 
@@ -101,7 +122,7 @@ const sessionExpired = computed(() => route.query['sabab'] === 'sessiya-tugadi')
  * bosmang" darajasidagi filtr.
  */
 const canSendPhone = computed(
-  () => phone.value.replace(/\D/g, '').length >= 7 && !isSubmitting.value,
+  () => phoneDigits(phone.value).length >= 7 && !isSubmitting.value,
 )
 
 /** Kod — AYNAN 6 raqam (server ham shuni yasaydi). */
@@ -146,7 +167,7 @@ async function handleSendCode(): Promise<void> {
   errorMessage.value = null
 
   try {
-    const result = await auth.requestPhoneCode(phone.value.trim())
+    const result = await auth.requestPhoneCode(stripPhoneFormatting(phone.value))
 
     /*
       🔴 BU YERDA HECH QANDAY SHART YO'Q — javob raqam bazada bor yoki
@@ -178,7 +199,7 @@ async function handleVerify(): Promise<void> {
   errorMessage.value = null
 
   try {
-    const user = await auth.verifyPhoneCode(phone.value.trim(), code.value.trim())
+    const user = await auth.verifyPhoneCode(stripPhoneFormatting(phone.value), code.value.trim())
     const target = redirectTarget()
 
     // Manzil ko'rsatilmagan bo'lsa — ROLGA mos bosh sahifa. Ilgari hamma
@@ -380,15 +401,23 @@ async function handleDevLogin(role: UserRoleName): Promise<void> {
                   :size="17"
                 />
               </span>
+              <!--
+                ★ `:value` + `@input`, `v-model` EMAS — sabab
+                `maskPhoneField` izohida: `v-model` avval modelni, keyin
+                DOM'ni yangilaydi va kursor har bosishda satr oxiriga
+                sakrab ketardi.
+              -->
               <input
-                v-model="phone"
+                :value="phone"
                 type="tel"
                 name="phone"
                 inputmode="tel"
                 autocomplete="tel"
                 required
+                :maxlength="PHONE_INPUT_MAXLENGTH"
                 placeholder="+998 90 123 45 67"
-                class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm tracking-[0.3px] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                @input="phone = maskPhoneField($event.target as HTMLInputElement)"
               >
             </div>
           </label>
@@ -563,7 +592,7 @@ async function handleDevLogin(role: UserRoleName): Promise<void> {
               -->
               <span
                 class="block truncate text-[11px] text-amber-200/50"
-                v-text="`${account.fullName} · ${account.phone ?? '—'}`"
+                v-text="`${account.fullName} · ${formatPhone(account.phone) || '—'}`"
               />
             </span>
             <span

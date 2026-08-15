@@ -96,6 +96,17 @@ export interface UserDto {
    */
   phone: string | null
   role: UserRoleName
+  /**
+   * Profil rasmi oxirgi marta qachon almashtirilgani. `null` — rasm YO'Q,
+   * interfeys ism harfini chizadi.
+   *
+   * ★ RASM MANZILI EMAS, VAQT TAMG'ASI: manzil har doim bir xil
+   * (`/api/v1/profile/avatar/{id}`), shuning uchun u DTO'da takrorlanmaydi.
+   * Klient manzilni `id` dan yasaydi va bu qiymatni `?v=` sifatida
+   * qo'shadi — shusiz brauzer rasm almashtirilgandan keyin ham eskisini
+   * ko'rsatib turardi.
+   */
+  avatarUpdatedAt: string | null
 }
 
 export interface AuthResponse {
@@ -2692,4 +2703,70 @@ export interface MarkNotificationsReadRequest {
   ids?: number[]
 }
 
+/** `deletedCount` — allaqachon o'chgan Id qayta yuborilsa `0` (idempotent). */
+export interface NotificationDeleteResultDto {
+  deletedCount: number
+  /**
+   * ★ Amaldan KEYINGI o'qilmaganlar soni. O'CHIRISH UNI HAM KAMAYTIRADI:
+   * o'qilmagan qator o'chsa u hech qachon o'qilmaydi, nishonda qolsa
+   * foydalanuvchi ochib bo'lmaydigan raqamni ko'rib turardi.
+   */
+  unreadCount: number
+}
+
+/**
+ * 🔴 `MarkNotificationsReadRequest` DAN FARQI: bu yerda `ids` MAJBURIY va
+ * BO'SH BO'LMASLIGI kerak — bo'sh ro'yxat "hammasini o'chir" DEGANI EMAS,
+ * server 400 qaytaradi. Sabab: noto'g'ri "hammasini o'qildi" bir bosishda
+ * qaytariladi, noto'g'ri "hammasini o'chir" esa qaytarilmaydi.
+ */
+export interface DeleteNotificationsRequest {
+  /** 1..50 ta. */
+  ids: number[]
+}
+
 /* ===== /R35/R36 · BILDIRISHNOMA ===== */
+
+/* ===== 2026-08-15 · O'Z PROFILINI TAHRIRLASH =============================
+
+   ★ NEGA ALOHIDA BLOK OXIRDA: yuqoridagi bloklar bilan AYNI sabab — bu
+   faylga bir necha tarmoq ayni vaqtda qo'shadi.                        */
+
+/** `PUT /api/v1/profile` — faqat ism (rol/email XODIM ishi). */
+export interface UpdateProfileRequest {
+  fullName: string
+}
+
+/** `POST /api/v1/profile/phone` — almashtirishning 1-bosqichi. */
+export interface ChangePhoneRequest {
+  /** Xom ko'rinish ham bo'ladi — normalizatsiya SERVERDA. */
+  phone: string
+}
+
+/** `POST /api/v1/profile/phone/confirm` — Telegramga kelgan kod. */
+export interface ConfirmPhoneRequest {
+  code: string
+}
+
+/**
+ * Kutayotgan telefon almashtirish holati.
+ *
+ * ★ EKRAN `codeSent` GA QARAB IKKIGA BO'LINADI: `false` — "botga
+ * raqamni ulashing" ko'rsatmasi, `true` — kod kiritish maydoni.
+ */
+export interface PhoneChangeStatusDto {
+  /** Kutayotgan YANGI raqam (E.164, formatlanmagan). */
+  phone: string
+  codeSent: boolean
+  /** Bot `@username` i — sozlanmagan bo'lsa `null` (havolasiz matn). */
+  botUsername: string | null
+  expiresInSeconds: number
+}
+
+/** `POST /api/v1/profile/avatar` javobi. */
+export interface AvatarUploadedDto {
+  /** Kesh buzish uchun vaqt tamg'asi (`?v=`). */
+  avatarUpdatedAt: string
+}
+
+/* ===== /O'Z PROFILINI TAHRIRLASH ===== */

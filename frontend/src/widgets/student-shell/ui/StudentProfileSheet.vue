@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { useAvatar } from '@/entities/user'
 import type { User } from '@/entities/user'
+import { formatPhone } from '@/shared/lib/phone'
 import { AppIcon, BaseButton, BaseModal } from '@/shared/ui'
 
 /**
@@ -22,13 +24,22 @@ const props = defineProps<{
   user: User | null
 }>()
 
-const emit = defineEmits<{ close: []; logout: [] }>()
+const emit = defineEmits<{ close: []; logout: []; edit: [] }>()
 
 const fullName = computed(() => props.user?.fullName ?? '')
 const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
 
+/**
+ * Profil rasmi — `blob:` manzil (sabab `useAvatar` izohida).
+ * `null` bo'lsa ism harfi chiziladi.
+ */
+const avatarUrl = useAvatar(
+  computed(() => props.user?.id ?? null),
+  computed(() => props.user?.avatarUpdatedAt ?? null),
+)
+
 const phone = computed(() => {
-  const value = props.user?.phone?.trim() ?? ''
+  const value = formatPhone(props.user?.phone)
   return value.length > 0 ? value : 'Kiritilmagan'
 })
 </script>
@@ -41,9 +52,18 @@ const phone = computed(() => {
     @close="emit('close')"
   >
     <div class="relative flex flex-col items-center px-1 text-center">
+      <!--
+        Yopish tugmasi — DOIRA ichida, yengil sirt bilan.
+
+        ★ Ilgari u sirtsiz «×» edi va oq panelda "osilib" turardi: keng
+        ekranda modal markazga chiqqach, uning yagona ikonkasi eng
+        yuqori o'ng burchakda hech narsaga bog'lanmagan belgi bo'lib
+        ko'rinardi. Doira uni panelning bir qismiga aylantiradi va
+        `BaseModal` ning O'Z sarlavha tugmasi bilan bir uslubda bo'ladi.
+      -->
       <button
         type="button"
-        class="tap-target absolute -top-1 right-0 flex items-center justify-center rounded-lg text-slate-400 transition-colors hover:text-slate-100"
+        class="tap-expand absolute -right-1 -top-1 flex size-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
         aria-label="Yopish"
         @click="emit('close')"
       >
@@ -60,7 +80,14 @@ const phone = computed(() => {
         `StudentAppBar` dagi kichik avatar bilan AYNAN bir xil gradient —
         ikkisi bitta odamni ko'rsatadi.
       -->
+      <img
+        v-if="avatarUrl !== null"
+        :src="avatarUrl"
+        class="mb-3.5 mt-2.5 size-20 rounded-full object-cover shadow-md"
+        alt=""
+      >
       <div
+        v-else
         class="mb-3.5 mt-2.5 flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-400 text-[32px] font-bold text-white shadow-md"
         aria-hidden="true"
       >
@@ -104,7 +131,7 @@ const phone = computed(() => {
 
         ★ MATN O'ZGARMADI — "ZIN-NUR Online o'quvchisi" aynan shundayligicha.
       -->
-      <p class="mb-5 mt-2">
+      <p class="mb-4 mt-2">
         <span
           class="inline-flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/12 px-3 py-[5px] text-xs font-semibold text-brand-300"
         >
@@ -116,23 +143,56 @@ const phone = computed(() => {
         </span>
       </p>
 
-      <div class="mb-4 w-full">
+      <!--
+        ★ IKKALA BLOK HAM `w-full`, ya'ni telefon raqami, iqtibos va
+        "Yopish" tugmasi BIR XIL kenglikda turadi.
+
+        Ilgari raqam `inline-block min-w-[170px]` edi — telefonda bu
+        sezilmasdi (blok baribir ekran kengligining yarmi edi), lekin
+        markazlashgan oynada u qolgan ikkitasidan tor bo'lib chiqib,
+        ustunning o'ng chekkasini "yirtib" turardi. Bir ustunda uch xil
+        kenglik — tartibsizlikning eng ko'zga tashlanadigan turi.
+      -->
+      <div class="mb-3 w-full">
         <p class="mb-1.5 text-[11px] uppercase tracking-[0.8px] text-slate-400">
           Telefon raqam
         </p>
         <p
-          class="inline-block min-w-[170px] rounded-xl border border-line bg-ink-800 px-4 py-2.5 text-[15px] font-bold tracking-[0.5px] text-slate-100"
+          class="w-full rounded-xl border border-line bg-ink-800 px-4 py-2.5 text-[15px] font-bold tracking-[0.5px] text-slate-100"
           v-text="phone"
         />
       </div>
 
       <p
-        class="mb-6 w-full rounded-xl border border-line bg-ink-800 px-4 py-3 text-[13px] italic leading-relaxed text-slate-400"
+        class="mb-5 w-full rounded-xl border border-line bg-ink-800 px-4 py-3 text-[13px] italic leading-relaxed text-slate-400"
       >
         “Muvaffaqiyatga erishish uchun doimiy o‘rganish va tinimsiz harakat qilish lozim.”
       </p>
 
+      <!--
+        ★ "TAHRIRLASH" — BIRINCHI va ASOSIY (`primary`) tugma, "Yopish"
+        esa ikkinchi darajali. Ilgari bu yerda faqat "Yopish" turardi,
+        ya'ni oyna hech qanday AMAL taklif qilmasdi — u faqat ma'lumot
+        ko'rsatardi. Loyiha egasi aynan shu bo'shliqni to'ldirishni
+        so'radi.
+      -->
       <BaseButton
+        variant="primary"
+        size="lg"
+        block
+        @click="emit('edit')"
+      >
+        <span class="inline-flex items-center gap-2">
+          <AppIcon
+            name="edit"
+            :size="16"
+          />
+          Tahrirlash
+        </span>
+      </BaseButton>
+
+      <BaseButton
+        class="mt-2.5"
         variant="secondary"
         size="lg"
         block

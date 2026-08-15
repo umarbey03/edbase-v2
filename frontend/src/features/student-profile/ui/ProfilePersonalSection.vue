@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import { telegramHandle, telegramLink } from '@/entities/user'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { formatPhone } from '@/shared/lib/phone'
 import type { ProfileTelegramDto, UserDetailsDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
 
@@ -55,7 +56,7 @@ const rows = computed(() => [
   // F.I.Sh. va "hisob yaratilgan" — kontakt EMAS, ular hech qachon kesilmaydi,
   // shuning uchun ularda `textOrDash` ning "Ko'rsatilmaydi" tarmog'i yurmaydi.
   { label: 'F.I.Sh.', value: props.user.fullName ?? '—' },
-  { label: 'Telefon', value: textOrDash(props.user.phone) },
+  { label: 'Telefon', value: textOrDash(formatPhone(props.user.phone)) },
   { label: 'Email', value: textOrDash(props.user.email) },
   {
     label: 'Telegram ID',

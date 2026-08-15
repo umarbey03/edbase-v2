@@ -11,8 +11,20 @@ const props = withDefaults(
     size?: AvatarSize
     /** Gapirayotgan/qo'l ko'targan ishtirokchini ajratib ko'rsatish uchun halqa. */
     ring?: boolean
+    /**
+     * Profil rasmining `blob:` manzili (2026-08-15).
+     *
+     * `null`/berilmagan — ism harfi chiziladi (avvalgi xatti-harakat
+     * O'ZGARMADI, ya'ni 10+ chaqiruv joyining birortasi buzilmaydi).
+     *
+     * ⚠️ TO'G'RIDAN-TO'G'RI API MANZILI BERILMAYDI: rasm endpointi
+     * `Authorization` talab qiladi, brauzerning rasm yuklovchisi esa uni
+     * yubormaydi. Manzil `useAvatar` dan olinadi — u rasmni `Blob`
+     * sifatida yuklab, `blob:` havola yasaydi.
+     */
+    src?: string | null
   }>(),
-  { size: 'sm', ring: false },
+  { size: 'sm', ring: false, src: null },
 )
 
 const SIZES: Record<AvatarSize, string> = {
@@ -51,7 +63,20 @@ const tone = computed(() => PALETTE[colorIndex(props.name, PALETTE.length)] ?? P
 </script>
 
 <template>
+  <!--
+    Rasm bo'lsa — u, aks holda ism harfi. `object-cover`: kvadrat bo'lmagan
+    rasm cho'zilmasin, markazidan kesilsin.
+  -->
+  <img
+    v-if="props.src !== null"
+    :src="props.src"
+    class="inline-block shrink-0 select-none rounded-full object-cover"
+    :class="[SIZES[props.size], props.ring ? 'ring-2 ring-brand-400/70' : '']"
+    :title="props.name"
+    alt=""
+  >
   <span
+    v-else
     class="inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold"
     :class="[SIZES[props.size], tone, props.ring ? 'ring-2 ring-brand-400/70' : '']"
     :title="props.name"

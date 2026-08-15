@@ -36,8 +36,25 @@ const props = withDefaults(
      * yopadi (2026-08-11 refaktori). Ilgari bu mumkin emas edi.
      */
     zoomable?: boolean
+    /**
+     * Rasm PUFAKCHANI TO'LIQ egallaydimi (Telegram naqshi, 2026-08-15).
+     *
+     * Loyiha egasi: *"jo'natilgan rasmlarning orqa foni rangli bo'lib
+     * qolyapti, rasmlar orqa foni oq bo'lishi kerak"*.
+     *
+     * SABAB: pufakchada `px-3 py-1.5` bo'shliq bor va rasm `object-contain`
+     * bilan chizilgani uchun uning yon tomonlarida ham bo'sh joy qolardi —
+     * ikkalasi ham PUFAKCHA rangini (o'z xabarda brend indigo) ko'rsatardi.
+     * Natijada rasm rangli ramka ichida "suzib" turardi.
+     *
+     * `flush` rejimida: o'z burchak radiusi va chekinishlari OLIB
+     * TASHLANADI (ularni pufakchaning o'zi `overflow-hidden` bilan
+     * kesadi), fon esa NEYTRAL sirtga (`ink-900` — yorug' temada oq)
+     * o'tadi. Ya'ni Telegram'dagi kabi: rasm — xabarning O'ZI, ramka emas.
+     */
+    flush?: boolean
   }>(),
-  { zoomable: true },
+  { zoomable: true, flush: false },
 )
 
 const emit = defineEmits<{ zoom: [url: string] }>()
@@ -74,7 +91,7 @@ function openZoom(): void {
 </script>
 
 <template>
-  <div class="mt-1 first:mt-0">
+  <div :class="props.flush ? '' : 'mt-1 first:mt-0'">
     <div
       v-if="file.isPending.value"
       class="flex items-center gap-2 rounded-lg bg-black/10 px-2.5 py-3 text-[11px]"
@@ -106,14 +123,25 @@ function openZoom(): void {
       <button
         v-if="isImage && props.zoomable"
         type="button"
-        class="block w-full cursor-zoom-in overflow-hidden rounded-lg"
+        class="block w-full cursor-zoom-in overflow-hidden"
+        :class="props.flush ? '' : 'rounded-lg'"
         title="Kattalashtirish"
         @click="openZoom"
       >
+        <!--
+          ★ FON `bg-ink-900` (yorug' temada OQ), `bg-black/10` EMAS: eski
+          qiymat YARIM SHAFFOF edi va ostidagi pufakcha rangini o'tkazib
+          yuborardi — brend indigo rasm atrofida ko'rinardi.
+
+          ★ `object-contain` SAQLANADI: `cover` rasmni KESADI va u chatda
+          qabul qilib bo'lmaydigan yo'qotish (odam yuborgan suratning bir
+          qismi ko'rinmay qoladi). Nisbati boshqacha rasmda yon tomonda
+          qoladigan bo'sh joy endi OQ.
+        -->
         <img
           :src="file.url.value"
           :alt="displayName"
-          class="max-h-64 w-full bg-black/10 object-contain"
+          class="max-h-72 w-full bg-ink-900 object-contain"
         >
       </button>
 
@@ -121,7 +149,8 @@ function openZoom(): void {
         v-else-if="isImage"
         :src="file.url.value"
         :alt="displayName"
-        class="max-h-64 w-full rounded-lg bg-black/10 object-contain"
+        class="max-h-72 w-full bg-ink-900 object-contain"
+        :class="props.flush ? '' : 'rounded-lg'"
       >
 
       <audio

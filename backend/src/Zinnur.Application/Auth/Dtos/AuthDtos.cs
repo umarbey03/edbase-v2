@@ -78,6 +78,22 @@ public sealed record RefreshRequest(string RefreshToken);
 /// Telegram'ni ham ulay olmaydi). Interfeys bunda ism + id ga tushadi,
 /// o'ylab topilgan raqam CHIZILMAYDI.
 /// </param>
-public sealed record UserDto(long Id, string FullName, string Email, string? Phone, string Role);
+/// <param name="AvatarUpdatedAt">
+/// Profil rasmi oxirgi marta qachon almashtirilgani. <c>null</c> — rasm
+/// YO'Q, interfeys ism harfini chizadi.
+///
+/// ★ RASM MANZILI EMAS, VAQT TAMG'ASI: manzil har doim bir xil
+/// (<c>/api/v1/profile/avatar/{id}</c>) va uni DTO'ga solish har javobga
+/// takroriy satr qo'shardi. Klient manzilni Id'dan yasaydi, bu qiymatni
+/// esa <c>?v=</c> parametri sifatida qo'shadi — shusiz brauzer yangi
+/// rasmni ko'rsatmasdi (sabab <c>User.AvatarUpdatedAt</c> izohida).
+/// </param>
+public sealed record UserDto(
+    long Id,
+    string FullName,
+    string Email,
+    string? Phone,
+    string Role,
+    DateTimeOffset? AvatarUpdatedAt = null);
 
 public sealed record AuthResponse(string AccessToken, string RefreshToken, UserDto User);

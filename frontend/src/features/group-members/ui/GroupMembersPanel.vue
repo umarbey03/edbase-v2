@@ -13,6 +13,7 @@ import { canSeeStudentContact } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime, formatDateWithYear } from '@/shared/lib/datetime'
+import { formatPhone } from '@/shared/lib/phone'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { GroupMemberDto } from '@/shared/types'
@@ -293,7 +294,7 @@ function isHistorical(member: GroupMemberDto): boolean {
             <p
               v-if="member.phone !== null"
               class="text-xs text-dim"
-              v-text="member.phone"
+              v-text="formatPhone(member.phone)"
             />
             <p
               v-if="member.pausedUntil !== null"
@@ -406,7 +407,7 @@ function isHistorical(member: GroupMemberDto): boolean {
                 <td
                   v-if="showContact"
                   class="text-slate-400"
-                  v-text="member.phone ?? '—'"
+                  v-text="formatPhone(member.phone) || '—'"
                 />
                 <td>
                   <BaseBadge :tone="memberStatusTone(member.status)">

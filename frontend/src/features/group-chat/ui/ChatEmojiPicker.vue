@@ -195,7 +195,7 @@ onBeforeUnmount(stopListening)
     <button
       ref="toggleButton"
       type="button"
-      class="tap-target flex size-11 items-center justify-center rounded-full border border-line-strong bg-ink-900 text-lg leading-none transition-colors hover:bg-ink-800"
+      class="flex size-9 shrink-0 items-center justify-center rounded-full text-lg leading-none opacity-70 transition-opacity hover:opacity-100"
       :class="{ 'bg-ink-800': open }"
       aria-haspopup="true"
       :aria-expanded="open"

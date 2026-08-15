@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import { fetchUsers, USER_SEARCH_MIN } from '@/entities/user'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
+import { formatPhone } from '@/shared/lib/phone'
 import { AppIcon, BaseSpinner } from '@/shared/ui'
 
 /**
@@ -160,7 +161,7 @@ function clear(): void {
             />
             <span
               class="text-[11px] text-dim"
-              v-text="student.phone ?? student.email ?? ''"
+              v-text="formatPhone(student.phone) || student.email || ''"
             />
           </button>
         </li>

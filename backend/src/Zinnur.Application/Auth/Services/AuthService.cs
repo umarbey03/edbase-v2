@@ -145,5 +145,17 @@ public sealed class AuthService(
     // `Phone` — XOM ustun (`PhoneNormalized` emas): foydalanuvchi o'zining
     // odatiy ko'rinishdagi raqamini ko'radi. Sabab va cheklov `UserDto` da.
     private static UserDto Map(User u) =>
-        new(u.Id, u.FullName, u.Email, u.Phone, u.Role.ToString());
+        new(u.Id, u.FullName, u.Email, u.Phone, u.Role.ToString(), AvatarStamp(u));
+
+    /// <summary>
+    /// Avatar vaqt tamg'asi — RASM BOR bo'lgandagina.
+    ///
+    /// 🔴 `AvatarUpdatedAt` ning O'ZI YETARLI EMAS: u rasm O'CHIRILGANDA
+    /// ham yangilanadi (`User.SetAvatar`), ya'ni rasmsiz profilda ham
+    /// to'ldirilgan bo'lib qoladi. Klient esa uni "rasm bor" deb
+    /// o'qiydi (`UserDto.AvatarUpdatedAt` shartnomasi: `null` — rasm
+    /// yo'q) va har ekranda bekorga 404 beradigan so'rov yuborardi.
+    /// </summary>
+    private static DateTimeOffset? AvatarStamp(User u) =>
+        u.AvatarKey is null ? null : u.AvatarUpdatedAt;
 }

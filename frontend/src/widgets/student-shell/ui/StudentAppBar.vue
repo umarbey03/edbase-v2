@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { useAvatar } from '@/entities/user'
 import { NotificationBell } from '@/features/notifications'
+import { useAuthStore } from '@/features/auth/model/auth.store'
 import { canJoin, sessionState } from '@/features/student-schedule/model/useStudentSchedule'
 import type { LiveSessionDto } from '@/shared/types'
 import { AppIcon } from '@/shared/ui'
@@ -25,6 +27,14 @@ const emit = defineEmits<{ 'open-profile': [] }>()
 const router = useRouter()
 
 const initial = computed(() => (props.displayName.trim()[0] ?? '?').toUpperCase())
+
+/** Profil rasmi (sabab `StudentSidebar` dagi bilan AYNI). */
+const auth = useAuthStore()
+
+const avatarUrl = useAvatar(
+  computed(() => auth.user?.id ?? null),
+  computed(() => auth.user?.avatarUpdatedAt ?? null),
+)
 
 const isLive = computed(
   () => props.nextSession !== null && sessionState(props.nextSession, props.now) === 'live',
@@ -142,12 +152,21 @@ function handleNextClick(): void {
       -->
       <button
         type="button"
-        class="tap-expand flex size-10 animate-pop items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-400 text-base font-bold text-white"
+        class="tap-expand flex size-10 animate-pop items-center justify-center overflow-hidden rounded-full text-base font-bold text-white"
+        :class="avatarUrl === null ? 'bg-gradient-to-br from-brand-500 to-violet-400' : ''"
         :title="props.displayName"
         aria-label="Profil"
         @click="emit('open-profile')"
       >
-        {{ initial }}
+        <img
+          v-if="avatarUrl !== null"
+          :src="avatarUrl"
+          class="size-full object-cover"
+          alt=""
+        >
+        <template v-else>
+          {{ initial }}
+        </template>
       </button>
     </div>
   </header>

@@ -4,6 +4,7 @@ import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { NotificationBell, useNotificationHub } from '@/features/notifications'
+import { ProfileEditDialog } from '@/features/profile-edit'
 import { AppIcon } from '@/shared/ui'
 
 import AppSidebar from './AppSidebar.vue'
@@ -88,6 +89,29 @@ onBeforeUnmount(() => {
 useNotificationHub()
 
 const drawerOpen = ref(false)
+
+/* ---------------------- PROFILNI TAHRIRLASH (2026-08-15) ----------------- */
+
+/**
+ * ⚠️ Oyna profilni har muvaffaqiyatli saqlashdan KEYIN o'zi yangilaydi
+ * (`ProfileEditDialog`), shuning uchun bu yerda yopilishda qo'shimcha
+ * `reloadProfile()` YO'Q — sabab o'sha komponent izohida.
+ */
+const editOpen = ref(false)
+
+/**
+ * Drawer ichidan ochilganda drawer YOPILADI.
+ *
+ * ★ Aks holda ikkita qatlam ustma-ust turardi va oyna yopilgach
+ * foydalanuvchi yana ochiq menyuga qaytardi — `useModalHost` da
+ * "ichma-ich drawer TAQIQLANGAN" degan qoida aynan shu tajriba
+ * haqida.
+ */
+function openEditFromDrawer(): void {
+  closeDrawer()
+  editOpen.value = true
+}
+
 /** Drawer yopilgandan keyin fokus shu tugmaga qaytadi (klaviatura foydalanuvchisi uchun). */
 const burgerButton = ref<HTMLButtonElement | null>(null)
 const drawerPanel = ref<HTMLElement | null>(null)
@@ -139,7 +163,10 @@ async function handleLogout(): Promise<void> {
     <aside
       class="sticky top-0 hidden h-dvh w-[230px] shrink-0 border-r border-line lg:block"
     >
-      <AppSidebar @logout="handleLogout" />
+      <AppSidebar
+        @logout="handleLogout"
+        @edit="editOpen = true"
+      />
     </aside>
 
     <!-- ============ Telefon/planshet: chekkadan chiquvchi drawer ========= -->
@@ -168,9 +195,20 @@ async function handleLogout(): Promise<void> {
         <AppSidebar
           @navigate="closeDrawer"
           @logout="handleLogout"
+          @edit="openEditFromDrawer"
         />
       </div>
     </div>
+
+    <!--
+      PROFILNI TAHRIRLASH — yon menyudagi foydalanuvchi bloki orqali
+      ochiladi (xodim uchun yagona kirish nuqtasi).
+    -->
+    <ProfileEditDialog
+      :open="editOpen"
+      :user="auth.user"
+      @close="editOpen = false"
+    />
 
     <!-- ============================ Kontent ============================= -->
     <!-- `min-w-0`: ichkaridagi keng jadval butun sahifani cho'zib yubormasin. -->

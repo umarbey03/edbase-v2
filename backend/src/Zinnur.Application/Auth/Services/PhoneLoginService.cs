@@ -266,7 +266,12 @@ public sealed class PhoneLoginService(
     /// qiymat satr sifatida, chapdan nol bilan to'ldirilib yasaladi.
     /// Aks holda kodlar makoni 10 barobar kichrayardi.
     /// </summary>
-    private static string GenerateCode() =>
+    /// ⚠️ `internal` (2026-08-15): telefon ALMASHTIRISH oqimida bot ham
+    /// aynan shu generatordan kod olishi kerak
+    /// (`TelegramUpdateHandler`). Ikkinchi generator yozilsa, uning
+    /// kuchi (entropiya, uzunlik, boshidagi nol) birinchisidan asta
+    /// ajralib ketardi — va bu farq hech qanday testda ko'rinmasdi.
+    internal static string GenerateCode() =>
         RandomNumberGenerator
             .GetInt32(0, 1_000_000)
             .ToString("D" + CodeLength.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);

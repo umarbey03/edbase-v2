@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { navItemsForRole, roleLabel, roleTone } from '@/entities/user'
+import { navItemsForRole, roleLabel, roleTone, useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { NotificationBell } from '@/features/notifications'
 import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
@@ -13,9 +13,15 @@ import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
  * desktopda doimiy ustun, telefon/planshetda esa chekka drawer. Nusxa
  * ko'chirilsa — menyu bir joyda yangilanib, ikkinchisida eskirib qolardi.
  */
-const emit = defineEmits<{ navigate: []; logout: [] }>()
+const emit = defineEmits<{ navigate: []; logout: []; edit: [] }>()
 
 const auth = useAuthStore()
+
+/** Profil rasmi — yo'q bo'lsa `BaseAvatar` ism harfini chizadi. */
+const avatarUrl = useAvatar(
+  computed(() => auth.user?.id ?? null),
+  computed(() => auth.user?.avatarUpdatedAt ?? null),
+)
 
 const items = computed(() => navItemsForRole(auth.role))
 
@@ -132,22 +138,40 @@ const panelLabel = computed(() =>
     <!-- Foydalanuvchi bloki (eski `.userbox`) -->
     <div class="shrink-0 border-t border-line px-4 py-3.5">
       <div class="flex items-center gap-2.5">
-        <BaseAvatar
-          :name="auth.displayName"
-          size="sm"
-        />
-        <div class="min-w-0 flex-1">
-          <p
-            class="truncate text-[13px] font-semibold text-slate-100"
-            v-text="auth.displayName"
+        <!--
+          ★ AVATAR VA ISM — BOSILADIGAN (2026-08-15): xodim uchun bu
+          profilni tahrirlashning YAGONA kirish nuqtasi. Talab "har
+          qanday userlar" degan edi, o'quvchi karkasidagi profil varag'i
+          esa bu yerda yo'q.
+
+          Alohida "Tahrirlash" tugmasi QO'YILMADI: yon menyuning eng
+          pastida joy tor va uchinchi ikonka (chiqish yonida) tasodifan
+          bosiladigan bo'lardi.
+        -->
+        <button
+          type="button"
+          class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-left transition-colors hover:bg-ink-800"
+          title="Profilni tahrirlash"
+          @click="emit('edit')"
+        >
+          <BaseAvatar
+            :name="auth.displayName"
+            :src="avatarUrl"
+            size="sm"
           />
-          <BaseBadge
-            v-if="auth.role !== null"
-            :tone="roleTone(auth.role)"
-          >
-            {{ roleLabel(auth.role) }}
-          </BaseBadge>
-        </div>
+          <span class="min-w-0 flex-1">
+            <span
+              class="block truncate text-[13px] font-semibold text-slate-100"
+              v-text="auth.displayName"
+            />
+            <BaseBadge
+              v-if="auth.role !== null"
+              :tone="roleTone(auth.role)"
+            >
+              {{ roleLabel(auth.role) }}
+            </BaseBadge>
+          </span>
+        </button>
         <button
           type="button"
           class="tap-target flex items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"

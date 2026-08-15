@@ -10,6 +10,7 @@ using Zinnur.Application.Groups.Services;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Messaging.Services;
 using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.Profile.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
@@ -50,6 +51,14 @@ public static class DependencyInjection
         //   umrli hech narsaga tegmaydi.
         services.AddSingleton<IPhoneLoginCodeStore, PhoneLoginCodeStore>();
         services.AddScoped<IPhoneLoginService, PhoneLoginService>();
+
+        // O'Z PROFILINI TAHRIRLASH (2026-08-15).
+        //
+        // ★ Kutayotgan telefon almashtirish ombori — SINGLETON, sabab
+        //   `IPhoneLoginCodeStore` dagi bilan AYNI (yagona bog'liqligi
+        //   `ICacheService` va o'zi holat saqlamaydi).
+        services.AddSingleton<IPhoneChangeStore, PhoneChangeStore>();
+        services.AddScoped<IProfileService, ProfileService>();
 
         // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
         // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).

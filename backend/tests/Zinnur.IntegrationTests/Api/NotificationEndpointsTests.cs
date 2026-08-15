@@ -481,6 +481,96 @@ public sealed class NotificationEndpointsTests(NotificationApiFactory factory)
         (await UnreadAsync(victim)).Should().Be(2, "begona qator tegilmagan bo'lishi kerak");
     }
 
+    // ================================================================== 5) o'chirish
+
+    /// <summary>
+    /// Belgilangan qatorlar o'chadi va NISHON RAQAMI ham kamayadi.
+    ///
+    /// ★ Ikkinchi shart birinchisidan MUHIMROQ: o'qilmagan qator o'chsa, u
+    /// endi hech qachon "o'qildi" bo'lolmaydi — sanoq eski qolsa,
+    /// foydalanuvchi ochib bo'lmaydigan raqamni ko'rib turardi.
+    /// </summary>
+    [Fact]
+    public async Task Delete_RemovesRowsAndDropsUnreadCount()
+    {
+        var world = await NotificationWorld.CreateAsync(factory, "ntf-t");
+        var ids = await world.SeedNotificationsAsync(count: 3);
+
+        using var student = await world.StudentClientAsync();
+
+        var result = await DeleteAsync(student, [ids[0], ids[1]]);
+
+        result.DeletedCount.Should().Be(2);
+        result.UnreadCount.Should().Be(1, "o'chgan qator sanoqda qolmaydi");
+
+        var page = await student.GetFromJsonAsync<NotificationPageResponse>(
+            new Uri("/api/v1/notifications", UriKind.Relative));
+
+        page!.Items.Should().ContainSingle().Which.Id.Should().Be(ids[2]);
+    }
+
+    /// <summary>
+    /// ★ IDEMPOTENT: allaqachon o'chgan Id qayta yuborilsa `0` qaytadi,
+    /// xato EMAS. Klient bir tugmani ikki marta bosishi mumkin.
+    /// </summary>
+    [Fact]
+    public async Task Delete_Twice_IsIdempotent()
+    {
+        var world = await NotificationWorld.CreateAsync(factory, "ntf-u");
+        var ids = await world.SeedNotificationsAsync(count: 2);
+
+        using var student = await world.StudentClientAsync();
+
+        (await DeleteAsync(student, ids)).DeletedCount.Should().Be(2);
+        (await DeleteAsync(student, ids)).DeletedCount.Should().Be(0);
+    }
+
+    /// <summary>
+    /// 🔴 BO'SH RO'YXAT — 400, "hammasini o'chir" EMAS.
+    ///
+    /// Bu `POST /read` dan ATAYLAB farq qiladi (u yerda bo'sh tana =
+    /// hammasi). Sabab: noto'g'ri "hammasini o'qildi" — bir bosishda
+    /// qaytariladigan bezovtalik, noto'g'ri "hammasini o'chir" esa
+    /// ma'lumotning butunlay yo'qolishi.
+    /// </summary>
+    [Fact]
+    public async Task Delete_WithoutIds_IsRejected()
+    {
+        var world = await NotificationWorld.CreateAsync(factory, "ntf-v");
+        await world.SeedNotificationsAsync(count: 2);
+
+        using var student = await world.StudentClientAsync();
+
+        var response = await student.PostAsJsonAsync(
+            new Uri("/api/v1/notifications/delete", UriKind.Relative),
+            new { ids = Array.Empty<long>() });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        (await UnreadAsync(student)).Should().Be(2, "hech nima o'chmasligi kerak");
+    }
+
+    /// <summary>
+    /// 🔴 BOSHQA ODAMNING QATORINI O'CHIRIB BO'LMAYDI.
+    ///
+    /// `MarkRead` dagi bilan bir xil himoya (`UserId` filtri) — lekin bu
+    /// yerda buzilishining narxi qaytarib bo'lmaydigan yo'qotish.
+    /// </summary>
+    [Fact]
+    public async Task Delete_WithForeignIds_ChangesNothing()
+    {
+        var mine = await NotificationWorld.CreateAsync(factory, "ntf-w");
+        var other = await NotificationWorld.CreateAsync(factory, "ntf-x");
+
+        var foreignIds = await other.SeedNotificationsAsync(count: 2);
+
+        using var student = await mine.StudentClientAsync();
+
+        (await DeleteAsync(student, foreignIds)).DeletedCount.Should().Be(0);
+
+        (await other.NotificationCountAsync()).Should().Be(2, "begona qator tegilmagan bo'lishi kerak");
+    }
+
     [Fact]
     public async Task Endpoints_RequireAuthentication()
     {
@@ -512,6 +602,18 @@ public sealed class NotificationEndpointsTests(NotificationApiFactory factory)
         return (await response.Content.ReadFromJsonAsync<NotificationReadResponse>())!;
     }
 
+    private static async Task<NotificationDeleteResponse> DeleteAsync(
+        HttpClient client, IReadOnlyList<long> ids)
+    {
+        var response = await client.PostAsJsonAsync(
+            new Uri("/api/v1/notifications/delete", UriKind.Relative), new { ids });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            await response.Content.ReadAsStringAsync());
+
+        return (await response.Content.ReadFromJsonAsync<NotificationDeleteResponse>())!;
+    }
+
     // ---------------------------------------------------------------- javob shakllari
 
     private sealed record NotificationItemResponse(
@@ -523,6 +625,8 @@ public sealed class NotificationEndpointsTests(NotificationApiFactory factory)
     private sealed record NotificationUnreadResponse(int UnreadCount);
 
     private sealed record NotificationReadResponse(int MarkedCount, int UnreadCount);
+
+    private sealed record NotificationDeleteResponse(int DeletedCount, int UnreadCount);
 }
 
 // ========================================================================= test infratuzilmasi

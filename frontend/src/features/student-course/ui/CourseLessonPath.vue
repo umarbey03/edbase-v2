@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { showToast } from '@/features/student-toast/model/useToast'
+import { showToast } from '@/shared/lib/useToast'
 import type { CourseLessonDto } from '@/shared/types'
 import { AppIcon } from '@/shared/ui'
 
@@ -89,7 +89,8 @@ function handleClick(lesson: CourseLessonDto): void {
   // Qulflangan darsda SABAB aytiladi — "bosdim, hech nima bo'lmadi" holati
   // eng ko'p savol tug'diradigan joy edi.
   if (!lesson.unlocked) {
-    showToast(lockMessage(lesson.lockReason))
+    // ★ `warning`, `success` EMAS: bu TAQIQ sababi, tasdiq emas.
+    showToast(lockMessage(lesson.lockReason), 'warning')
     return
   }
   emit('open', lesson)

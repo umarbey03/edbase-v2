@@ -57,6 +57,26 @@ const tone = computed(() => roleTone(props.role))
  * ma'lumot bermay, faqat shovqin bo'lardi.
  */
 const showRole = computed(() => props.role === 'Teacher' || props.role === 'Assistant')
+
+/**
+ * XABAR FAQAT RASM(LAR)DAN IBORATMI — TELEGRAM NAQSHI (2026-08-15).
+ *
+ * Loyiha egasi: *"jo'natilgan rasmlarning orqa foni rangli bo'lib
+ * qolyapti, rasmlar orqa foni oq bo'lishi kerak"*.
+ *
+ * Bunday xabarda pufakcha CHEKINISHSIZ va FONSIZ chiziladi: rasm
+ * pufakchani chetdan chetga to'ldiradi, vaqt esa uning USTIGA qo'yiladi.
+ * Telegram aynan shunday qiladi va sabab ko'rinib turibdi — rangli ramka
+ * suratning o'zidan diqqatni tortadi.
+ *
+ * ⚠️ MATN BO'LSA — ODATDAGI PUFAKCHA: u yerda rasm matn bilan birga
+ * turadi va chekinish KERAK, aks holda matn pufakcha chetiga yopishardi.
+ */
+const isMediaOnly = computed(
+  () => props.body.length === 0
+    && props.attachments.length > 0
+    && props.attachments.every((item) => item.contentType.startsWith('image/')),
+)
 </script>
 
 <template>
@@ -81,12 +101,13 @@ const showRole = computed(() => props.role === 'Teacher' || props.role === 'Assi
       :class="props.isOwn ? 'items-end' : 'items-start'"
     >
       <div
-        class="max-w-full rounded-2xl px-3 py-1.5 shadow-sm"
-        :class="
+        class="relative max-w-full overflow-hidden rounded-2xl shadow-sm"
+        :class="[
+          isMediaOnly ? '' : 'px-3 py-1.5',
           props.isOwn
             ? 'rounded-br-sm bg-brand-500 text-on-brand'
-            : 'rounded-bl-sm border border-line bg-ink-900 text-slate-100'
-        "
+            : 'rounded-bl-sm border border-line bg-ink-900 text-slate-100',
+        ]"
       >
         <!--
           Ism + rol nishoni — FAQAT boshqaning xabarida. Eski ilova ham
@@ -129,13 +150,13 @@ const showRole = computed(() => props.role === 'Teacher' || props.role === 'Assi
         -->
         <div
           v-if="props.attachments.length > 0"
-          class="mt-0.5"
-          :class="props.body.length > 0 ? 'mt-1.5' : ''"
+          :class="isMediaOnly ? '' : (props.body.length > 0 ? 'mt-1.5' : 'mt-0.5')"
         >
           <ChatAttachment
             v-for="item in props.attachments"
             :key="item.id"
             :attachment="item"
+            :flush="isMediaOnly"
             @zoom="(url) => emit('zoom', url)"
           />
         </div>
@@ -147,7 +168,19 @@ const showRole = computed(() => props.role === 'Teacher' || props.role === 'Assi
           ★ `text-white` ATAYLAB ISHLATILMAYDI: o'quvchi temasida brend oltin
           (#f5b731) va oq matn kontrasti ~1.9:1 — o'qilmaydi.
         -->
+        <!--
+          ★ RASMLI XABARDA VAQT RASM USTIDA turadi (Telegram naqshi): u
+          pufakcha ostida alohida qator egallasa, rasm "kartochka"ga
+          aylanardi. To'q yarim shaffof pilyuska HAR QANDAY suratda
+          o'qiladi — oq osmon ustida ham, qora fonda ham.
+        -->
         <span
+          v-if="isMediaOnly"
+          class="absolute bottom-1.5 right-1.5 rounded-full bg-slate-900/55 px-1.5 py-0.5 text-[10.5px] tabular-nums text-white backdrop-blur-[2px]"
+          v-text="props.time"
+        />
+        <span
+          v-else
           class="mt-0.5 block text-right text-[10.5px] tabular-nums"
           :class="props.isOwn ? 'text-on-brand/70' : 'text-dim'"
           v-text="props.time"

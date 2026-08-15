@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
 
@@ -20,11 +21,16 @@ namespace Zinnur.WebApi.Controllers;
 /// yozilgandan KEYIN). Klient ikkalasini ishlatadi: REST — ro'yxat va
 /// "o'qildi", hub — kelayotgan yangilari.
 ///
-/// 🔴 O'CHIRISH ENDPOINTI ATAYLAB YO'Q. "O'qildi" yetarli: o'chirish
-/// tugmasi qo'shilsa o'quvchi bahoni tasodifan yo'qotib, keyin "menga
-/// xabar kelmagan" deb shikoyat qilardi — va bazada isbot qolmasdi.
-/// Tozalash kerak bo'lganda u FON VAZIFASI bo'ladi (yoshi bo'yicha),
-/// foydalanuvchi tugmasi emas.
+/// ⚠️ O'CHIRISH ENDPOINTI 2026-08-15 DA QO'SHILDI. Bungacha bu yerda
+/// "o'chirish ATAYLAB yo'q" deb yozilgan edi (o'quvchi bahoni tasodifan
+/// yo'qotmasin degan qo'rquv). Loyiha egasi qo'ng'iroqchaga o'chirish
+/// tugmasi, belgilash rejimi va "belgilanganlarni o'chirish" talab qildi.
+/// Eski qo'rquv IKKI to'siq bilan qoplandi:
+///   • klientda TASDIQLASH OYNASI (`ConfirmDialog`) — majburiy;
+///   • serverda BO'SH ro'yxat "hammasini" degani EMAS (400) — ya'ni
+///     klientdagi xato butun ro'yxatni yo'q qila olmaydi.
+/// Baholashning O'ZI (`Submission`) tegilmaydi: bu jadval faqat XABAR
+/// yozuvi, ya'ni "isbot" baribir `Submissions` da qoladi.
 /// </summary>
 [ApiController]
 [Route("api/v1/notifications")]
@@ -32,6 +38,15 @@ namespace Zinnur.WebApi.Controllers;
 [Produces("application/json")]
 public sealed class NotificationsController(INotificationFeed notifications) : ControllerBase
 {
+    /// <summary>
+    /// Bir o'chirish so'rovidagi eng ko'p Id soni.
+    ///
+    /// ★ 50 — <c>NotificationFeed.MaxTake</c> BILAN BIR XIL: klient ko'pi
+    /// bilan bitta sahifani belgilay oladi, ya'ni undan katta ro'yxat
+    /// faqat qo'lda yasalgan so'rovdan keladi.
+    /// </summary>
+    private const int MaxDeleteIds = 50;
+
     /// <summary>
     /// Ro'yxat — kursorli sahifalash, YANGIDAN ESKIGA tartibda.
     ///
@@ -79,6 +94,49 @@ public sealed class NotificationsController(INotificationFeed notifications) : C
         [FromBody] MarkNotificationsReadRequest? request, CancellationToken ct) =>
         Ok(await notifications.MarkReadAsync(CurrentUserId, request?.Ids, ct));
 
+    /// <summary>
+    /// Belgilangan bildirishnomalarni BUTUNLAY o'chiradi (idempotent).
+    ///
+    /// ★ <c>POST .../delete</c>, <c>DELETE</c> emas: bu KO'PLIK ustidagi
+    /// amal va Id'lar TANADA keladi. <c>DELETE</c> so'rovining tanasi
+    /// HTTP da rasman belgilanmagan — oraliq proksilar va ba'zi klientlar
+    /// uni tashlab yuboradi, natijada "o'chirdim, lekin hech nima
+    /// o'chmadi" turkumidagi xato paydo bo'lardi. <c>POST .../read</c>
+    /// bilan bir xil shakl.
+    ///
+    /// 🔴 BO'SH RO'YXAT — 400, "hammasini o'chir" EMAS. Sabab
+    /// <see cref="INotificationFeed.DeleteAsync"/> izohida: klientdagi
+    /// bitta xato butun ro'yxatni yo'q qila olmasligi kerak.
+    /// </summary>
+    [HttpPost("delete")]
+    [ProducesResponseType<NotificationDeleteResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<NotificationDeleteResultDto>> Delete(
+        [FromBody] DeleteNotificationsRequest? request, CancellationToken ct)
+    {
+        var ids = request?.Ids;
+
+        if (ids is not { Count: > 0 })
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["ids"] = ["Kamida bitta bildirishnoma tanlanishi kerak."],
+            });
+        }
+
+        // Chegarasiz qoldirilsa, `IN (...)` ro'yxatiga o'n minglab Id
+        // yuborib so'rovni sekinlashtirish mumkin bo'lardi.
+        if (ids.Count > MaxDeleteIds)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["ids"] = [$"Bir so'rovda ko'pi bilan {MaxDeleteIds} ta bildirishnoma o'chiriladi."],
+            });
+        }
+
+        return Ok(await notifications.DeleteAsync(CurrentUserId, ids, ct));
+    }
+
     private long CurrentUserId =>
         long.Parse(
             User.FindFirstValue(ClaimTypes.NameIdentifier)!,
@@ -97,3 +155,14 @@ public sealed class NotificationsController(INotificationFeed notifications) : C
 /// sabab <see cref="INotificationFeed.MarkReadAsync"/> izohida.
 /// </param>
 public sealed record MarkNotificationsReadRequest(IReadOnlyList<long>? Ids);
+
+/// <summary>
+/// O'chirish so'rovi.
+///
+/// 🔴 <see cref="MarkNotificationsReadRequest"/> DAN FARQI: bu yerda tana
+/// BO'SH BO'LSA "hammasini" DEGANI EMAS — 400 qaytadi. Ikkalasi bir xil
+/// turdan foydalanmasligining sababi ham shu: bir turda ikki xil "bo'sh"
+/// semantikasi vaqt o'tib albatta chalkashtirilardi.
+/// </summary>
+/// <param name="Ids">O'chiriladigan qatorlar (1..50 ta).</param>
+public sealed record DeleteNotificationsRequest(IReadOnlyList<long>? Ids);

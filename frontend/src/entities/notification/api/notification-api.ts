@@ -1,5 +1,6 @@
 import { http } from '@/shared/api'
 import type {
+  NotificationDeleteResultDto,
   NotificationPageDto,
   NotificationReadResultDto,
   NotificationUnreadDto,
@@ -60,4 +61,23 @@ export function markNotificationsRead(
   ids?: number[],
 ): Promise<NotificationReadResultDto> {
   return http.post<NotificationReadResultDto>('/api/v1/notifications/read', { ids })
+}
+
+/**
+ * `POST /api/v1/notifications/delete` — BUTUNLAY o'chirish (idempotent).
+ *
+ * ★ `POST`, `DELETE` EMAS: Id'lar TANADA keladi, `DELETE` so'rovining
+ * tanasi esa HTTP da rasman belgilanmagan (ba'zi proksilar uni tashlab
+ * yuboradi). `POST .../read` bilan bir xil shakl.
+ *
+ * 🔴 BO'SH RO'YXAT YUBORILMAYDI: server 400 qaytaradi va bu ATAYLAB —
+ * bo'sh massiv "hammasini o'chir" degani emas. Chaqiruvchi tomonda ham
+ * shu tekshiruv bor (`NotificationBell`: belgilanmagan holatda tugma
+ * umuman ko'rinmaydi).
+ *
+ * ⚠️ QAYTARIB BO'LMAYDI — chaqirishdan OLDIN tasdiqlash oynasi
+ * (`useConfirm`) ko'rsatilishi SHART.
+ */
+export function deleteNotifications(ids: number[]): Promise<NotificationDeleteResultDto> {
+  return http.post<NotificationDeleteResultDto>('/api/v1/notifications/delete', { ids })
 }

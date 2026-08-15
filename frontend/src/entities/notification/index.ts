@@ -1,4 +1,5 @@
 export {
+  deleteNotifications,
   fetchNotifications,
   fetchUnreadCount,
   markNotificationsRead,

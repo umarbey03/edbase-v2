@@ -345,9 +345,16 @@ function isPeerActive(conversation: ConversationDto): boolean {
  * Ayirmada FAQAT KARKASning (`StudentShell`) o'zgarmas qismlari qoldi:
  *   68px  — yopishqoq appbar (`StudentAppBar`: `pt-4` 16 + avatar 40 + `pb-3` 12);
  *    4px  — `main` ning yuqori bo'shlig'i (`pt-1`);
- *   24px  — `main` ning pastki bo'shlig'i (`pb-6`);
- *   80px  — tab paneliga ajratilgan joy (karkas ustunining `padding-bottom`)
+ *   70px  — tab paneliga ajratilgan joy (karkas ustunining `padding-bottom`)
  *           + `env(safe-area-inset-bottom)` (tirnoqli iPhone).
+ *
+ * ★ 2026-08-15: ayirma 176 dan 142 ga TUSHDI va sabab IKKITA —
+ *     • `main` ning pastki 24px chekinishi endi `-mb-6` bilan qaytariladi
+ *       (shablonda), ya'ni u ayirmada qatnashmaydi;
+ *     • karkasdagi tab paneli zaxirasi 80 dan 70 ga tushdi (haqiqiy
+ *       balandlik 62px).
+ *   Natijada yozish paneli tab panelidan ~8px yuqorida turadi — ilgari
+ *   bu oraliq ~42px edi va u ko'zga "bo'sh joy" bo'lib tashlanardi.
  *
  * ★ NEGA INLINE `style`, KLASS EMAS: ichida `env()` bor va uni Tailwind
  * arbitrary qiymatiga solib bo'lmaydi (`safe-area-inset-bottom` ichidagi
@@ -379,7 +386,7 @@ function isPeerActive(conversation: ConversationDto): boolean {
  * bilan tekshirilmaydi: karkas qoidasi bo'yicha desktop chegarasining
  * yagona hakami CSS `lg:` bo'lishi kerak.
  */
-const CHAT_FILL_STYLE = 'height: calc(100dvh - 176px - env(safe-area-inset-bottom, 0px))'
+const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-bottom, 0px))'
 </script>
 
 <template>
@@ -395,7 +402,13 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 176px - env(safe-area-inset-botto
     1024px dan past bu klasslarning birortasi ham qo'llanmaydi — telefonda
     avvalgi bitta ustun va sahifa skrolli.
   -->
-  <div class="lg:grid lg:h-[calc(100dvh-128px)] lg:grid-cols-[340px_minmax(0,1fr)]">
+  <!--
+    ★ `-mb-6` (2026-08-15): `<main>` ning `pb-6` chekinishini QAYTARADI.
+    U chat uchun keraksiz — quyidagi `CHAT_FILL_STYLE` balandlikni O'ZI
+    hisoblaydi va ortiqcha 24px yozish paneli bilan tab paneli orasida
+    bo'sh joy bo'lib qolardi.
+  -->
+  <div class="-mb-6 lg:mb-0 lg:grid lg:h-[calc(100dvh-128px)] lg:grid-cols-[340px_minmax(0,1fr)]">
     <!-- ========================= CHAP USTUN: RO'YXAT ======================= -->
     <!--
       `hidden` FAQAT telefonda ishlaydi: `lg:flex` media so'rovi ichida
@@ -781,43 +794,59 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 176px - env(safe-area-inset-botto
       </div>
 
       <!-- Yozish maydoni -->
+      <!--
+        ★ TELEGRAM NAQSHI — GURUH CHATI BILAN AYNI (2026-08-15).
+        Bitta pilyuska (emoji uning ICHIDA) + alohida doira (yuborish).
+        Ikkala chat bir ekranda almashadi, ya'ni ular BIR XIL ko'rinishi
+        shart: ilgari bu yerda tugma to'rtburchak (`rounded-xl px-4`),
+        guruh chatida esa doira edi.
+      -->
       <form
-        class="mt-3 flex shrink-0 items-end gap-2"
+        class="mt-2 flex shrink-0 items-end gap-2"
         novalidate
         @submit.prevent="submit"
       >
-        <!-- Emoji — guruh chatidagi bilan AYNAN bir xil komponent. -->
-        <ChatEmojiPicker
-          v-model="draft"
-          :target="input"
-          :max-length="DM_BODY_MAX"
-        />
-        <div class="min-w-0 flex-1">
-          <!--
-            ★ `resize-y` o'rniga `field-sizing-content` (2026-08-13): burchakdan
-            tortish yozish panelini ustun ichida yuqoriga surar, uzun matnda esa
-            xabarlar ro'yxatini siqib qo'yardi. Endi maydon MATNGA qarab o'sadi
-            va `max-h-32` da to'xtaydi — sabab `GroupChatRoom` izohida.
-          -->
-          <textarea
-            ref="input"
+        <div
+          class="flex min-w-0 flex-1 items-end gap-1 rounded-[22px] border border-line-strong bg-ink-900 py-1 pl-1 pr-2 transition-[border-color,box-shadow] focus-within:border-brand-500 focus-within:ring-3 focus-within:ring-brand-500/15"
+        >
+          <ChatEmojiPicker
             v-model="draft"
-            class="zn-input min-h-11 max-h-32 w-full resize-none overflow-y-auto py-2.5 field-sizing-content"
-            rows="1"
-            :maxlength="DM_BODY_MAX"
-            placeholder="Xabar yozing..."
+            :target="input"
+            :max-length="DM_BODY_MAX"
           />
-          <!-- Chegara SERVER bilan bir xil (2000) — guruh chatidagi qoida. -->
-          <p
-            v-if="showCounter"
-            class="mt-1 pr-2 text-right text-[11px] tabular-nums text-dim"
-          >
-            {{ draft.length }} / {{ DM_BODY_MAX }}
-          </p>
+
+          <div class="min-w-0 flex-1">
+            <!--
+              ★ `zn-input` OLIB TASHLANDI: ramka va fon endi pilyuskada.
+              `field-sizing-content` SAQLANADI (2026-08-13 qarori): maydon
+              matnga qarab o'sadi va `max-h-32` da to'xtaydi.
+
+              🔴 `outline-none!` DAGI `!` SHART — sabab `GroupChatRoom`
+              dagi AYNI izohda (global `:focus-visible` qatlamsiz yozilgan
+              va oddiy utility uni yenga olmaydi). Fokus ko'rsatkichi
+              pilyuskaga ko'chirilgan.
+            -->
+            <textarea
+              ref="input"
+              v-model="draft"
+              class="max-h-32 w-full resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-2 text-[15px] leading-snug text-slate-100 outline-none! placeholder:text-slate-500 field-sizing-content"
+              rows="1"
+              :maxlength="DM_BODY_MAX"
+              placeholder="Xabar yozing..."
+            />
+            <!-- Chegara SERVER bilan bir xil (2000) — guruh chatidagi qoida. -->
+            <p
+              v-if="showCounter"
+              class="px-1.5 pb-1 text-right text-[11px] tabular-nums text-dim"
+            >
+              {{ draft.length }} / {{ DM_BODY_MAX }}
+            </p>
+          </div>
         </div>
+
         <button
           type="submit"
-          class="tap-target flex shrink-0 items-center justify-center rounded-xl bg-brand-500 px-4 font-bold text-on-brand transition-colors disabled:opacity-40"
+          class="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-500 font-bold text-on-brand shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-40"
           :disabled="!canSend"
           aria-label="Yuborish"
         >

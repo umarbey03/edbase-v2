@@ -58,4 +58,36 @@ public interface INotificationFeed
     /// </param>
     Task<NotificationReadResultDto> MarkReadAsync(
         long userId, IReadOnlyCollection<long>? ids, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bildirishnomalarni BUTUNLAY o'chiradi (idempotent).
+    ///
+    /// ⚠️ TARIXIY IZOH: bu metod dastlab ATAYLAB yo'q edi — "o'qildi"
+    /// yetarli deb hisoblangan. 2026-08-15 da loyiha egasi qo'ng'iroqchaga
+    /// o'chirish tugmasi, belgilash rejimi va "belgilanganlarni o'chirish"
+    /// talab qildi. Ya'ni bu yerdagi qaror O'ZGARDI, esdan chiqmadi.
+    ///
+    /// ★ QAYTARIB BO'LMAYDI (soft-delete YO'Q): jadvalda `DeletedAt`
+    /// ustuni yo'q va uni faqat shu ekran uchun qo'shish har bir so'rovga
+    /// filtr, indeksga ustun va "chiqmayotgan bildirishnoma" turkumidagi
+    /// xatolarni olib kelardi. Shuning uchun klientda tasdiqlash oynasi
+    /// MAJBURIY.
+    /// </summary>
+    /// <param name="ids">
+    /// O'chiriladigan qatorlar — BO'SH BO'LMASLIGI SHART.
+    ///
+    /// 🔴 <c>MarkReadAsync</c> DAN FARQI SHUNDA: u yerda bo'sh ro'yxat
+    /// "hammasini" degani, bu yerda esa bunday MA'NO BERILMAYDI. Sabab —
+    /// xato narxi assimetrik: noto'g'ri "hammasini o'qildi" bir bosishda
+    /// qaytariladigan bezovtalik, noto'g'ri "hammasini o'chir" esa
+    /// ma'lumotning butunlay yo'qolishi. Klientdagi bitta bo'sh massiv
+    /// (belgilanmagan holatda yuborilgan so'rov) butun ro'yxatni yo'q
+    /// qilmasligi kerak.
+    ///
+    /// ★ BEGONA Id JIMGINA E'TIBORSIZ QOLDIRILADI, 403 QAYTMAYDI —
+    /// <see cref="MarkReadAsync"/> dagi AYNI sabab (mavjudlikni oshkor
+    /// qilmaslik).
+    /// </param>
+    Task<NotificationDeleteResultDto> DeleteAsync(
+        long userId, IReadOnlyCollection<long> ids, CancellationToken ct = default);
 }

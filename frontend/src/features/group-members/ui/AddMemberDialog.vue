@@ -6,6 +6,7 @@ import { addMember } from '@/entities/group'
 import { fetchUsers, USER_SEARCH_MIN } from '@/entities/user'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
+import { formatPhone } from '@/shared/lib/phone'
 import { useConfirm } from '@/shared/lib/useConfirm'
 // ⚠️ `UserDetailsDto` — `fetchUsers` AYNAN shuni qaytaradi. `UserDto` (auth
 //    shakli) BOSHQA tur: u kirgan foydalanuvchining O'ZI uchun va uning
@@ -161,7 +162,7 @@ async function askAdd(student: UserDetailsDto): Promise<void> {
               />
               <p
                 class="truncate text-xs text-slate-400"
-                v-text="student.email ?? student.phone ?? '—'"
+                v-text="student.email ?? (formatPhone(student.phone) || '—')"
               />
             </div>
 

@@ -6,6 +6,7 @@ import { fetchGroupMembers, memberStatusLabel, memberStatusTone } from '@/entiti
 import { canSeeStudentContact } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
+import { formatPhone, stripPhoneFormatting } from '@/shared/lib/phone'
 import { AppIcon, BaseBadge, DataStatus } from '@/shared/ui'
 
 /**
@@ -81,14 +82,14 @@ const errorMessage = computed(() =>
         <a
           v-if="member.phone !== null && member.phone.length > 0"
           class="tap-target inline-flex items-center justify-center gap-1.5 rounded-[9px] border border-transparent bg-green-500/15 px-2.5 text-xs font-semibold text-green-400 transition-colors hover:border-green-500"
-          :href="`tel:${member.phone}`"
-          :title="`Qo‘ng‘iroq: ${member.phone}`"
+          :href="`tel:${stripPhoneFormatting(member.phone)}`"
+          :title="`Qo‘ng‘iroq: ${formatPhone(member.phone)}`"
         >
           <AppIcon
             name="phone"
             :size="14"
           />
-          <span v-text="member.phone" />
+          <span v-text="formatPhone(member.phone)" />
         </a>
         <span
           v-else-if="showMissingPhoneNote"

@@ -5,7 +5,7 @@ import { channelLabel, channelTone, GROUP_CHAT_BODY_MAX } from '@/entities/group
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { formatFileSize } from '@/shared/lib/text'
 import type { GroupChatChannelName } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseModal, BaseSpinner, DataStatus } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseSpinner, DataStatus, ImageLightbox } from '@/shared/ui'
 
 import { CHAT_ATTACHMENT_MAX_FILES } from '../lib/send-chat-attachments'
 import { useGroupChatRoom } from '../model/useGroupChatRoom'
@@ -495,29 +495,28 @@ watch(
     </div>
 
     <!-- ============================ Yozish paneli =========================== -->
+    <!--
+      ============================ TELEGRAM NAQSHI ============================
+
+      Loyiha egasi (2026-08-15): *"chat yozish qismlari bilan pastdagi
+      menyular orasida ancha joy bo'sh qolyapti... ikonkalar ham dizayn ham
+      Telegram rasmiynikidek bir xil bo'lsin"*.
+
+      ILGARI: to'rtta ALOHIDA element yonma-yon turardi — emoji (o'z
+      ramkasi va foni bilan), qog'oz qisqich, matn maydoni (o'z ramkasi
+      bilan) va yuborish tugmasi. Uchta ramka bir qatorda "yamoq" bo'lib
+      ko'rinardi.
+
+      ENDI: BITTA pilyuska (emoji + matn + biriktirma uning ICHIDA) va
+      yonida ALOHIDA doira — yuborish. Telegram'da aynan shunday va
+      sababi amaliy: barmoq uchun ikkita yirik nishon qoladi, qolgani
+      esa matn maydonining bir qismi.
+    -->
     <form
-      class="mt-2.5 flex shrink-0 items-end gap-2"
+      class="mt-2 flex shrink-0 items-end gap-2"
       novalidate
       @submit.prevent="submit"
     >
-      <!--
-        Emoji CHAPDA: o'ng tomon yuborish tugmasiniki va u eski ilovadan
-        ko'chirilgan joyda qolishi kerak (barmoq o'sha burchakni "biladi").
-      -->
-      <ChatEmojiPicker
-        v-model="draft"
-        :target="input"
-        :max-length="GROUP_CHAT_BODY_MAX"
-      />
-
-      <!--
-        ★ R16b · FAYL BIRIKTIRISH. Emojidan KEYIN va matn maydonidan OLDIN —
-        Telegram'dagi tartib (qo'shimchalar chapda, yuborish o'ngda).
-
-        `accept` — TAVSIYA, tekshiruv EMAS: haqiqiy tur serverda SEHRLI
-        BAYTLARDAN aniqlanadi (`.jpg` deb nomlangan EXE 400 oladi). Bu yerda
-        u faqat telefon galereyasini to'g'ri ochish uchun.
-      -->
       <input
         ref="fileInput"
         class="hidden"
@@ -526,27 +525,24 @@ watch(
         accept="image/*,audio/*,application/pdf"
         @change="onFilesChosen"
       >
-      <button
-        type="button"
-        class="tap-target flex size-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
-        title="Fayl biriktirish"
-        aria-label="Fayl biriktirish"
-        @click="pickFiles"
-      >
-        <AppIcon
-          name="paperclip"
-          :size="18"
-        />
-      </button>
 
-      <div class="min-w-0 flex-1">
-        <label
-          class="sr-only"
-          for="group-chat-input"
-        >
-          Xabar matni
-        </label>
-        <!--
+      <div
+        class="flex min-w-0 flex-1 items-end gap-1 rounded-[22px] border border-line-strong bg-ink-900 py-1 pl-1 pr-1.5 transition-[border-color,box-shadow] focus-within:border-brand-500 focus-within:ring-3 focus-within:ring-brand-500/15"
+      >
+        <ChatEmojiPicker
+          v-model="draft"
+          :target="input"
+          :max-length="GROUP_CHAT_BODY_MAX"
+        />
+
+        <div class="min-w-0 flex-1">
+          <label
+            class="sr-only"
+            for="group-chat-input"
+          >
+            Xabar matni
+          </label>
+          <!--
           ★ `resize-y` OLIB TASHLANDI (2026-08-13): burchakdan tortib
           maydonni `max-h-32` gacha cho'zish mumkin edi va u xabarlar
           ro'yxatini emas, PANELNI surardi — foydalanuvchi o'z qo'li bilan
@@ -557,32 +553,73 @@ watch(
           quvvatlamaydigan brauzerda bugungi bir qatorli ko'rinish qoladi —
           ya'ni chekinish yo'q, faqat yaxshilanish bor.
         -->
-        <textarea
-          id="group-chat-input"
-          ref="input"
-          v-model="draft"
-          class="zn-input max-h-32 min-h-11 w-full resize-none overflow-y-auto rounded-3xl py-2.5 field-sizing-content"
-          rows="1"
-          :maxlength="GROUP_CHAT_BODY_MAX"
-          placeholder="Xabar yozing..."
-          @keydown="handleKeydown"
-        />
-        <!--
+          <!--
+            ★ `zn-input` OLIB TASHLANDI: u ramka, fon va o'z chekinishini
+            olib keladi — endi ular O'RAB TURGAN pilyuskada. Maydonning
+            o'zi butunlay shaffof bo'lishi kerak, aks holda pilyuska
+            ichida ikkinchi "quti" ko'rinardi.
+
+            🔴 `outline-none!` DAGI `!` SHART — OLIB TASHLAMANG.
+            `style.css` da global `:focus-visible { outline: 2px solid }`
+            qoidasi bor va u QATLAMSIZ (unlayered) yozilgan. Tailwind
+            utility'lari esa `@layer utilities` ichida — CSS qoidasiga
+            ko'ra qatlamsiz qoida QATLAMLIDAN doim ustun turadi, ya'ni
+            oddiy `outline-none` ishlamaydi.
+
+            Natijasi ko'rinib turgan xato edi: maydonga bosilganda
+            pilyuska ICHIDA to'g'ri burchakli ko'k to'rtburchak paydo
+            bo'lardi (loyiha egasining ekran surati).
+
+            ⚠️ FOKUS KO'RSATKICHI YO'QOLMADI, KO'CHDI: u endi
+            PILYUSKADA (`focus-within:border-brand-500` + 3px halqa) —
+            `.zn-input:focus` bilan AYNI ko'rinish. Klaviatura
+            foydalanuvchisi qayerda turganini baribir ko'radi.
+          -->
+          <textarea
+            id="group-chat-input"
+            ref="input"
+            v-model="draft"
+            class="max-h-32 w-full resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-2 text-[15px] leading-snug text-slate-100 outline-none! placeholder:text-slate-500 field-sizing-content"
+            rows="1"
+            :maxlength="GROUP_CHAT_BODY_MAX"
+            placeholder="Xabar yozing..."
+            @keydown="handleKeydown"
+          />
+          <!--
           Chegara SERVER bilan bir xil (2000). Server uzunini kesib tashlaydi,
           shuning uchun `maxlength` bilan oldini olamiz: jimgina kesilgan
           xabar foydalanuvchi uchun ma'lumot yo'qolishi bo'lardi.
         -->
-        <p
-          v-if="showCounter"
-          class="mt-1 pr-2 text-right text-[11px] tabular-nums text-dim"
+          <p
+            v-if="showCounter"
+            class="px-1.5 pb-1 text-right text-[11px] tabular-nums text-dim"
+          >
+            {{ draft.length }} / {{ GROUP_CHAT_BODY_MAX }}
+          </p>
+        </div>
+
+        <!--
+          ★ BIRIKTIRMA — pilyuskaning O'NG ichida (Telegram'dagi joy).
+          `accept` TAVSIYA, tekshiruv EMAS: haqiqiy tur serverda SEHRLI
+          BAYTLARDAN aniqlanadi (`.jpg` deb nomlangan EXE 400 oladi).
+        -->
+        <button
+          type="button"
+          class="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-ink-800 hover:text-slate-300"
+          title="Fayl biriktirish"
+          aria-label="Fayl biriktirish"
+          @click="pickFiles"
         >
-          {{ draft.length }} / {{ GROUP_CHAT_BODY_MAX }}
-        </p>
+          <AppIcon
+            name="paperclip"
+            :size="19"
+          />
+        </button>
       </div>
 
       <button
         type="submit"
-        class="tap-target flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-500 font-bold text-on-brand transition-colors disabled:opacity-40"
+        class="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-500 font-bold text-on-brand shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-40"
         :disabled="!canSubmit"
         :aria-label="
           room.cooldownSeconds.value > 0
@@ -610,24 +647,20 @@ watch(
     </form>
 
     <!--
-      Kattalashtirilgan rasm. `GradingQueueOverlay` dagi AYNI naqsh:
-      `BaseModal wide` + `max-h-[75dvh] object-contain`.
+      Kattalashtirilgan rasm.
+
+      ⚠️ ILGARI `BaseModal wide` EDI (2026-08-15 da almashtirildi): u OQ
+      kartochka va "Rasm" sarlavhasi bilan keladi, ya'ni rasm ekranni
+      to'ldirish o'rniga oq qutining ichida kichrayib qolardi. Endi
+      `ImageLightbox` — to'q yarim shaffof parda, Telegram'dagi kabi
+      (batafsil sabab o'sha komponentda).
 
       ★ ICHMA-ICH OYNA XAVFSIZ: `useModalHost` ESC steki faqat eng
       tepadagi qatlamni yopadi (izohi `zoomUrl` ustida).
     -->
-    <BaseModal
-      :open="zoomUrl !== null"
-      title="Rasm"
-      wide
+    <ImageLightbox
+      :src="zoomUrl"
       @close="zoomUrl = null"
-    >
-      <img
-        v-if="zoomUrl !== null"
-        :src="zoomUrl"
-        alt="Kattalashtirilgan rasm"
-        class="mx-auto max-h-[75dvh] w-auto rounded-lg object-contain"
-      >
-    </BaseModal>
+    />
   </div>
 </template>

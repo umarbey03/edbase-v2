@@ -4,6 +4,13 @@ import { computed, ref, watch } from 'vue'
 
 import { createUser, ROLE_OPTIONS, updateUser } from '@/entities/user'
 import { toUserMessage } from '@/shared/api'
+import {
+  formatPhoneInput,
+  maskPhoneField,
+  PHONE_INPUT_MAXLENGTH,
+  phoneDigits,
+  stripPhoneFormatting,
+} from '@/shared/lib/phone'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { UserDetailsDto, UserRoleName } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
@@ -59,8 +66,24 @@ const isEdit = computed(() => props.user !== null)
 const phoneRequired = computed(() => role.value !== 'Student')
 
 const phoneMissing = computed(
-  () => phoneRequired.value && phone.value.replace(/\D/g, '').length === 0,
+  () => phoneRequired.value && phoneDigits(phone.value).length === 0,
 )
+
+/**
+ * Serverga boradigan qiymat — maydondagi bo'shliqlarsiz.
+ *
+ * ★ COMPUTED, ikkita mutatsiyada takror chaqiruv EMAS: `create` va
+ * `update` AYNI qiymatni yuborishi shart. Ikki joyda qo'lda yozilsa,
+ * biri o'zgarganda ikkinchisi eski holida qolardi.
+ *
+ * Bo'sh maydon `null` bo'ladi — bo'sh SATR emas: server uchun "raqam
+ * yo'q" va "raqam bo'sh satr" bir xil narsa emas (birinchisi ustunni
+ * tozalaydi, ikkinchisi noto'g'ri qiymat yozardi).
+ */
+const phonePayload = computed<string | null>(() => {
+  const value = stripPhoneFormatting(phone.value)
+  return value.length > 0 ? value : null
+})
 
 /** Backend `role` ni oddiy `string` sifatida yuboradi — qat'iy turga tekshiramiz. */
 function isRoleName(value: string | null): value is UserRoleName {
@@ -77,7 +100,10 @@ function resetForm(): void {
   const rawRole = user?.role ?? null
   fullName.value = user?.fullName ?? ''
   email.value = user?.email ?? ''
-  phone.value = user?.phone ?? ''
+  // Serverdagi qiymat `+998901234567` — maydonga formatlangan holda
+  // tushadi, ya'ni tahrirlash oynasi ochilishi bilanoq yangi hisob
+  // yaratish oynasi bilan BIR XIL ko'rinadi.
+  phone.value = formatPhoneInput(user?.phone ?? '')
   role.value = isRoleName(rawRole) ? rawRole : 'Student'
   isActive.value = user?.isActive ?? true
   errorMessage.value = null
@@ -91,7 +117,7 @@ const createMutation = useMutation({
       fullName: fullName.value.trim(),
       email: email.value.trim(),
       role: role.value,
-      phone: phone.value.trim().length > 0 ? phone.value.trim() : null,
+      phone: phonePayload.value,
       isActive: isActive.value,
     }),
   onSuccess: () => {
@@ -108,7 +134,7 @@ const updateMutation = useMutation({
     updateUser(id, {
       fullName: fullName.value.trim(),
       email: email.value.trim(),
-      phone: phone.value.trim().length > 0 ? phone.value.trim() : null,
+      phone: phonePayload.value,
       role: role.value,
     }),
   onSuccess: () => {
@@ -218,13 +244,19 @@ async function handleSubmit(): Promise<void> {
             ? 'Kirish kodi shu raqamga ulangan Telegram hisobiga yuboriladi.'
             : undefined"
         >
+          <!--
+            ★ `:value` + `@input`, `v-model` EMAS — kursor har bosishda
+            satr oxiriga sakramasin (sabab `maskPhoneField` izohida).
+          -->
           <input
-            v-model="phone"
+            :value="phone"
             class="zn-input"
             type="tel"
             inputmode="tel"
             :required="phoneRequired"
-            placeholder="+998…"
+            :maxlength="PHONE_INPUT_MAXLENGTH"
+            placeholder="+998 90 123 45 67"
+            @input="phone = maskPhoneField($event.target as HTMLInputElement)"
           >
         </BaseField>
         <BaseField label="Rol">

@@ -201,7 +201,9 @@ export type { SessionStatsDto } from './api'
    ★ NEGA ALOHIDA BLOK: yuqoridagi bloklar bilan AYNI sabab — bu faylga
    bir necha tarmoq ayni vaqtda qo'shadi.                              */
 export type {
+  DeleteNotificationsRequest,
   MarkNotificationsReadRequest,
+  NotificationDeleteResultDto,
   NotificationDto,
   NotificationKindName,
   NotificationPageDto,
@@ -209,6 +211,16 @@ export type {
   NotificationUnreadDto,
 } from './api'
 /* ===== /R35/R36 ===== */
+
+/* ===== 2026-08-15 · O'Z PROFILINI TAHRIRLASH ===== */
+export type {
+  AvatarUploadedDto,
+  ChangePhoneRequest,
+  ConfirmPhoneRequest,
+  PhoneChangeStatusDto,
+  UpdateProfileRequest,
+} from './api'
+/* ===== /O'Z PROFILINI TAHRIRLASH ===== */
 
 export { GroupChatHubEvent, GroupChatHubMethod, HubEvent, HubMethod } from './realtime'
 export { NotificationHubEvent } from './realtime'

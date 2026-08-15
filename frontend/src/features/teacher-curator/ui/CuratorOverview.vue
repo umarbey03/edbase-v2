@@ -14,6 +14,7 @@ import {
 } from '@/entities/group'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
+import { formatPhone, stripPhoneFormatting } from '@/shared/lib/phone'
 import { useNow } from '@/shared/lib/use-now'
 import type { GroupDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
@@ -245,7 +246,7 @@ function curatorLabel(group: GroupDto): string {
                 <span
                   v-if="row.phone !== null"
                   class="text-[11px] text-slate-400"
-                  v-text="row.phone"
+                  v-text="formatPhone(row.phone)"
                 />
               </div>
 
@@ -288,8 +289,8 @@ function curatorLabel(group: GroupDto): string {
                 <a
                   v-if="row.phone !== null && row.phone.length > 0"
                   class="tap-target inline-flex items-center justify-center rounded-[9px] border border-transparent bg-green-500/15 px-2.5 text-green-400 transition-colors hover:border-green-500"
-                  :href="`tel:${row.phone}`"
-                  :title="`Qo‘ng‘iroq: ${row.phone}`"
+                  :href="`tel:${stripPhoneFormatting(row.phone)}`"
+                  :title="`Qo‘ng‘iroq: ${formatPhone(row.phone)}`"
                 >
                   <AppIcon
                     name="phone"
