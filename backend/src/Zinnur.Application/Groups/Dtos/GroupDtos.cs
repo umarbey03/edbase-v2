@@ -27,6 +27,12 @@ namespace Zinnur.Application.Groups.Dtos;
 /// Faol a'zolar soni. KURATOR guruhida a'zolar bevosita yo'q — ular
 /// <c>CuratorGroupId</c> orqali bog'langan ustoz guruhlaridan sanaladi.
 /// </param>
+/// <param name="ArchivedCount">
+/// Faol BO'LMAGAN a'zolar soni (ko'chirilgan + muzlatilgan + chiqarilgan,
+/// ya'ni <c>MemberStatus</c> — <c>Moved</c> + <c>Paused</c> + <c>Stopped</c>).
+/// Hisoblash doirasi <paramref name="MemberCount"/> bilan bir xil (kurator
+/// guruhida bog'langan ustoz guruhidan sanaladi).
+/// </param>
 /// <param name="SessionCount">Bekor qilinmagan darslar soni (jadval hajmi).</param>
 /// <param name="VideoStartLessonId">
 /// Video darslar QAYSI kurs darsidan boshlanadi. <c>null</c> — guruh kursni
@@ -108,6 +114,7 @@ public sealed record GroupDto(
     /// </summary>
     GroupStaffRole QuestionResponderRole,
     int MemberCount,
+    int ArchivedCount,
     int SessionCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);

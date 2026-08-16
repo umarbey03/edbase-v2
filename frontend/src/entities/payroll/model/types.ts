@@ -1,5 +1,5 @@
 import { monthNameCapitalized } from '@/shared/lib/datetime'
-import type { TeacherRateDto, UserRoleName } from '@/shared/types'
+import type { PayrollApprovalStatusName, TeacherRateDto, UserRoleName } from '@/shared/types'
 
 /* ==================================================================== rol === */
 
@@ -54,6 +54,28 @@ export function isValidPayrollPeriod(period: string): boolean {
   if (match === null) return false
   const month = Number(match[2])
   return month >= 1 && month <= 12
+}
+
+/* ============================================================ tasdiqlash/to'lov === */
+
+const APPROVAL_STATUS_LABELS: Record<PayrollApprovalStatusName, string> = {
+  Draft: 'Qoralama',
+  Approved: 'Tasdiqlangan',
+  Paid: 'To‘langan',
+}
+
+export function payrollApprovalStatusLabel(status: PayrollApprovalStatusName): string {
+  return APPROVAL_STATUS_LABELS[status]
+}
+
+const APPROVAL_STATUS_TONES: Record<PayrollApprovalStatusName, 'neutral' | 'warning' | 'success'> = {
+  Draft: 'neutral',
+  Approved: 'warning',
+  Paid: 'success',
+}
+
+export function payrollApprovalStatusTone(status: PayrollApprovalStatusName): 'neutral' | 'warning' | 'success' {
+  return APPROVAL_STATUS_TONES[status]
 }
 
 /** `<input type="date">` uchun bugungi sana, `YYYY-MM-DD` (MAHALLIY vaqtda). */

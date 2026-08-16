@@ -32,6 +32,33 @@ public class TeacherRate : BaseEntity
     /// <summary>Darsda QATNASHGAN har bir o'quvchi uchun bonus (so'm).</summary>
     public decimal PerStudentBonusRate { get; set; }
 
+    /// <summary>
+    /// ★ 2026-08-16 — OYLIK KAFOLATLANGAN SUMMA (asosan kurator uchun,
+    /// GetCourse/CIS bozorida odatiy model: "baza oylik + KPI", dars soniga
+    /// BOG'LIQ EMAS). 0 — bu stavkada baza oylik yo'q (faqat dars asosidagi
+    /// hisob). `PayrollService` buni davr uchun BIR MARTA qo'shadi (sessiya
+    /// sonidan qat'i nazar).
+    /// </summary>
+    public decimal BaseSalary { get; set; }
+
+    /// <summary>
+    /// ★ 2026-08-16 — har bir FAOL o'quvchi uchun oylik KPI bonusi (asosan
+    /// kurator uchun). Faol o'quvchilar soni <c>Group.AssistantId == userId</c>
+    /// bo'lgan guruhlardan hisoblanadi (`PayrollService.GetSummaryAsync`),
+    /// davr OXIRIDAGI holat bo'yicha — dars/sessiya bilan bog'liq emas.
+    /// </summary>
+    public decimal ActiveStudentBonusRate { get; set; }
+
+    /// <summary>
+    /// ★ 2026-08-16 — dars shanba/yakshanba yoki <c>Holidays</c> jadvalidagi
+    /// sanaga to'g'ri kelsa, <see cref="PerSessionRate"/>ga qo'llanadigan
+    /// ko'paytiruvchi (masalan <c>1.5</c> = +50%). <c>null</c> — ustama yo'q
+    /// (oddiy stavka, bugungi xatti-harakat). Bonusga (
+    /// <see cref="PerStudentBonusRate"/>) QO'LLANMAYDI — faqat asosiy
+    /// stavkaga (`LessonAccrualService`da qo'llanadi).
+    /// </summary>
+    public decimal? WeekendHolidayMultiplier { get; set; }
+
     /// <summary>Shu sanadan kuchga kiradi (mahalliy kalendar).</summary>
     public DateOnly ActiveFrom { get; set; }
 
@@ -64,5 +91,14 @@ public class TeacherRate : BaseEntity
 
         if (PerStudentBonusRate < 0)
             throw new DomainException("O'quvchi bonusi manfiy bo'lmaydi.");
+
+        if (BaseSalary < 0)
+            throw new DomainException("Baza oylik manfiy bo'lmaydi.");
+
+        if (ActiveStudentBonusRate < 0)
+            throw new DomainException("KPI bonusi manfiy bo'lmaydi.");
+
+        if (WeekendHolidayMultiplier is { } multiplier && multiplier < 1)
+            throw new DomainException("Dam olish/bayram ko'paytiruvchisi 1 dan kichik bo'lmaydi.");
     }
 }

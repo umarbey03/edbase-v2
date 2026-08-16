@@ -435,8 +435,17 @@ function openDetail(groupId: number): void {
                   narsa (guruhning JAMI dars soni) edi. Endi ustun FAQAT
                   o'z sarlavhasiga mos qiymatni ko'rsatadi.
                 -->
-                <td class="tabular-nums text-slate-400">
+                <td
+                  class="tabular-nums text-slate-400"
+                  :title="`Faol: ${group.memberCount} · Ko‘chirilgan/muzlatilgan/chiqarilgan: ${group.archivedCount}`"
+                >
                   {{ group.memberCount }} ta
+                  <span
+                    v-if="group.archivedCount > 0"
+                    class="text-dim"
+                  >
+                    +{{ group.archivedCount }}
+                  </span>
                 </td>
                 <!-- Muddat: boshlanish TEPADA, tugash PASTDA (loyiha egasi, 2026-08-15). -->
                 <td class="tabular-nums text-slate-400">

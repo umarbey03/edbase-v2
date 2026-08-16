@@ -192,16 +192,21 @@ interface MatrixColumn {
   session: ScheduledSessionDto
   totals: StatusTally
   totalsTitle: string
+  /** ★ 2026-08-16: shu dars uchun barcha o'quvchilardan jami yechilgan summa. */
+  amountTotal: number
 }
 
 /** Pastdagi "Jami" qatori — dars kesimida nechta o'quvchi qatnashgani. */
 const matrixColumns = computed<MatrixColumn[]>(() =>
   columns.value.map((session) => {
     const totals = emptyTally()
+    let amountTotal = 0
     for (const student of students.value) {
-      addStatus(totals, cellOf(session.id, student.studentId)?.status ?? null)
+      const cell = cellOf(session.id, student.studentId)
+      addStatus(totals, cell?.status ?? null)
+      amountTotal += cell?.lessonChargedAmount ?? 0
     }
-    return { session, totals, totalsTitle: tallyTitle(totals) }
+    return { session, totals, totalsTitle: tallyTitle(totals), amountTotal }
   }),
 )
 
@@ -820,9 +825,18 @@ function exportCsv(): void {
                   v-for="column in matrixColumns"
                   :key="column.session.id"
                   class="sticky bottom-0 z-[3] border-r border-t border-line bg-ink-800 px-2.5 py-2 text-center text-[11px] font-bold tabular-nums text-green-400"
-                  :title="column.totalsTitle"
+                  :title="`${column.totalsTitle} · ${formatMoney(column.amountTotal)} yechildi`"
                 >
                   +{{ column.totals.present }}
+                  <!-- ★ 2026-08-16 (loyiha egasi: "dars uchun qancha summa
+                       yechilgani ko'rsatilsin") — shu dars uchun barcha
+                       o'quvchilardan jami yechilgan summa, tally ostida. -->
+                  <p
+                    v-if="column.amountTotal > 0"
+                    class="mt-0.5 font-normal text-dim"
+                  >
+                    {{ formatMoney(column.amountTotal) }}
+                  </p>
                 </td>
                 <td class="sticky bottom-0 z-[3] border-t border-line bg-ink-800" />
               </tr>

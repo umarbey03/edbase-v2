@@ -55,22 +55,32 @@ function refresh(): void {
 
 /* ------------------------------------------------------------ yaratish */
 
-const newDate = ref('')
+// ★ 2026-08-16 (loyiha egasi: "bayram kunlari kiritishda date range qilish
+// imkoni bo'lishi kerak") — ikkita sana: bitta kunlik bayram uchun
+// `newEndDate` bo'sh qoldirilishi mumkin (boshlanish sanasiga teng
+// yuboriladi, `onCreate` da).
+const newStartDate = ref('')
+const newEndDate = ref('')
 const newLabel = ref('')
 const createError = ref<string | null>(null)
 const impactNote = ref<string | null>(null)
 
 const createMutation = useMutation({
-  mutationFn: (input: { date: string; label: string }) =>
-    createHoliday({ date: input.date, label: input.label }),
+  mutationFn: (input: { startDate: string; endDate: string; label: string }) =>
+    createHoliday(input),
   onSuccess: (impact) => {
-    newDate.value = ''
+    newStartDate.value = ''
+    newEndDate.value = ''
     newLabel.value = ''
     createError.value = null
+
+    const dayCount = impact.holidays.length
+    const dayWord = dayCount === 1 ? '1 kun' : `${dayCount} kun`
+    const skippedNote = impact.skippedCount > 0 ? ` (${impact.skippedCount} kun allaqachon mavjud edi, o'tkazib yuborildi)` : ''
     impactNote.value =
       impact.affectedGroupCount === 0
-        ? 'Bayram qo‘shildi. Hozircha bu sanaga to‘g‘ri keladigan rejalashtirilgan dars yo‘q edi.'
-        : `Bayram qo‘shildi: ${impact.affectedGroupCount} ta guruhning ${impact.cancelledSessionCount} ta darsi bekor qilindi va jadval oldinga surildi.`
+        ? `Bayram qo‘shildi (${dayWord}${skippedNote}). Hozircha bu sana(lar)ga to‘g‘ri keladigan rejalashtirilgan dars yo‘q edi.`
+        : `Bayram qo‘shildi (${dayWord}${skippedNote}): ${impact.affectedGroupCount} ta guruhning ${impact.cancelledSessionCount} ta darsi bekor qilindi va jadval oldinga surildi.`
     refresh()
   },
   onError: (error: unknown) => {
@@ -83,8 +93,14 @@ function onCreate(): void {
   createError.value = null
   impactNote.value = null
 
-  if (newDate.value.length === 0) {
-    createError.value = 'Bayram sanasini kiriting.'
+  if (newStartDate.value.length === 0) {
+    createError.value = 'Bayram boshlanish sanasini kiriting.'
+    return
+  }
+
+  const endDate = newEndDate.value.length > 0 ? newEndDate.value : newStartDate.value
+  if (endDate < newStartDate.value) {
+    createError.value = 'Tugash sanasi boshlanish sanasidan oldin bo‘lishi mumkin emas.'
     return
   }
 
@@ -94,7 +110,7 @@ function onCreate(): void {
     return
   }
 
-  createMutation.mutate({ date: newDate.value, label })
+  createMutation.mutate({ startDate: newStartDate.value, endDate, label })
 }
 
 /* ------------------------------------------------------------ o'chirish */
@@ -143,12 +159,23 @@ async function askDelete(holiday: HolidayDto): Promise<void> {
 
     <!-- ─────────────────────── YANGI BAYRAM ─────────────────────── -->
     <div class="mb-5 space-y-2.5 rounded-xl border border-line bg-ink-900 p-3.5">
-      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <BaseField label="Sana">
+      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <BaseField label="Boshlanish sanasi">
           <input
-            v-model="newDate"
+            v-model="newStartDate"
             class="zn-input"
             type="date"
+          >
+        </BaseField>
+        <BaseField
+          label="Tugash sanasi"
+          hint="Bo‘sh — bitta kunlik bayram"
+        >
+          <input
+            v-model="newEndDate"
+            class="zn-input"
+            type="date"
+            :min="newStartDate || undefined"
           >
         </BaseField>
         <BaseField

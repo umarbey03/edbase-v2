@@ -415,8 +415,17 @@ function openGroup(groupId: number): void {
                 <td class="tabular-nums text-slate-400">
                   {{ group.durationMinutes }} daq.
                 </td>
-                <td class="tabular-nums text-slate-400">
+                <td
+                  class="tabular-nums text-slate-400"
+                  :title="`Faol: ${group.memberCount} · Ko‘chirilgan/muzlatilgan/chiqarilgan: ${group.archivedCount}`"
+                >
                   {{ group.memberCount }}
+                  <span
+                    v-if="group.archivedCount > 0"
+                    class="text-dim"
+                  >
+                    +{{ group.archivedCount }}
+                  </span>
                 </td>
                 <td
                   class="text-slate-400"

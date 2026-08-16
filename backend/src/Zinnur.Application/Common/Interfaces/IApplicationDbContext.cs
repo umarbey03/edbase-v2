@@ -145,6 +145,12 @@ public interface IApplicationDbContext
     /// <summary>Ustoz/kurator haqi SNAPSHOT'i — izoh: <see cref="SessionPayout"/>.</summary>
     DbSet<SessionPayout> SessionPayouts { get; }
 
+    /// <summary>Oylik davri tasdiqlash/to'lov holati — izoh: <see cref="PayrollApproval"/>.</summary>
+    DbSet<PayrollApproval> PayrollApprovals { get; }
+
+    /// <summary>Qo'lda bonus/ushlab qolish — izoh: <see cref="PayrollAdjustment"/>.</summary>
+    DbSet<PayrollAdjustment> PayrollAdjustments { get; }
+
     // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
 
     /// <summary>

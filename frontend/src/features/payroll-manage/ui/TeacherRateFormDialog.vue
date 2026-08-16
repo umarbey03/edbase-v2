@@ -32,11 +32,18 @@ const role = ref<UserRoleName>('Teacher')
 const userId = ref<number | null>(null)
 const perSessionRateText = ref('')
 const perStudentBonusRateText = ref('')
+/** ★ 2026-08-16 — asosan kurator uchun: baza oylik + KPI (`TeacherRate.BaseSalary`/`ActiveStudentBonusRate`). */
+const baseSalaryText = ref('')
+const activeStudentBonusRateText = ref('')
+/** ★ 2026-08-16 — dam olish/bayram kuni asosiy stavkaga ko'paytiruvchi (masalan 1.5). Bo'sh — ustama yo'q. */
+const weekendMultiplierText = ref('')
 const activeFrom = ref(todayIsoDate())
 const isActive = ref(true)
 const errorMessage = ref<string | null>(null)
 
 const isEdit = computed(() => props.rate !== null)
+/** Baza oylik/KPI maydonlari FAQAT kurator (`Assistant`) uchun ko'rinadi — ustoz uchun ma'nosiz. */
+const showCuratorFields = computed(() => role.value === 'Assistant')
 
 function resetForm(): void {
   const rate = props.rate
@@ -44,6 +51,11 @@ function resetForm(): void {
   userId.value = rate?.userId ?? null
   perSessionRateText.value = rate === null ? '' : String(rate.perSessionRate)
   perStudentBonusRateText.value = rate === null ? '' : String(rate.perStudentBonusRate)
+  baseSalaryText.value = rate === null || rate.baseSalary === 0 ? '' : String(rate.baseSalary)
+  activeStudentBonusRateText.value =
+    rate === null || rate.activeStudentBonusRate === 0 ? '' : String(rate.activeStudentBonusRate)
+  weekendMultiplierText.value =
+    rate?.weekendHolidayMultiplier == null ? '' : String(rate.weekendHolidayMultiplier)
   activeFrom.value = rate?.activeFrom ?? todayIsoDate()
   isActive.value = rate?.isActive ?? true
   errorMessage.value = null
@@ -97,12 +109,48 @@ const perStudentBonusRateError = computed(() => {
   return null
 })
 
+/** Bo'sh maydon = 0 (baza oylik/KPI yo'q) — `perSessionRate`dan farqli, bu ikkovi IXTIYORIY. */
+const baseSalary = computed(() => (baseSalaryText.value.trim().length === 0 ? 0 : parseMoneyInput(baseSalaryText.value)))
+const activeStudentBonusRate = computed(() =>
+  activeStudentBonusRateText.value.trim().length === 0 ? 0 : parseMoneyInput(activeStudentBonusRateText.value),
+)
+const weekendMultiplier = computed(() =>
+  weekendMultiplierText.value.trim().length === 0 ? null : parseMoneyInput(weekendMultiplierText.value),
+)
+
+const baseSalaryError = computed(() => {
+  if (baseSalaryText.value.trim().length === 0) return null
+  if (baseSalary.value === null) return 'Baza oylikni raqam bilan kiriting.'
+  if (baseSalary.value > MAX_AMOUNT) return 'Baza oylik juda katta.'
+  return null
+})
+
+const activeStudentBonusRateError = computed(() => {
+  if (activeStudentBonusRateText.value.trim().length === 0) return null
+  if (activeStudentBonusRate.value === null) return 'KPI bonusini raqam bilan kiriting.'
+  if (activeStudentBonusRate.value > MAX_AMOUNT) return 'KPI bonusi juda katta.'
+  return null
+})
+
+const weekendMultiplierError = computed(() => {
+  if (weekendMultiplierText.value.trim().length === 0) return null
+  const value = weekendMultiplier.value
+  if (value === null) return 'Ko‘paytiruvchini raqam bilan kiriting (masalan 1.5).'
+  if (value < 1 || value > 10) return 'Ko‘paytiruvchi 1..10 oralig‘ida bo‘lishi kerak.'
+  return null
+})
+
 const canSubmit = computed(
   () =>
     perSessionRate.value !== null &&
     perSessionRateError.value === null &&
     perStudentBonusRate.value !== null &&
     perStudentBonusRateError.value === null &&
+    baseSalary.value !== null &&
+    baseSalaryError.value === null &&
+    activeStudentBonusRate.value !== null &&
+    activeStudentBonusRateError.value === null &&
+    weekendMultiplierError.value === null &&
     activeFrom.value.length > 0,
 )
 
@@ -119,6 +167,9 @@ const mutation = useMutation({
       activeFrom: activeFrom.value,
       isActive: isActive.value,
       userId: userId.value,
+      baseSalary: baseSalary.value ?? 0,
+      activeStudentBonusRate: activeStudentBonusRate.value ?? 0,
+      weekendHolidayMultiplier: weekendMultiplier.value,
     }
     const rate = props.rate
     return rate === null ? createTeacherRate(payload) : updateTeacherRate(rate.id, payload)
@@ -251,6 +302,62 @@ async function submit(): Promise<void> {
             inputmode="numeric"
             autocomplete="off"
             placeholder="3000"
+          >
+        </BaseField>
+      </div>
+
+      <div
+        v-if="showCuratorFields"
+        class="mt-3 rounded-lg border border-line bg-ink-950 p-3"
+      >
+        <p class="mb-2.5 text-xs text-slate-400">
+          Kurator uchun — dars soniga bog'liq bo'lmagan qism (GetCourse/CIS bozorida odatiy model).
+        </p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <BaseField
+            label="Baza oylik (so‘m, ixtiyoriy)"
+            :error="baseSalaryError"
+            :hint="baseSalary === null || baseSalary === 0 ? '' : formatSum(baseSalary)"
+          >
+            <input
+              v-model="baseSalaryText"
+              class="zn-input tabular-nums"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="0"
+            >
+          </BaseField>
+          <BaseField
+            label="KPI — faol o‘quvchi boshiga (so‘m, ixtiyoriy)"
+            :error="activeStudentBonusRateError"
+            :hint="activeStudentBonusRate === null || activeStudentBonusRate === 0 ? '' : formatSum(activeStudentBonusRate)"
+          >
+            <input
+              v-model="activeStudentBonusRateText"
+              class="zn-input tabular-nums"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="0"
+            >
+          </BaseField>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <BaseField
+          label="Dam olish/bayram kuni ko‘paytiruvchisi (ixtiyoriy)"
+          :error="weekendMultiplierError"
+          hint="Masalan 1.5 = shanba/yakshanba yoki bayram kunidagi darsda asosiy stavka +50%. Bo‘sh — ustama yo‘q."
+        >
+          <input
+            v-model="weekendMultiplierText"
+            class="zn-input tabular-nums"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="1.5"
           >
         </BaseField>
       </div>

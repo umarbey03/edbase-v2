@@ -25,6 +25,20 @@ namespace Zinnur.Application.Payroll.Services;
 /// ReconcilePayoutAsync`) bir marta yoziladi va QOTIB QOLADI.
 ///
 /// ══════════════════════════════════════════════════════════════════════
+/// ★ 2026-08-16 — BAZA OYLIK + KPI, TASDIQLASH/TO'LOV, QO'LDA TUZATISH
+/// ══════════════════════════════════════════════════════════════════════
+/// Tadqiqot (Tutorbase/GetCourse/Skyeng/Preply) asosida uchta yangi qism
+/// qo'shildi:
+///   1) BAZA OYLIK + KPI (asosan kurator uchun, `TeacherRate.BaseSalary`/
+///      `ActiveStudentBonusRate`) — SESSIYAGA BOG'LIQ EMAS, shuning uchun
+///      bu ikkovi <see cref="SessionPayout"/>dan emas, DAVR OXIRIDAGI holat
+///      bo'yicha JONLI hisoblanadi (`BuildRateContextAsync`).
+///   2) TASDIQLASH/TO'LOV (<see cref="PayrollApproval"/>) — Draft → Approved
+///      → Paid. Yozuv topilmasa davr Draft hisoblanadi.
+///   3) QO'LDA TUZATISH (<see cref="PayrollAdjustment"/>) — faqat Draft
+///      davrda qo'shiladi/o'chiriladi (`EnsureDraftAsync`).
+///
+/// ══════════════════════════════════════════════════════════════════════
 /// ★ RUXSAT — FAQAT ADMIN
 /// ══════════════════════════════════════════════════════════════════════
 /// <see cref="Zinnur.Application.Payments.Services.PaymentService"/> dan
@@ -46,6 +60,8 @@ public sealed class PayrollService(
 
         var billingPeriod = ParsePeriodOrCurrent(period);
         var (fromUtc, toUtc) = billingPeriod.UtcRange(timeZone.TimeZone);
+        var periodStart = billingPeriod.FirstDay();
+        var periodEndDate = billingPeriod.AddMonths(1).FirstDay().AddDays(-1);
 
         var payouts = await (
             from p in db.SessionPayouts.AsNoTracking()
@@ -56,19 +72,43 @@ public sealed class PayrollService(
                 p.RateMissing, p.Excluded))
             .ToListAsync(ct);
 
-        if (payouts.Count == 0)
+        // ── BAZA OYLIK/KPI NOMZODLARI: darsi bo'lmasa ham ro'yxatda ko'rinsin ──
+        //
+        // Masalan yangi qabul qilingan kurator — hali biror darsi yo'q, lekin
+        // baza oylik + KPI bonusi allaqachon hisoblanishi kerak.
+        var staffUsers = await db.Users.AsNoTracking()
+            .Where(u => u.IsActive && (u.Role == UserRole.Teacher || u.Role == UserRole.Assistant))
+            .Select(u => new { u.Id, u.Role })
+            .ToListAsync(ct);
+
+        var rates = await db.TeacherRates.AsNoTracking()
+            .Where(r => r.IsActive && r.ActiveFrom <= periodEndDate)
+            .ToListAsync(ct);
+
+        var ratesByUser = staffUsers.ToDictionary(
+            u => u.Id, u => TeacherRateSelection.PickRate(rates, u.Id, u.Role, periodEndDate));
+
+        var payoutUserIds = payouts.Select(p => p.UserId).Distinct();
+        var salaryUserIds = ratesByUser
+            .Where(kv => kv.Value is { BaseSalary: > 0 } or { ActiveStudentBonusRate: > 0 })
+            .Select(kv => kv.Key);
+        var relevantUserIds = payoutUserIds.Union(salaryUserIds).ToList();
+
+        if (relevantUserIds.Count == 0)
             return new PayrollSummaryDto(billingPeriod.ToString(), [], 0m);
 
-        var userIds = payouts.Select(p => p.UserId).Distinct().ToList();
-
         var users = await db.Users.AsNoTracking()
-            .Where(u => userIds.Contains(u.Id))
+            .Where(u => relevantUserIds.Contains(u.Id))
             .Select(u => new { u.Id, u.FullName, u.Role })
             .ToDictionaryAsync(u => u.Id, ct);
 
+        var activeStudentCounts = await GetActiveStudentCountsAsync(relevantUserIds, ct);
+        var adjustmentTotals = await GetAdjustmentTotalsAsync(relevantUserIds, periodStart, ct);
+        var approvals = await GetApprovalsAsync(relevantUserIds, periodStart, ct);
+
         var rows = new List<PayrollSummaryRowDto>();
 
-        foreach (var userId in userIds)
+        foreach (var userId in relevantUserIds)
         {
             if (!users.TryGetValue(userId, out var user)) continue;
 
@@ -79,10 +119,22 @@ public sealed class PayrollService(
             var missingRate = userPayouts.Count(p => p.RateMissing && !p.Excluded);
             var excludedCount = userPayouts.Count(p => p.Excluded);
 
+            ratesByUser.TryGetValue(userId, out var rate);
+            var baseSalaryAmount = rate?.BaseSalary ?? 0m;
+            activeStudentCounts.TryGetValue(userId, out var activeStudents);
+            var kpiBonusAmount = activeStudents * (rate?.ActiveStudentBonusRate ?? 0m);
+
+            adjustmentTotals.TryGetValue(userId, out var adjustmentAmount);
+            approvals.TryGetValue(userId, out var approval);
+
+            var total = baseAmount + bonusAmount + baseSalaryAmount + kpiBonusAmount + adjustmentAmount;
+
             rows.Add(new PayrollSummaryRowDto(
                 userId, user.FullName, user.Role, userPayouts.Count,
                 userPayouts.Sum(p => p.AttendedStudents),
-                baseAmount, bonusAmount, baseAmount + bonusAmount, missingRate, excludedCount));
+                baseAmount, bonusAmount, baseSalaryAmount, activeStudents, kpiBonusAmount,
+                adjustmentAmount, total, missingRate, excludedCount,
+                approval?.Status ?? PayrollApprovalStatus.Draft, approval?.ApprovedAt, approval?.PaidAt));
         }
 
         rows.Sort((a, b) => b.Total.CompareTo(a.Total));
@@ -103,6 +155,8 @@ public sealed class PayrollService(
 
         var billingPeriod = ParsePeriodOrCurrent(period);
         var (fromUtc, toUtc) = billingPeriod.UtcRange(timeZone.TimeZone);
+        var periodStart = billingPeriod.FirstDay();
+        var periodEndDate = billingPeriod.AddMonths(1).FirstDay().AddDays(-1);
 
         var sessionRows = await (
             from p in db.SessionPayouts.AsNoTracking()
@@ -120,16 +174,162 @@ public sealed class PayrollService(
                 p.BonusAmount,
                 p.RateMissing,
                 p.Excluded,
+                p.PremiumMultiplierApplied,
             })
             .ToListAsync(ct);
 
-        var rows = sessionRows.ConvertAll(s => new PayrollSessionRowDto(
+        var sessions = sessionRows.ConvertAll(s => new PayrollSessionRowDto(
             s.SessionId, s.GroupId, s.GroupName, s.ScheduledStart, s.AttendedStudents,
             s.Excluded ? 0m : s.SessionRate, s.Excluded ? 0m : s.BonusAmount,
-            s.Excluded ? 0m : s.SessionRate + s.BonusAmount, s.RateMissing, s.Excluded));
+            s.Excluded ? 0m : s.SessionRate + s.BonusAmount, s.RateMissing, s.Excluded,
+            s.PremiumMultiplierApplied));
+
+        var rates = await db.TeacherRates.AsNoTracking()
+            .Where(r => r.IsActive && r.ActiveFrom <= periodEndDate)
+            .ToListAsync(ct);
+        var rate = TeacherRateSelection.PickRate(rates, userId, user.Role, periodEndDate);
+
+        var baseSalaryAmount = rate?.BaseSalary ?? 0m;
+        var activeStudentCounts = await GetActiveStudentCountsAsync([userId], ct);
+        activeStudentCounts.TryGetValue(userId, out var activeStudentCount);
+        var kpiBonusAmount = activeStudentCount * (rate?.ActiveStudentBonusRate ?? 0m);
+
+        var adjustments = await ProjectAdjustments(db.PayrollAdjustments.AsNoTracking()
+                .Where(a => a.UserId == userId && a.PeriodStart == periodStart))
+            .ToListAsync(ct);
+
+        var approvals = await GetApprovalsAsync([userId], periodStart, ct);
+        approvals.TryGetValue(userId, out var approval);
+
+        var grandTotal = sessions.Sum(s => s.Total) + baseSalaryAmount + kpiBonusAmount
+            + adjustments.Sum(a => a.Amount);
 
         return new PayrollDetailDto(
-            user.Id, user.FullName, user.Role, billingPeriod.ToString(), rows, rows.Sum(r => r.Total));
+            user.Id, user.FullName, user.Role, billingPeriod.ToString(), sessions,
+            baseSalaryAmount, activeStudentCount, kpiBonusAmount, adjustments, grandTotal,
+            approval?.Status ?? PayrollApprovalStatus.Draft, approval?.ApprovedAt, approval?.PaidAt);
+    }
+
+    // ================================================================= tuzatish
+
+    public async Task<PayrollAdjustmentDto> CreateAdjustmentAsync(
+        CreatePayrollAdjustmentRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureAdminAsync(actorId, ct);
+
+        var billingPeriod = ParsePeriod(request.Period);
+        var periodStart = billingPeriod.FirstDay();
+
+        await EnsureDraftAsync(request.UserId, periodStart, ct);
+
+        if (!await db.Users.AsNoTracking().AnyAsync(u => u.Id == request.UserId, ct))
+            throw new NotFoundException(nameof(User), request.UserId);
+
+        if (request.Amount < -MaxAmount || request.Amount > MaxAmount)
+            throw Invalid("amount", "Tuzatish summasi 1 000 000 000 dan oshmasligi kerak.");
+
+        var adjustment = new PayrollAdjustment
+        {
+            UserId = request.UserId,
+            PeriodStart = periodStart,
+            Amount = request.Amount,
+            Reason = (request.Reason ?? string.Empty).Trim(),
+            CreatedById = actorId,
+        };
+        adjustment.Validate();
+
+        db.PayrollAdjustments.Add(adjustment);
+        await SaveAsync(ct);
+
+        return await ProjectAdjustments(db.PayrollAdjustments.AsNoTracking().Where(a => a.Id == adjustment.Id))
+            .FirstAsync(ct);
+    }
+
+    public async Task DeleteAdjustmentAsync(long id, long actorId, CancellationToken ct = default)
+    {
+        await EnsureAdminAsync(actorId, ct);
+
+        var adjustment = await db.PayrollAdjustments.FirstOrDefaultAsync(a => a.Id == id, ct)
+            ?? throw new NotFoundException(nameof(PayrollAdjustment), id);
+
+        await EnsureDraftAsync(adjustment.UserId, adjustment.PeriodStart, ct);
+
+        db.PayrollAdjustments.Remove(adjustment);
+        await SaveAsync(ct);
+    }
+
+    // ================================================================= tasdiqlash/to'lov
+
+    public async Task ApproveAsync(
+        PayrollPeriodActionRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureAdminAsync(actorId, ct);
+
+        var detail = await GetDetailAsync(request.UserId, request.Period, actorId, ct);
+
+        if (detail.ApprovalStatus != PayrollApprovalStatus.Draft)
+            throw new ConflictException("Bu davr allaqachon tasdiqlangan yoki to'langan.");
+
+        var periodStart = ParsePeriod(request.Period).FirstDay();
+        var now = clock.GetUtcNow();
+
+        var approval = await db.PayrollApprovals
+            .FirstOrDefaultAsync(a => a.UserId == request.UserId && a.PeriodStart == periodStart, ct);
+
+        if (approval is null)
+        {
+            approval = new PayrollApproval { UserId = request.UserId, PeriodStart = periodStart };
+            db.PayrollApprovals.Add(approval);
+        }
+
+        approval.Status = PayrollApprovalStatus.Approved;
+        approval.SnapshotTotalAmount = detail.GrandTotal;
+        approval.ApprovedById = actorId;
+        approval.ApprovedAt = now;
+        approval.UpdatedAt = now;
+
+        await SaveAsync(ct);
+    }
+
+    public async Task MarkPaidAsync(
+        PayrollPeriodActionRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureAdminAsync(actorId, ct);
+
+        var periodStart = ParsePeriod(request.Period).FirstDay();
+
+        var approval = await db.PayrollApprovals
+            .FirstOrDefaultAsync(a => a.UserId == request.UserId && a.PeriodStart == periodStart, ct)
+            ?? throw new ConflictException("Bu davr hali tasdiqlanmagan — avval tasdiqlang.");
+
+        if (approval.Status != PayrollApprovalStatus.Approved)
+            throw new ConflictException("Faqat tasdiqlangan davrni to'landi deb belgilash mumkin.");
+
+        var now = clock.GetUtcNow();
+        approval.Status = PayrollApprovalStatus.Paid;
+        approval.PaidById = actorId;
+        approval.PaidAt = now;
+        approval.UpdatedAt = now;
+
+        await SaveAsync(ct);
+    }
+
+    /// <summary>Faqat Draft davrda o'zgartirish mumkin — tasdiqlangandan keyin summa "muzlaydi".</summary>
+    private async Task EnsureDraftAsync(long userId, DateOnly periodStart, CancellationToken ct)
+    {
+        var status = await db.PayrollApprovals.AsNoTracking()
+            .Where(a => a.UserId == userId && a.PeriodStart == periodStart)
+            .Select(a => (PayrollApprovalStatus?)a.Status)
+            .FirstOrDefaultAsync(ct);
+
+        if (status is not (null or PayrollApprovalStatus.Draft))
+            throw new ConflictException("Bu davr allaqachon tasdiqlangan/to'langan — tuzatish qo'shib/o'chirib bo'lmaydi.");
     }
 
     // ================================================================= stavka
@@ -159,6 +359,9 @@ public sealed class PayrollService(
             Role = request.Role,
             PerSessionRate = request.PerSessionRate,
             PerStudentBonusRate = request.PerStudentBonusRate,
+            BaseSalary = request.BaseSalary,
+            ActiveStudentBonusRate = request.ActiveStudentBonusRate,
+            WeekendHolidayMultiplier = request.WeekendHolidayMultiplier,
             ActiveFrom = RequireDate(request.ActiveFrom, nameof(request.ActiveFrom)),
             IsActive = request.IsActive,
         };
@@ -185,6 +388,9 @@ public sealed class PayrollService(
         rate.Role = request.Role;
         rate.PerSessionRate = request.PerSessionRate;
         rate.PerStudentBonusRate = request.PerStudentBonusRate;
+        rate.BaseSalary = request.BaseSalary;
+        rate.ActiveStudentBonusRate = request.ActiveStudentBonusRate;
+        rate.WeekendHolidayMultiplier = request.WeekendHolidayMultiplier;
         rate.ActiveFrom = RequireDate(request.ActiveFrom, nameof(request.ActiveFrom));
         rate.IsActive = request.IsActive;
 
@@ -208,6 +414,59 @@ public sealed class PayrollService(
 
     // ================================================================= yordamchi
 
+    /// <summary>
+    /// Kurator/xodimning DAVR OXIRIDAGI faol o'quvchilari — KPI hisob asosi
+    /// (`TeacherRate.ActiveStudentBonusRate` izohi). <c>Group.AssistantId</c>
+    /// bo'lgan HAR QANDAY guruhdagi (oddiy YOKI kurator turi) faol a'zolar
+    /// yig'indisi — kurator guruhida to'g'ridan-to'g'ri a'zo bo'lmagani
+    /// uchun (`GroupService` dagi bilan AYNI qoida) bu yig'indi ikki marta
+    /// sanamaydi.
+    /// </summary>
+    private async Task<Dictionary<long, int>> GetActiveStudentCountsAsync(
+        IEnumerable<long> userIds, CancellationToken ct)
+    {
+        var ids = userIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await db.GroupMembers.AsNoTracking()
+            .Where(m => m.Status == MemberStatus.Active
+                     && m.Group!.AssistantId != null
+                     && ids.Contains(m.Group!.AssistantId!.Value))
+            .GroupBy(m => m.Group!.AssistantId!.Value)
+            .Select(g => new { UserId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.UserId, x => x.Count, ct);
+    }
+
+    private async Task<Dictionary<long, decimal>> GetAdjustmentTotalsAsync(
+        IEnumerable<long> userIds, DateOnly periodStart, CancellationToken ct)
+    {
+        var ids = userIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await db.PayrollAdjustments.AsNoTracking()
+            .Where(a => ids.Contains(a.UserId) && a.PeriodStart == periodStart)
+            .GroupBy(a => a.UserId)
+            .Select(g => new { UserId = g.Key, Sum = g.Sum(a => a.Amount) })
+            .ToDictionaryAsync(x => x.UserId, x => x.Sum, ct);
+    }
+
+    private async Task<Dictionary<long, PayrollApproval>> GetApprovalsAsync(
+        IEnumerable<long> userIds, DateOnly periodStart, CancellationToken ct)
+    {
+        var ids = userIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await db.PayrollApprovals.AsNoTracking()
+            .Where(a => ids.Contains(a.UserId) && a.PeriodStart == periodStart)
+            .ToDictionaryAsync(a => a.UserId, ct);
+    }
+
+    private static IQueryable<PayrollAdjustmentDto> ProjectAdjustments(IQueryable<PayrollAdjustment> rows) =>
+        rows.OrderByDescending(a => a.CreatedAt)
+            .Select(a => new PayrollAdjustmentDto(
+                a.Id, a.UserId, a.PeriodStart, a.Amount, a.Reason, a.CreatedById,
+                a.CreatedBy == null ? null : a.CreatedBy.FullName, a.CreatedAt));
+
     private async Task ValidateRateAsync(TeacherRate rate, CancellationToken ct)
     {
         if (!Enum.IsDefined(rate.Role) || rate.Role is not (UserRole.Teacher or UserRole.Assistant))
@@ -218,6 +477,15 @@ public sealed class PayrollService(
 
         if (rate.PerStudentBonusRate < 0 || rate.PerStudentBonusRate > MaxAmount)
             throw Invalid("perStudentBonusRate", "Bonus stavkasi 0..1 000 000 000 oralig'ida bo'lishi kerak.");
+
+        if (rate.BaseSalary < 0 || rate.BaseSalary > MaxAmount)
+            throw Invalid("baseSalary", "Baza oylik 0..1 000 000 000 oralig'ida bo'lishi kerak.");
+
+        if (rate.ActiveStudentBonusRate < 0 || rate.ActiveStudentBonusRate > MaxAmount)
+            throw Invalid("activeStudentBonusRate", "KPI bonusi 0..1 000 000 000 oralig'ida bo'lishi kerak.");
+
+        if (rate.WeekendHolidayMultiplier is { } multiplier && (multiplier < 1 || multiplier > 10))
+            throw Invalid("weekendHolidayMultiplier", "Ko'paytiruvchi 1..10 oralig'ida bo'lishi kerak.");
 
         if (rate.UserId is { } userId)
         {
@@ -267,6 +535,9 @@ public sealed class PayrollService(
             r.Role,
             r.PerSessionRate,
             r.PerStudentBonusRate,
+            r.BaseSalary,
+            r.ActiveStudentBonusRate,
+            r.WeekendHolidayMultiplier,
             r.ActiveFrom,
             r.IsActive,
             r.UserId != null ? 1 : 0,
@@ -282,7 +553,7 @@ public sealed class PayrollService(
         catch (DbUpdateException)
         {
             throw new ConflictException(
-                "Stavka yozuvi boshqa so'rov bilan to'qnashdi. Sahifani yangilab, qaytadan urinib ko'ring.");
+                "Yozuv boshqa so'rov bilan to'qnashdi. Sahifani yangilab, qaytadan urinib ko'ring.");
         }
     }
 

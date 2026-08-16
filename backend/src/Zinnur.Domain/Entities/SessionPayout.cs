@@ -52,6 +52,16 @@ public class SessionPayout : BaseEntity
     public decimal BonusAmount { get; set; }
 
     /// <summary>
+    /// ★ 2026-08-16 — shu darsda haqiqatda qo'llangan dam olish/bayram
+    /// ko'paytiruvchisi (<c>TeacherRate.WeekendHolidayMultiplier</c>).
+    /// Ustama yo'q bo'lsa <c>1</c>. <see cref="SessionRate"/> ALLAQACHON
+    /// shu ko'paytiruvchi bilan hisoblangan — bu maydon faqat SHAFFOFLIK
+    /// uchun (detail ko'rinishida "nega bu kunning stavkasi boshqacha"
+    /// savoliga javob).
+    /// </summary>
+    public decimal PremiumMultiplierApplied { get; set; } = 1m;
+
+    /// <summary>
     /// Stavka topilmaganmi (rol/xodim uchun hech qanday <see cref="TeacherRate"/>
     /// sozlanmagan) — shunday bo'lsa <see cref="SessionRate"/>/<see cref="BonusAmount"/>
     /// ikkalasi ham 0, lekin sabab "stavka yo'q", "bepul dars" EMAS.

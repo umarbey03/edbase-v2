@@ -105,6 +105,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SessionPayout> SessionPayouts => Set<SessionPayout>();
 
+    public DbSet<PayrollApproval> PayrollApprovals => Set<PayrollApproval>();
+
+    public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
+
     // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
 
     public DbSet<SessionRecording> SessionRecordings => Set<SessionRecording>();

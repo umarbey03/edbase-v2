@@ -141,6 +141,18 @@ function confirmDelete(): void {
           <span class="block text-[11px] font-normal text-slate-400">
             + {{ formatMoney(rate.perStudentBonusRate) }} / o‘quvchi
           </span>
+          <span
+            v-if="rate.baseSalary > 0 || rate.activeStudentBonusRate > 0"
+            class="block text-[11px] font-normal text-brand-300"
+          >
+            baza {{ formatMoney(rate.baseSalary) }} + KPI {{ formatMoney(rate.activeStudentBonusRate) }}
+          </span>
+          <span
+            v-if="rate.weekendHolidayMultiplier !== null"
+            class="block text-[11px] font-normal text-amber-400"
+          >
+            dam olish/bayram × {{ rate.weekendHolidayMultiplier }}
+          </span>
         </p>
         <div class="flex shrink-0 items-center gap-2">
           <BaseButton

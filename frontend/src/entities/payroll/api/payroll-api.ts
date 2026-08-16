@@ -1,7 +1,10 @@
 import { http } from '@/shared/api'
 import type {
+  CreatePayrollAdjustmentRequest,
   CreateTeacherRateRequest,
+  PayrollAdjustmentDto,
   PayrollDetailDto,
+  PayrollPeriodActionRequest,
   PayrollSummaryDto,
   TeacherRateDto,
   UpdateTeacherRateRequest,
@@ -47,4 +50,26 @@ export function updateTeacherRate(id: number, body: UpdateTeacherRateRequest): P
 
 export function deleteTeacherRate(id: number): Promise<void> {
   return http.delete<void>(`${BASE}/rates/${id}`)
+}
+
+/* ------------------------------------------------------------ tuzatish */
+
+export function createPayrollAdjustment(
+  body: CreatePayrollAdjustmentRequest,
+): Promise<PayrollAdjustmentDto> {
+  return http.post<PayrollAdjustmentDto>(`${BASE}/adjustments`, body)
+}
+
+export function deletePayrollAdjustment(id: number): Promise<void> {
+  return http.delete<void>(`${BASE}/adjustments/${id}`)
+}
+
+/* ------------------------------------------------------- tasdiqlash/to'lov */
+
+export function approvePayrollPeriod(body: PayrollPeriodActionRequest): Promise<void> {
+  return http.post<void>(`${BASE}/approve`, body)
+}
+
+export function markPayrollPeriodPaid(body: PayrollPeriodActionRequest): Promise<void> {
+  return http.post<void>(`${BASE}/mark-paid`, body)
 }

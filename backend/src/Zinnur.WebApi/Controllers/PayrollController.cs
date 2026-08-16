@@ -69,6 +69,51 @@ public sealed class PayrollController(IPayrollService payroll) : ControllerBase
         return NoContent();
     }
 
+    // ---------------------------------------------------------------- tuzatish
+
+    [HttpPost("adjustments")]
+    [ProducesResponseType<PayrollAdjustmentDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PayrollAdjustmentDto>> CreateAdjustment(
+        [FromBody] CreatePayrollAdjustmentRequest request, CancellationToken ct)
+    {
+        var created = await payroll.CreateAdjustmentAsync(request, CurrentUserId, ct);
+        return CreatedAtAction(nameof(GetDetail), new { userId = created.UserId }, created);
+    }
+
+    [HttpDelete("adjustments/{id:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteAdjustment(long id, CancellationToken ct)
+    {
+        await payroll.DeleteAdjustmentAsync(id, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    // ---------------------------------------------------------------- tasdiqlash/to'lov
+
+    /// <summary>Davrni tasdiqlaydi — jami summa suratga olinadi (`PayrollService.ApproveAsync`).</summary>
+    [HttpPost("approve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Approve([FromBody] PayrollPeriodActionRequest request, CancellationToken ct)
+    {
+        await payroll.ApproveAsync(request, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    /// <summary>Tasdiqlangan davrni "to'landi" deb belgilaydi.</summary>
+    [HttpPost("mark-paid")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkPaid([FromBody] PayrollPeriodActionRequest request, CancellationToken ct)
+    {
+        await payroll.MarkPaidAsync(request, CurrentUserId, ct);
+        return NoContent();
+    }
+
     private long CurrentUserId =>
         long.Parse(
             User.FindFirstValue(ClaimTypes.NameIdentifier)!,

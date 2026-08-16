@@ -244,8 +244,12 @@ export type {
 
 /* ===== Bosqich 4 · Oylik hisoblash (2026-08-16) ===== */
 export type {
+  CreatePayrollAdjustmentRequest,
   CreateTeacherRateRequest,
+  PayrollAdjustmentDto,
+  PayrollApprovalStatusName,
   PayrollDetailDto,
+  PayrollPeriodActionRequest,
   PayrollSessionRowDto,
   PayrollSummaryDto,
   PayrollSummaryRowDto,

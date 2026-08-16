@@ -1,36 +1,45 @@
 <script setup lang="ts">
-import { useQuery } from '@tanstack/vue-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import PayrollDetailDialog from '@/features/payroll-manage/ui/PayrollDetailDialog.vue'
 import TeacherRatesCard from '@/features/payroll-manage/ui/TeacherRatesCard.vue'
 import {
+  approvePayrollPeriod,
   currentPayrollPeriod,
   fetchPayrollSummary,
   isValidPayrollPeriod,
+  markPayrollPeriodPaid,
+  payrollApprovalStatusLabel,
+  payrollApprovalStatusTone,
   payrollRoleLabel,
 } from '@/entities/payroll'
 import { toUserMessage } from '@/shared/api'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import { formatMoney } from '@/shared/lib/money'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import {
   AppIcon,
   BaseBadge,
+  BaseButton,
   BaseCard,
   DataStatus,
   PageHeader,
 } from '@/shared/ui'
 import type { IconName } from '@/shared/ui'
+import type { PayrollSummaryRowDto } from '@/shared/types'
 
 /**
- * OYLIK HISOBLASH (Bosqich 4) — ustoz/kurator haqi. FAQAT Admin.
+ * OYLIK HISOBLASH (Bosqich 4 → 2026-08-16 upgrade) — ustoz/kurator haqi.
+ * FAQAT Admin.
  *
- * Hisobot HAR SO'ROVDA hisoblanadi (`PayrollService` — alohida jurnal yo'q),
- * ya'ni "To'landi" degan belgi HALI YO'Q — bu kelajakdagi bosqich (reja
- * hujjati). Shu sabab bu sahifa faqat KO'RSATADI, "to'landi" tugmasi yo'q.
+ * ★ 2026-08-16 — TASDIQLASH/TO'LOV OQIMI qo'shildi (Tutorbase/GetCourse
+ * uslubidagi Draft → Approved → Paid): har qator endi "Holat" ustuniga va
+ * mos amal tugmasiga ega. Baza oylik/KPI bonusi (kurator uchun) va qo'lda
+ * tuzatishlar summasi "Jami"ga kiradi, tafsiloti `PayrollDetailDialog`da.
  *
  * `ManageAcademicSettingsPage` dagi tab naqshi bilan AYNI: "Hisobot" va
- * "Stavkalar" — ikkinchisi CRUD, birinchisi faqat o'qish.
+ * "Stavkalar" — ikkinchisi CRUD, birinchisi faqat o'qish (+ tasdiqlash amali).
  */
 interface Section {
   key: string
@@ -46,6 +55,8 @@ const SECTIONS: Section[] = [
 const active = ref<string>(SECTIONS[0]!.key)
 
 const { isDesktop } = useBreakpoint()
+const queryClient = useQueryClient()
+const confirm = useConfirm()
 
 const period = ref(currentPayrollPeriod())
 
@@ -74,13 +85,83 @@ function openDetail(userId: number): void {
   detailUserId.value = userId
   detailOpen.value = true
 }
+
+/* ------------------------------------------------------- tasdiqlash/to'lov */
+
+const actionError = ref<string | null>(null)
+const actingUserId = ref<number | null>(null)
+
+function invalidateSummary(): void {
+  void queryClient.invalidateQueries({ queryKey: ['payroll', 'summary'] })
+  void queryClient.invalidateQueries({ queryKey: ['payroll', 'detail'] })
+}
+
+const approveMutation = useMutation({
+  mutationFn: (row: PayrollSummaryRowDto) =>
+    approvePayrollPeriod({ userId: row.userId, period: effectivePeriod.value ?? currentPayrollPeriod() }),
+  onSuccess: () => {
+    actionError.value = null
+    invalidateSummary()
+  },
+  onError: (error: unknown) => {
+    actionError.value = toUserMessage(error)
+  },
+  onSettled: () => {
+    actingUserId.value = null
+  },
+})
+
+const markPaidMutation = useMutation({
+  mutationFn: (row: PayrollSummaryRowDto) =>
+    markPayrollPeriodPaid({ userId: row.userId, period: effectivePeriod.value ?? currentPayrollPeriod() }),
+  onSuccess: () => {
+    actionError.value = null
+    invalidateSummary()
+  },
+  onError: (error: unknown) => {
+    actionError.value = toUserMessage(error)
+  },
+  onSettled: () => {
+    actingUserId.value = null
+  },
+})
+
+async function askApprove(row: PayrollSummaryRowDto): Promise<void> {
+  actionError.value = null
+
+  const ok = await confirm({
+    title: 'Davrni tasdiqlash',
+    message: `${row.fullName} uchun ${formatMoney(row.total)} summasi tasdiqlanadi va suratga olinadi.`,
+    confirmLabel: 'Tasdiqlash',
+    tone: 'warning',
+    details: ['Tasdiqlangandan keyin bu davrga tuzatish qo‘shib/o‘chirib bo‘lmaydi.'],
+  })
+  if (!ok) return
+
+  actingUserId.value = row.userId
+  approveMutation.mutate(row)
+}
+
+async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
+  actionError.value = null
+
+  const ok = await confirm({
+    title: 'To‘landi deb belgilash',
+    message: `${row.fullName} uchun ${formatMoney(row.total)} summasi to‘langan deb belgilanadi.`,
+    confirmLabel: 'To‘landi',
+  })
+  if (!ok) return
+
+  actingUserId.value = row.userId
+  markPaidMutation.mutate(row)
+}
 </script>
 
 <template>
   <div>
     <PageHeader
       title="Oylik hisoblash"
-      subtitle="Ustoz va kurator haqi — yakunlangan darslar va qatnashgan o‘quvchilar asosida. Faqat Admin ko‘radi."
+      subtitle="Ustoz va kurator haqi — yakunlangan darslar, baza oylik/KPI va tuzatishlar asosida. Faqat Admin ko‘radi."
     />
 
     <div
@@ -135,6 +216,13 @@ function openDetail(userId: number): void {
         </div>
       </div>
 
+      <p
+        v-if="actionError !== null"
+        class="mb-3 rounded-lg border border-rose-500/25 bg-rose-500/10 p-2.5 text-xs text-rose-200"
+        role="alert"
+        v-text="actionError"
+      />
+
       <DataStatus
         :pending="summaryQuery.isPending.value"
         :error="errorMessage"
@@ -171,14 +259,33 @@ function openDetail(userId: number): void {
               </div>
               <p class="mt-1 text-xs text-slate-400">
                 {{ row.sessionCount }} dars · {{ row.totalStudentsAttended }} qatnashgan
+                <span v-if="row.activeStudentCount > 0">· {{ row.activeStudentCount }} faol o‘quvchi (KPI)</span>
               </p>
-              <p class="text-sm font-semibold tabular-nums text-slate-100">
-                {{ formatMoney(row.total) }}
-                <span
-                  v-if="row.sessionsWithoutRate > 0"
-                  class="ml-1.5 text-xs font-normal text-amber-400"
-                >· {{ row.sessionsWithoutRate }} darsga stavka topilmadi</span>
-              </p>
+              <div class="mt-1 flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold tabular-nums text-slate-100">
+                  {{ formatMoney(row.total) }}
+                  <span
+                    v-if="row.sessionsWithoutRate > 0"
+                    class="ml-1.5 text-xs font-normal text-amber-400"
+                  >· {{ row.sessionsWithoutRate }} darsga stavka topilmadi</span>
+                </p>
+                <BaseBadge :tone="payrollApprovalStatusTone(row.approvalStatus)">
+                  {{ payrollApprovalStatusLabel(row.approvalStatus) }}
+                </BaseBadge>
+              </div>
+              <div
+                v-if="row.approvalStatus !== 'Paid'"
+                class="mt-2 flex justify-end"
+              >
+                <BaseButton
+                  size="sm"
+                  variant="secondary"
+                  :loading="actingUserId === row.userId && (approveMutation.isPending.value || markPaidMutation.isPending.value)"
+                  @click="row.approvalStatus === 'Draft' ? askApprove(row) : askMarkPaid(row)"
+                >
+                  {{ row.approvalStatus === 'Draft' ? 'Tasdiqlash' : 'To‘landi deb belgilash' }}
+                </BaseButton>
+              </div>
             </li>
           </ul>
 
@@ -196,7 +303,19 @@ function openDetail(userId: number): void {
                   <th>Qatnashgan</th>
                   <th>Asosiy</th>
                   <th>Bonus</th>
+                  <th
+                    title="Baza oylik + KPI bonusi (kurator)"
+                  >
+                    Baza/KPI
+                  </th>
+                  <th
+                    title="Qo'lda qo'shilgan bonus/ushlab qolish"
+                  >
+                    Tuzatish
+                  </th>
                   <th>Jami</th>
+                  <th>Holat</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -231,6 +350,18 @@ function openDetail(userId: number): void {
                   <td class="tabular-nums text-slate-300">
                     {{ formatMoney(row.bonusAmount) }}
                   </td>
+                  <td
+                    class="tabular-nums text-slate-300"
+                    :title="`Baza oylik: ${formatMoney(row.baseSalaryAmount)} · KPI (${row.activeStudentCount} faol o‘quvchi): ${formatMoney(row.kpiBonusAmount)}`"
+                  >
+                    {{ formatMoney(row.baseSalaryAmount + row.kpiBonusAmount) }}
+                  </td>
+                  <td
+                    class="tabular-nums"
+                    :class="row.adjustmentAmount < 0 ? 'text-rose-400' : 'text-slate-300'"
+                  >
+                    {{ row.adjustmentAmount === 0 ? '—' : formatMoney(row.adjustmentAmount) }}
+                  </td>
                   <td class="tabular-nums font-semibold text-slate-100">
                     {{ formatMoney(row.total) }}
                     <span
@@ -243,6 +374,22 @@ function openDetail(userId: number): void {
                         :size="13"
                       />
                     </span>
+                  </td>
+                  <td>
+                    <BaseBadge :tone="payrollApprovalStatusTone(row.approvalStatus)">
+                      {{ payrollApprovalStatusLabel(row.approvalStatus) }}
+                    </BaseBadge>
+                  </td>
+                  <td>
+                    <BaseButton
+                      v-if="row.approvalStatus !== 'Paid'"
+                      size="sm"
+                      variant="secondary"
+                      :loading="actingUserId === row.userId && (approveMutation.isPending.value || markPaidMutation.isPending.value)"
+                      @click="row.approvalStatus === 'Draft' ? askApprove(row) : askMarkPaid(row)"
+                    >
+                      {{ row.approvalStatus === 'Draft' ? 'Tasdiqlash' : 'To‘landi' }}
+                    </BaseButton>
                   </td>
                 </tr>
               </tbody>

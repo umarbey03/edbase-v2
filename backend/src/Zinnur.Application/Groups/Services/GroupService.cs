@@ -1286,6 +1286,14 @@ public sealed class GroupService(
                 && (m.GroupId == g.Id
                     || (g.Type == GroupType.Curator && m.Group!.CuratorGroupId == g.Id))),
 
+            // ArchivedCount — ko'chirilgan (Moved) + muzlatilgan (Paused) +
+            // chiqarilgan (Stopped). Hisoblash doirasi yuqoridagi faol
+            // a'zolar soni bilan bir xil (kurator guruhida bog'langan ustoz
+            // guruhidan sanaladi).
+            db.GroupMembers.Count(m => m.Status != MemberStatus.Active
+                && (m.GroupId == g.Id
+                    || (g.Type == GroupType.Curator && m.Group!.CuratorGroupId == g.Id))),
+
             db.LiveSessions.Count(s => s.GroupId == g.Id && s.Status != SessionStatus.Cancelled),
 
             // ★ BAYRAM KALENDARI (2026-08-16): `EndDate` endi HAQIQIY oxirgi
@@ -1358,6 +1366,7 @@ public sealed class GroupService(
         QuestionResponderRole: p.QuestionResponderRole,
 
         p.MemberCount,
+        p.ArchivedCount,
         p.SessionCount,
         p.CreatedAt,
         p.UpdatedAt);
@@ -1419,6 +1428,7 @@ public sealed class GroupService(
         GroupStaffRole AssignmentGraderRole,
         GroupStaffRole QuestionResponderRole,
         int MemberCount,
+        int ArchivedCount,
         int SessionCount,
         DateTimeOffset? LastSessionStart,
         DateTimeOffset CreatedAt,

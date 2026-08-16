@@ -51,8 +51,19 @@ public sealed class HolidayService(
         var actor = await LoadActorAsync(actorId, ct);
         EnsureCanManage(actor);
 
-        if (request.Date == default)
-            throw Invalid(DateField, "Bayram sanasini kiriting.");
+        if (request.StartDate == default)
+            throw Invalid(StartDateField, "Boshlanish sanasini kiriting.");
+
+        // Bo'sh (default) tugash sanasi = bitta kunlik bayram — frontend
+        // ikkalasini ham teng yuboradi, lekin eski so'rovchilar uchun ham
+        // xavfsiz zaxira.
+        var endDate = request.EndDate == default ? request.StartDate : request.EndDate;
+        if (endDate < request.StartDate)
+            throw Invalid(EndDateField, "Tugash sanasi boshlanish sanasidan oldin bo'lishi mumkin emas.");
+
+        var rangeDays = endDate.DayNumber - request.StartDate.DayNumber + 1;
+        if (rangeDays > MaxRangeDays)
+            throw Invalid(EndDateField, $"Bayram oralig'i {MaxRangeDays} kundan oshmasligi kerak.");
 
         var label = (request.Label ?? string.Empty).Trim();
         if (label.Length == 0)
@@ -61,55 +72,84 @@ public sealed class HolidayService(
         if (label.Length > Holiday.MaxLabelLength)
             throw Invalid(LabelField, "Bayram nomi juda uzun.");
 
-        if (await db.Holidays.AsNoTracking().AnyAsync(h => h.Date == request.Date, ct))
-            throw new ConflictException("Bu sana allaqachon bayram sifatida belgilangan.");
-
-        var holiday = new Holiday { Date = request.Date, Label = label, CreatedById = actorId };
-        holiday.Validate();
-        db.Holidays.Add(holiday);
-
-        // ── SHU KUNGA TO'G'RI KELADIGAN BARCHA guruhlarning darsini topamiz ──
-        //
-        // Mahalliy kun chegaralari -> UTC oralig'i: `ScheduledStart` bazada
-        // UTC saqlanadi, ya'ni to'g'ridan-to'g'ri `DateOnly` bilan solishtirib
-        // bo'lmaydi (`LiveSessionService.GetCalendarAsync` dagi bilan AYNI
-        // naqsh).
-        var zone = timeZone.TimeZone;
-        var dayStart = LocalWallClock.StartOfDayUtc(request.Date, zone);
-        var dayEnd = LocalWallClock.StartOfDayUtc(request.Date.AddDays(1), zone);
-
-        var affectedSessions = await db.LiveSessions
-            .AsTracking()
-            .Include(s => s.Group)
-            .Where(s => s.Status == SessionStatus.Scheduled
-                     && s.ScheduledStart >= dayStart && s.ScheduledStart < dayEnd)
+        var existingDates = await db.Holidays.AsNoTracking()
+            .Where(h => h.Date >= request.StartDate && h.Date <= endDate)
+            .Select(h => h.Date)
             .ToListAsync(ct);
+        var existingSet = existingDates.ToHashSet();
 
+        var zone = timeZone.TimeZone;
         var now = clock.GetUtcNow();
         var reason = "Bayram: " + label;
 
-        foreach (var session in affectedSessions)
-            session.Cancel(reason, now);
+        var createdHolidays = new List<Holiday>();
+        var allAffectedSessions = new List<LiveSession>();
+        var allAffectedGroups = new Dictionary<long, Group>();
+        var skippedCount = 0;
 
-        // ── HAR TA'SIRLANGAN GURUH UCHUN JADVAL QAYTA TUZILADI ──
+        // ── HAR KUN UCHUN ALOHIDA `Holiday` QATORI ──
+        //
+        // Entity darajasida "oraliq" tushunchasi yo'q (unique `Date`), shuning
+        // uchun oraliq shu yerda kunlarga YOYILADI. Guruhlar uchun jadval
+        // qayta tuzish esa OXIRIDA, guruh bo'yicha BIR MARTA (pastda) —
+        // aks holda 10 kunlik bayramda bitta guruh 10 marta qayta tuzilardi.
+        for (var date = request.StartDate; date <= endDate; date = date.AddDays(1))
+        {
+            if (existingSet.Contains(date))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            var holiday = new Holiday { Date = date, Label = label, CreatedById = actorId };
+            holiday.Validate();
+            db.Holidays.Add(holiday);
+            createdHolidays.Add(holiday);
+
+            // Mahalliy kun chegaralari -> UTC oralig'i: `ScheduledStart` bazada
+            // UTC saqlanadi, ya'ni to'g'ridan-to'g'ri `DateOnly` bilan
+            // solishtirib bo'lmaydi (`LiveSessionService.GetCalendarAsync`
+            // dagi bilan AYNI naqsh).
+            var dayStart = LocalWallClock.StartOfDayUtc(date, zone);
+            var dayEnd = LocalWallClock.StartOfDayUtc(date.AddDays(1), zone);
+
+            var affectedSessions = await db.LiveSessions
+                .AsTracking()
+                .Include(s => s.Group)
+                .Where(s => s.Status == SessionStatus.Scheduled
+                         && s.ScheduledStart >= dayStart && s.ScheduledStart < dayEnd)
+                .ToListAsync(ct);
+
+            foreach (var session in affectedSessions)
+            {
+                session.Cancel(reason, now);
+                allAffectedSessions.Add(session);
+                allAffectedGroups[session.Group!.Id] = session.Group!;
+            }
+        }
+
+        if (createdHolidays.Count == 0)
+            throw new ConflictException("Tanlangan sana(lar) allaqachon bayram sifatida belgilangan.");
+
+        // ── HAR TA'SIRLANGAN GURUH UCHUN JADVAL QAYTA TUZILADI (BIR MARTA) ──
         //
         // `ScheduleService.RegenerateAsync` allaqachon `Holidays` jadvalini
-        // (shu orqali yangi yozilgan bayramni ham) `ExcludedDatesAsync` bilan
-        // o'qiydi, ya'ni bekor qilingan darsning o'rniga oxiriga BITTA
+        // (shu orqali yangi yozilgan bayramlarni ham) `ExcludedDatesAsync`
+        // bilan o'qiydi, ya'ni bekor qilingan darsning o'rniga oxiriga BITTA
         // qo'shimcha dars AVTOMATIK qo'shiladi — alohida "dars qo'shish"
         // kodi shart emas (izoh: `ScheduleGenerator.Build`).
-        var affectedGroups = affectedSessions
-            .Select(s => s.Group!)
-            .DistinctBy(g => g.Id)
-            .ToList();
-
-        foreach (var group in affectedGroups)
+        foreach (var group in allAffectedGroups.Values)
             await schedule.RegenerateAsync(group, ct);
 
         await db.SaveChangesAsync(ct);
 
-        var dto = await GetDtoAsync(holiday.Id, ct);
-        return new HolidayImpactDto(dto, affectedGroups.Count, affectedSessions.Count);
+        var holidayIds = createdHolidays.Select(h => h.Id).ToList();
+        var dtos = await Project(db.Holidays.AsNoTracking()
+                .Where(h => holidayIds.Contains(h.Id))
+                .OrderBy(h => h.Date))
+            .ToListAsync(ct);
+
+        return new HolidayImpactDto(dtos, skippedCount, allAffectedGroups.Count, allAffectedSessions.Count);
     }
 
     public async Task DeleteAsync(long id, long actorId, CancellationToken ct = default)
@@ -145,9 +185,6 @@ public sealed class HolidayService(
 
     // ================================================================= ichki yordamchi
 
-    private async Task<HolidayDto> GetDtoAsync(long id, CancellationToken ct) =>
-        await Project(db.Holidays.AsNoTracking().Where(h => h.Id == id)).FirstAsync(ct);
-
     private IQueryable<HolidayDto> Project(IQueryable<Holiday> rows) =>
         rows.Select(h => new HolidayDto(
             h.Id,
@@ -160,6 +197,8 @@ public sealed class HolidayService(
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
 
-    private const string DateField = "date";
+    private const int MaxRangeDays = 31;
+    private const string StartDateField = "startDate";
+    private const string EndDateField = "endDate";
     private const string LabelField = "label";
 }

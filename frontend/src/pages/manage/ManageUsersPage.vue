@@ -649,7 +649,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
           class="divide-y divide-line"
         >
           <li
-            v-for="user in users"
+            v-for="(user, index) in users"
             :key="user.id"
             class="cursor-pointer p-3.5 transition-colors hover:bg-ink-800"
             role="button"
@@ -676,6 +676,10 @@ async function bulkSetActive(active: boolean): Promise<void> {
                   @click.stop
                   @change="toggleSelected(user)"
                 >
+                <span
+                  class="shrink-0 tabular-nums text-xs text-dim"
+                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                />
                 <p
                   class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
                   v-text="user.fullName ?? '—'"
@@ -748,6 +752,9 @@ async function bulkSetActive(active: boolean): Promise<void> {
                     @change="toggleSelectAllVisible"
                   >
                 </th>
+                <th class="w-10">
+                  <span class="sr-only">№</span>
+                </th>
                 <th>Ism</th>
                 <th>Email</th>
                 <th>Telefon</th>
@@ -760,7 +767,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
             </thead>
             <tbody>
               <tr
-                v-for="user in users"
+                v-for="(user, index) in users"
                 :key="user.id"
                 class="cursor-pointer"
                 role="button"
@@ -780,6 +787,15 @@ async function bulkSetActive(active: boolean): Promise<void> {
                     @change="toggleSelected(user)"
                   >
                 </td>
+                <!--
+                  ★ RAQAM SAHIFA BO'YICHA GLOBAL — `ManageGroupsPage.vue`dagi
+                  xuddi shu naqsh: `index + 1` bo'lsa har sahifa "1, 2, 3..."
+                  bilan qayta boshlanardi.
+                -->
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                />
                 <td
                   class="font-medium text-slate-100"
                   v-text="user.fullName ?? '—'"

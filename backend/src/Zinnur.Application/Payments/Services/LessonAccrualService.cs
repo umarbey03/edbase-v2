@@ -359,16 +359,27 @@ public sealed class LessonAccrualService(
         var attended = await db.Attendances.AsNoTracking()
             .CountAsync(a => a.SessionId == session.Id && a.Status != AttendanceStatus.Absent, ct);
 
+        // ★ 2026-08-16 — DAM OLISH/BAYRAM USTAMASI: dars shanba/yakshanba
+        // yoki `Holidays` jadvalidagi sanaga to'g'ri kelsa va stavka egasi
+        // `WeekendHolidayMultiplier` sozlagan bo'lsa, FAQAT asosiy stavkaga
+        // qo'llanadi (`TeacherRate.WeekendHolidayMultiplier` izohi) — bonusga
+        // tegilmaydi.
+        var isWeekend = lessonDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        var isHoliday = !isWeekend
+            && await db.Holidays.AsNoTracking().AnyAsync(h => h.Date == lessonDate, ct);
+        var multiplier = isWeekend || isHoliday ? rate?.WeekendHolidayMultiplier ?? 1m : 1m;
+
         db.SessionPayouts.Add(new SessionPayout
         {
             SessionId = session.Id,
             UserId = hostId,
             Role = role,
             AttendedStudents = attended,
-            SessionRate = rate?.PerSessionRate ?? 0m,
+            SessionRate = (rate?.PerSessionRate ?? 0m) * multiplier,
             BonusAmount = attended * (rate?.PerStudentBonusRate ?? 0m),
             RateMissing = rate is null,
             Excluded = targetExcluded,
+            PremiumMultiplierApplied = multiplier,
         });
 
         return true;

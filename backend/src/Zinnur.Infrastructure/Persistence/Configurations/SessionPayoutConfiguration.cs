@@ -21,6 +21,13 @@ public sealed class SessionPayoutConfiguration : IEntityTypeConfiguration<Sessio
         builder.Property(p => p.BonusAmount)
             .HasPrecision(PaymentConfiguration.MoneyPrecision, PaymentConfiguration.MoneyScale);
 
+        // ★ `HasDefaultValue(1)` — ESKI (bu ustun qo'shilishidan oldingi)
+        // qatorlarni "ustama yo'q" (1x) deb TO'LDIRISH uchun, C# tomondagi
+        // `= 1m` ARTIQCHA (faqat yangi obyektga tegishli, ustunga emas).
+        builder.Property(p => p.PremiumMultiplierApplied)
+            .HasPrecision(PaymentConfiguration.MoneyPrecision, PaymentConfiguration.MoneyScale)
+            .HasDefaultValue(1m);
+
         // ★ BITTA DARS — BITTA HAQ YOZUVI (`LiveSession.HostId` yagona).
         builder.HasIndex(p => p.SessionId)
             .IsUnique()

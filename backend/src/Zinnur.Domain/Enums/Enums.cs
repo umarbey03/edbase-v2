@@ -261,3 +261,20 @@ public enum PaymentMethod
     Cash = 0,
     Card = 1,
 }
+
+/// <summary>
+/// Oylik davri holati (2026-08-16, `PayrollApproval`) — Tutorbase/GetCourse
+/// uslubidagi Draft → Approved → Paid oqimi. Tartib MUHIM (bazaga int
+/// sifatida yoziladi).
+/// </summary>
+public enum PayrollApprovalStatus
+{
+    /// <summary>Hali ko'rib chiqilmagan — summa istalgan vaqt o'zgarishi mumkin.</summary>
+    Draft = 0,
+
+    /// <summary>Admin tasdiqladi — summa suratga olindi (`SnapshotTotalAmount`).</summary>
+    Approved = 1,
+
+    /// <summary>Xodimga to'landi — davr yopiq deb hisoblanadi.</summary>
+    Paid = 2,
+}

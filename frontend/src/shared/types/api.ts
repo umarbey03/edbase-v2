@@ -465,6 +465,11 @@ export interface GroupDto {
   questionResponderRole: GroupStaffRoleName
   /* ===== /R33 + R40 ===== */
   memberCount: number
+  /**
+   * Faol BO'LMAGAN a'zolar soni (ko'chirilgan + muzlatilgan + chiqarilgan).
+   * Hisoblash doirasi `memberCount` bilan bir xil.
+   */
+  archivedCount: number
   sessionCount: number
   createdAt: string
   updatedAt: string | null
@@ -2974,14 +2979,21 @@ export interface HolidayDto {
   createdAt: string
 }
 
+/**
+ * `endDate` — sana oralig'i (2026-08-16: "date range"); bitta kunlik bayram
+ * uchun ikkalasi teng yuboriladi.
+ */
 export interface CreateHolidayRequest {
-  date: string
+  startDate: string
+  endDate: string
   label: string
 }
 
-/** `POST /api/v1/holidays` javobi — bayram + ta'sirlangan guruh/dars soni. */
+/** `POST /api/v1/holidays` javobi — yaratilgan kunlar + ta'sirlangan guruh/dars soni. */
 export interface HolidayImpactDto {
-  holiday: HolidayDto
+  holidays: HolidayDto[]
+  /** Oraliqda allaqachon mavjud bo'lgani uchun o'tkazib yuborilgan kunlar soni. */
+  skippedCount: number
   affectedGroupCount: number
   cancelledSessionCount: number
 }
@@ -2999,6 +3011,12 @@ export interface TeacherRateDto {
   role: UserRoleName
   perSessionRate: number
   perStudentBonusRate: number
+  /** Oylik kafolatlangan summa (asosan kurator uchun) — 0 = yo'q. */
+  baseSalary: number
+  /** Har bir faol o'quvchi uchun oylik KPI bonusi (asosan kurator uchun) — 0 = yo'q. */
+  activeStudentBonusRate: number
+  /** Dam olish/bayram kuni asosiy stavkaga ko'paytiruvchi — `null` = ustama yo'q. */
+  weekendHolidayMultiplier: number | null
   /** `DateOnly` — `YYYY-MM-DD`. */
   activeFrom: string
   isActive: boolean
@@ -3014,6 +3032,9 @@ export interface CreateTeacherRateRequest {
   activeFrom: string
   userId?: number | null
   isActive: boolean
+  baseSalary: number
+  activeStudentBonusRate: number
+  weekendHolidayMultiplier: number | null
 }
 
 /** ★ `PUT` — TO'LIQ ALMASHTIRISH (izoh: `UpdateTariffRequest` bilan AYNI naqsh). */
@@ -3024,7 +3045,13 @@ export interface UpdateTeacherRateRequest {
   activeFrom: string
   isActive: boolean
   userId: number | null
+  baseSalary: number
+  activeStudentBonusRate: number
+  weekendHolidayMultiplier: number | null
 }
+
+/** Oylik davri holati (2026-08-16) — Draft → Approved → Paid. */
+export type PayrollApprovalStatusName = 'Draft' | 'Approved' | 'Paid'
 
 export interface PayrollSummaryRowDto {
   userId: number
@@ -3034,9 +3061,21 @@ export interface PayrollSummaryRowDto {
   totalStudentsAttended: number
   baseAmount: number
   bonusAmount: number
+  /** Davr uchun BIR MARTA qo'shiladigan oylik kafolatlangan summa (kurator baza oylik). */
+  baseSalaryAmount: number
+  /** Davr OXIRIDAGI faol o'quvchilar soni (KPI hisob asosi). */
+  activeStudentCount: number
+  kpiBonusAmount: number
+  /** Qo'lda qo'shilgan tuzatishlar yig'indisi (ishorasi bilan). */
+  adjustmentAmount: number
   total: number
   /** Stavka topilmagan darslar soni — 0 bo'lmasa hisobot TO'LIQ EMAS. */
   sessionsWithoutRate: number
+  /** Bepul deb belgilanib, ustoz HAM haq olmagan darslar soni. */
+  sessionsExcluded: number
+  approvalStatus: PayrollApprovalStatusName
+  approvedAt: string | null
+  paidAt: string | null
 }
 
 export interface PayrollSummaryDto {
@@ -3055,6 +3094,36 @@ export interface PayrollSessionRowDto {
   bonusAmount: number
   total: number
   rateMissing: boolean
+  /** Bepul dars deb belgilanib, ustoz shu darsdan haq olmadi. */
+  excluded: boolean
+  /** Shu darsda qo'llangan dam olish/bayram ko'paytiruvchisi — ustama yo'q bo'lsa `1`. */
+  premiumMultiplierApplied: number
+}
+
+/** Qo'lda qo'shilgan bonus/ushlab qolish (ishorasi bilan) — audit iz bilan. */
+export interface PayrollAdjustmentDto {
+  id: number
+  userId: number
+  /** `DateOnly` — oyning 1-kuni. */
+  periodStart: string
+  amount: number
+  reason: string
+  createdById: number
+  createdByName: string | null
+  createdAt: string
+}
+
+export interface CreatePayrollAdjustmentRequest {
+  userId: number
+  period: string
+  amount: number
+  reason: string
+}
+
+/** Davr bo'yicha holat amali (tasdiqlash/to'lov) so'rovi. */
+export interface PayrollPeriodActionRequest {
+  userId: number
+  period: string
 }
 
 export interface PayrollDetailDto {
@@ -3063,7 +3132,14 @@ export interface PayrollDetailDto {
   role: UserRoleName
   period: string
   sessions: PayrollSessionRowDto[]
+  baseSalaryAmount: number
+  activeStudentCount: number
+  kpiBonusAmount: number
+  adjustments: PayrollAdjustmentDto[]
   grandTotal: number
+  approvalStatus: PayrollApprovalStatusName
+  approvedAt: string | null
+  paidAt: string | null
 }
 
 /* ===== /OYLIK HISOBLASH ===== */

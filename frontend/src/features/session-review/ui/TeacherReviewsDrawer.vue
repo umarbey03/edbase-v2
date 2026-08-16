@@ -71,24 +71,36 @@ const errorMessage = computed(() =>
     >
       <ul class="space-y-3">
         <li
-          v-for="review in reviews"
+          v-for="(review, index) in reviews"
           :key="review.id"
           class="rounded-xl border border-line bg-ink-950 p-3.5"
         >
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <div class="min-w-0">
-              <p
-                class="truncate text-sm font-semibold text-slate-100"
-                v-text="review.sessionTitle ?? review.groupName"
+            <div class="flex min-w-0 items-start gap-2">
+              <!--
+                ★ 2026-08-16 (loyiha egasi: "har bir ustozning tahlillar
+                soni tartib raqam qo'yilgan bo'lishi kerak") — backend
+                `ListByTeacherAsync` allaqachon `ScheduledStart desc`
+                tartibda qaytaradi, ya'ni №1 = eng so'nggi tahlil.
+              -->
+              <span
+                class="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-ink-800 text-[10px] font-bold tabular-nums text-slate-400"
+                v-text="index + 1"
               />
-              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
-                <span v-text="review.groupName" />
-                <span aria-hidden="true">·</span>
-                <span
-                  class="tabular-nums"
-                  v-text="formatDateTimeNumeric(review.sessionScheduledStart)"
+              <div class="min-w-0">
+                <p
+                  class="truncate text-sm font-semibold text-slate-100"
+                  v-text="review.sessionTitle ?? review.groupName"
                 />
-              </p>
+                <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
+                  <span v-text="review.groupName" />
+                  <span aria-hidden="true">·</span>
+                  <span
+                    class="tabular-nums"
+                    v-text="formatDateTimeNumeric(review.sessionScheduledStart)"
+                  />
+                </p>
+              </div>
             </div>
             <BaseBadge :tone="reviewVerdictTone(review.verdict)">
               {{ reviewVerdictLabel(review.verdict) }}

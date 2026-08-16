@@ -35,7 +35,16 @@ import BroadcastGroupPicker from './BroadcastGroupPicker.vue'
  */
 const MAX_BODY_LENGTH = 4096
 
-const props = defineProps<{ fixedGroup?: GroupDto }>()
+/**
+ * ★ `bare` — markaziy "Xabarlar" panelida (2026-08-16, loyiha egasi:
+ * "xabar yuborish formasi modal holatida ochilishi kerak") komponent
+ * `BaseModal` ICHIDA ochiladi — o'zining `BaseCard`/sarlavhasi bo'lsa,
+ * modal ichida ikkinchi ramka/sarlavha paydo bo'lardi (ikki qavat quti).
+ * `BroadcastTab.vue`dagi inline chaqiruv `bare` bermaydi — u yerda
+ * xatti-harakat o'zgarmaydi (o'z `BaseCard`si bilan sahifa ichida turadi).
+ */
+const props = defineProps<{ fixedGroup?: GroupDto; bare?: boolean }>()
+const emit = defineEmits<{ sent: [] }>()
 
 const queryClient = useQueryClient()
 const confirm = useConfirm()
@@ -93,6 +102,7 @@ const sendMutation = useMutation({
     resetForm()
     formError.value = null
     void queryClient.invalidateQueries({ queryKey: ['group-broadcasts'] })
+    emit('sent')
   },
   onError: (error: unknown) => {
     formError.value = toUserMessage(error)
@@ -146,7 +156,10 @@ const bodyCount = computed(() => body.value.length)
 </script>
 
 <template>
-  <BaseCard title="Yangi xabar">
+  <component
+    :is="props.bare === true ? 'div' : BaseCard"
+    v-bind="props.bare === true ? {} : { title: 'Yangi xabar' }"
+  >
     <div class="space-y-3.5 p-3.5 sm:p-5">
       <BaseField
         v-if="props.fixedGroup !== undefined"
@@ -242,5 +255,5 @@ const bodyCount = computed(() => body.value.length)
         </BaseButton>
       </div>
     </div>
-  </BaseCard>
+  </component>
 </template>

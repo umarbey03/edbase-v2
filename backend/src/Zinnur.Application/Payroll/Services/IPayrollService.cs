@@ -18,4 +18,17 @@ public interface IPayrollService
         long id, UpdateTeacherRateRequest request, long actorId, CancellationToken ct = default);
 
     Task DeleteRateAsync(long id, long actorId, CancellationToken ct = default);
+
+    // ---------------------------------------------------------------- tuzatish
+
+    Task<PayrollAdjustmentDto> CreateAdjustmentAsync(
+        CreatePayrollAdjustmentRequest request, long actorId, CancellationToken ct = default);
+
+    Task DeleteAdjustmentAsync(long id, long actorId, CancellationToken ct = default);
+
+    // ---------------------------------------------------------------- tasdiqlash/to'lov
+
+    Task ApproveAsync(PayrollPeriodActionRequest request, long actorId, CancellationToken ct = default);
+
+    Task MarkPaidAsync(PayrollPeriodActionRequest request, long actorId, CancellationToken ct = default);
 }
