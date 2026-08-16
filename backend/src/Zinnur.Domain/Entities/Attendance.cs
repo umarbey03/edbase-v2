@@ -56,7 +56,50 @@ public class Attendance : BaseEntity
     /// </summary>
     public string? Reason { get; set; }
 
+    /// <summary>
+    /// ★ "SABABLI" BELGISI (2026-08-16) — FAQAT Academic/Admin qo'yadi
+    /// (`AttendanceService.SetExcusedAsync`). Talab: *"agarki o'quvchi
+    /// darsga sababli kira olmagan bo'lsa bu dars uchun to'lov yechib
+    /// olinmasligi kerak"* — bosqichma-bosqich to'lov hisoblash
+    /// (`LessonAccrualService`) shu bayroqni tekshiradi.
+    ///
+    /// ★ NEGA MUSTAQIL BAYROQ, YANGI <see cref="AttendanceStatus"/>
+    /// QIYMATI EMAS: "sabablimi" savoli "nima bo'ldi" savolidan MUSTAQIL —
+    /// odatda <c>Absent</c>+sababli bo'ladi, lekin nazariy jihatdan
+    /// oldindan sababli deb belgilangan o'quvchi baribir kelib qolishi
+    /// mumkin (<c>Present</c>+sababli). 4 qiymatli <see cref="Status"/>
+    /// bunday kombinatsiyani ifodalay olmasdi.
+    ///
+    /// ★ <see cref="IsManual"/> BAYROG'INI TALAB QILMAYDI VA UNGA
+    /// TEGMAYDI: <c>IsManual</c> faqat <see cref="Status"/> avtomatik
+    /// qayta hisoblanishini to'sadi (`RegisterJoin`/`Finalize`). Bu
+    /// maydonni esa o'sha metodlar UMUMAN o'qimaydi/yozmaydi — ya'ni
+    /// "o'quvchi kutilmaganda kelib qolsa `IsExcused` buzilmasligi kerak"
+    /// talabi ALOHIDA himoyasiz, QURILISH orqali bajariladi.
+    /// </summary>
+    public bool IsExcused { get; set; }
+
+    /// <summary>
+    /// Sababli deb belgilash izohi — <see cref="Reason"/>dan ATAYLAB
+    /// ALOHIDA (u <see cref="IsManual"/> bilan bog'liq, holat tuzatish
+    /// izohi). Faqat <see cref="IsExcused"/> bo'lganda ma'noli.
+    /// </summary>
+    public string? ExcuseReason { get; set; }
+
     // ---------------------------------------------------------------- xatti-harakat
+
+    /// <summary>
+    /// Sababli/sababsiz deb belgilaydi (yoki bekor qiladi). Bir marta
+    /// qo'yilgan bayroq AVTOMATIK qaytarilmaydi — xodim o'zi qo'lda
+    /// o'chiradi (<see cref="IsManual"/>ning "qo'lda qaror — qat'iy"
+    /// falsafasi bilan AYNI).
+    /// </summary>
+    public void MarkExcused(bool excused, string? reason, DateTimeOffset now)
+    {
+        IsExcused = excused;
+        ExcuseReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        UpdatedAt = now;
+    }
 
     /// <summary>
     /// ★ QO'LDA TUZATISH (ustoz / kurator / o'quv bo'limi).

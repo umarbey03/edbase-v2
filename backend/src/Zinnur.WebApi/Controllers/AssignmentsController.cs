@@ -114,6 +114,34 @@ public sealed class AssignmentsController(
         long id, CancellationToken ct) =>
         Ok(await assignments.ListSubmissionsAsync(id, CurrentUserId, ct));
 
+    // ================================================================= o'quv bo'limi umumiy ko'rinishi
+    //
+    // ★ 2026-08-15 talabi: "bir ko'rganda qaysi guruhdagi vazifalar
+    // tekshirilmagani, nechtasi tekshirilgani/tekshirilmagani, javoblari
+    // qachon yuborilgani/tekshirilgani, kim tekshirishi kerakligi, javob va
+    // baho — hammasi ko'rinib turishi kerak" (ustoz/guruh turi/guruh filtri
+    // bilan). Yo'l ATAYLAB `overview/...` — `{id:long}/submissions` bilan
+    // ADASHTIRILMASIN: bu yerda ID YO'Q, butun to'plam ustidan xulosa.
+    //
+    // ⚠️ FAQAT `ManageRoles`: bu — o'quv bo'limining nazorat ekrani. Ustoz/
+    // kurator o'z guruhini yuqoridagi `{id}/submissions` orqali tekshiradi.
+
+    /// <summary>Guruh (va "Kurs vazifalari") bo'yicha xulosa — tekshirilgan/tekshirilmagan sonlari.</summary>
+    [HttpGet("overview/groups")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<IReadOnlyList<AssignmentGroupOverviewDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AssignmentGroupOverviewDto>>> GroupsOverview(
+        [FromQuery] AssignmentOverviewFilter query, CancellationToken ct) =>
+        Ok(await assignments.GetGroupsOverviewAsync(query, CurrentUserId, ct));
+
+    /// <summary>Javoblarning yassilangan, sahifalangan ro'yxati (guruh/ustoz/tekshiruvchi konteksti bilan).</summary>
+    [HttpGet("overview/submissions")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<PagedResult<SubmissionOverviewDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<SubmissionOverviewDto>>> SubmissionsOverview(
+        [FromQuery] SubmissionOverviewQuery query, CancellationToken ct) =>
+        Ok(await assignments.ListSubmissionsOverviewAsync(query, CurrentUserId, ct));
+
     // ================================================================= o'quvchi
 
     /// <summary>Mening vazifalarim — o'z javobim holati va gating bilan.</summary>

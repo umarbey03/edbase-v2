@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, watchEffect } from 'vue'
 
 import { fetchGroups, GROUP_SEARCH_MIN, groupDisplayName } from '@/entities/group'
 import {
@@ -20,9 +20,10 @@ import UserFormDialog from '@/features/user-form/ui/UserFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatPhone } from '@/shared/lib/phone'
 import { useDebounced } from '@/shared/lib/debounce'
-import { formatDateTime } from '@/shared/lib/datetime'
+import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
+import { showToast } from '@/shared/lib/useToast'
 import type { UserDetailsDto, UserRoleName } from '@/shared/types'
 import {
   AppIcon,
@@ -33,6 +34,7 @@ import {
   IconButton,
   PageHeader,
   PaginationBar,
+  SearchSelect,
 } from '@/shared/ui'
 
 /**
@@ -139,24 +141,24 @@ const groupOptions = computed(() => {
   return list
 })
 
-function onGroupFilterChange(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value
-  if (value.length === 0) {
-    groupFilter.value = null
-    return
-  }
-  const id = Number(value)
-  groupFilter.value = groupOptions.value.find((option) => option.id === id) ?? {
-    id,
-    name: `Guruh #${id}`,
-  }
-}
-
 /* --------------------------------------------------------------- ro'yxat -- */
 
 // Filtr o'zgarsa 1-sahifaga qaytamiz, aks holda "10-sahifada natija yo'q" holati chiqadi.
 watch([effectiveSearch, roleFilter, activeFilter, groupFilter, telegramFilter], () => {
   page.value = 1
+  selectedIds.value = new Set()
+})
+
+/*
+  ★ TANLOV SAHIFA O'ZGARGANDA HAM TOZALANADI (yuqoridagi filtr tinglovchisidan
+  ALOHIDA): u faqat FILTR o'zgarganda ishga tushadi, `PaginationBar` orqali
+  sahifa qo'lda almashtirilganda emas. Tanlov ATAYLAB "hozir ko'rinib turgan
+  qatorlar" bilan cheklangan (talab: *"ko'rinib turgan foydalanuvchilarni
+  o'zini all select"*) — boshqa sahifadagi ID qolib ketsa, "hammasini tanlash"
+  bosilganda ko'rinmas qatorlarga ham amal tegib qolardi.
+*/
+watch(page, () => {
+  selectedIds.value = new Set()
 })
 
 const usersQuery = useQuery({
@@ -192,6 +194,89 @@ const totalPages = computed(() => usersQuery.data.value?.totalPages ?? 1)
 const errorMessage = computed(() =>
   usersQuery.error.value !== null ? toUserMessage(usersQuery.error.value) : null,
 )
+
+/* ------------------------------------------------------------- tanlov --- */
+
+/**
+ * Ko'p tanlash — FAQAT joriy sahifadagi qatorlar bo'yicha (yuqoridagi
+ * `watch(page, ...)` va filtr tinglovchisi izohiga qarang).
+ *
+ * ★ `Set`, MASSIV EMAS: `has`/`toggle` amallari qatorlar soniga
+ * bog'liqmasdan tez ishlashi kerak (jadval 20 qator, lekin naqsh boshqa
+ * joyda ko'proq qatorga ko'chirilishi mumkin). Vue `Set` ichidagi
+ * o'zgarishni KUZATMAYDI — shuning uchun har o'zgarishda YANGI `Set`
+ * yaratiladi (`selectedIds.value = new Set(...)`), mavjudini `.add`/`.delete`
+ * qilib qo'yish reaktivlikni ishga tushirmasdi.
+ */
+const selectedIds = ref<Set<number>>(new Set())
+
+/**
+ * 🔴 TANLASH REJIMI DEFAULT HOLATDA O'CHIRILGAN (loyiha egasi, 2026-08-16:
+ * *"hamma foydalanuvchilar default holatda select unable bo'lishi kerak.
+ * birgina button bilan barchasini select qilish imkoni ochilishi kerak"*).
+ *
+ * ★ ILGARI FAQAT O'QUVCHI qatori o'chirilgan edi (rol bo'yicha), ENDI
+ * BUTUN JADVAL — checkbox'lar UMUMAN chizilmaydi, toifasidan qat'i nazar,
+ * toifa `toggleSelectionMode` bosilmaguncha. Bu ATAYLAB IKKI BOSQICHLI:
+ * xodim avval "tanlashni yoqish"ni ANIQ bosishi kerak, keyingina qatorlar
+ * tanlanadigan bo'ladi — tasodifan checkbox bosib ketish yo'li BUTUNLAY
+ * yo'q qilingan.
+ */
+const selectionEnabled = ref(false)
+
+function toggleSelectionMode(): void {
+  selectionEnabled.value = !selectionEnabled.value
+  // O'CHIRILGANDA TOZALANADI: yashiringan checkbox ostida "unutilgan"
+  // tanlov qolib, keyingi safar yoqilganda kutilmagan qatorlar tanlangan
+  // holatda chiqib qolmasin.
+  if (!selectionEnabled.value) selectedIds.value = new Set()
+}
+
+function toggleSelected(user: UserDetailsDto): void {
+  if (!selectionEnabled.value) return
+  const next = new Set(selectedIds.value)
+  if (next.has(user.id)) next.delete(user.id)
+  else next.add(user.id)
+  selectedIds.value = next
+}
+
+/** Joriy sahifadagi HAMMASI tanlanganmi — sarlavha katakchasi shunga qarab to'ladi. */
+const allVisibleSelected = computed(
+  () => users.value.length > 0 && users.value.every((user) => selectedIds.value.has(user.id)),
+)
+
+/** Ba'zisi (hammasi emas) tanlangan — sarlavha katakchasi "oraliq" holatga o'tadi. */
+const someVisibleSelected = computed(
+  () => !allVisibleSelected.value && users.value.some((user) => selectedIds.value.has(user.id)),
+)
+
+/**
+ * Sarlavha katakchasi: "hammasini tanlash" / "joriy sahifadan bekor qilish".
+ *
+ * ⚠️ FAQAT joriy `users.value` bilan ishlaydi — boshqa sahifadan qolgan ID
+ * bo'lishi mumkin emas (tanlov sahifa almashganda tozalanadi), shuning uchun
+ * bekor qilishda butun `selectedIds` ni tozalash yetarli.
+ */
+function toggleSelectAllVisible(): void {
+  if (!selectionEnabled.value) return
+  if (allVisibleSelected.value) {
+    selectedIds.value = new Set()
+    return
+  }
+  selectedIds.value = new Set(users.value.map((user) => user.id))
+}
+
+/**
+ * Sarlavha katakchasining "oraliq" (`indeterminate`) holati — bu DOM
+ * xossasi, Vue uni oddiy atribut sifatida bog'lay olmaydi (`:indeterminate`
+ * yozib bo'lmaydi), shuning uchun shablon `ref` orqali qo'lda o'rnatiladi.
+ */
+const selectAllCheckboxEl = ref<HTMLInputElement | null>(null)
+watchEffect(() => {
+  if (selectAllCheckboxEl.value !== null) {
+    selectAllCheckboxEl.value.indeterminate = someVisibleSelected.value
+  }
+})
 
 /* --------------------------- yaratish/tahrirlash --------------------------- */
 
@@ -279,6 +364,74 @@ function telegramText(user: UserDetailsDto): string {
   if (user.telegramId === null) return '—'
   return user.telegramUsername === null ? 'Ulangan' : `@${user.telegramUsername}`
 }
+
+/* --------------------------------------------------- ko'p tanlab amal --- */
+
+/**
+ * ★ NEGA "O'CHIRISH"/"ARXIVLASH" YO'Q: backendda foydalanuvchini haqiqiy
+ * o'chirish yoki arxivlash imkoniyati UMUMAN yo'q — faqat
+ * `POST /users/{id}/activate` va `.../deactivate` bor
+ * (`UsersController`). Loyiha egasi bilan aniqlashtirildi: ko'p tanlab
+ * "o'chirish" so'ralganda ham buni YANGI, qaytarib bo'lmaydigan backend
+ * imkoniyati sifatida qo'shish o'rniga, mavjud bloklash/faollashtirish
+ * amali ishlatiladi — nomi ham shu haqiqatni aytadi ("Bloklash", "O'chirish"
+ * EMAS), aks holda tugma va'da qilgan narsani bajarmagan bo'lardi.
+ */
+const bulkPending = ref(false)
+
+async function bulkSetActive(active: boolean): Promise<void> {
+  if (bulkPending.value) return
+
+  // Faqat HOLATI ALLAQACHON MOS KELMAGANLARI so'rov yuboradi — 20 tadan
+  // hammasi faol bo'lsa, "Faollashtirish" bosilganda 20 ta keraksiz so'rov
+  // ketmasin.
+  const targets = users.value.filter(
+    (user) => selectedIds.value.has(user.id) && user.isActive !== active,
+  )
+
+  if (targets.length === 0) {
+    selectedIds.value = new Set()
+    return
+  }
+
+  const ok = active
+    ? await confirm({
+      title: 'Tanlanganlarni faollashtirish',
+      message: `${targets.length} ta hisob yana platformaga kira oladi.`,
+      confirmLabel: 'Faollashtirish',
+      tone: 'primary',
+    })
+    : await confirm({
+      title: 'Tanlanganlarni bloklash',
+      message: `${targets.length} ta hisob platformaga kira olmaydi. Ma'lumotlari va tarixi saqlanadi.`,
+      confirmLabel: 'Bloklash',
+      tone: 'danger',
+      details: ['Mavjud sessiyalari bekor qilinadi.'],
+    })
+  if (!ok) return
+
+  bulkPending.value = true
+  const results = await Promise.allSettled(
+    targets.map((user) => (active ? activateUser(user.id) : deactivateUser(user.id))),
+  )
+  bulkPending.value = false
+
+  const failed = results.filter((result) => result.status === 'rejected').length
+  const succeeded = results.length - failed
+
+  refresh()
+  selectedIds.value = new Set()
+
+  if (failed === 0) {
+    showToast(
+      active ? `${succeeded} ta hisob faollashtirildi` : `${succeeded} ta hisob bloklandi`,
+    )
+  } else if (succeeded === 0) {
+    showToast(`${failed} ta hisobda amal bajarilmadi`, 'error')
+  } else {
+    showToast(`${succeeded} tasi bajarildi, ${failed} tasida xato bo‘ldi`, 'warning')
+  }
+}
 </script>
 
 <template>
@@ -288,6 +441,23 @@ function telegramText(user: UserDetailsDto): string {
       :subtitle="`Jami: ${total} ta hisob`"
     >
       <template #actions>
+        <!--
+          "Tanlashni yoqish/yopish" (loyiha egasi, 2026-08-16) — checkbox'lar
+          FAQAT bu tugma bosilgandan keyin paydo bo'ladi (yuqoridagi
+          `selectionEnabled` izohi).
+        -->
+        <BaseButton
+          :variant="selectionEnabled ? 'primary' : 'secondary'"
+          @click="toggleSelectionMode"
+        >
+          <template #icon>
+            <AppIcon
+              name="check-square"
+              :size="16"
+            />
+          </template>
+          {{ selectionEnabled ? 'Tanlashni yopish' : 'Tanlash' }}
+        </BaseButton>
         <BaseButton @click="openCreate">
           <template #icon>
             <AppIcon
@@ -353,41 +523,31 @@ function telegramText(user: UserDetailsDto): string {
         </option>
       </select>
 
-      <!-- Guruh qidiruvi (BLOK F) -->
+      <!--
+        Guruh bo'yicha filtr — QIDIRUV VA TANLOV BITTA maydonda (BLOK F).
+        🔴 ILGARI IKKI ALOHIDA ELEMENT edi (matn maydoni + undan pastdagi
+        `<select>`) — loyiha egasi buni "qidiruv ishlamayapti" deb topdi:
+        yozganda EKRANDA hech narsa o'zgarmasdi, natijani ko'rish uchun
+        IKKINCHI elementni qo'lda ochish kerak edi. `SearchSelect` buni
+        BITTA maydonga birlashtiradi (izohi `shared/ui/SearchSelect.vue`).
+      -->
       <div>
-        <input
-          v-model="groupSearch"
-          class="zn-input"
+        <SearchSelect
+          v-model="groupFilter"
+          :search="groupSearch"
+          :options="groupOptions"
+          :loading="groupsQuery.isFetching.value"
           placeholder="Guruhni qidirish"
-          aria-label="Guruhni qidirish"
-        >
+          empty-label="Barcha guruhlar"
+          label="Guruh bo‘yicha filtr"
+          @update:search="groupSearch = $event"
+        />
         <p
           v-if="groupSearchTooShort"
           class="mt-1 text-[11px] text-dim"
         >
           Kamida {{ GROUP_SEARCH_MIN }} belgi kiriting.
         </p>
-      </div>
-
-      <!-- Guruh bo'yicha filtr -->
-      <div>
-        <select
-          class="zn-input"
-          aria-label="Guruh bo‘yicha filtr"
-          :value="groupFilter?.id ?? ''"
-          @change="onGroupFilterChange"
-        >
-          <option value="">
-            Barcha guruhlar
-          </option>
-          <option
-            v-for="option in groupOptions"
-            :key="option.id"
-            :value="option.id"
-          >
-            {{ option.name }}
-          </option>
-        </select>
         <!--
           ⚠️ SHART AYTILISHI KERAK: server guruh bo'yicha faqat `Active`
           a'zolarni qaytaradi. Aks holda xodim chiqarilgan yoki pauzadagi
@@ -395,7 +555,7 @@ function telegramText(user: UserDetailsDto): string {
           urinardi.
         -->
         <p
-          v-if="groupFilter !== null"
+          v-else-if="groupFilter !== null"
           class="mt-1 text-[11px] text-dim"
         >
           Faqat FAOL a‘zolar ko‘rsatiladi (chiqarilgan, pauzadagi va
@@ -417,6 +577,58 @@ function telegramText(user: UserDetailsDto): string {
           {{ option.label }}
         </option>
       </select>
+    </div>
+
+    <!--
+      Ko'p tanlab amal paneli — FAQAT biror qator tanlanganda ko'rinadi.
+      Filtr panjarasi va ro'yxat orasida turadi: joylashuv "hozir nima
+      tanlangan" savolini ro'yxatga eng yaqin joyda javob beradi.
+    -->
+    <div
+      v-if="selectedIds.size > 0"
+      class="mb-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-line bg-ink-900 p-3"
+    >
+      <span
+        class="text-sm font-medium text-slate-200"
+        v-text="`${selectedIds.size} ta tanlandi`"
+      />
+      <span class="flex-1" />
+      <BaseButton
+        size="sm"
+        variant="ghost"
+        :disabled="bulkPending"
+        @click="selectedIds = new Set()"
+      >
+        Bekor qilish
+      </BaseButton>
+      <BaseButton
+        size="sm"
+        variant="secondary"
+        :loading="bulkPending"
+        @click="bulkSetActive(true)"
+      >
+        <template #icon>
+          <AppIcon
+            name="user-check"
+            :size="13"
+          />
+        </template>
+        Tanlanganlarni faollashtirish
+      </BaseButton>
+      <BaseButton
+        size="sm"
+        variant="danger"
+        :loading="bulkPending"
+        @click="bulkSetActive(false)"
+      >
+        <template #icon>
+          <AppIcon
+            name="lock"
+            :size="13"
+          />
+        </template>
+        Tanlanganlarni bloklash
+      </BaseButton>
     </div>
 
     <DataStatus
@@ -448,10 +660,27 @@ function telegramText(user: UserDetailsDto): string {
             @keydown.space.prevent="openProfile(user)"
           >
             <div class="flex items-start justify-between gap-2">
-              <p
-                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
-                v-text="user.fullName ?? '—'"
-              />
+              <div class="flex min-w-0 flex-1 items-center gap-2.5">
+                <!--
+                  ⚠️ `@click.stop` — qatorning profil ochish hodisasi ishga
+                  tushmasin. `v-if="selectionEnabled"` — checkbox "Tanlash"
+                  tugmasi bosilmaguncha UMUMAN chizilmaydi (yuqoridagi
+                  `selectionEnabled` izohi).
+                -->
+                <input
+                  v-if="selectionEnabled"
+                  type="checkbox"
+                  class="size-4 shrink-0 accent-brand-500"
+                  :checked="selectedIds.has(user.id)"
+                  aria-label="Tanlash"
+                  @click.stop
+                  @change="toggleSelected(user)"
+                >
+                <p
+                  class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
+                  v-text="user.fullName ?? '—'"
+                />
+              </div>
               <BaseBadge :tone="roleTone(user.role ?? '')">
                 {{ roleLabel(user.role ?? '—') }}
               </BaseBadge>
@@ -506,6 +735,19 @@ function telegramText(user: UserDetailsDto): string {
           <table class="zn-table">
             <thead>
               <tr>
+                <th
+                  v-if="selectionEnabled"
+                  class="w-9"
+                >
+                  <input
+                    ref="selectAllCheckboxEl"
+                    type="checkbox"
+                    class="size-4 accent-brand-500"
+                    :checked="allVisibleSelected"
+                    aria-label="Hammasini tanlash"
+                    @change="toggleSelectAllVisible"
+                  >
+                </th>
                 <th>Ism</th>
                 <th>Email</th>
                 <th>Telefon</th>
@@ -528,6 +770,16 @@ function telegramText(user: UserDetailsDto): string {
                 @keydown.enter.prevent="openProfile(user)"
                 @keydown.space.prevent="openProfile(user)"
               >
+                <td v-if="selectionEnabled">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand-500"
+                    :checked="selectedIds.has(user.id)"
+                    aria-label="Tanlash"
+                    @click.stop
+                    @change="toggleSelected(user)"
+                  >
+                </td>
                 <td
                   class="font-medium text-slate-100"
                   v-text="user.fullName ?? '—'"
@@ -561,7 +813,7 @@ function telegramText(user: UserDetailsDto): string {
                 </td>
                 <td
                   class="tabular-nums text-slate-400"
-                  v-text="formatDateTime(user.createdAt)"
+                  v-text="formatDateTimeNumeric(user.createdAt)"
                 />
                 <td>
                   <div class="flex items-center justify-end gap-3">

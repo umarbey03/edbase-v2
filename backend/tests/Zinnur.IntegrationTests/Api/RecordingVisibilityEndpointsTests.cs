@@ -18,8 +18,12 @@ namespace Zinnur.IntegrationTests.Api;
 /// Bu testlar TO'RT narsani qo'riqlaydi va ularning har biri alohida
 /// sababga ega:
 ///
-///   1) 🔴 STANDART — KO'RINADI. Bu MIGRATSIYA qarori: <c>false</c> bo'lsa
-///      deploy kunida hamma o'quvchining bo'limi bo'shab qolardi.
+///   1) 🔴 STANDART — YASHIRIN (2026-08-15 dan). Bu ham MIGRATSIYA qarori:
+///      o'quv bo'limi/ustoz ANIQ ochmaguncha yangi yozuv o'quvchiga
+///      ko'rinmaydi — sabab <c>SessionRecording.IsVisibleToStudents</c>
+///      izohida (avval aksincha edi: "hammasini ochish" vositasi yo'q
+///      bo'lgani uchun standart <c>true</c> tanlangan edi; endi bu vosita
+///      bor, ya'ni standartni teskarisiga o'zgartirish xavfsiz).
 ///
 ///   2) 🔴 HAVOLA ENDPOINTI HAM YOPILADI, faqat ro'yxat emas. O'quvchi
 ///      yozuv Id'sini bilishi mumkin (kecha ochiq turgan sahifa,
@@ -42,20 +46,21 @@ public sealed class RecordingVisibilityEndpointsTests(ZinnurApiFactory factory)
     // ================================================================= 1) standart
 
     /// <summary>
-    /// Yangi tayyor yozuv o'quvchiga DARHOL ko'rinadi — hech kim hech
-    /// narsani "e'lon qilmasdan".
+    /// Yangi tayyor yozuv o'quvchiga DARHOL ko'RINMAYDI — o'quv bo'limi
+    /// yoki ustoz uni ANIQ ochishi kerak (standart 2026-08-15 dan
+    /// <c>false</c>).
     /// </summary>
     [Fact]
-    public async Task Recording_IsVisibleToStudentsByDefault()
+    public async Task Recording_IsHiddenFromStudentsByDefault()
     {
         var world = await WorldBuilder.CreateAsync(factory, "rec-vis-std");
-        var (sessionId, recordingId) = await AddCompletedRecordingAsync(world.GroupId);
+        var (sessionId, _) = await AddCompletedRecordingAsync(world.GroupId);
 
         using var student = await WorldBuilder.ClientAsync(factory, world.Student);
 
         var list = await ForSessionAsync(student, sessionId);
 
-        list.Should().ContainSingle().Which.Id.Should().Be(recordingId);
+        list.Should().BeEmpty();
     }
 
     // ================================================================= 2) yozuv kaliti

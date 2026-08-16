@@ -132,6 +132,19 @@ public interface IApplicationDbContext
     DbSet<PaymentTransaction> PaymentTransactions { get; }
     DbSet<PaymentAudit> PaymentAudits { get; }
 
+    /// <summary>
+    /// Bosqichma-bosqich hisoblash (2026-08-16) — bir dars, bir o'quvchi
+    /// uchun hisoblangan ulush. Idempotentlik qulfi + hisobot manbai
+    /// (izoh: <see cref="LessonCharge"/>).
+    /// </summary>
+    DbSet<LessonCharge> LessonCharges { get; }
+
+    /// <summary>Ustoz/kurator oylik stavkasi — narx TARIXI (izoh: <see cref="TeacherRate"/>).</summary>
+    DbSet<TeacherRate> TeacherRates { get; }
+
+    /// <summary>Ustoz/kurator haqi SNAPSHOT'i — izoh: <see cref="SessionPayout"/>.</summary>
+    DbSet<SessionPayout> SessionPayouts { get; }
+
     // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
 
     /// <summary>
@@ -213,6 +226,27 @@ public interface IApplicationDbContext
     DbSet<GroupCategory> GroupCategories { get; }
 
     /* ===== /R21b ===== */
+
+    /* ===== 2026-08-16: "Xabarlar" paneli ===== */
+
+    /// <summary>Guruhlarga yuboriladigan tayyor xabar shablonlari (Sozlamalar panelidan boshqariladi).</summary>
+    DbSet<MessageTemplate> MessageTemplates { get; }
+
+    /// <summary>Guruhlarga yuborilgan xabarlar TARIXI (har yuborish — bitta qator).</summary>
+    DbSet<GroupBroadcast> GroupBroadcasts { get; }
+
+    /* ===== /2026-08-16 ===== */
+
+    /* ===== 2026-08-16: To'lov (dars-asosida) + bayram kalendari ===== */
+
+    /// <summary>
+    /// Umumiy bayram kalendari — o'quv/admin bo'limi e'lon qilgan sanalar.
+    /// Har sana BARCHA guruhlarning o'sha kundagi darsini bekor qiladi
+    /// (<c>HolidayService.CreateAsync</c>).
+    /// </summary>
+    DbSet<Holiday> Holidays { get; }
+
+    /* ===== /2026-08-16 (to'lov) ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

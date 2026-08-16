@@ -6,18 +6,25 @@ export {
   deleteAssignmentAttachment,
   deleteSubmissionFeedbackFile,
   fetchAssignmentAttachmentFile,
+  fetchAssignmentGroupsOverview,
   fetchAssignments,
   fetchMyAssignments,
   fetchSubmissionFeedbackFile,
   fetchSubmissionFile,
   fetchSubmissions,
+  fetchSubmissionsOverview,
   gradeSubmission,
   reopenSubmission,
   submissionFeedbackUploadPath,
   submitAssignment,
   updateAssignment,
 } from './api/assignment-api'
-export type { AssignmentListParams, SubmitAssignmentInput } from './api/assignment-api'
+export type {
+  AssignmentListParams,
+  AssignmentOverviewFilterParams,
+  SubmissionOverviewParams,
+  SubmitAssignmentInput,
+} from './api/assignment-api'
 export {
   allowsFormat,
   ANSWER_FORMAT_OPTIONS,

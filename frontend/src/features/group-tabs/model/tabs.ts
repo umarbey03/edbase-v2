@@ -30,6 +30,7 @@ export type GroupTabKey =
   | 'students'
   | 'chat'
   | 'recordings'
+  | 'broadcast'
 
 export interface GroupTabDef {
   key: GroupTabKey
@@ -49,6 +50,15 @@ export const GROUP_TABS: readonly GroupTabDef[] = [
   // Yorliqdagi 🎬 emoji ko'chirilmadi: qolgan sakkiztasida emoji yo'q va
   // bittasida bo'lishi qatorni notekis ko'rsatardi. Ikonka o'sha ma'noni beradi.
   { key: 'recordings', label: 'Yozuvlar', icon: 'camera' },
+  /*
+    O'NINCHI TAB — "Xabar" (2026-08-16, loyiha egasi: *"xabar yuborish har
+    bir guruh ichida ham bo'lishi kerak"*). Markaziy "Xabarlar" panelidagi
+    (`ManageBroadcastsPage`) SO'NGGI qadam — guruhni QIDIRIB tanlash —
+    bu yerda ORTIQCHA: sahifa allaqachon BITTA guruh ichida turibdi.
+    ★ OXIRIDA: eski to'qqizta tabning tartibi TEGILMAGAN, bu esa v2
+    qo'shimchasi (`recordings` bilan AYNI mulohaza).
+  */
+  { key: 'broadcast', label: 'Xabar', icon: 'send' },
 ]
 
 /**
@@ -61,6 +71,14 @@ export const GROUP_TABS: readonly GroupTabDef[] = [
  * klaviatura bilan Tab bosganda ham topilmasin.
  */
 const CURATOR_HIDDEN_TABS: readonly GroupTabKey[] = ['tests', 'board']
+
+/**
+ * ★ FAQAT O'QUV BO'LIMI/ADMINDA — `GroupBroadcastsController.ManageRoles`
+ * BILAN AYNI ("Academic,Admin"). Ustoz/kuratorga chizilsa, bosgan zahoti
+ * server 403 qaytarardi (endpoint ularga UMUMAN yopiq) — interfeys
+ * mavjud bo'lmagan xususiyatni va'da qilardi.
+ */
+const MANAGER_ONLY_TABS: readonly GroupTabKey[] = ['broadcast']
 
 /**
  * ★ O'QUV BO'LIMI/ADMIN UCHUN BIRINCHI TAB — o'quvchilar ro'yxati.
@@ -91,7 +109,9 @@ export function visibleGroupTabs(role: string | null): GroupTabDef[] {
       ? GROUP_TABS.filter((tab) => !CURATOR_HIDDEN_TABS.includes(tab.key))
       : [...GROUP_TABS]
 
-  if (role === null || !isManagerRole(role)) return visible
+  if (role === null || !isManagerRole(role)) {
+    return visible.filter((tab) => !MANAGER_ONLY_TABS.includes(tab.key))
+  }
 
   return [
     ...visible.filter((tab) => tab.key === MANAGER_FIRST_TAB),

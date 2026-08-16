@@ -6,6 +6,7 @@ using Zinnur.Application.Common.Models;
 using Zinnur.Application.Groups.Dtos;
 using Zinnur.Application.Scheduling.Dtos;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Staffing;
@@ -25,6 +26,7 @@ namespace Zinnur.Application.Groups.Services;
 public sealed class GroupService(
     IApplicationDbContext db,
     IScheduleService schedule,
+    IScheduleTimeZoneProvider timeZone,
     TimeProvider clock) : IGroupService
 {
     // ================================================================= o'qish
@@ -1285,10 +1287,22 @@ public sealed class GroupService(
                     || (g.Type == GroupType.Curator && m.Group!.CuratorGroupId == g.Id))),
 
             db.LiveSessions.Count(s => s.GroupId == g.Id && s.Status != SessionStatus.Cancelled),
+
+            // ★ BAYRAM KALENDARI (2026-08-16): `EndDate` endi HAQIQIY oxirgi
+            // (bekor qilinmagan) darsdan olinadi, `StartDate.AddMonths(...)`
+            // FORMULASIDAN emas — chunki bayram tufayli jadval bu formuladan
+            // uzoqroqqa siljigan bo'lishi mumkin (`Group.EndDate` izohi).
+            // `Max` bo'sh to'plamda `null` qaytaradi (istisno EMAS) — bu
+            // "hali dars generatsiya qilinmagan" holatini tabiiy belgilaydi,
+            // `Map` da formulaga ZAXIRA sifatida ishlatiladi.
+            db.LiveSessions
+                .Where(s => s.GroupId == g.Id && s.Status != SessionStatus.Cancelled)
+                .Max(s => (DateTimeOffset?)s.ScheduledStart),
+
             g.CreatedAt,
             g.UpdatedAt));
 
-    private static GroupDto Map(Projection p) => new(
+    private GroupDto Map(Projection p) => new(
         p.Id,
         p.Name,
         p.Type,
@@ -1316,9 +1330,17 @@ public sealed class GroupService(
         p.CuratorGroupId,
         p.CuratorGroupName,
         p.StartDate,
-        // `Group.EndDate` bilan AYNAN bir xil hisob. Bazada hisoblanmaydi:
-        // `DateOnly.AddMonths` ni SQL'ga o'girishga tayanmaymiz.
-        p.StartDate.AddMonths(p.CourseMonths),
+        // ★ BAYRAM KALENDARI (2026-08-16): ILGARI `StartDate.AddMonths
+        // (CourseMonths)` FORMULASI edi — bayram tufayli jadval bundan
+        // uzoqroqqa siljigan bo'lishi mumkin (`Group.EndDate` izohi, R21b
+        // dagi "aynan bir xil hisob" izohi endi FAQAT `ScheduleGenerator`
+        // ning ICHKI "nechta dars kerak" hisobiga tegishli, bu yerga emas).
+        // Haqiqiy oxirgi (bekor qilinmagan) darsning mahalliy sanasi
+        // olinadi; hali dars generatsiya qilinmagan bo'lsa (`LastSessionStart
+        // == null`) — formulaga ZAXIRA sifatida qaytiladi.
+        p.LastSessionStart is { } last
+            ? LocalWallClock.LocalDate(last, timeZone.TimeZone)
+            : p.StartDate.AddMonths(p.CourseMonths),
         p.CourseMonths,
         p.Weekdays,
         p.StartTime,
@@ -1365,7 +1387,10 @@ public sealed class GroupService(
     private const string NothingToUpdateReason =
         "Jadval qoidasi o'zgarmadi; yangilanishi kerak bo'lgan kelajak dars topilmadi.";
 
-    /// <summary>Ro'yxat so'rovi uchun ustunlar to'plami (`EndDate` xotirada hisoblanadi).</summary>
+    /// <summary>
+    /// Ro'yxat so'rovi uchun ustunlar to'plami (`EndDate` xotirada
+    /// hisoblanadi — `LastSessionStart` dan yoki formuladan, `Map` izohi).
+    /// </summary>
     private sealed record Projection(
         long Id,
         string Name,
@@ -1395,6 +1420,7 @@ public sealed class GroupService(
         GroupStaffRole QuestionResponderRole,
         int MemberCount,
         int SessionCount,
+        DateTimeOffset? LastSessionStart,
         DateTimeOffset CreatedAt,
         DateTimeOffset? UpdatedAt);
 

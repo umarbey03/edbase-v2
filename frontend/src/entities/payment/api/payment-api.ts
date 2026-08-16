@@ -27,6 +27,8 @@ import type {
   WaiveRequest,
 } from '@/shared/types'
 
+import type { LessonChargeDto } from '../model/types'
+
 const BASE = '/api/v1/payments'
 
 /* ============================================================== oy ochish === */
@@ -105,6 +107,21 @@ export function fetchStudentAccount(
   options?: { signal?: AbortSignal },
 ): Promise<StudentAccountDto> {
   return http.get<StudentAccountDto>(`${BASE}/students/${studentId}`, { signal: options?.signal })
+}
+
+/**
+ * `GET /payments/students/{id}/lesson-charges` (2026-08-16) — "qaysi
+ * guruh, qaysi dars uchun qancha yechilgan" dars-dars tafsiloti.
+ */
+export function fetchLessonCharges(
+  studentId: number,
+  params: { groupId?: number; period?: string } = {},
+  options?: { signal?: AbortSignal },
+): Promise<LessonChargeDto[]> {
+  return http.get<LessonChargeDto[]>(`${BASE}/students/${studentId}/lesson-charges`, {
+    query: { groupId: params.groupId, period: params.period },
+    signal: options?.signal,
+  })
 }
 
 /** `GET /payments/students/{id}/transactions` — sahifalangan moliya jurnali. */

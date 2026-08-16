@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.LiveSessions.Dtos;
+using Zinnur.Application.Payments.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -10,6 +11,7 @@ namespace Zinnur.Application.LiveSessions.Services;
 /// <inheritdoc cref="IAttendanceService"/>
 public sealed class AttendanceService(
     IApplicationDbContext db,
+    ILessonAccrualService accrual,
     TimeProvider clock) : IAttendanceService
 {
     /// <summary>
@@ -46,7 +48,10 @@ public sealed class AttendanceService(
             // Hozircha "ko'ra oladigan tuzata ham oladi" — biz bu yerga
             // faqat ruxsat tekshiruvidan O'TIB kelamiz.
             CanEdit: true,
-            rows);
+            rows,
+            session.IsFreeLesson,
+            session.FreeLessonReason,
+            session.PayrollExcluded);
     }
 
     /// <inheritdoc />
@@ -112,6 +117,12 @@ public sealed class AttendanceService(
             OldIsManual = oldIsManual,
             OldReason = oldReason,
             NewReason = reason,
+
+            // `UpdateAsync` "sababli" bayrog'iga TEGMAYDI — eski va yangi
+            // qiymat shu sabab BIR XIL (izoh: `AttendanceAudit.OldIsExcused`).
+            OldIsExcused = attendance.IsExcused,
+            NewIsExcused = attendance.IsExcused,
+
             CreatedAt = now,
         });
 
@@ -144,7 +155,118 @@ public sealed class AttendanceService(
             attendance.DurationSeconds,
             actorId,
             await ActorNameAsync(actorId, ct),
-            now);
+            now,
+            attendance.IsExcused,
+            attendance.ExcuseReason);
+    }
+
+    /// <inheritdoc />
+    public async Task<AttendanceRowDto> SetExcusedAsync(
+        long sessionId,
+        long studentId,
+        SetExcusedRequest request,
+        long actorId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var reason = ValidateReason(request.Reason);
+
+        var (session, _) = await LoadAndAuthorizeExcuseAsync(sessionId, actorId, ct);
+
+        // BEKOR QILINGAN dars: `UpdateAsync` dagi bilan AYNI sabab — bunday
+        // darsda umuman davomat/to'lov hisobi yuritilmaydi.
+        if (session.Status == SessionStatus.Cancelled)
+            throw new ConflictException("Bekor qilingan dars uchun sababli belgisi qo'yilmaydi.");
+
+        var student = await LoadStudentOfSessionAsync(session, studentId, ct);
+
+        var attendance = await db.Attendances
+            .AsTracking()
+            .FirstOrDefaultAsync(a => a.SessionId == sessionId && a.StudentId == studentId, ct);
+
+        var existed = attendance is not null;
+        var oldStatus = existed ? attendance!.Status : (AttendanceStatus?)null;
+        var oldIsManual = existed && attendance!.IsManual;
+        var oldReason = existed ? attendance!.Reason : null;
+        var oldIsExcused = existed && attendance!.IsExcused;
+
+        if (attendance is null)
+        {
+            // ★ KELAJAKDAGI DARSNI OLDINDAN SABABLI DEB BELGILASH — o'quvchi
+            // oldindan xabar bergan bo'lishi mumkin ("ertaga kasalxonaga
+            // boraman"). Davomat qatori hali yo'q (dars hali `Live` bo'lib
+            // ko'rmagan), shuning uchun `UpdateAsync` dagi "kerak bo'lsa
+            // yarat" naqshi bilan AYNI: yozuv shu yerda yaratiladi, `Status`
+            // esa `Absent` (tug'ma qiymat) — dars kelganda odatiy
+            // `RegisterJoin`/`Finalize` konveyeri buni TABIIY ravishda
+            // qayta yozadi (bu maydonlarga `MarkExcused` UMUMAN tegmaydi).
+            attendance = new Attendance { SessionId = sessionId, StudentId = studentId };
+            db.Attendances.Add(attendance);
+        }
+
+        var now = clock.GetUtcNow();
+        attendance.MarkExcused(request.Excused, reason, now);
+
+        db.AttendanceAudits.Add(new AttendanceAudit
+        {
+            Attendance = attendance,
+            SessionId = sessionId,
+            StudentId = studentId,
+            ActorId = actorId,
+            OldStatus = oldStatus,
+            NewStatus = attendance.Status,
+            OldIsManual = oldIsManual,
+            OldReason = oldReason,
+            NewReason = attendance.Reason,
+            OldIsExcused = oldIsExcused,
+            NewIsExcused = attendance.IsExcused,
+            CreatedAt = now,
+        });
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ConflictException(
+                "Bu davomat qatori ayni paytda boshqa xodim tomonidan o'zgartirildi. "
+                + "Sahifani yangilab, qaytadan urinib ko'ring.", ex);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ★ 2026-08-16 — RETROAKTIV TUZATISH: agar dars ALLAQACHON
+        // yakunlangan (va shu o'quvchi uchun hisoblangan) bo'lsa, "sababli"
+        // bayrog'ini KEYIN o'zgartirish HAQIQATDA pulni tuzatishi kerak —
+        // aks holda tugma bossa ham hech narsa qaytmasdi (izoh:
+        // `LessonAccrualService` sinf izohi). Dars hali yakunlanmagan
+        // bo'lsa bu chaqiruv ICHKARIDA hech narsa qilmaydi (`Status !=
+        // Ended` bo'lsa darhol chiqadi) — `EndAsync` o'zi keyinroq hisoblaydi.
+        // ═══════════════════════════════════════════════════════════════
+        await accrual.AccrueForSessionAsync(sessionId, actorId, ct);
+
+        var charge = await db.LessonCharges.AsNoTracking()
+            .Where(c => c.SessionId == sessionId && c.StudentId == studentId)
+            .Select(c => new ChargeRow(c.StudentId, c.Amount, c.NetAmount))
+            .FirstOrDefaultAsync(ct);
+
+        return new AttendanceRowDto(
+            studentId,
+            student,
+            attendance.Status,
+            attendance.IsManual,
+            attendance.Reason,
+            attendance.FirstJoinAt,
+            attendance.LeftAt,
+            attendance.DurationSeconds,
+            actorId,
+            await ActorNameAsync(actorId, ct),
+            now,
+            attendance.IsExcused,
+            attendance.ExcuseReason,
+            charge?.Amount,
+            charge?.NetAmount);
     }
 
     // ================================================================= o'qish
@@ -176,7 +298,9 @@ public sealed class AttendanceService(
                 a.Reason,
                 a.FirstJoinAt,
                 a.LeftAt,
-                a.DurationSeconds))
+                a.DurationSeconds,
+                a.IsExcused,
+                a.ExcuseReason))
             .ToListAsync(ct);
 
         // ★ A'ZOLIK FILTRI `LiveSessionService.LoadAndAuthorizeAsync` BILAN
@@ -195,6 +319,14 @@ public sealed class AttendanceService(
             .Select(x => new EditStamp(x.StudentId, x.ActorId, x.Actor!.FullName, x.CreatedAt))
             .ToListAsync(ct);
 
+        // ★ 2026-08-16: "qaysi dars uchun qancha yechilgan" — `LessonCharge`
+        // hali YO'Q bo'lishi mumkin (dars hali yakunlanmagan yoki tarif
+        // sozlanmagan), shuning uchun ikkalasi ham `null` bo'lib qoladi.
+        var charges = await db.LessonCharges.AsNoTracking()
+            .Where(c => c.SessionId == session.Id)
+            .Select(c => new ChargeRow(c.StudentId, c.Amount, c.NetAmount))
+            .ToDictionaryAsync(c => c.StudentId, ct);
+
         // Ortidan kelgani oldingisini almashtiradi — `Id` bo'yicha o'sish
         // tartibida o'qilgani uchun oxirida OXIRGI tuzatish qoladi.
         var lastEdit = new Dictionary<long, EditStamp>(stamps.Count);
@@ -207,11 +339,14 @@ public sealed class AttendanceService(
         //   (aks holda ustoz uni belgilay olmasdi: qatorni ko'rmaydi).
         foreach (var member in members)
         {
+            charges.TryGetValue(member.StudentId, out var charge);
+
             rows[member.StudentId] = new AttendanceRowDto(
                 member.StudentId, member.FullName,
                 Status: null, IsManual: false, Reason: null,
                 FirstJoinAt: null, LeftAt: null, DurationSeconds: 0,
-                EditedById: null, EditedByName: null, EditedAt: null);
+                EditedById: null, EditedByName: null, EditedAt: null,
+                LessonAmount: charge?.Amount, LessonChargedAmount: charge?.NetAmount);
         }
 
         // ★ KEYIN yozuvlar — ular a'zo qatorining ustiga yoziladi.
@@ -223,6 +358,7 @@ public sealed class AttendanceService(
         foreach (var record in records)
         {
             lastEdit.TryGetValue(record.StudentId, out var edit);
+            charges.TryGetValue(record.StudentId, out var charge);
 
             rows[record.StudentId] = new AttendanceRowDto(
                 record.StudentId,
@@ -235,7 +371,11 @@ public sealed class AttendanceService(
                 record.DurationSeconds,
                 edit?.ActorId,
                 edit?.ActorName,
-                edit?.At);
+                edit?.At,
+                record.IsExcused,
+                record.ExcuseReason,
+                charge?.Amount,
+                charge?.NetAmount);
         }
 
         // Tartib ISM bo'yicha; `Ordinal` — madaniyatga bog'liq bo'lmagan,
@@ -283,6 +423,36 @@ public sealed class AttendanceService(
         {
             throw new ForbiddenException(
                 "Davomatni faqat guruh ustozi, kuratori yoki o'quv bo'limi tuzata oladi.");
+        }
+
+        return (session, actor);
+    }
+
+    /// <summary>
+    /// "Sababli" belgisi uchun RUXSATNING YAGONA JOYI — <see
+    /// cref="LoadAndAuthorizeAsync"/> DAN ATAYLAB ALOHIDA: bu yerda FAQAT
+    /// Academic/Admin (loyiha egasi: *"buni qo'lda o'quv va admin bo'limi
+    /// orqali qilinishi kerak bo'ladi"*). Ustoz/kurator davomat holatini
+    /// (`UpdateAsync`) tuzata oladi, lekin to'lovga ta'sir qiluvchi
+    /// "sababli" qarorini yo'q — bu moliyaviy oqibat, `PaymentService.
+    /// EnsureCanManage` bilan BIR XIL rol to'plami.
+    /// </summary>
+    private async Task<(LiveSession Session, User Actor)> LoadAndAuthorizeExcuseAsync(
+        long sessionId, long actorId, CancellationToken ct)
+    {
+        var session = await db.LiveSessions.AsTracking().FirstOrDefaultAsync(s => s.Id == sessionId, ct)
+            ?? throw new NotFoundException(nameof(LiveSession), sessionId);
+
+        var actor = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorId, ct)
+            ?? throw new NotFoundException(nameof(User), actorId);
+
+        if (!actor.IsActive)
+            throw new ForbiddenException("Profilingiz faol emas.");
+
+        if (actor.Role is not (UserRole.Admin or UserRole.Academic))
+        {
+            throw new ForbiddenException(
+                "\"Sababli\" belgisini faqat o'quv bo'limi yoki administrator qo'yadi.");
         }
 
         return (session, actor);
@@ -404,9 +574,13 @@ public sealed class AttendanceService(
         string? Reason,
         DateTimeOffset? FirstJoinAt,
         DateTimeOffset? LeftAt,
-        int DurationSeconds);
+        int DurationSeconds,
+        bool IsExcused,
+        string? ExcuseReason);
 
     private sealed record MemberRow(long StudentId, string FullName);
+
+    private sealed record ChargeRow(long StudentId, decimal Amount, decimal NetAmount);
 
     private sealed record EditStamp(
         long StudentId, long ActorId, string ActorName, DateTimeOffset At);

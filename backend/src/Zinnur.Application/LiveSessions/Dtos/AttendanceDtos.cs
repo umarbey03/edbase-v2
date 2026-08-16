@@ -24,6 +24,16 @@ namespace Zinnur.Application.LiveSessions.Dtos;
 /// Guruhning FAOL o'quvchilari + shu darsda davomat yozuvi bo'lgan
 /// HAMMA o'quvchi (arxivlangani ham). Tartib: ism bo'yicha.
 /// </param>
+/// <param name="IsFreeLesson">
+/// Butun dars "bepul" deb belgilanganmi — shunday bo'lsa hech bir
+/// o'quvchidan pul yechilmaydi, qatorlar buni <c>LessonChargedAmount:0</c>
+/// bilan ko'rsatadi (izoh: <see cref="AttendanceRowDto"/>).
+/// </param>
+/// <param name="PayrollExcluded">
+/// Bepul darsda ustoz/kurator HAM haq olmaydimi (izoh:
+/// <c>LiveSession.PayrollExcluded</c>). Faqat <paramref name="IsFreeLesson"/>
+/// da ma'noli.
+/// </param>
 public sealed record SessionAttendanceDto(
     long SessionId,
     long GroupId,
@@ -34,7 +44,10 @@ public sealed record SessionAttendanceDto(
     DateTimeOffset ScheduledStart,
     DateTimeOffset ScheduledEnd,
     bool CanEdit,
-    IReadOnlyList<AttendanceRowDto> Rows);
+    IReadOnlyList<AttendanceRowDto> Rows,
+    bool IsFreeLesson = false,
+    string? FreeLessonReason = null,
+    bool PayrollExcluded = false);
 
 /// <summary>
 /// Bitta o'quvchining shu darsdagi davomati.
@@ -58,6 +71,16 @@ public sealed record SessionAttendanceDto(
 /// </param>
 /// <param name="EditedByName">Oxirgi tuzatishni kim qildi. Tuzatilmagan qatorda <c>null</c>.</param>
 /// <param name="EditedAt">Oxirgi tuzatish vaqti.</param>
+/// <param name="LessonAmount">
+/// ★ 2026-08-16: shu darsning STIKER narxi (tarif/darslar soni) — <c>null</c>
+/// hali hisoblanmagan (dars yakunlanmagan yoki tarif sozlanmagan).
+/// <c>LessonChargedAmount</c> DAN farq qiladi: bu — "bu darsning narxi
+/// shuncha edi", pastdagisi — "haqiqatda shuncha yechildi".
+/// </param>
+/// <param name="LessonChargedAmount">
+/// Shu darsdan HAQIQATDA yechilgan summa (chegirmadan keyin, sababli/bepul
+/// bo'lsa 0). <c>null</c> — <c>LessonAmount</c> bilan bir xil sabab.
+/// </param>
 public sealed record AttendanceRowDto(
     long StudentId,
     string StudentName,
@@ -69,7 +92,23 @@ public sealed record AttendanceRowDto(
     int DurationSeconds,
     long? EditedById,
     string? EditedByName,
-    DateTimeOffset? EditedAt);
+    DateTimeOffset? EditedAt,
+    bool IsExcused = false,
+    string? ExcuseReason = null,
+    decimal? LessonAmount = null,
+    decimal? LessonChargedAmount = null);
+
+/// <summary>
+/// "Sababli" deb belgilash so'rovi (2026-08-16) — FAQAT Academic/Admin
+/// (`AttendanceService.SetExcusedAsync`). Talab: o'quvchi darsga sababli
+/// kelolmagan bo'lsa, shu dars uchun to'lov yechib olinmasin.
+/// </summary>
+/// <param name="Excused">
+/// <c>true</c> — sababli deb belgilanadi; <c>false</c> — bekor qilinadi
+/// (xato bosilgan bo'lsa qaytarish uchun).
+/// </param>
+/// <param name="Reason">Izoh, ixtiyoriy (masalan "Kasal, ma'lumotnoma bor").</param>
+public sealed record SetExcusedRequest(bool Excused, string? Reason);
 
 /// <summary>
 /// Qo'lda tuzatish so'rovi.

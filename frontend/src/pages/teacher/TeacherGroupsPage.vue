@@ -361,6 +361,9 @@ function openGroup(groupId: number): void {
           <table class="zn-table">
             <thead>
               <tr>
+                <th class="w-10">
+                  <span class="sr-only">№</span>
+                </th>
                 <th>Guruh nomi</th>
                 <!--
                   R21b · YO'NALISH ustuni. Loyiha egasi sanagan yetti
@@ -380,10 +383,19 @@ function openGroup(groupId: number): void {
               </tr>
             </thead>
             <tbody>
+              <!--
+                ★ RAQAM SAHIFA BO'YICHA GLOBAL, `ManageGroupsPage` bilan AYNI
+                sabab: sahifalash bor, ya'ni 2-sahifada raqam 1 dan emas,
+                `(page-1) * PAGE_SIZE + 1` dan davom etishi kerak.
+              -->
               <tr
-                v-for="group in groups"
+                v-for="(group, index) in groups"
                 :key="group.id"
               >
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                />
                 <td
                   class="font-medium text-slate-100"
                   v-text="groupDisplayName(group)"

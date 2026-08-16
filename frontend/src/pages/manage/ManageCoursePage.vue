@@ -7,7 +7,7 @@ import { deleteCourse, fetchCourseTree } from '@/entities/course'
 import CourseFormDialog from '@/features/course-form/ui/CourseFormDialog.vue'
 import CourseTreeEditor from '@/features/course-tree/ui/CourseTreeEditor.vue'
 import { toUserMessage } from '@/shared/api'
-import { formatDateTime } from '@/shared/lib/datetime'
+import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import type { CourseDto } from '@/shared/types'
 import {
   AppIcon,
@@ -176,7 +176,7 @@ function askDelete(): void {
             v-if="course.updatedAt !== null"
             class="mt-2 text-[11px] text-dim"
           >
-            Oxirgi o‘zgarish: {{ formatDateTime(course.updatedAt) }}
+            Oxirgi o‘zgarish: {{ formatDateTimeNumeric(course.updatedAt) }}
           </p>
         </BaseCard>
 

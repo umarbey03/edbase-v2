@@ -140,22 +140,37 @@ public class SessionRecording : BaseEntity
     /// kerak, o'quv bo'limi va teacher tarafidan manage qilinadi, ko'rinish
     /// yoki ko'rinmasligi"*.
     ///
-    /// ── NIMA UCHUN STANDART QIYMAT <c>true</c> ──────────────────────────
+    /// ── NIMA UCHUN STANDART QIYMAT <c>false</c> (2026-08-15 dan) ─────────
     ///
-    /// 🔴 BU MA'LUMOT QARORI, KOD QARORI EMAS — u MAVJUD qatorlarga ham
-    /// tegadi. <c>false</c> tanlansa, migratsiya kunida HAR BIR o'quvchining
-    /// "Dars yozuvlari" bo'limi BO'SHAB qolardi va buni o'quvchi nosozlikdan
-    /// ajrata olmasdi. Bundan tashqari o'quv bo'limida "hammasini ochish"
-    /// vositasi yo'q — ular yuzlab yozuvni qo'lda ochishga majbur bo'lardi.
+    /// ★ ILGARI STANDART <c>true</c> EDI, chunki o'quv bo'limida "hammasini
+    /// ochish" vositasi yo'q edi — <c>false</c> tanlansa ular yuzlab yangi
+    /// yozuvni qo'lda ochishga majbur bo'lardi. Loyiha egasi endi buning
+    /// aksini so'radi (2026-08-15: *"dars yozuvlari default holatda ko'rish
+    /// unable bo'lishi kerak"*) va AYNI shu talab bilan birga
+    /// `ManageRecordingsPage`ga "Hammasini ochish"/"Hammasini yopish"
+    /// tugmasi qo'shildi (`RecordingBoard.vue`) — ya'ni eski to'siq
+    /// (qo'lda ochish og'irligi) endi yo'q, standartni almashtirish
+    /// xavfsiz.
+    ///
+    /// 🔴 BU FAQAT KELAJAKDAGI YOZUVLARGA TEGADI, MAVJUDLARGA EMAS:
+    /// standart qiymat faqat YANGI qator INSERT qilinganda (qiymat
+    /// ko'rsatilmasa) ishlaydi — migratsiya bazadagi USTUN DEFAULT'ini
+    /// almashtiradi, mavjud qatorlarning saqlangan qiymatini QAYTA
+    /// YOZMAYDI. Ya'ni bugungача ochilgan yozuvlar o'quvchiga ko'rinishda
+    /// qoladi; faqat ENDI yakunlanadigan yozuvlar yashirin holda boshlanadi
+    /// va ularni o'quv bo'limi/ustoz ochiq ravishda ochishi kerak bo'ladi
+    /// (bitta-bitta `ShowToStudents()` orqali yoki bulk tugma bilan).
     ///
     /// ★ TALABNING O'ZI HAM SHUNI AYTADI: unda "yozuvlar yopiq bo'lsin"
-    /// emas, "BOSHQARILADIGAN bo'lsin" deyilgan. Ya'ni bu bayroq — ORQAGA
-    /// QAYTARISH (yopish) vositasi, e'lon qilish darvozasi emas.
+    /// emas, "BOSHQARILADIGAN bo'lsin" deyilgan — bu bayroq hamon ORQAGA
+    /// QAYTARISH (yopish) VA OLDINGA OCHISH ikkalasining ham vositasi,
+    /// faqat boshlang'ich holat teskari bo'ldi.
     ///
-    /// ★ AGAR kelajakda "avval tekshirilsin, keyin ochilsin" siyosati
-    /// kerak bo'lsa, uni MIGRATSIYASIZ yoqish mumkin: global
-    /// <c>recordings.visible_to_students</c> sozlamasini o'chirib qo'yish
-    /// butun bo'limni bir bosishda yopadi.
+    /// ★ AGAR kelajakda "avval tekshirilsin, keyin ochilsin" siyosati BUTUN
+    /// bo'lim darajasida kerak bo'lsa, uni MIGRATSIYASIZ yoqish mumkin:
+    /// global <c>recordings.visible_to_students</c> sozlamasini o'chirib
+    /// qo'yish butun bo'limni bir bosishda yopadi (bu bayroqdan MUSTAQIL
+    /// qatlam, pastga qarang).
     ///
     /// ⚠️ BU BAYROQ YAKKA O'ZI YETARLI EMAS. Amaldagi ko'rinish UCHTA
     /// kalitning MANTIQIY KO'PAYTMASI (eng qattig'i yutadi):
@@ -164,7 +179,7 @@ public class SessionRecording : BaseEntity
     ///   × shu bayroq × <c>Status == Completed</c>.
     /// Sabab va ustunlik qoidasi <c>IRecordingService</c> izohida.
     /// </summary>
-    public bool IsVisibleToStudents { get; set; } = true;
+    public bool IsVisibleToStudents { get; set; }
 
     /// <summary>
     /// Ko'rinishni OXIRGI marta kim o'zgartirgani.

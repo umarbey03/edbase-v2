@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.IntegrationTests.Infrastructure;
 
@@ -51,6 +53,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
 
         var opened = await OpenPeriodAsync(world, CurrentPeriod());
         var paymentId = opened.Payments[0].Id;
+        await AccrueAsync(world, CurrentPeriod(), MonthlyPrice);
 
         // Oy ochilgach qarz O'SDI — bu kutilgan holat.
         var withDebt = await SummaryAsync();
@@ -236,6 +239,8 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
 
         await OpenPeriodAsync(world, CurrentPeriod());
         await OpenPeriodAsync(world, OldPeriod);
+        await AccrueAsync(world, CurrentPeriod(), MonthlyPrice);
+        await AccrueAsync(world, OldPeriod, MonthlyPrice);
 
         var after = await SummaryAsync();
 
@@ -268,6 +273,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
         await OpenPeriodAsync(world, CurrentPeriod());
+        await AccrueAsync(world, CurrentPeriod(), MonthlyPrice);
 
         await PayAsync(world.StudentId, 200_000m, "Cash");
         await PayAsync(world.StudentId, 40_000m, "Card");
@@ -477,6 +483,24 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(response, HttpStatusCode.OK);
 
         return (await response.Content.ReadFromJsonAsync<OpenPeriodResponse>())!;
+    }
+
+    /// <summary>
+    /// ★ TEST YORDAMCHISI (2026-08-16 — bosqichma-bosqich hisoblash,
+    /// izohi: `PaymentEndpointsTests.AccrueAsync` bilan AYNI sabab).
+    /// </summary>
+    private async Task AccrueAsync(World world, string period, decimal baseAmount)
+    {
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.StudentId == world.StudentId && p.GroupId == world.GroupId && p.Period == period);
+
+            payment.Accrue(baseAmount, 0m, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
     }
 
     private async Task PayAsync(long studentId, decimal amount, string method = "Cash")

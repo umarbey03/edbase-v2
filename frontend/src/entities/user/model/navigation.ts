@@ -114,10 +114,26 @@ const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },
   { routeName: 'manage-sessions', label: 'Jonli darslar', icon: 'calendar' },
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },
-  // O'quv jarayoni sozlamalari (hozircha — dars tahlili mezonlari,
-  // R29/R30 kengaytmasi). `sliders` (Admin'ning "Tizim sozlamalari")
-  // bilan aralashmasin deb boshqa shakl tanlangan.
-  { routeName: 'manage-academic-settings', label: 'O‘quv bo‘limi sozlamalari', icon: 'check-square' },
+  /*
+    "Xabarlar" — v2 qo'shimchasi (2026-08-16): guruhlarga Telegram/platforma
+    chati orqali xabar yuborish paneli. Eski ilovada bunday bo'lim yo'q edi,
+    shuning uchun "qayerga qo'yish kerak" degan meros qarori yo'q — mavjud
+    "Uy vazifalari" dan KEYIN, "Sozlamalar" dan OLDIN qo'yildi: ikkalasi ham
+    kundalik ISH oqimi (vazifa berish, xabar yuborish), sozlamalar esa
+    kamdan-kam ochiladigan TAYYORGARLIK bo'limi.
+  */
+  { routeName: 'manage-broadcasts', label: 'Xabarlar', icon: 'send' },
+  /*
+    O'quv jarayoni sozlamalari (dars tahlili mezonlari, guruh
+    yo'nalishlari). Nom va ikonka endi shunchaki "Sozlamalar" / `sliders`
+    (loyiha egasi, 2026-08-15) — Admin'ning "Tizim sozlamalari" bandi bilan
+    AYNAN bir xil ikonka, ATAYLAB: ikkalasi ham "sozlamalar" tushunchasi,
+    va Academic roli ularni hech qachon BIRGA ko'rmaydi (`MANAGE_NAV` da
+    faqat shu band bor, `manage-settings` esa `ADMIN_ONLY`). Admin roli
+    ikkalasini bitta menyuda ko'radi (`ADMIN_NAV = [...MANAGE_NAV, ...,
+    manage-settings]`) — bu qabul qilingan holat, ikonka to'qnashuvi emas.
+  */
+  { routeName: 'manage-academic-settings', label: 'Sozlamalar', icon: 'sliders' },
 ]
 
 /*
@@ -141,6 +157,7 @@ const ADMIN_NAV: NavItem[] = [
   ...MANAGE_NAV,
   { routeName: 'manage-payments', label: 'To‘lovlar', icon: 'star' },
   { routeName: 'manage-finance', label: 'Moliya', icon: 'chart' },
+  { routeName: 'manage-payroll', label: 'Oylik hisoblash', icon: 'wallet' },
   { routeName: 'manage-settings', label: 'Tizim sozlamalari', icon: 'sliders' },
 ]
 

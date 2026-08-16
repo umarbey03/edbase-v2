@@ -249,3 +249,96 @@ public sealed record AssignmentListQuery(
     long? ModuleLessonId = null,
     int Page = 1,
     int PageSize = 25);
+
+/* ============================================================================
+   O'QUV BO'LIMI UMUMIY KO'RINISHI (2026-08-15 talabi)
+
+   Loyiha egasi: *"bir ko'rganda qaysi guruhdagi vazifalar tekshirilmagani
+   nechtasi tekshirilgani ... javoblari qachon yuborilgani, qachon
+   tekshirilgani, kim tekshirishi kerakligi, o'quvchi yuborgan javobi,
+   olgan bahosi — hammasi ko'rinib turishi kerak"*, ustoz va guruh turi va
+   guruh bo'yicha filtr bilan.
+
+   ★ IKKI ALOHIDA SO'ROV, BITTA EMAS: guruh xulosasi ("nechta tekshirilmagan")
+   BUTUN filtrlangan to'plam bo'yicha aniq son bo'lishi kerak, javoblar
+   ro'yxati esa SAHIFALANADI (yuzlab qator bo'lishi mumkin). Ikkalasini bitta
+   javobga qo'shsak, sahifalangan ro'yxatdan hisoblangan xulosa NOTO'G'RI
+   son berardi (faqat joriy sahifa ko'rinardi).
+
+   ★ FAQAT `ManageRoles` (Academic/Admin): bu — o'quv bo'limining nazorat
+   ekrani, ustoz/kurator o'z "Tekshirish" sahifasida (`ListSubmissionsAsync`)
+   ishlaydi. Shuning uchun bu yerda staff-scoping (`StaffGroupIds`) YO'Q —
+   Academic/Admin har doim BARCHA guruhni ko'radi.
+   ============================================================================ */
+
+/// <summary>
+/// Guruh/kurs-vazifa xulosasi va javoblar ro'yxati uchun UMUMIY filtr.
+/// </summary>
+/// <param name="TeacherId">Guruhning ASOSIY ustozi (<c>Group.TeacherId</c>). Kurs vazifalarida hech qachon mos kelmaydi.</param>
+/// <param name="GroupType">Guruh turi. Kurs vazifalarida hech qachon mos kelmaydi.</param>
+/// <param name="Search">Vazifa sarlavhasi, guruh nomi yoki ustoz ismi bo'yicha (bo'sh/berilmagan — filtrlanmaydi).</param>
+public sealed record AssignmentOverviewFilter(
+    long? TeacherId = null,
+    GroupType? GroupType = null,
+    long? GroupId = null,
+    string? Search = null);
+
+/// <summary>
+/// Bitta guruh (yoki "Kurs vazifalari" — <see cref="GroupId"/> <c>null</c>)
+/// bo'yicha uy vazifalari xulosasi.
+/// </summary>
+public sealed record AssignmentGroupOverviewDto(
+    long? GroupId,
+    string GroupName,
+    GroupType? GroupType,
+    long? TeacherId,
+    string? TeacherName,
+    int AssignmentCount,
+    int SubmissionCount,
+    int GradedCount,
+    int UngradedCount,
+    DateTimeOffset? LastSubmittedAt);
+
+/// <summary>Javoblar ro'yxati filtri — <see cref="AssignmentOverviewFilter"/> + sahifalash/holat.</summary>
+public sealed record SubmissionOverviewQuery(
+    long? TeacherId = null,
+    GroupType? GroupType = null,
+    long? GroupId = null,
+    long? AssignmentId = null,
+    SubmissionStatus? Status = null,
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20);
+
+/// <summary>
+/// Bitta javob — o'quv bo'limi umumiy ko'rinishi uchun TO'LIQ qator (guruh,
+/// ustoz va tekshiruvchi konteksti bilan birga).
+/// </summary>
+/// <param name="GraderLabel">
+/// "Kim tekshirishi kerak" — <c>Assignment.GraderRole ?? Group.AssignmentGraderRole</c>
+/// dan hosil qilingan KO'RSATISH matni (ism yoki "Ustoz / Kurator").
+/// Kurs vazifasida <c>null</c>: u hamma guruhga taalluqli, ya'ni BITTA aniq
+/// tekshiruvchi yo'q (har ustoz o'z o'quvchisini baholaydi).
+/// </param>
+public sealed record SubmissionOverviewDto(
+    long SubmissionId,
+    long AssignmentId,
+    string AssignmentTitle,
+    long? GroupId,
+    string? GroupName,
+    GroupType? GroupType,
+    long? TeacherId,
+    string? TeacherName,
+    long StudentId,
+    string StudentName,
+    SubmissionStatus Status,
+    decimal? Score,
+    decimal MaxScore,
+    decimal? ScorePercent,
+    DateTimeOffset SubmittedAt,
+    bool IsLate,
+    int AttemptNumber,
+    DateTimeOffset? GradedAt,
+    long? GradedById,
+    string? GradedByName,
+    string? GraderLabel);

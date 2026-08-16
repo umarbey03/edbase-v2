@@ -11,6 +11,7 @@ import type { AttendanceRowDto, AttendanceStatusName } from '@/entities/attendan
 import { sessionTypeShortLabel } from '@/entities/session'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime, formatTime } from '@/shared/lib/datetime'
+import { formatMoney } from '@/shared/lib/money'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useNow } from '@/shared/lib/use-now'
 import type { ScheduledSessionDto } from '@/shared/types'
@@ -77,6 +78,9 @@ function cellOf(sessionId: number, studentId: number): AttendanceRowDto | null {
   return rowIndex.value.get(`${sessionId}:${studentId}`) ?? null
 }
 
+/** ★ 2026-08-16: qaysi darslar "bepul" deb belgilangani — ustun sarlavhasida ko'rsatish uchun. */
+const freeSessionIds = computed(() => new Set(sheets.value.filter((s) => s.isFreeLesson).map((s) => s.sessionId)))
+
 const SYMBOL_CLASS: Record<AttendanceStatusName | 'none', string> = {
   Present: 'text-green-400 bg-green-500/10',
   Late: 'text-amber-400 bg-amber-500/10',
@@ -97,7 +101,12 @@ function cellTitle(session: ScheduledSessionDto, row: AttendanceRowDto | null): 
   const status = attendanceStatusLabel(row?.status ?? null)
   const reason = row?.reason ?? null
   const base = `${formatDateTime(session.scheduledStart)} — ${status}`
-  return reason === null ? base : `${base} · ${reason}`
+  const withReason = reason === null ? base : `${base} · ${reason}`
+  // ★ 2026-08-16: "qaysi dars uchun qancha yechilgan" — tooltipga qo'shildi,
+  // 44×44 katakka to'rtinchi vizual belgi sig'dirish o'rniga (allaqachon
+  // qo'lda/sababli nuqtalari bor).
+  if (row?.lessonAmount == null) return withReason
+  return `${withReason} · ${formatMoney(row.lessonChargedAmount ?? 0)} yechildi`
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -275,6 +284,9 @@ interface SheetRow {
   status: AttendanceStatusName | null
   reason: string | null
   isManual: boolean
+  isExcused: boolean
+  lessonAmount: number | null
+  lessonChargedAmount: number | null
 }
 
 /*
@@ -294,8 +306,18 @@ const activeRows = computed<SheetRow[]>(() => {
       status: row?.status ?? null,
       reason: row?.reason ?? null,
       isManual: row?.isManual ?? false,
+      isExcused: row?.isExcused ?? false,
+      lessonAmount: row?.lessonAmount ?? null,
+      lessonChargedAmount: row?.lessonChargedAmount ?? null,
     }
   })
+})
+
+/** Tanlangan darsning butun-dars "bepul" holati — session sathidagi ma'lumot. */
+const activeSheet = computed(() => {
+  const session = activeSession.value
+  if (session === null) return null
+  return sheets.value.find((item) => item.sessionId === session.id) ?? null
 })
 
 /*
@@ -351,11 +373,25 @@ watch(
 
 type OpenCell = InstanceType<typeof AttendanceCellDialog>['$props']['cell']
 
-const openCell = ref<OpenCell>(null)
+/**
+ * ★ FAQAT TANLOVNI "MIXLAYDI" (session + student), TO'LIQ obyektni EMAS:
+ * `openCell` pastda `computed` — har safar `sheets`/`rowIndex` yangilansa
+ * (masalan "bepul dars" saqlangach qayta so'ralganda) dialog AVTOMATIK eng
+ * so'nggi `row`/`isFreeLesson` ni ko'rsatadi. Agar bu yerda TO'LIQ obyekt
+ * saqlansa (avvalgi kod shunday edi), "bepul dars" saqlangach ham summasi
+ * ESKI (masalan hali 75 000) ko'rinib qolardi — real tekshiruvda topilgan
+ * xato (2026-08-16).
+ */
+const pinned = ref<{ session: ScheduledSessionDto; studentId: number; studentName: string } | null>(
+  null,
+)
 
-function openDialog(session: ScheduledSessionDto, studentId: number, studentName: string): void {
+const openCell = computed<OpenCell>(() => {
+  const selection = pinned.value
+  if (selection === null) return null
+  const { session, studentId, studentName } = selection
   const sheet = sheets.value.find((item) => item.sessionId === session.id)
-  openCell.value = {
+  return {
     sessionId: session.id,
     sessionTitle: session.title ?? '',
     sessionType: session.type,
@@ -365,11 +401,37 @@ function openDialog(session: ScheduledSessionDto, studentId: number, studentName
     studentId,
     studentName,
     row: cellOf(session.id, studentId),
+    isFreeLesson: sheet?.isFreeLesson ?? false,
+    freeLessonReason: sheet?.freeLessonReason ?? null,
+    payrollExcluded: sheet?.payrollExcluded ?? false,
   }
+})
+
+function openDialog(session: ScheduledSessionDto, studentId: number, studentName: string): void {
+  pinned.value = { session, studentId, studentName }
+}
+
+function closeDialog(): void {
+  pinned.value = null
 }
 
 function handleSaved(): void {
-  openCell.value = null
+  closeDialog()
+  refreshAttendance()
+}
+
+/**
+ * "Bepul dars" saqlangach oyna OCHIQ qoladi (tanlov `pinned`da qoladi,
+ * `openCell` yuqoridagi `computed` orqali AVTOMATIK yangi ma'lumot bilan
+ * qayta chiziladi) — lekin BUTUN varaq (hamma o'quvchining
+ * `lessonChargedAmount`i) eskirgan bo'lardi, shuning uchun `handleSaved`
+ * dan FARQLI, oyna yopilmaydi.
+ */
+function handleFreeLessonSaved(): void {
+  refreshAttendance()
+}
+
+function refreshAttendance(): void {
   // Varaq yangilansin: `isManual`, sabab va tuzatgan xodim javobda keladi,
   // lekin matritsa bir necha darsdan yig'ilgani uchun butun to'plam qayta
   // olinadi (bitta so'rovlar guruhi).
@@ -467,6 +529,10 @@ function exportCsv(): void {
             >
               <span class="block text-[9px] uppercase text-dim">
                 {{ sessionTypeShortLabel(session.type) }}
+                <span
+                  v-if="freeSessionIds.has(session.id)"
+                  class="text-green-400"
+                >· bepul</span>
               </span>
               <span class="block text-[13px] font-semibold tabular-nums">
                 {{ new Date(session.scheduledStart).getDate() }}/{{
@@ -483,6 +549,10 @@ function exportCsv(): void {
             <p class="text-[11px] uppercase text-dim">
               {{ activeHeader?.type }}
             </p>
+            <span
+              v-if="activeSheet?.isFreeLesson === true"
+              class="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-green-400"
+            >Bepul dars</span>
             <p
               v-if="(activeHeader?.title ?? '').length > 0"
               class="w-full truncate text-xs text-slate-400"
@@ -535,15 +605,33 @@ function exportCsv(): void {
                   />
                 </span>
                 <span class="min-w-0 flex-1">
-                  <span
-                    class="block truncate text-sm font-medium text-slate-100"
-                    v-text="row.name"
-                  />
+                  <span class="flex items-center gap-1.5">
+                    <span
+                      class="block min-w-0 truncate text-sm font-medium text-slate-100"
+                      v-text="row.name"
+                    />
+                    <!--
+                      "Sababli" (2026-08-16) — to'lovga ta'sir qiladigan
+                      qaror, shuning uchun jadvalda ham (nafaqat modalda)
+                      ko'rinishi kerak: "nega bu o'quvchidan pul
+                      yechilmadi?" savolini oldindan javoblab qo'yadi.
+                    -->
+                    <span
+                      v-if="row.isExcused"
+                      class="shrink-0 rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-green-400"
+                    >Sababli</span>
+                  </span>
                   <span
                     v-if="row.reason !== null"
                     class="block truncate text-[11px] text-dim"
                     v-text="row.reason"
                   />
+                  <!-- "Qancha yechilgan" (2026-08-16) — izoh: `AttendanceCellDialog` da AYNI naqsh. -->
+                  <span
+                    v-if="row.lessonAmount !== null"
+                    class="block text-[11px] tabular-nums"
+                    :class="(row.lessonChargedAmount ?? 0) > 0 ? 'text-dim' : 'text-green-400'"
+                  >{{ formatMoney(row.lessonChargedAmount ?? 0) }} yechildi</span>
                 </span>
                 <!--
                   Jadvalda holat FAQAT rang va belgi bilan beriladi (ustun
@@ -608,6 +696,10 @@ function exportCsv(): void {
                 >
                   <span class="block text-[9px] uppercase text-dim">
                     {{ sessionTypeShortLabel(session.type) }}
+                    <span
+                      v-if="freeSessionIds.has(session.id)"
+                      class="text-green-400"
+                    >· bepul</span>
                   </span>
                   {{ new Date(session.scheduledStart).getDate() }}/{{
                     new Date(session.scheduledStart).getMonth() + 1
@@ -667,6 +759,19 @@ function exportCsv(): void {
                     <span
                       v-if="cellOf(session.id, row.studentId)?.isManual === true"
                       class="absolute right-1 top-1 size-[5px] rounded-full bg-brand-500"
+                      aria-hidden="true"
+                    />
+                    <!--
+                      "Sababli" nuqtasi (2026-08-16) — `manual-dot` bilan
+                      BIR XIL naqsh, lekin QARAMA-QARSHI burchakda (chap
+                      pastda) va YASHIL: 44×44 katakda matn uchun joy yo'q
+                      (`AttendanceTab` dagi asosiy dizayn qarori), lekin
+                      to'lovga ta'sir qiladigan qaror ko'rinmas qolmasligi
+                      kerak — aniq tafsilot modalda (`AttendanceCellDialog`).
+                    -->
+                    <span
+                      v-if="cellOf(session.id, row.studentId)?.isExcused === true"
+                      class="absolute bottom-1 left-1 size-[5px] rounded-full bg-green-500"
                       aria-hidden="true"
                     />
                   </button>
@@ -784,7 +889,8 @@ function exportCsv(): void {
 
   <AttendanceCellDialog
     :cell="openCell"
-    @close="openCell = null"
+    @close="closeDialog"
     @saved="handleSaved"
+    @free-lesson-saved="handleFreeLessonSaved"
   />
 </template>

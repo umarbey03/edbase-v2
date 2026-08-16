@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Scheduling.Dtos;
+using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Scheduling;
@@ -38,7 +39,8 @@ public sealed class ScheduleService(
                 + "Mavjud jadvalni o'zgartirish uchun RegenerateAsync ishlatiladi.");
         }
 
-        var planned = ScheduleGenerator.Build(group, timeZone.TimeZone);
+        var excludedDates = await ExcludedDatesAsync(group.Id, ct);
+        var planned = ScheduleGenerator.Build(group, timeZone.TimeZone, excludedDates);
 
         foreach (var session in planned)
             Attach(group, session);
@@ -101,11 +103,13 @@ public sealed class ScheduleService(
         // BIRINCHI KELAJAK dars aynan `preserved.Count + 1` raqamini olsin.
         // Generatorni ikki marta chaqirish arzon — u sof funksiya, bazaga
         // yoki tarmoqqa tegmaydi.
-        var probe = ScheduleGenerator.Build(group, timeZone.TimeZone);
+        var excludedDates = await ExcludedDatesAsync(group.Id, ct);
+
+        var probe = ScheduleGenerator.Build(group, timeZone.TimeZone, excludedDates);
         var alreadyPast = probe.Count(p => p.Start <= now);
 
         var planned = ScheduleGenerator.Build(
-            group, timeZone.TimeZone, startingIndex: preserved.Count + 1 - alreadyPast);
+            group, timeZone.TimeZone, excludedDates, startingIndex: preserved.Count + 1 - alreadyPast);
 
         // ---- 3) Faqat kelajak va to'qnashmaganlar.
         //
@@ -171,8 +175,10 @@ public sealed class ScheduleService(
         // uni `ScheduleGenerator` quradi (DRY: shakl bitta joyda).
         // Rejani mavjud darslarga AYNAN `ScheduledStart` bo'yicha moslashtirib,
         // faqat sarlavhani ko'chiramiz — dars Id'lari va xona nomlari qoladi.
+        var excludedDates = await ExcludedDatesAsync(group.Id, ct);
+
         var titles = ScheduleGenerator
-            .Build(group, timeZone.TimeZone)
+            .Build(group, timeZone.TimeZone, excludedDates)
             .ToDictionary(p => p.Start, p => p.Title);
 
         var changed = 0;
@@ -242,6 +248,35 @@ public sealed class ScheduleService(
     /// </summary>
     private static bool IsReplaceable(LiveSession session, DateTimeOffset now) =>
         session.Status == SessionStatus.Scheduled && session.ScheduledStart > now;
+
+    /// <summary>
+    /// ★ BAYRAM KALENDARI (2026-08-16) — <c>ScheduleGenerator.Build</c> ga
+    /// beriladigan "chiqarib tashlanadigan sanalar" to'plami: UMUMIY
+    /// bayramlar (<c>Holidays</c>, butun platforma) + SHU guruhning
+    /// allaqachon bekor qilingan darslari sanalari. Ikkalasi bitta to'plamga
+    /// birlashtirilishining sababi: manbasidan qat'i nazar, bekor qilingan
+    /// sana IKKINCHI MARTA rejalashtirilmasligi kerak — generator ikkalasini
+    /// bir xil "bu kunga tegma" ko'rsatmasi deb qabul qiladi.
+    /// </summary>
+    private async Task<IReadOnlySet<DateOnly>> ExcludedDatesAsync(long groupId, CancellationToken ct)
+    {
+        var zone = timeZone.TimeZone;
+
+        var holidayDates = await db.Holidays.AsNoTracking()
+            .Select(h => h.Date)
+            .ToListAsync(ct);
+
+        var cancelledStarts = await db.LiveSessions.AsNoTracking()
+            .Where(s => s.GroupId == groupId && s.Status == SessionStatus.Cancelled)
+            .Select(s => s.ScheduledStart)
+            .ToListAsync(ct);
+
+        var result = new HashSet<DateOnly>(holidayDates);
+        foreach (var start in cancelledStarts)
+            result.Add(LocalWallClock.LocalDate(start, zone));
+
+        return result;
+    }
 
     private async Task<List<LiveSession>> LoadFutureScheduledAsync(long groupId, CancellationToken ct)
     {

@@ -16,6 +16,7 @@ import {
   transactionKindLabel,
   transactionKindTone,
 } from '@/entities/payment'
+import LessonChargesDialog from '@/features/payment-actions/ui/LessonChargesDialog.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { formatMoney, formatSum } from '@/shared/lib/money'
@@ -63,11 +64,23 @@ const TRANSACTIONS_PAGE_SIZE = 25
 const transactionsPage = ref(1)
 const actionError = ref<string | null>(null)
 
+/** ★ 2026-08-16: "Darslar" tugmasi — bitta (guruh, oy) uchun dars-dars tafsilot. */
+const lessonChargesOpen = ref(false)
+const lessonChargesGroupId = ref<number | null>(null)
+const lessonChargesPeriod = ref<string | null>(null)
+
+function openLessonCharges(groupId: number, period: string): void {
+  lessonChargesGroupId.value = groupId
+  lessonChargesPeriod.value = period
+  lessonChargesOpen.value = true
+}
+
 watch(
   () => [props.open, props.studentId] as const,
   () => {
     transactionsPage.value = 1
     actionError.value = null
+    lessonChargesOpen.value = false
   },
 )
 
@@ -441,11 +454,16 @@ const { isDesktop } = useBreakpoint()
             </div>
           </dl>
 
-          <div
-            v-if="canWaive(month)"
-            class="mt-2 flex justify-end"
-          >
+          <div class="mt-2 flex justify-end gap-2">
             <BaseButton
+              size="sm"
+              variant="ghost"
+              @click="openLessonCharges(month.groupId, month.period)"
+            >
+              Darslar
+            </BaseButton>
+            <BaseButton
+              v-if="canWaive(month)"
               size="sm"
               variant="ghost"
               @click="emit('waive', month)"
@@ -507,7 +525,14 @@ const { isDesktop } = useBreakpoint()
                 </BaseBadge>
               </td>
               <td>
-                <div class="flex justify-end">
+                <div class="flex justify-end gap-2">
+                  <BaseButton
+                    size="sm"
+                    variant="ghost"
+                    @click="openLessonCharges(month.groupId, month.period)"
+                  >
+                    Darslar
+                  </BaseButton>
                   <BaseButton
                     v-if="canWaive(month)"
                     size="sm"
@@ -674,4 +699,18 @@ const { isDesktop } = useBreakpoint()
       </BaseButton>
     </template>
   </BaseModal>
+
+  <!--
+    ★ TARTIB MUHIM — `StudentProfileDrawer` dagi bilan AYNI sabab: teleport
+    langari E'LON QILINGAN tartibda yaratiladi, shuning uchun ichki oyna
+    yuqoridagi `BaseModal` dan KEYIN, uning USTIGA chiqishi uchun.
+  -->
+  <LessonChargesDialog
+    v-if="lessonChargesOpen"
+    :open="lessonChargesOpen"
+    :student-id="props.studentId"
+    :group-id="lessonChargesGroupId"
+    :period="lessonChargesPeriod"
+    @close="lessonChargesOpen = false"
+  />
 </template>

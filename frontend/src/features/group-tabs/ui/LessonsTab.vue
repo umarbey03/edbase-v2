@@ -2,15 +2,18 @@
 import { computed, ref } from 'vue'
 
 import { sessionStartState, sessionStatusLabel, sessionTypeLabel } from '@/entities/session'
+import { isManagerRole } from '@/entities/user'
+import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { formatWeekdayDateTime, formatTime, monthNameCapitalized } from '@/shared/lib/datetime'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import { useNow } from '@/shared/lib/use-now'
 import type { ScheduledSessionDto } from '@/shared/types'
 import { BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
 import type { CalendarDay, CalendarEventTone } from '../model/calendar'
 import { buildMonthGrid, calendarEvent, TEACHER_WEEKDAYS } from '../model/calendar'
-import { useGroupSchedule, useSessionStart } from '../model/use-group-schedule'
+import { useGroupSchedule, useSessionCancel, useSessionStart } from '../model/use-group-schedule'
 
 /**
  * "Darslar" tabi — eski `#tab-lessons` dagi oy kalendari.
@@ -27,8 +30,45 @@ import { useGroupSchedule, useSessionStart } from '../model/use-group-schedule'
 const props = defineProps<{ groupId: number }>()
 
 const now = useNow()
+const auth = useAuthStore()
+const confirm = useConfirm()
 const scheduleQuery = useGroupSchedule(props.groupId)
 const { start, openRoom, pendingId, error: actionError } = useSessionStart(props.groupId)
+const {
+  cancel: cancelSession,
+  pendingId: cancelPendingId,
+  error: cancelError,
+} = useSessionCancel(props.groupId)
+
+/** ★ FAQAT ACADEMIC/ADMIN (loyiha egasi: "qo'lda o'quv va admin bo'limi orqali"). */
+const canCancel = computed(() => auth.role !== null && isManagerRole(auth.role))
+
+/**
+ * Bekor qilishdan OLDIN tasdiq — QAYTARIB BO'LMAYDIGAN amal: guruh jadvali
+ * darhol qayta tuziladi va o'rnini bosuvchi dars kurs oxiriga qo'shiladi.
+ */
+async function askCancel(session: ScheduledSessionDto): Promise<void> {
+  const ok = await confirm({
+    title: 'Darsni bekor qilish',
+    message: `${formatWeekdayDateTime(session.scheduledStart)} dagi dars bekor qilinadi.`,
+    confirmLabel: 'Darsni bekor qilish',
+    // ★ ATAYLAB O'ZGARTIRILDI ("Bekor qilish" standartidan): bu amalning
+    // O'ZI "bekor qilish" bo'lgani uchun standart yorliq TASDIQ va RAD
+    // tugmalarida BIR XIL matn hosil qilardi ("Bekor qilish" / "Bekor
+    // qilish") — foydalanuvchi qaysi tugma NIMANI bekor qilishini
+    // (dars — deb tasdiqlashni, yoki so'rovni — deb rad etishni)
+    // ANIQLAY OLMASDI.
+    cancelLabel: 'Yopish',
+    tone: 'danger',
+    details: [
+      'Guruh jadvali avtomatik qayta tuziladi.',
+      'O‘rnini bosuvchi dars kurs oxiriga qo‘shiladi — o‘quvchilar jami dars sonini yo‘qotmaydi.',
+    ],
+  })
+  if (!ok) return
+
+  cancelSession(session.id)
+}
 
 const sessions = computed(() => scheduleQuery.data.value ?? [])
 
@@ -258,6 +298,12 @@ const cells = computed<CalendarCell[]>(() =>
         role="alert"
         v-text="actionError"
       />
+      <p
+        v-if="cancelError !== null"
+        class="mb-3 rounded-lg border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200"
+        role="alert"
+        v-text="cancelError"
+      />
 
       <DataStatus
         :pending="scheduleQuery.isPending.value"
@@ -406,28 +452,46 @@ const cells = computed<CalendarCell[]>(() =>
               {{ sessionStatusLabel(selected.status) }}
             </p>
           </div>
-          <BaseButton
-            v-if="selectedState?.kind === 'live'"
-            size="sm"
-            variant="success"
-            @click="openRoom(selected.id)"
-          >
-            Darsga qaytish
-          </BaseButton>
-          <BaseButton
-            v-else-if="selectedState?.kind === 'ready'"
-            size="sm"
-            :loading="pendingId === selected.id"
-            @click="start(selected.id)"
-          >
-            Darsni boshlash
-          </BaseButton>
-          <span
-            v-else-if="selectedState?.kind === 'wait'"
-            class="text-xs text-slate-400"
-          >
-            Dars boshlanishiga vaqt bor — {{ selectedState.text }} qoldi
-          </span>
+          <div class="flex items-center gap-2">
+            <BaseButton
+              v-if="selectedState?.kind === 'live'"
+              size="sm"
+              variant="success"
+              @click="openRoom(selected.id)"
+            >
+              Darsga qaytish
+            </BaseButton>
+            <BaseButton
+              v-else-if="selectedState?.kind === 'ready'"
+              size="sm"
+              :loading="pendingId === selected.id"
+              @click="start(selected.id)"
+            >
+              Darsni boshlash
+            </BaseButton>
+            <span
+              v-else-if="selectedState?.kind === 'wait'"
+              class="text-xs text-slate-400"
+            >
+              Dars boshlanishiga vaqt bor — {{ selectedState.text }} qoldi
+            </span>
+
+            <!--
+              "Bekor qilish" — dars HALI BOSHLANMAGAN (`Scheduled`) bo'lsa
+              va rol Academic/Admin bo'lsa, `selectedState.kind` qanday
+              bo'lishidan qat'i nazar ko'rinadi (masalan uzoq kelajakdagi
+              dars uchun `selectedState` `null` bo'ladi).
+            -->
+            <BaseButton
+              v-if="canCancel && selected.status === 'Scheduled'"
+              size="sm"
+              variant="danger"
+              :loading="cancelPendingId === selected.id"
+              @click="askCancel(selected)"
+            >
+              Bekor qilish
+            </BaseButton>
+          </div>
         </div>
       </DataStatus>
     </div>

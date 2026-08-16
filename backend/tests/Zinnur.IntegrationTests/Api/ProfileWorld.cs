@@ -55,6 +55,27 @@ internal static class ProfileWorldBuilder
 
         opened.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(opened));
 
+        // ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): `OpenPeriodAsync` endi
+        // 0 so'mda ochadi — haqiqiy oqimda summani DARS YAKUNLANGANDA
+        // `LessonAccrualService` to'ldiradi. Bu qurilmada darslar
+        // (`AddTwoEndedSessionsAsync`) to'g'ridan-to'g'ri bazaga yoziladi va
+        // `LiveSessionService.EndAsync` (hisoblash oqimi) orqali o'tmaydi —
+        // shuning uchun oyni TO'LIQ tarif bilan qo'lda to'ldiramiz, xuddi
+        // shu oyning barcha darslari allaqachon hisoblangandek. Bu QARZ
+        // MAVJUD bo'lgandan KEYIN to'lov yozilishini ta'minlaydi — aks
+        // holda 0 so'mlik oyga to'lov to'g'ridan-to'g'ri balansga tushib,
+        // `PaidAmount` emas, `StudentAccount.Balance` o'sardi.
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.StudentId == world.Student.Id && p.GroupId == world.GroupId && p.Period == Period);
+
+            payment.Accrue(MonthlyPrice, 0m, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
+
         if (paid > 0)
         {
             var receipt = await admin.PostAsJsonAsync("/api/v1/payments", new

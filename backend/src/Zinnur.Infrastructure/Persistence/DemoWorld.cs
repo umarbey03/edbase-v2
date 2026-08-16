@@ -290,12 +290,17 @@ internal sealed class DemoWorld(
             .ConfigureAwait(false)
             ?? AddCourse();
 
+        // ⚠️ "Tajvid" ATAYLAB ishlatilmaydi: u Qur'on tilovati QOIDALARI degan
+        // ma'noni anglatadi (diniy fan), platforma esa arab TILINI o'rgatadi
+        // (loyiha egasi, 2026-08-15: "biz diniy ta'lim bermaymiz"). "Harakat",
+        // "fatha/kasra/damma", "madd" kabi atamalar QOLADI — ular arab
+        // GRAMMATIKASI/FONETIKASI terminlari, diniy fanga xos emas.
         _course.Description =
-            "Boshlang'ich kurs: arab alifbosi, harakatlar va tajvid asoslari.";
+            "Boshlang'ich kurs: arab alifbosi, harakatlar va talaffuz qoidalari.";
         _course.IsActive = true;
 
         var module1 = EnsureModule(_course, "1-modul — Alifbo", 1);
-        var module2 = EnsureModule(_course, "2-modul — Harakatlar va tajvid", 2);
+        var module2 = EnsureModule(_course, "2-modul — Harakatlar va talaffuz", 2);
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
@@ -873,8 +878,15 @@ internal sealed class DemoWorld(
     private async Task SeedRecordingsAsync(CancellationToken ct)
     {
         // 1) Tayyor va o'quvchilarga OCHIQ yozuv.
+        //    ⚠️ 2026-08-15 dan `IsVisibleToStudents` STANDARTI `false`
+        //    (sabab `SessionRecording.IsVisibleToStudents` izohida), ya'ni
+        //    "ochiq" holatni demo ma'lumotida ko'rsatish uchun endi
+        //    `ShowToStudents` ANIQ chaqirilishi SHART — aks holda bu qator
+        //    ham `hidden` bilan bir xil (yashirin) bo'lib qolardi va demo
+        //    ikki rolni ham (ochiq/yopiq) tekshirish imkoniyatini yo'qotardi.
         var ok = Recording(_past1, 4_680, 512_000_000);
         ok.MarkCompleted(null, ok.SizeBytes, ok.DurationSeconds, _past1.ActualEnd!.Value, now);
+        ok.ShowToStudents(_academic.Id, now.AddDays(-5));
 
         // 2) Tayyor, lekin O'QUVCHIDAN YASHIRILGAN.
         //    ⚠️ Bu holat UI'da faqat xodimga ko'rinadi — ikkala rolni ham
@@ -883,9 +895,11 @@ internal sealed class DemoWorld(
         hidden.MarkCompleted(null, hidden.SizeBytes, hidden.DurationSeconds, _past2.ActualEnd!.Value, now);
         hidden.HideFromStudents(_academic.Id, now.AddDays(-4));
 
-        // 3) Tayyor + SIFAT NAZORATI xulosasi (R29).
+        // 3) Tayyor + SIFAT NAZORATI xulosasi (R29) — bu ham OCHIQ holatni
+        //    namoyish qiladi (1-band bilan AYNI sabab bo'yicha ANIQ ochiladi).
         var reviewed = Recording(_past3, 4_640, 476_000_000);
         reviewed.MarkCompleted(null, reviewed.SizeBytes, reviewed.DurationSeconds, _past3.ActualEnd!.Value, now);
+        reviewed.ShowToStudents(_academic.Id, now.AddDays(-2));
 
         // 4) YIQILGAN yozuv — xato holati ham ko'rinishi kerak.
         var failed = Recording(_curatorPast, null, null);
@@ -1133,7 +1147,7 @@ internal sealed class DemoWorld(
 
         var contest = new Test
         {
-            Title = "Oylik musobaqa — tajvid asoslari",
+            Title = "Oylik musobaqa — talaffuz asoslari",
             Description = "Oy yakunidagi umumiy musobaqa. Har bir o'quvchi bir marta topshiradi.",
             Kind = TestKind.Competition,
             DueAt = now.AddDays(5),

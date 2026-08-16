@@ -6,6 +6,7 @@ export type {
   AssignmentAttachmentKindName,
   AttachmentKindName,
   AssignmentDto,
+  AssignmentGroupOverviewDto,
   AttemptStatusName,
   AttendanceBucketDto,
   AttendanceSummaryDto,
@@ -24,6 +25,8 @@ export type {
   CreateAssignmentRequest,
   CreateDiscountRequest,
   CreateGroupResponse,
+  CreateHolidayRequest,
+  CreateMessageTemplateRequest,
   CreateTariffRequest,
   CreateTestRequest,
   CreateUserRequest,
@@ -36,6 +39,9 @@ export type {
   DiscountKindName,
   FinanceSettingsDto,
   GradeSubmissionRequest,
+  /* ===== "Xabarlar" paneli ===== */
+  GroupBroadcastDto,
+  /* ===== /"Xabarlar" paneli ===== */
   GroupChatAccessDto,
   GroupChatChannelName,
   GroupChatAttachmentDto,
@@ -54,6 +60,10 @@ export type {
   GroupMemberDto,
   GroupTypeName,
   GroupWriteRequest,
+  /* ===== Bayram kalendari ===== */
+  HolidayDto,
+  HolidayImpactDto,
+  /* ===== /Bayram kalendari ===== */
   LeaderboardRowDto,
   LeaderboardScopeName,
   LessonAssetDto,
@@ -70,6 +80,7 @@ export type {
   MediaAccessTicketDto,
   MemberStatusName,
   MessagePageDto,
+  MessageTemplateDto,
   ModuleWriteRequest,
   MoveMemberRequest,
   MoveMemberResponse,
@@ -120,6 +131,7 @@ export type {
   ScheduleChangeSummary,
   ScheduledSessionDto,
   SendDirectMessageRequest,
+  SendGroupBroadcastRequest,
   SendGroupChatMessageRequest,
   SessionReviewDto,
   SessionReviewScoreDto,
@@ -143,6 +155,8 @@ export type {
   SubmissionDto,
   SubmissionFeedbackFileDto,
   SubmissionFileDto,
+  SubmissionOverviewDto,
+  TeacherReviewOverviewDto,
   SubmissionStatusName,
   SubmitTestRequest,
   TakeOptionDto,
@@ -157,6 +171,7 @@ export type {
   UpdateDiscountRequest,
   UpdateFinanceSettingsRequest,
   UpdateGroupResponse,
+  UpdateMessageTemplateRequest,
   UpdateSettingRequest,
   UpdateTariffRequest,
   UpdateTestRequest,
@@ -226,6 +241,18 @@ export type {
   UpdateProfileRequest,
 } from './api'
 /* ===== /O'Z PROFILINI TAHRIRLASH ===== */
+
+/* ===== Bosqich 4 · Oylik hisoblash (2026-08-16) ===== */
+export type {
+  CreateTeacherRateRequest,
+  PayrollDetailDto,
+  PayrollSessionRowDto,
+  PayrollSummaryDto,
+  PayrollSummaryRowDto,
+  TeacherRateDto,
+  UpdateTeacherRateRequest,
+} from './api'
+/* ===== /Bosqich 4 ===== */
 
 export { GroupChatHubEvent, GroupChatHubMethod, HubEvent, HubMethod } from './realtime'
 export { NotificationHubEvent } from './realtime'

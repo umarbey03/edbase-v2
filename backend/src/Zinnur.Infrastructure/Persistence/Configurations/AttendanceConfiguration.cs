@@ -27,6 +27,10 @@ public sealed class AttendanceConfiguration : IEntityTypeConfiguration<Attendanc
 
         builder.Property(a => a.Reason).HasMaxLength(ReasonMaxLength);
 
+        // "Sababli" izohi (2026-08-16) — AYNI chegara, `Reason` bilan bir
+        // xil mulohaza (izoh yuqorida).
+        builder.Property(a => a.ExcuseReason).HasMaxLength(ReasonMaxLength);
+
         builder.HasOne(a => a.Session)
             .WithMany()
             .HasForeignKey(a => a.SessionId)

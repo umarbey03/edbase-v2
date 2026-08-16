@@ -52,6 +52,14 @@ public interface IPaymentService
         long studentId, long actorId, CancellationToken ct = default);
 
     /// <summary>
+    /// ★ 2026-08-16: "qaysi guruh, qaysi dars uchun qancha yechilgan" —
+    /// dars-dars tafsilot. Ruxsat <see cref="GetStudentAccountAsync"/> bilan
+    /// AYNI (o'quvchi o'zinikini, xodim boshqara oladiganini ko'radi).
+    /// </summary>
+    Task<IReadOnlyList<LessonChargeDto>> GetLessonChargesAsync(
+        long studentId, long? groupId, string? period, long actorId, CancellationToken ct = default);
+
+    /// <summary>
     /// "Shu o'quvchining moliyasini ko'ra oladimi" — YENGIL tekshiruv
     /// (ma'lumot yuklamaydi), ruxsati yo'q bo'lsa 403.
     ///

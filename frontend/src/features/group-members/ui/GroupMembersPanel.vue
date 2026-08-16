@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import {
+  addMember,
   fetchGroupMembers,
   memberStatusLabel,
   memberStatusTone,
@@ -22,6 +23,7 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, IconButton } from
 import AddMemberDialog from './AddMemberDialog.vue'
 import MoveMemberDialog from './MoveMemberDialog.vue'
 import PauseMemberDialog from './PauseMemberDialog.vue'
+import RestoreMemberDialog from './RestoreMemberDialog.vue'
 
 /**
  * Guruh o'quvchilari va ular ustidagi amallar.
@@ -124,6 +126,20 @@ const activeMembers = computed(() => members.value.filter((member) => !isHistori
 const archivedMembers = computed(() => members.value.filter((member) => isHistorical(member)))
 
 /**
+ * 🔴 TUZATILDI (loyiha egasi, 2026-08-16): sarlavhadagi "Faol" soni ILGARI
+ * `activeMembers.length` dan olinardi — u esa `Paused`ni ham qo'shib
+ * hisoblardi (faqat `Stopped`/`Moved` chiqarib tashlanadi, sabab
+ * `isHistorical` izohida). Natijada bu yerdagi "Faol: N" va Guruhlar
+ * ro'yxatidagi son (`GroupDto.memberCount`, backendda QAT'IY
+ * `MemberStatus.Active`) IKKI XIL sonni bir xil so'z bilan ko'rsatardi.
+ * Bu son endi backend bilan AYNI mezonni ishlatadi — pauzadagi o'quvchi
+ * jadvalda TURADI (holat nishoni bilan), faqat sanoqqa kirmaydi.
+ */
+const trulyActiveCount = computed(
+  () => members.value.filter((member) => member.status === 'Active').length,
+)
+
+/**
  * 🔴 BUG TUZATILDI (2026-08-15): "chiqarilgan o'quvchini guruhga qayta
  * qo'shib bo'lmayapti".
  *
@@ -192,9 +208,31 @@ const removeMutation = useMutation({
   },
 })
 
-function isBusy(member: GroupMemberDto, kind: 'resume' | 'remove'): boolean {
+/**
+ * ARXIVDAGI o'quvchini SHU guruhga qaytarish (loyiha egasi, 2026-08-16).
+ *
+ * ★ `addMember` ISHLATILADI, `resumeMember` EMAS: `resumeMember` faqat
+ * PAUZADAGI a'zolikni tiklaydi va `Stopped`/`Moved` uchun ATAYLAB 409
+ * qaytaradi (server izohi: "bu boshqa amal — qayta qo'shish"). `addMember`
+ * esa aynan shu holatni TIKLASHGA mo'ljallangan (`GroupService.AddMemberAsync`
+ * izohi: "TIKLASH, yangi qator EMAS" — arxiv izi ham tozalanadi).
+ */
+const restoreMutation = useMutation({
+  mutationFn: (studentId: number) => addMember(props.groupId, { studentId }),
+  onSuccess: refresh,
+  onError: (error: Error) => {
+    actionError.value = toUserMessage(error)
+  },
+  onSettled: () => {
+    busyStudentId.value = null
+  },
+})
+
+function isBusy(member: GroupMemberDto, kind: 'resume' | 'remove' | 'restore'): boolean {
   if (busyStudentId.value !== member.studentId) return false
-  return kind === 'resume' ? resumeMutation.isPending.value : removeMutation.isPending.value
+  if (kind === 'resume') return resumeMutation.isPending.value
+  if (kind === 'remove') return removeMutation.isPending.value
+  return restoreMutation.isPending.value
 }
 
 /** Bitta o'quvchi ustida ikki amal bir vaqtda ishga tushmasin. */
@@ -241,6 +279,26 @@ async function askRemove(member: GroupMemberDto): Promise<void> {
   removeMutation.mutate(member.studentId)
 }
 
+async function askRestore(member: GroupMemberDto): Promise<void> {
+  actionError.value = null
+  const ok = await confirm({
+    title: 'Guruhga qaytarish',
+    message: `${memberName(member)} shu guruhga FAOL a'zo sifatida qaytariladi.`,
+    confirmLabel: 'Qaytarish',
+    tone: 'primary',
+    details: [
+      'Davomat va to‘lov hisobi bugundan yana yuritiladi.',
+      'Arxivdagi eski izoh (sabab, sana) endi ko‘rinmaydi.',
+    ],
+  })
+  if (!ok) return
+  busyStudentId.value = member.studentId
+  restoreMutation.mutate(member.studentId)
+}
+
+/** "Boshqa guruhga qo'shish" dialogi ochilgan a'zo — `null` yopiq. */
+const restoreToOtherTarget = ref<GroupMemberDto | null>(null)
+
 /** Pauzadagi o'quvchini qaytarish uchun alohida tugma kerak. */
 function isPaused(member: GroupMemberDto): boolean {
   return member.status === 'Paused'
@@ -256,7 +314,7 @@ function isHistorical(member: GroupMemberDto): boolean {
   <BaseCard
     flush
     title="O‘quvchilar"
-    :subtitle="`Faol: ${activeMembers.length}`"
+    :subtitle="`Faol: ${trulyActiveCount}`"
   >
     <template
       v-if="props.canManage"
@@ -301,15 +359,17 @@ function isHistorical(member: GroupMemberDto): boolean {
           class="space-y-2"
         >
           <li
-            v-for="member in activeMembers"
+            v-for="(member, index) in activeMembers"
             :key="member.id"
             class="rounded-lg border border-line bg-ink-950 p-3"
           >
             <div class="flex items-start justify-between gap-2">
-              <p
-                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
-                v-text="member.fullName ?? '—'"
-              />
+              <p class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
+                <span
+                  class="tabular-nums text-dim"
+                  v-text="`${index + 1}.`"
+                /> {{ member.fullName ?? '—' }}
+              </p>
               <BaseBadge :tone="memberStatusTone(member.status)">
                 {{ memberStatusLabel(member.status) }}
               </BaseBadge>
@@ -404,6 +464,9 @@ function isHistorical(member: GroupMemberDto): boolean {
           <table class="zn-table">
             <thead>
               <tr>
+                <th class="w-10">
+                  <span class="sr-only">№</span>
+                </th>
                 <th>Ism</th>
                 <th v-if="showContact">
                   Email
@@ -420,9 +483,13 @@ function isHistorical(member: GroupMemberDto): boolean {
             </thead>
             <tbody>
               <tr
-                v-for="member in activeMembers"
+                v-for="(member, index) in activeMembers"
                 :key="member.id"
               >
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="index + 1"
+                />
                 <td
                   class="font-medium text-slate-100"
                   v-text="member.fullName ?? '—'"
@@ -561,6 +628,30 @@ function isHistorical(member: GroupMemberDto): boolean {
             >
               Sabab: {{ member.reason }}
             </p>
+
+            <!--
+              QAYTARISH (loyiha egasi, 2026-08-16): arxivdagi o'quvchini shu
+              guruhga yoki boshqa guruhga qaytadan qo'shish imkoni.
+            -->
+            <div
+              v-if="props.canManage"
+              class="mt-2.5 flex flex-wrap items-center gap-3"
+            >
+              <IconButton
+                icon="user-check"
+                label="Shu guruhga qaytarish"
+                tone="success"
+                :loading="isBusy(member, 'restore')"
+                :disabled="isRowLocked(member)"
+                @click="askRestore(member)"
+              />
+              <IconButton
+                icon="arrow-right-left"
+                label="Boshqa guruhga qo‘shish"
+                :disabled="isRowLocked(member)"
+                @click="restoreToOtherTarget = member"
+              />
+            </div>
           </li>
         </ul>
 
@@ -572,19 +663,29 @@ function isHistorical(member: GroupMemberDto): boolean {
           <table class="zn-table opacity-80">
             <thead>
               <tr>
+                <th class="w-10">
+                  <span class="sr-only">№</span>
+                </th>
                 <th>Ism</th>
                 <th>Holat</th>
                 <th>Sana</th>
                 <th>Ko‘chirilgan guruh</th>
                 <th>Kim tomonidan</th>
                 <th>Sabab</th>
+                <th v-if="props.canManage">
+                  <span class="sr-only">Amallar</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="member in archivedMembers"
+                v-for="(member, index) in archivedMembers"
                 :key="member.id"
               >
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="index + 1"
+                />
                 <td
                   class="font-medium text-slate-100"
                   v-text="member.fullName ?? '—'"
@@ -611,6 +712,26 @@ function isHistorical(member: GroupMemberDto): boolean {
                   :title="member.reason ?? ''"
                   v-text="member.reason ?? '—'"
                 />
+                <td v-if="props.canManage">
+                  <div class="flex items-center justify-end gap-3">
+                    <IconButton
+                      icon="user-check"
+                      label="Shu guruhga qaytarish"
+                      tone="success"
+                      size="sm"
+                      :loading="isBusy(member, 'restore')"
+                      :disabled="isRowLocked(member)"
+                      @click="askRestore(member)"
+                    />
+                    <IconButton
+                      icon="arrow-right-left"
+                      label="Boshqa guruhga qo‘shish"
+                      size="sm"
+                      :disabled="isRowLocked(member)"
+                      @click="restoreToOtherTarget = member"
+                    />
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -639,6 +760,14 @@ function isHistorical(member: GroupMemberDto): boolean {
       :group-id="props.groupId"
       :member="moveTarget"
       @close="moveTarget = null"
+      @saved="refresh"
+    />
+
+    <RestoreMemberDialog
+      :open="restoreToOtherTarget !== null"
+      :current-group-id="props.groupId"
+      :member="restoreToOtherTarget"
+      @close="restoreToOtherTarget = null"
       @saved="refresh"
     />
   </BaseCard>

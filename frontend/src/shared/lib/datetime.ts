@@ -114,6 +114,29 @@ export function formatDateWithYear(value: string | Date): string {
 }
 
 /**
+ * `15.09.2003` — FAQAT boshqaruv panelida (`pages/manage/*`): guruhlar,
+ * foydalanuvchilar, uy vazifalari, sozlamalar, dars yozuvlari kabi
+ * o'quv bo'limi/admin ekranlari (loyiha egasi, 2026-08-15).
+ *
+ * ★ NEGA ALOHIDA FUNKSIYA, `formatDate` TAHRIRLANMAYDI: o'quvchi va ustoz
+ * tomonidagi kalendar sarlavhasi, chat kun ajratgichi kabi joylar
+ * (`formatDate`/`formatDateWithYear`/`formatWeekdayDate...`) OY NOMI bilan
+ * qoladi — talab faqat boshqaruv paneliga tegishli, butun ilovaga emas.
+ */
+export function formatDateNumeric(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
+}
+
+/** `15.09.2003 14:05` — `formatDateNumeric` + vaqt (boshqaruv paneli). */
+export function formatDateTimeNumeric(value: string | Date): string {
+  const date = toDate(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${formatDateNumeric(date)} ${formatTime(date)}`
+}
+
+/**
  * `Payshanba, 30-iyul 2026` — eski ustoz panelidagi "Bugun" tabletkasi
  * (`.todaypill`).
  *

@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 import { fetchTests, testKindLabel, testTitle } from '@/entities/test'
 import TestFormDialog from '@/features/test-form/ui/TestFormDialog.vue'
 import { toUserMessage } from '@/shared/api'
-import { formatDateTime } from '@/shared/lib/datetime'
+import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { TestDto, TestKindName } from '@/shared/types'
 import {
@@ -203,7 +203,7 @@ function handleCreated(test: TestDto): void {
               v-if="test.dueAt !== null"
               class="text-xs tabular-nums text-dim"
             >
-              Muddat: {{ formatDateTime(test.dueAt) }}
+              Muddat: {{ formatDateTimeNumeric(test.dueAt) }}
             </p>
             <div class="mt-2.5 flex justify-end">
               <BaseButton
@@ -274,7 +274,7 @@ function handleCreated(test: TestDto): void {
                   {{ test.timeLimitMinutes === null ? '—' : `${test.timeLimitMinutes} daq` }}
                 </td>
                 <td class="tabular-nums text-slate-400">
-                  {{ test.dueAt === null ? 'Muddatsiz' : formatDateTime(test.dueAt) }}
+                  {{ test.dueAt === null ? 'Muddatsiz' : formatDateTimeNumeric(test.dueAt) }}
                 </td>
                 <td
                   class="tabular-nums text-slate-400"

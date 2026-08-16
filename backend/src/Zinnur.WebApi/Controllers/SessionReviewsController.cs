@@ -118,6 +118,34 @@ public sealed class SessionReviewsController(ISessionReviewService reviews) : Co
         return NoContent();
     }
 
+    // ================================================================= TAHLILLAR PANELI (2026-08-16)
+    //
+    // ★ ABSOLYUT YO'L (`~/`): sinf darajasidagi shablon
+    // `live-sessions/{sessionId:long}/review` — bu ikkalasida ID YO'Q
+    // (butun to'plam ustidan xulosa/ro'yxat), ya'ni nisbiy yo'l ularni
+    // "sessionId" sifatida talqin qilishga urinardi. Naqsh
+    // `AssignmentsController`dagi `overview/...` yo'llari BILAN AYNI.
+    //
+    // ⚠️ FAQAT `WriteRoles` (Academic/Admin): bu — o'quv bo'limining
+    // nazorat ekrani. Ustoz/kurator o'z tahlillarini "Darslarim"
+    // ro'yxatidan, dars-dars ko'radi (R30) — bu yerga UMUMAN kirmaydi.
+
+    /// <summary>Har bir xodim (ustoz/kurator) bo'yicha tahlillar xulosasi — "Tahlillar" jadvali.</summary>
+    [HttpGet("~/api/v1/session-reviews/teachers-overview")]
+    [Authorize(Roles = WriteRoles)]
+    [ProducesResponseType<IReadOnlyList<TeacherReviewOverviewDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<TeacherReviewOverviewDto>>> TeachersOverview(
+        CancellationToken ct) =>
+        Ok(await reviews.GetTeachersOverviewAsync(CurrentUserId, ct));
+
+    /// <summary>Bitta xodimning BARCHA tahlillari (yangisidan eskisiga) — "Tahlillar" drawer'i.</summary>
+    [HttpGet("~/api/v1/session-reviews")]
+    [Authorize(Roles = WriteRoles)]
+    [ProducesResponseType<IReadOnlyList<SessionReviewDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<SessionReviewDto>>> ListByTeacher(
+        [FromQuery] long teacherId, CancellationToken ct) =>
+        Ok(await reviews.ListByTeacherAsync(teacherId, CurrentUserId, ct));
+
     private long CurrentUserId =>
         long.Parse(
             User.FindFirstValue(ClaimTypes.NameIdentifier)!,

@@ -10,6 +10,28 @@ import type {
   TariffDto,
 } from '@/shared/types'
 
+/** Server `LessonChargeSkipReason` enum'ini SATR sifatida yuboradi. */
+export type LessonChargeSkipReasonName = 'Excused' | 'Free'
+
+/**
+ * ★ 2026-08-16: BITTA darsning BITTA o'quvchi uchun hisob-kitobi —
+ * `GET /api/v1/payments/students/{id}/lesson-charges` qatori.
+ */
+export interface LessonChargeDto {
+  sessionId: number
+  groupId: number
+  groupName: string
+  scheduledStart: string
+  /** `YYYY-MM`. */
+  period: string
+  /** Bu darsning "narxi" (tarif/darslar soni) — chegirmagacha. */
+  stickerAmount: number
+  /** HAQIQATDA yechilgan summa (chegirmadan keyin, sababli/bepul bo'lsa 0). */
+  chargedAmount: number
+  /** `null` — to'liq yechilgan. Aks holda nega yechilmagani. */
+  skipReason: LessonChargeSkipReasonName | null
+}
+
 /** `BaseBadge` ning `tone` prop'i bilan bir xil to'plam. */
 export type PaymentTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger'
 
@@ -185,6 +207,15 @@ export function discountValueLabel(discount: StudentDiscountDto): string {
   return discount.kind === 'Percent'
     ? `${formatMoney(discount.value)}%`
     : `${formatMoney(discount.value)} so‘m`
+}
+
+const SKIP_REASON_LABELS: Record<LessonChargeSkipReasonName, string> = {
+  Excused: 'Sababli',
+  Free: 'Bepul dars',
+}
+
+export function lessonChargeSkipReasonLabel(reason: LessonChargeSkipReasonName): string {
+  return SKIP_REASON_LABELS[reason]
 }
 
 /* ================================================================ tarif === */

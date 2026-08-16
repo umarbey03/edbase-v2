@@ -1,4 +1,9 @@
-export { fetchSessionAttendance, updateAttendance } from './api/attendance-api'
+export {
+  fetchSessionAttendance,
+  setExcused,
+  setFreeLesson,
+  updateAttendance,
+} from './api/attendance-api'
 export {
   ATTENDANCE_CHOICES,
   ATTENDANCE_REASON_MAX,
@@ -11,6 +16,9 @@ export type {
   AttendanceRowDto,
   AttendanceStatusName,
   AttendanceTone,
+  FreeLessonStatusDto,
   SessionAttendanceDto,
+  SetExcusedRequest,
+  SetFreeLessonRequest,
   UpdateAttendanceRequest,
 } from './model/types'

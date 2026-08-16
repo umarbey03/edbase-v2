@@ -6,6 +6,7 @@ import { useRecordingList } from '@/features/recording-list/model/useRecordingLi
 import RecordingPlayerModal from '@/features/recording-player/ui/RecordingPlayerModal.vue'
 import { SessionReviewModal } from '@/features/session-review'
 import { toUserMessage } from '@/shared/api'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import { AppIcon, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
 
 /**
@@ -39,6 +40,7 @@ const props = withDefaults(
 )
 
 const list = useRecordingList({ fixedGroupId: props.fixedGroupId })
+const confirm = useConfirm()
 
 const showGroupFilter = computed(() => props.fixedGroupId === null)
 
@@ -107,62 +109,88 @@ async function toggleVisibility(recordingId: number, visible: boolean): Promise<
     visibilityError.value = toUserMessage(cause)
   }
 }
+
+/* ==========================================================================
+   R5 — "HAMMASINI OCH/YOP" (loyiha egasi, 2026-08-15)
+   ========================================================================== */
+
+/**
+ * ★ NEGA KERAK BO'LIB QOLDI: yozuv default holatda ENDI YASHIRIN
+ * (`SessionRecording.IsVisibleToStudents` standarti `false`ga o'zgardi).
+ * Bitta-bitta ochish tezlikda ishlaydigan bo'lim uchun o'nlab bosishni
+ * talab qilardi — bu tugma AYNAN o'sha standart o'zgarishini xavfsiz
+ * qiladi (izoh: `SessionRecording.IsVisibleToStudents`, "endi bu vosita
+ * bor" bandi).
+ *
+ * ★ RO'YXATDAGI (joriy filtr — qidiruv/guruh/sana oralig'i) yozuvlar
+ * ustida ishlaydi, BARCHA YOZUVLAR emas: xodim ko'rib turgan narsani
+ * boshqaradi, ko'rinmas qatorlarga tegmaydi — bu ham xavfsizroq (tasodifan
+ * boshqa oy yozuvlarini ochib qo'ymaslik), ham tushunarliroq.
+ */
+const hasHidden = computed(() =>
+  list.items.value.some((item) => item.recording.isPlayable && !item.recording.isVisibleToStudents),
+)
+const hasVisible = computed(() =>
+  list.items.value.some((item) => item.recording.isPlayable && item.recording.isVisibleToStudents),
+)
+
+const bulkPending = ref(false)
+
+/**
+ * Faqat TAYYOR (`isPlayable`) va HALI maqsadli holatda BO'LMAGAN
+ * yozuvlarga tegadi — allaqachon mos holatdagi qatorga PATCH yuborish
+ * ortiqcha so'rov va xatoni oshirish xavfi (masalan tayyor bo'lmagan
+ * yozuvni ochishga urinish 409 qaytaradi).
+ */
+async function bulkSetVisibility(visible: boolean): Promise<void> {
+  const targets = list.items.value.filter(
+    (item) => item.recording.isPlayable && item.recording.isVisibleToStudents !== visible,
+  )
+  if (targets.length === 0) return
+
+  const ok = await confirm({
+    title: visible ? 'Hammasini ochish' : 'Hammasini yopish',
+    message: visible
+      ? `Joriy ro‘yxatdagi ${targets.length} ta yozuv o‘quvchilarga ochiladi.`
+      : `Joriy ro‘yxatdagi ${targets.length} ta yozuv o‘quvchilardan yashiriladi.`,
+    confirmLabel: visible ? 'Ochish' : 'Yashirish',
+    tone: visible ? 'primary' : 'danger',
+    details: ['Har birini keyin alohida ham qaytarish mumkin.'],
+  })
+  if (!ok) return
+
+  visibilityError.value = null
+  bulkPending.value = true
+  try {
+    const results = await Promise.allSettled(
+      targets.map((item) => updateRecordingVisibility(item.recording.id, visible)),
+    )
+    const firstFailure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    )
+    if (firstFailure !== undefined) visibilityError.value = toUserMessage(firstFailure.reason)
+    list.refetch()
+  } finally {
+    bulkPending.value = false
+  }
+}
 </script>
 
 <template>
   <BaseCard title="Yozuvlar">
+    <!--
+      🔴 TUZATILDI: qidiruv/guruh/sana filtrlari ILGARI `#actions` ichida,
+      sarlavha bilan BITTA qatorda turardi. "Hammasini och/yop" tugmalari
+      qo'shilgach (bu ikkalasi + "Yangilash" + qidiruv + guruh + 2 sana
+      maydoni = 7 element) qator kartochka kengligidan CHIQIB ketardi —
+      `flex-wrap` faqat BUTUN blokni sarlavha ostiga tushirar edi, ichidagi
+      tor maydonlar (sana, tanlagich) esa siqilib/kesilib qolardi.
+      Endi FILTRLAR alohida panjarada (boshqa boshqaruv sahifalaridagi
+      naqsh — `ManageGroupsPage`/`ManageUsersPage`), `#actions` da esa
+      FAQAT UCH tugma qoladi va ular istalgan kenglikda joylashadi.
+    -->
     <template #actions>
       <div class="flex flex-wrap items-center gap-2">
-        <label class="relative">
-          <span class="sr-only">Qidirish</span>
-          <AppIcon
-            name="search"
-            :size="14"
-            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-          />
-          <input
-            v-model="list.search.value"
-            type="search"
-            class="h-9 w-full min-w-0 rounded-lg border border-line bg-ink-950 pl-9 pr-3 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-line-strong sm:w-[260px]"
-            placeholder="Nomi yoki guruh bo‘yicha qidirish..."
-          >
-        </label>
-
-        <select
-          v-if="showGroupFilter"
-          :value="list.groupId.value === null ? '' : String(list.groupId.value)"
-          class="h-9 rounded-lg border border-line bg-ink-950 px-2.5 text-xs text-slate-100 outline-none focus:border-line-strong"
-          @change="
-            list.groupId.value =
-              ($event.target as HTMLSelectElement).value === ''
-                ? null
-                : Number(($event.target as HTMLSelectElement).value)
-          "
-        >
-          <option value="">
-            Barcha guruhlar
-          </option>
-          <option
-            v-for="option in list.groupOptions.value"
-            :key="option.id"
-            :value="String(option.id)"
-            v-text="option.name"
-          />
-        </select>
-
-        <input
-          v-model="list.from.value"
-          type="date"
-          class="h-9 rounded-lg border border-line bg-ink-950 px-2.5 text-xs text-slate-100 outline-none focus:border-line-strong"
-          title="Boshlanish sanasi"
-        >
-        <input
-          v-model="list.to.value"
-          type="date"
-          class="h-9 rounded-lg border border-line bg-ink-950 px-2.5 text-xs text-slate-100 outline-none focus:border-line-strong"
-          title="Tugash sanasi"
-        >
-
         <BaseButton
           size="sm"
           variant="secondary"
@@ -177,8 +205,100 @@ async function toggleVisibility(recordingId: number, visible: boolean): Promise<
           </template>
           Yangilash
         </BaseButton>
+
+        <!--
+          R5 · "Hammasini och/yop" — joriy (filtrlangan) ro'yxat ustida.
+          Ikkalasi ham o'chiriladi, agar shu holatga o'tkaziladigan tayyor
+          yozuv qolmagan bo'lsa (`hasHidden`/`hasVisible`).
+        -->
+        <BaseButton
+          size="sm"
+          variant="secondary"
+          :disabled="!hasHidden"
+          :loading="bulkPending"
+          @click="bulkSetVisibility(true)"
+        >
+          <template #icon>
+            <AppIcon
+              name="eye"
+              :size="13"
+            />
+          </template>
+          Hammasini ochish
+        </BaseButton>
+        <BaseButton
+          size="sm"
+          variant="secondary"
+          :disabled="!hasVisible"
+          :loading="bulkPending"
+          @click="bulkSetVisibility(false)"
+        >
+          <template #icon>
+            <AppIcon
+              name="eye-off"
+              :size="13"
+            />
+          </template>
+          Hammasini yopish
+        </BaseButton>
       </div>
     </template>
+
+    <!-- Filtrlar: telefonda ustun, sm dan boshlab yonma-yon (boshqa boshqaruv sahifalari bilan bir xil panjara). -->
+    <div class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+      <label class="relative">
+        <span class="sr-only">Qidirish</span>
+        <AppIcon
+          name="search"
+          :size="14"
+          class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+        />
+        <input
+          v-model="list.search.value"
+          type="search"
+          class="zn-input pl-9"
+          placeholder="Nomi yoki guruh bo‘yicha qidirish..."
+        >
+      </label>
+
+      <select
+        v-if="showGroupFilter"
+        :value="list.groupId.value === null ? '' : String(list.groupId.value)"
+        class="zn-input"
+        aria-label="Guruh bo‘yicha filtr"
+        @change="
+          list.groupId.value =
+            ($event.target as HTMLSelectElement).value === ''
+              ? null
+              : Number(($event.target as HTMLSelectElement).value)
+        "
+      >
+        <option value="">
+          Barcha guruhlar
+        </option>
+        <option
+          v-for="option in list.groupOptions.value"
+          :key="option.id"
+          :value="String(option.id)"
+          v-text="option.name"
+        />
+      </select>
+
+      <input
+        v-model="list.from.value"
+        type="date"
+        class="zn-input"
+        aria-label="Boshlanish sanasi"
+        title="Boshlanish sanasi"
+      >
+      <input
+        v-model="list.to.value"
+        type="date"
+        class="zn-input"
+        aria-label="Tugash sanasi"
+        title="Tugash sanasi"
+      >
+    </div>
 
     <!--
       R5: ko'rinish so'rovining xatosi. Serverning matni O'ZGARISHSIZ

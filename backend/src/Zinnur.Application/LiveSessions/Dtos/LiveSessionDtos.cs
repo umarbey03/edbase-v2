@@ -227,3 +227,29 @@ public sealed record ChatMessageDto(
     string Body,
     DateTimeOffset SentAt,
     string? ClientId = null);
+
+/// <summary><c>POST /api/v1/live-sessions/{id}/cancel</c> tanasi.</summary>
+public sealed record CancelSessionRequest(string? Reason);
+
+/// <summary>
+/// <c>PUT /api/v1/live-sessions/{id}/free-lesson</c> tanasi (2026-08-16).
+/// </summary>
+/// <param name="IsFree">
+/// <c>true</c> — dars bepul (hech kimdan pul yechilmaydi); <c>false</c> —
+/// bekor qilinadi (xato bosilgan bo'lsa, yoki dars yana pullik bo'lsin).
+/// </param>
+/// <param name="PayrollExcluded">
+/// <c>true</c> — ustoz/kurator HAM shu darsdan haq olmaydi. Faqat
+/// <paramref name="IsFree"/> <c>true</c> bo'lsa ma'noli.
+/// </param>
+/// <param name="Reason">Izoh, ixtiyoriy (masalan "Sinov darsi").</param>
+public sealed record SetFreeLessonRequest(bool IsFree, bool PayrollExcluded, string? Reason);
+
+/// <summary>
+/// <c>SetFreeLessonAsync</c> javobi. ATAYLAB <see cref="LiveSessionDto"/>
+/// EMAS: u mavjud shartnoma va o'zgartirilmaydi (sinf izohi). Frontend bu
+/// javobdan keyin davomat varag'ini QAYTA so'raydi (u yerda har qatorning
+/// yangi <c>LessonChargedAmount</c> qiymati ko'rinadi).
+/// </summary>
+public sealed record FreeLessonStatusDto(
+    long SessionId, bool IsFreeLesson, string? FreeLessonReason, bool PayrollExcluded);

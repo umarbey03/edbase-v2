@@ -115,3 +115,28 @@ public sealed record SaveSessionReviewRequest(
 public sealed record SaveSessionReviewScoreRequest(
     long CriterionId,
     decimal Score);
+
+/* ============================================================================
+   TAHLILLAR PANELI (2026-08-16) — o'quv bo'limi, "Dars yozuvlari" bo'limi.
+
+   Talab (loyiha egasi): *"o'qituvchilar jadval ko'rinishida bo'lishi kerak
+   va har bir ustoz ustiga bosilganda ... har bir qilingan tahlillari
+   ko'rinib turishi kerak"*. Ya'ni ikki bosqich: (1) xodim bo'yicha xulosa
+   jadvali, (2) bitta xodimning BARCHA tahlillari (mavjud `SessionReviewDto`
+   qayta ishlatiladi — ikkinchi DTO yozishning hojati yo'q).
+
+   ★ "TEACHERID" — ATAYLAB shu nom: bu maydon guruh turiga qarab USTOZ ham,
+   KURATOR ham bo'lishi mumkin (`ResolveHostNameAsync` dagi AYNI qoida —
+   "shu darsni olib borishi kutilgan xodim"), chunki tahlil aynan SHU
+   odamning darsi haqida.
+   ============================================================================ */
+
+/// <summary>Bitta xodim (ustoz/kurator) bo'yicha tahlillar xulosasi.</summary>
+public sealed record TeacherReviewOverviewDto(
+    long TeacherId,
+    string TeacherName,
+    int TotalReviews,
+    int ApprovedCount,
+    int HasIssueCount,
+    int NotReviewedCount,
+    DateTimeOffset LastReviewAt);

@@ -81,4 +81,19 @@ public interface ISessionReviewService
     /// "o'chirish" idempotent amal.
     /// </summary>
     Task DeleteAsync(long sessionId, long actorId, CancellationToken ct = default);
+
+    // ================================================================= TAHLILLAR PANELI (2026-08-16)
+    //
+    // ★ FAQAT Academic/Admin — bu o'quv bo'limining NAZORAT ekrani (xodim
+    // bo'yicha xulosa), yuqoridagi metodlar esa BITTA DARS haqida. Ustoz/
+    // kurator bu yerga umuman kirmaydi (o'z tahlillarini "Darslarim"
+    // ro'yxatidan, dars-dars ko'radi — R30).
+
+    /// <summary>Har bir xodim (ustoz/kurator) bo'yicha tahlillar xulosasi — "Tahlillar" jadvali.</summary>
+    Task<IReadOnlyList<TeacherReviewOverviewDto>> GetTeachersOverviewAsync(
+        long actorId, CancellationToken ct = default);
+
+    /// <summary>Bitta xodimning BARCHA tahlillari (yangisidan eskisiga) — drawer kontenti.</summary>
+    Task<IReadOnlyList<SessionReviewDto>> ListByTeacherAsync(
+        long teacherId, long actorId, CancellationToken ct = default);
 }

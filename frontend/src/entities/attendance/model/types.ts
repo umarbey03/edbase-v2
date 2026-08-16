@@ -40,6 +40,22 @@ export interface AttendanceRowDto {
   editedById: number | null
   editedByName: string | null
   editedAt: string | null
+  /**
+   * "Sababli" (2026-08-16) — FAQAT Academic/Admin qo'yadi. Bosqichma-
+   * bosqich to'lov hisoblash shu darsda BU o'quvchidan pul yechmaydi.
+   * Oddiy (belgisiz) "Qatnashmagan" — BARIBIR to'lanadi, farqi shunda.
+   */
+  isExcused: boolean
+  excuseReason: string | null
+  /**
+   * ★ 2026-08-16: shu darsning STIKER narxi (tarif/darslar soni). `null` —
+   * hali hisoblanmagan (dars yakunlanmagan yoki tarif sozlanmagan).
+   * `lessonChargedAmount` dan farqi: bu — "narxi shuncha edi", pastdagisi
+   * — "haqiqatda shuncha yechildi" (chegirmadan keyin, sababli/bepul
+   * bo'lsa 0).
+   */
+  lessonAmount: number | null
+  lessonChargedAmount: number | null
 }
 
 /** `GET /api/v1/live-sessions/{id}/attendance`. */
@@ -55,7 +71,31 @@ export interface SessionAttendanceDto {
   /** `false` bo'lsa tuzatish tugmalari ko'rsatilmaydi (server baribir tekshiradi). */
   canEdit: boolean
   rows: AttendanceRowDto[] | null
+  /** Butun dars "bepul" deb belgilanganmi — shunday bo'lsa hech kimdan pul yechilmaydi. */
+  isFreeLesson: boolean
+  freeLessonReason: string | null
+  /** Bepul darsda ustoz/kurator HAM haq olmaydimi. Faqat `isFreeLesson` da ma'noli. */
+  payrollExcluded: boolean
 }
+
+/**
+ * `PUT /api/v1/live-sessions/{id}/free-lesson` tanasi (2026-08-16) —
+ * FAQAT Academic/Admin.
+ */
+export interface SetFreeLessonRequest {
+  isFree: boolean
+  payrollExcluded: boolean
+  reason?: string | null
+}
+
+/** `SetFreeLessonRequest` javobi. */
+export interface FreeLessonStatusDto {
+  sessionId: number
+  isFreeLesson: boolean
+  freeLessonReason: string | null
+  payrollExcluded: boolean
+}
+
 
 /**
  * `PUT /api/v1/live-sessions/{id}/attendance/{studentId}` tanasi.
@@ -69,6 +109,15 @@ export interface UpdateAttendanceRequest {
   status: AttendanceStatusName
   /** `null` — sababni ataylab bo'shatish. Maksimal uzunlik 300 belgi. */
   reason: string | null
+}
+
+/**
+ * `PUT /api/v1/live-sessions/{id}/attendance/{studentId}/excuse` tanasi
+ * (2026-08-16) — FAQAT Academic/Admin (server ham shu rollarga qulflagan).
+ */
+export interface SetExcusedRequest {
+  excused: boolean
+  reason?: string | null
 }
 
 /** Server shartnomasi nusxasi: uzunroq sabab 400 bilan qaytadi. */

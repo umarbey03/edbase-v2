@@ -550,6 +550,259 @@ public sealed class AssignmentService(
         return list.ConvertAll(Map);
     }
 
+    // ================================================================= o'quv bo'limi umumiy ko'rinishi
+    //
+    // ★ Ikkalasi ham FAQAT Academic/Admin (`EnsureCanViewOverview`) — ustoz/
+    // kurator o'z "Tekshirish" sahifasida yuqoridagi `ListSubmissionsAsync`
+    // dan foydalanadi, ya'ni bu yerda staff-scoping (`StaffGroupIds`) YO'Q.
+
+    public async Task<IReadOnlyList<AssignmentGroupOverviewDto>> GetGroupsOverviewAsync(
+        AssignmentOverviewFilter filter, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanViewOverview(actor);
+
+        var rows = ApplyOverviewFilter(db.Assignments.AsNoTracking(), filter);
+
+        /*
+          ★ AVVAL YASSI QATORLAR, KEYIN GURUHLASH XOTIRADA (LINQ-to-Objects).
+          Har vazifaning `SubmissionCount`/`GradedCount` KORRELYATSIYALANGAN
+          quyi so'rov bilan bitta SELECT'da keladi — `Project()` dagi AYNI
+          naqsh, N+1 EMAS. Postgres tomonida `GROUP BY` yozish esa
+          `TeacherName` kabi qo'shimcha quyi so'rovlar bilan chalkash SQL
+          berardi; filtrlangan vazifalar soni cheklangan, ya'ni oxirgi
+          guruhlash xotirada arzon.
+        */
+        var flat = await rows
+            .Select(a => new
+            {
+                a.Id,
+                a.GroupId,
+                GroupName = a.Group == null ? null : a.Group.Name,
+                GroupType = a.Group == null ? (GroupType?)null : a.Group.Type,
+                TeacherId = a.Group == null ? null : a.Group.TeacherId,
+                TeacherName = a.Group == null || a.Group.TeacherId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == a.Group.TeacherId).Select(u => u.FullName).FirstOrDefault(),
+                SubmissionCount = db.Submissions.Count(s => s.AssignmentId == a.Id),
+                GradedCount = db.Submissions.Count(
+                    s => s.AssignmentId == a.Id && s.Status == SubmissionStatus.Graded),
+                LastSubmittedAt = db.Submissions
+                    .Where(s => s.AssignmentId == a.Id)
+                    .Max(s => (DateTimeOffset?)s.SubmittedAt),
+            })
+            .ToListAsync(ct);
+
+        return flat
+            // `GroupId == null` (KURS vazifalari) bitta sun'iy qatorga yig'iladi.
+            .GroupBy(a => a.GroupId)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new AssignmentGroupOverviewDto(
+                    g.Key,
+                    g.Key == null ? "Kurs vazifalari" : first.GroupName ?? "—",
+                    g.Key == null ? null : first.GroupType,
+                    g.Key == null ? null : first.TeacherId,
+                    g.Key == null ? null : first.TeacherName,
+                    g.Count(),
+                    g.Sum(x => x.SubmissionCount),
+                    g.Sum(x => x.GradedCount),
+                    g.Sum(x => x.SubmissionCount) - g.Sum(x => x.GradedCount),
+                    g.Max(x => x.LastSubmittedAt));
+            })
+            // ★ ENG KO'P TEKSHIRILMAGANI BIRINCHI: "bir ko'rganda qayerda ish
+            // ko'p" degan savolga to'g'ridan-to'g'ri javob.
+            .OrderByDescending(x => x.UngradedCount)
+            .ThenBy(x => x.GroupName, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    public async Task<PagedResult<SubmissionOverviewDto>> ListSubmissionsOverviewAsync(
+        SubmissionOverviewQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanViewOverview(actor);
+
+        var page = Math.Max(query.Page, 1);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
+
+        var rows = db.Submissions.AsNoTracking();
+
+        if (query.AssignmentId is { } assignmentId)
+            rows = rows.Where(s => s.AssignmentId == assignmentId);
+
+        if (query.GroupId is { } groupId)
+            rows = rows.Where(s => s.Assignment!.GroupId == groupId);
+
+        if (query.TeacherId is { } teacherId)
+            rows = rows.Where(s => s.Assignment!.Group != null && s.Assignment.Group.TeacherId == teacherId);
+
+        if (query.GroupType is { } groupType)
+            rows = rows.Where(s => s.Assignment!.Group != null && s.Assignment.Group.Type == groupType);
+
+        if (query.Status is { } status)
+            rows = rows.Where(s => s.Status == status);
+
+        var term = NormalizeSearch(query.Search);
+        if (term is not null)
+        {
+            // DIQQAT (`UserService.ApplySearch` dagi AYNI izoh): `.ToLower()`
+            // .NET satri ustida ishlamaydi, ifoda daraxti ichida — EF uni
+            // Postgres `lower()` funksiyasiga aylantiradi.
+#pragma warning disable CA1304, CA1311
+            rows = rows.Where(s =>
+                EF.Functions.Like(s.Student!.FullName.ToLower(), term)
+                || EF.Functions.Like(s.Assignment!.Title.ToLower(), term)
+                || (s.Assignment.Group != null && EF.Functions.Like(s.Assignment.Group.Name.ToLower(), term)));
+#pragma warning restore CA1304, CA1311
+        }
+
+        var total = await rows.CountAsync(ct);
+
+        var pageRows = await rows
+            .OrderByDescending(s => s.SubmittedAt)
+            .ThenByDescending(s => s.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => new SubmissionOverviewRow(
+                s.Id,
+                s.AssignmentId,
+                s.Assignment!.Title,
+                s.Assignment.GroupId,
+                s.Assignment.Group == null ? null : s.Assignment.Group.Name,
+                s.Assignment.Group == null ? (GroupType?)null : s.Assignment.Group.Type,
+                s.Assignment.Group == null ? null : s.Assignment.Group.TeacherId,
+                s.Assignment.Group == null || s.Assignment.Group.TeacherId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == s.Assignment.Group.TeacherId)
+                        .Select(u => u.FullName).FirstOrDefault(),
+                s.Assignment.Group == null || s.Assignment.Group.AssistantId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == s.Assignment.Group.AssistantId)
+                        .Select(u => u.FullName).FirstOrDefault(),
+                s.Assignment.GraderRole,
+                s.Assignment.Group == null ? (GroupStaffRole?)null : s.Assignment.Group.AssignmentGraderRole,
+                s.StudentId,
+                s.Student!.FullName,
+                s.Status,
+                s.Score,
+                s.Assignment.MaxScore,
+                s.SubmittedAt,
+                s.IsLate,
+                s.AttemptNumber,
+                s.GradedAt,
+                s.GradedById,
+                s.GradedById == null
+                    ? null
+                    : db.Users.Where(u => u.Id == s.GradedById).Select(u => u.FullName).FirstOrDefault()))
+            .ToListAsync(ct);
+
+        return new PagedResult<SubmissionOverviewDto>(pageRows.ConvertAll(MapOverview), page, pageSize, total);
+    }
+
+    /// <summary>Guruh/ustoz/tur/qidiruv filtri — ikkala overview so'rovi UMUMIY.</summary>
+    private static IQueryable<Assignment> ApplyOverviewFilter(
+        IQueryable<Assignment> rows, AssignmentOverviewFilter filter)
+    {
+        if (filter.GroupId is { } groupId)
+            rows = rows.Where(a => a.GroupId == groupId);
+
+        if (filter.TeacherId is { } teacherId)
+            rows = rows.Where(a => a.Group != null && a.Group.TeacherId == teacherId);
+
+        if (filter.GroupType is { } groupType)
+            rows = rows.Where(a => a.Group != null && a.Group.Type == groupType);
+
+        var term = NormalizeSearch(filter.Search);
+        if (term is not null)
+        {
+#pragma warning disable CA1304, CA1311
+            rows = rows.Where(a =>
+                EF.Functions.Like(a.Title.ToLower(), term)
+                || (a.Group != null && EF.Functions.Like(a.Group.Name.ToLower(), term)));
+#pragma warning restore CA1304, CA1311
+        }
+
+        return rows;
+    }
+
+    /// <summary>`"  Ism  "` -&gt; `"%ism%"`. Bo'sh/berilmagan bo'lsa `null` (filtrlanmaydi).</summary>
+    private static string? NormalizeSearch(string? search)
+    {
+        var trimmed = search?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        return "%" + EscapeLike(trimmed.ToLowerInvariant()) + "%";
+    }
+
+    /// <summary>`UserService.Escape` bilan AYNI — `LIKE` maxsus belgilarini zararsizlantiradi.</summary>
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+             .Replace("%", "\\%", StringComparison.Ordinal)
+             .Replace("_", "\\_", StringComparison.Ordinal);
+
+    private static void EnsureCanViewOverview(User actor)
+    {
+        if (CanManageEverything(actor)) return;
+
+        throw new ForbiddenException(
+            "Bu umumiy ko'rinishga faqat o'quv bo'limi va admin kira oladi.");
+    }
+
+    /// <summary>
+    /// "Kim tekshirishi kerak" — <c>Assignment.GraderRole ?? Group.AssignmentGraderRole</c>
+    /// ni KO'RSATISH matniga o'giradi. Kurs vazifasida <c>null</c>: u hamma
+    /// guruhga taalluqli, ya'ni bitta aniq tekshiruvchi yo'q.
+    /// </summary>
+    private static string? ResolveGraderLabel(SubmissionOverviewRow row)
+    {
+        if (row.GroupId is null) return null;
+
+        var role = row.AssignmentGraderRole ?? row.GroupGraderRole ?? GroupStaffRole.Both;
+
+        return role switch
+        {
+            GroupStaffRole.Teacher => row.TeacherName ?? "Ustoz tayinlanmagan",
+            GroupStaffRole.Assistant => row.AssistantName ?? "Kurator tayinlanmagan",
+            _ => JoinGraderNames(row.TeacherName, row.AssistantName),
+        };
+    }
+
+    private static string JoinGraderNames(string? teacherName, string? assistantName)
+    {
+        if (teacherName is null && assistantName is null) return "Tayinlanmagan";
+        if (teacherName is null) return assistantName!;
+        if (assistantName is null) return teacherName;
+        return $"{teacherName} / {assistantName}";
+    }
+
+    private static SubmissionOverviewDto MapOverview(SubmissionOverviewRow row) => new(
+        row.Id,
+        row.AssignmentId,
+        row.AssignmentTitle,
+        row.GroupId,
+        row.GroupName,
+        row.GroupType,
+        row.TeacherId,
+        row.TeacherName,
+        row.StudentId,
+        row.StudentName,
+        row.Status,
+        row.Score,
+        row.MaxScore,
+        new Submission { Score = row.Score }.ScorePercent(row.MaxScore),
+        row.SubmittedAt,
+        row.IsLate,
+        row.AttemptNumber,
+        row.GradedAt,
+        row.GradedById,
+        row.GradedByName,
+        ResolveGraderLabel(row));
+
     public async Task<SubmissionDto> GradeAsync(
         long submissionId, GradeSubmissionRequest request, long actorId, CancellationToken ct = default)
     {
@@ -1420,6 +1673,36 @@ public sealed class AssignmentService(
     // ---------------------------------------------------------------- doimiylar va ichki turlar
 
     private const int MaxPageSize = 100;
+
+    /// <summary>
+    /// O'quv bo'limi umumiy ko'rinishi uchun YASSI qator — guruh, ustoz va
+    /// tekshiruvchi konteksti bilan (<see cref="SubmissionRow"/> dan farqli:
+    /// bu yerda R37 fayllari YO'Q, chunki ro'yxat kartochkasi ularni
+    /// ko'rsatmaydi — kerak bo'lsa xodim javobni ochib ko'radi).
+    /// </summary>
+    private sealed record SubmissionOverviewRow(
+        long Id,
+        long AssignmentId,
+        string AssignmentTitle,
+        long? GroupId,
+        string? GroupName,
+        GroupType? GroupType,
+        long? TeacherId,
+        string? TeacherName,
+        string? AssistantName,
+        GroupStaffRole? AssignmentGraderRole,
+        GroupStaffRole? GroupGraderRole,
+        long StudentId,
+        string StudentName,
+        SubmissionStatus Status,
+        decimal? Score,
+        decimal MaxScore,
+        DateTimeOffset SubmittedAt,
+        bool IsLate,
+        int AttemptNumber,
+        DateTimeOffset? GradedAt,
+        long? GradedById,
+        string? GradedByName);
 
     /// <summary>Javob + baholash uchun kerakli ustunlar (vazifaning `MaxScore` bilan).</summary>
     private sealed record SubmissionRow(

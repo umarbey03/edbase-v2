@@ -42,31 +42,32 @@ public sealed class SessionRecordingConfiguration : IEntityTypeConfiguration<Ses
         builder.Property(r => r.Status).HasConversion<int>();
 
         // ============================================================
-        // 🔴 R5 — KO'RINISH BAYROG'I VA MAVJUD QATORLAR
+        // 🔴 R5 — KO'RINISH BAYROG'I (standart 2026-08-15 dan `false`)
         //
-        // `HasDefaultValue(true)` MAJBURIY: usiz migratsiya `NOT NULL`
-        // ustunni `false` bilan to'ldirardi va deploy kunida BARCHA eski
-        // yozuvlar o'quvchilardan yo'qolardi. Qaror va uning sababi
-        // `SessionRecording.IsVisibleToStudents` izohida.
+        // `HasDefaultValue(false)` — bazadagi USTUN DEFAULT'i, faqat
+        // qiymat ko'rsatilmagan YANGI qatorlarga tegadi. Qaror va uning
+        // sababi (nega endi `false`, nega bu mavjud yozuvlarni
+        // o'zgartirmaydi) `SessionRecording.IsVisibleToStudents`
+        // izohida.
         //
-        // ★ `HasSentinel(true)` — `UserConfiguration` dagi `IsActive`
+        // ★ `HasSentinel(false)` — `UserConfiguration` dagi `IsActive`
         //   TUZOG'INI AYNAN SHU YERDA YOPADI. EF qiymat "sentinel" ga
-        //   teng bo'lsa ustunni INSERT'dan tashlab yuboradi. Sentinel
-        //   standart holda CLR default (`false`) bo'lardi, ya'ni
-        //   ATAYLAB `false` qilib yaratilgan qator bazada `true` bo'lib
-        //   qolardi — jimgina yolg'on. Sentinel `true` bo'lgach mantiq
-        //   teskari va TO'G'RI bo'ladi: `true` tashlanadi (baza defaulti
-        //   ayni `true`), `false` esa DOIM ochiq yoziladi.
+        //   teng bo'lsa ustunni INSERT'dan tashlab yuboradi, ya'ni baza
+        //   DEFAULT'i ishlaydi. Sentinel `false` bo'lgach (CLR default
+        //   bilan AYNI), ATAYLAB `false` qilib yaratilgan qator ham
+        //   ATAYLAB `true` qilib yaratilgan qator ham TO'G'RI natija
+        //   beradi: `false` tashlanadi (baza defaulti ayni `false`),
+        //   `true` esa (masalan `ShowToStudents()` chaqirilganda) DOIM
+        //   ochiq, aniq qiymat sifatida yoziladi.
         //
         // ⚠️ `UserConfiguration` dagi izoh "HasDefaultValue ishlatmang"
-        //   deydi — u EF 9 dagi `HasSentinel` dan OLDIN yozilgan va
-        //   o'sha yerda mavjud qatorlarni to'ldirish talabi yo'q edi.
-        //   Bu yerda talab bor, shuning uchun tuzoq chetlab o'tilmaydi,
-        //   OSHKORA yopiladi.
+        //   deydi — u EF 9 dagi `HasSentinel` dan OLDIN yozilgan. Bu
+        //   yerda `HasSentinel` bilan birga ishlatilgani uchun tuzoq
+        //   chetlab o'tilmaydi, OSHKORA yopiladi.
         // ============================================================
         builder.Property(r => r.IsVisibleToStudents)
-            .HasDefaultValue(true)
-            .HasSentinel(true);
+            .HasDefaultValue(false)
+            .HasSentinel(false);
 
         // Ko'rinishni oxirgi o'zgartirgan xodim — `User` ga ishora,
         // navigatsiyasiz. `Restrict`: `RequestedBy` bilan AYNI qoida —

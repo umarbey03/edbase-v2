@@ -113,6 +113,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         var world = await NewWorldAsync();
         var opened = await OpenPeriodAsync(world, Period);
         var paymentId = opened.Payments[0].Id;
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         using var firstScope = factory.Services.CreateScope();
         using var secondScope = factory.Services.CreateScope();
@@ -142,13 +143,18 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     }
 
     /// <summary>
-    /// Tarif ANIQLIKDAN UMUMIYGA tanlanadi (guruh &gt; kurs &gt; umumiy) va
-    /// chegirma qo'llanadi. Uch summa ham yozuvda saqlanadi — hisobot
-    /// "tarif bo'yicha kutilgan tushum" va "berilgan chegirma" ni ko'rsatishi
-    /// kerak.
+    /// ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): tarif/chegirma endi OY
+    /// OCHILGANDA emas, HAR DARS tugaganda qo'llaniladi
+    /// (`LessonAccrualService`). Tarif ANIQLIKDAN UMUMIYGA tanlash qoidasi
+    /// (guruh &gt; kurs &gt; umumiy, `BillingSelection.PickTariff`) O'ZI
+    /// o'zgarmadi — faqat chaqirish vaqti "oy ochilganda" dan "dars
+    /// tugaganda" ga ko'chdi. Bu test endi OCHILISH 0 so'mda bo'lishini
+    /// tasdiqlaydi; tarif TANLASH qoidasining o'zi `BillingSelection`
+    /// funksiyasi darajasida sinaladi (u o'zgarmagan, faqat qayta
+    /// ishlatilgan).
     /// </summary>
     [Fact]
-    public async Task OpenPeriod_PicksMostSpecificTariffAndAppliesDiscount()
+    public async Task OpenPeriod_OpensAtZero_TariffAndDiscountApplyOnlyAtAccrual()
     {
         var world = await NewWorldAsync(createTariff: false);
 
@@ -175,9 +181,9 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
 
         var month = opened.Payments[0];
 
-        month.BaseAmount.Should().Be(MonthlyPrice, "guruhga atalgan tarif umumiysidan ustun");
-        month.DiscountAmount.Should().Be(54_000m);
-        month.Amount.Should().Be(486_000m);
+        month.BaseAmount.Should().Be(0m, "oy 0 so'mda ochiladi — summani dars to'ldiradi");
+        month.DiscountAmount.Should().Be(0m);
+        month.Amount.Should().Be(0m);
         month.Status.Should().Be("Due");
     }
 
@@ -193,6 +199,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
         await OpenPeriodAsync(world, Period);
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         var receipt = await PayAsync(world.StudentId, 100_000m);
 
@@ -220,6 +227,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
         await OpenPeriodAsync(world, Period);
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         var receipt = await PayAsync(world.StudentId, 800_000m);
 
@@ -245,6 +253,8 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
 
         await OpenPeriodAsync(world, Period);
         await OpenPeriodAsync(world, OtherPeriod);
+        await AccrueAsync(world, Period, MonthlyPrice);
+        await AccrueAsync(world, OtherPeriod, MonthlyPrice);
 
         await PayAsync(world.StudentId, MonthlyPrice);
 
@@ -256,11 +266,23 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     }
 
     /// <summary>
-    /// ★ OLDINDAN TO'LAGAN O'QUVCHI QARZDOR BO'LIB CHIQMAYDI: oy ochilgandan
-    /// KEYIN balans avtomatik sarflanadi.
+    /// ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16) — IKKI BOSQICHLI STSENARIY:
+    ///
+    ///  1) Oy 0 so'mda OCHILADI — hali qarz yo'q, shuning uchun ochilish
+    ///     PAYTIDA balansdan HECH NARSA sarflanmaydi (avvalgi xatti-harakat
+    ///     — "ochilgan zahoti to'liq tarif bo'yicha yopiladi" — endi
+    ///     mumkin emas, chunki ochilishning o'zi endi summa BILMAYDI).
+    ///  2) Dars "tugagach" (bu yerda <c>AccrueAsync</c> bilan simulyatsiya
+    ///     qilinadi) qarz paydo bo'ladi. <c>OpenPeriodAsync</c> QAYTA
+    ///     chaqirilsa (idempotent — yangi qator yaratmaydi) uning oxiridagi
+    ///     <c>ConsumeBalancesAsync</c> ENDI topgan qarzga balansni sarflaydi
+    ///     — bu AYNAN eski testning "oldindan to'lagan o'quvchi qarzdor
+    ///     bo'lib qolmaydi" da'vosi, faqat "darhol" endi "keyingi
+    ///     tekshiruvda" ma'nosini beradi (<c>MonthlyBillingJob</c> buni
+    ///     real hayotda tez-tez ishga tushirib turadi).
     /// </summary>
     [Fact]
-    public async Task OpenPeriod_AfterPrepayment_ClosesMonthFromBalance()
+    public async Task OpenPeriod_AfterPrepayment_ClosesMonthFromBalanceOnceDebtExists()
     {
         var world = await NewWorldAsync();
 
@@ -271,13 +293,26 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         var opened = await OpenPeriodAsync(world, Period);
 
         opened.Created.Should().Be(1);
-        opened.BalanceApplied.Should().Be(MonthlyPrice);
-        opened.MonthsClosedFromBalance.Should().Be(1);
+        opened.BalanceApplied.Should().Be(0m, "hali qarz yo'q — sarflanadigan narsa yo'q");
+
+        var beforeAccrual = await AccountAsync(world.StudentId);
+        beforeAccrual.Balance.Should().Be(MonthlyPrice, "balans TEGILMAGAN holda kutmoqda");
+
+        // Dars "tugadi" — oyga qarz qo'shildi.
+        await AccrueAsync(world, Period, MonthlyPrice);
+
+        // Idempotent qayta chaqiruv: yangi qator YARATMAYDI, lekin oxiridagi
+        // balansdan-yopish qadami endi topgan qarzni yopadi.
+        var reopened = await OpenPeriodAsync(world, Period);
+
+        reopened.Created.Should().Be(0);
+        reopened.BalanceApplied.Should().Be(MonthlyPrice);
+        reopened.MonthsClosedFromBalance.Should().Be(1);
 
         var account = await AccountAsync(world.StudentId);
 
         account.Balance.Should().Be(0m);
-        account.Debt.Should().Be(0m, "ochilgan oy balansdan darhol yopilishi kerak");
+        account.Debt.Should().Be(0m);
         Month(account, Period).Status.Should().Be("Paid");
 
         account.RecentTransactions.Should()
@@ -341,6 +376,8 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
 
         await OpenPeriodAsync(world, Period);
         await OpenPeriodAsync(world, OtherPeriod);
+        await AccrueAsync(world, Period, MonthlyPrice);
+        await AccrueAsync(world, OtherPeriod, MonthlyPrice);
 
         // Ikkala oy yopiladi + 100 000 balansga.
         await PayAsync(world.StudentId, (MonthlyPrice * 2) + 100_000m);
@@ -400,6 +437,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         var world = await NewWorldAsync();
         var opened = await OpenPeriodAsync(world, Period);
         var paymentId = opened.Payments[0].Id;
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         using var admin = await AdminClientAsync();
 
@@ -432,6 +470,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
         var opened = await OpenPeriodAsync(world, Period);
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         await PayAsync(world.StudentId, MonthlyPrice);
 
@@ -451,6 +490,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
         await OpenPeriodAsync(world, Period);
+        await AccrueAsync(world, Period, MonthlyPrice);
 
         using var student = await ClientAsync(world.StudentEmail, world.StudentPassword);
 
@@ -693,6 +733,33 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(response, HttpStatusCode.OK);
 
         return (await response.Content.ReadFromJsonAsync<OpenPeriodResponse>())!;
+    }
+
+    /// <summary>
+    /// ★ TEST YORDAMCHISI (2026-08-16 — bosqichma-bosqich hisoblash).
+    ///
+    /// <c>OpenPeriodAsync</c> endi 0 so'mda ochadi: haqiqiy oqimda summa
+    /// har DARS tugaganda <c>LessonAccrualService</c> orqali o'sadi. Bu
+    /// yerdagi ko'plab testlar esa "oyga allaqachon N so'mlik qarz bor"
+    /// holatini boshlang'ich nuqta sifatida oladi — ular DARS zanjirini
+    /// emas, PASTROQ oqimlarni (to'lov, qaytarish, kechirim, bloklash)
+    /// tekshiradi. Shu sabab bu yordamchi <c>Payment.Accrue</c> ni
+    /// TO'G'RIDAN-TO'G'RI (HAQIQIY domain qoidasi bilan, faqat darslar
+    /// zanjirisiz) chaqiradi — xuddi bir nechta dars ketma-ket tugagandek.
+    /// </summary>
+    private async Task AccrueAsync(
+        World world, string period, decimal baseAmount, decimal discountAmount = 0m)
+    {
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.StudentId == world.StudentId && p.GroupId == world.GroupId && p.Period == period);
+
+            payment.Accrue(baseAmount, discountAmount, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
     }
 
     private async Task<ReceiptResponse> PayAsync(long studentId, decimal amount)

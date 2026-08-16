@@ -2,22 +2,32 @@
 import { ref } from 'vue'
 
 import { AnalysisCriteriaPanel } from '@/features/analysis-criteria-manage'
+import { GroupCategoryPanel } from '@/features/group-category-manage'
+import { HolidayPanel } from '@/features/holiday-manage'
+import { MessageTemplatePanel } from '@/features/message-template-manage'
 import { AppIcon, PageHeader } from '@/shared/ui'
 import type { IconName } from '@/shared/ui'
 
 /**
- * O'QUV BO'LIMI SOZLAMALARI — `Academic`/`Admin`.
+ * SOZLAMALAR (o'quv jarayoni) — `Academic`/`Admin`.
  *
  * ★ NIMA UCHUN ALOHIDA `ManageSettingsPage`DAN (Admin'ning "Tizim
  * sozlamalari"): u yerdagi sozlamalar INFRATUZILMA (Telegram, LiveKit,
  * to'lov) va FAQAT Admin ko'radi. Bu sahifadagilar esa O'QUV JARAYONI
- * sozlamalari — o'quv bo'limi kundalik ishida boshqaradi.
+ * sozlamalari — o'quv bo'limi kundalik ishida boshqaradi. Menyudagi va
+ * sarlavhadagi nom endi shunchaki "Sozlamalar" (loyiha egasi, 2026-08-15:
+ * "o'quv bo'limi sozlamalari" emas, shunchaki "sozlamalar" deb nomlanishi
+ * kerak) — yuqoridagi INFRATUZILMA/O'QUV JARAYONI farqi esa kod darajasida
+ * (marshrut nomi, ruxsat ro'yxati) o'zgarmasdan qoladi, faqat KO'RINADIGAN
+ * yorliq qisqardi.
  *
- * ★ BO'LIM (tab) TUZILMASI ATAYLAB: hozircha bitta bo'lim — "Mezonlar"
- * (dars tahlili mezonlari, R29/R30 kengaytmasi) — lekin sahifa keyingi
- * o'quv bo'limi sozlamalari uchun TAYYOR joy sifatida quriladi.
- * `SECTIONS` massiviga yangi band qo'shish yetarli, shablon o'zi
- * ko'paytiradi.
+ * ★ BO'LIM (tab) TUZILMASI: "Mezonlar" (dars tahlili mezonlari, R29/R30
+ * kengaytmasi) va "Yo'nalishlar" (guruh kategoriyalari, R21b — ilgari
+ * Guruhlar sahifasidagi alohida drawer edi, 2026-08-15 dan bu sahifaning
+ * bo'limi bo'ldi: bu ro'yxat guruh yaratish paytida emas, tayyorgarlik
+ * ishi sifatida to'ldiriladi, ya'ni sozlamalarga ko'proq mos). Navbatdagi
+ * o'quv bo'limi sozlamasi ham shu naqsh bo'yicha — `SECTIONS` massiviga
+ * yangi band qo'shish yetarli, shablon o'zi ko'paytiradi.
  *
  * ★ Sahifada BOSHQA BIZNES MANTIQ YO'Q: har bo'lim o'z panelini
  * (`features/*`) chizadi, bu yerda faqat tanlagich va joylashuv.
@@ -30,6 +40,9 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
   { key: 'criteria', label: 'Mezonlar', icon: 'check-square' },
+  { key: 'categories', label: 'Yo‘nalishlar', icon: 'grid' },
+  { key: 'templates', label: 'Xabar shablonlari', icon: 'send' },
+  { key: 'holidays', label: 'Bayramlar', icon: 'calendar' },
 ]
 
 const active = ref<string>(SECTIONS[0]!.key)
@@ -38,7 +51,7 @@ const active = ref<string>(SECTIONS[0]!.key)
 <template>
   <div>
     <PageHeader
-      title="O‘quv bo‘limi sozlamalari"
+      title="Sozlamalar"
       subtitle="O‘quv jarayoniga tegishli sozlamalar."
     />
 
@@ -69,5 +82,8 @@ const active = ref<string>(SECTIONS[0]!.key)
     </div>
 
     <AnalysisCriteriaPanel v-if="active === 'criteria'" />
+    <GroupCategoryPanel v-if="active === 'categories'" />
+    <MessageTemplatePanel v-if="active === 'templates'" />
+    <HolidayPanel v-if="active === 'holidays'" />
   </div>
 </template>

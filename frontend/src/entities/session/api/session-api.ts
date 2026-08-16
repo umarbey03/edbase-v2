@@ -70,6 +70,16 @@ export function endLiveSession(id: number): Promise<LiveSessionDto> {
 }
 
 /**
+ * `POST /api/v1/live-sessions/{id}/cancel` (2026-08-16) — FAQAT
+ * Academic/Admin (loyiha egasi: "buni qo'lda o'quv va admin bo'limi
+ * orqali qilinishi kerak bo'ladi"). Guruh jadvali avtomatik qayta
+ * tuziladi — o'rnini bosuvchi dars oxiriga qo'shiladi.
+ */
+export function cancelLiveSession(id: number, reason?: string): Promise<LiveSessionDto> {
+  return http.post<LiveSessionDto>(`${BASE}/${id}/cancel`, { reason })
+}
+
+/**
  * SPEC 5: `POST /api/v1/live-sessions/{id}/token` -> `LiveKitJoinDto`.
  * Frontend LiveKit'ga aynan shu javob bilan ulanadi.
  */

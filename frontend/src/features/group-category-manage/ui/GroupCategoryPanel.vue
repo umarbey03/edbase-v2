@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 
 import {
   createGroupCategory,
@@ -15,7 +15,6 @@ import {
   AppIcon,
   BaseBadge,
   BaseButton,
-  BaseDrawer,
   BaseField,
   ConfirmDeleteDialog,
   DataStatus,
@@ -31,12 +30,16 @@ import {
  * kerak"*. "Masalan" — ro'yxat OCHIQ, ya'ni uni o'quv bo'limi o'zi
  * to'ldiradi va bu ekran aynan shuning uchun bor.
  *
- * ★ NEGA ALOHIDA MARSHRUT EMAS, GURUHLAR SAHIFASIDAGI PANEL: lug'atda
- * o'nlab qator bo'ladi va unga faqat guruh yaratayotgan/tahrirlayotgan
- * xodim tegadi. Alohida sahifa yon menyuga oltinchi band qo'shishni talab
- * qilardi — menyu esa eski ilovadan AYNAN ko'chirilgan va uzaytirilmaydi
- * (`entities/user/model/navigation.ts` qoidasi). Panel esa aynan ehtiyoj
- * tug'ilgan joyda, bir bosishda ochiladi.
+ * ★ ILGARI GURUHLAR SAHIFASIDAGI DRAWER EDI (`GroupCategoryManagerDrawer`),
+ * ENDI — SOZLAMALAR SAHIFASINING BO'LIMI (loyiha egasi, 2026-08-15): bu
+ * ro'yxat guruh yaratish/tahrirlash paytida EMAS, balki "yo'nalishlar
+ * qanday tashkil etilgan" degan tayyorgarlik ishi — o'quv jarayoni
+ * sozlamalariga ko'proq mos keladi (`ManageAcademicSettingsPage`ning
+ * "Mezonlar" bo'limi bilan bir xil joyda). Shu sababli endi ALWAYS-INLINE
+ * panel: `BaseDrawer` yo'q, `open`/`close` propsi yo'q — sahifa uni
+ * `v-if="active === 'categories'"` bilan mont/unmount qiladi, ya'ni holat
+ * (yarim yozilgan nom, tahrirlash rejimi) qayta ochilganda o'z-o'zidan
+ * tozalanadi — alohida "panel yopilganda tozalash" kuzatuvi shart emas.
  *
  * 🔴 O'CHIRISH SERVERDA TO'SILADI (409) agar kategoriyaga guruh
  * biriktirilgan bo'lsa: bazadagi FK `SET NULL`, ya'ni o'chirish jimgina
@@ -46,14 +49,9 @@ import {
  * (`ConfirmDeleteDialog` — u xato kelganda OCHIQ qoladi).
  *
  * ★ TAHRIRLASH JOYIDA (inline): lug'atda ikkitagina maydon bor (nom va
- * faollik) va ular uchun ichma-ich panel ochish taqiqlangan
- * (`BaseDrawer` izohi: drawer ichida drawer). Shuning uchun qator
- * tahrirlash rejimiga o'tadi.
+ * faollik) va alohida panel ochish bu yerda ortiqcha bo'lardi. Shuning
+ * uchun qator tahrirlash rejimiga o'tadi.
  */
-const props = defineProps<{ open: boolean }>()
-
-const emit = defineEmits<{ close: [] }>()
-
 const queryClient = useQueryClient()
 const confirm = useConfirm()
 
@@ -69,7 +67,6 @@ const categoriesQuery = useQuery({
   */
   queryKey: ['group-categories', 'all'],
   queryFn: ({ signal }) => fetchGroupCategories({}, { signal }),
-  enabled: computed(() => props.open),
 })
 
 const categories = computed<GroupCategoryDto[]>(() => categoriesQuery.data.value ?? [])
@@ -231,172 +228,154 @@ const deleteMessage = computed(() => {
       + 'Server bunday yo‘nalishni o‘chirtirmaydi — uning o‘rniga arxivlang.'
     : `“${current.name ?? '—'}” yo‘nalishi o‘chiriladi. Bu amalni qaytarib bo‘lmaydi.`
 })
-
-/* Panel yopilganda holat tozalanadi — keyingi ochilishda eski xato yoki
-   yarim yozilgan nom qolib ketmasin. */
-watch(
-  () => props.open,
-  (open) => {
-    if (open) return
-    newName.value = ''
-    createError.value = null
-    editingId.value = null
-    editError.value = null
-    deleting.value = null
-    deleteError.value = null
-  },
-)
 </script>
 
 <template>
-  <BaseDrawer
-    :open="props.open"
-    title="O‘quv yo‘nalishlari"
-    subtitle="Guruhlarni saralash uchun kategoriyalar: ATF, Grammatika, CEFR, IELTS"
-    @close="emit('close')"
-  >
-    <div class="space-y-4">
-      <!-- ─────────────────────── YANGI YO'NALISH ─────────────────────── -->
-      <div class="rounded-xl border border-line bg-ink-900 p-3.5">
-        <BaseField
-          label="Yangi yo‘nalish"
-          hint="Masalan: ATF, Grammatika, CEFR, IELTS"
-          :error="createError"
-        >
-          <div class="flex gap-2">
-            <input
-              v-model="newName"
-              class="zn-input"
-              maxlength="100"
-              placeholder="Yo‘nalish nomi"
-              @keyup.enter="onCreate"
-            >
-            <BaseButton
-              class="shrink-0"
-              :loading="createMutation.isPending.value"
-              @click="onCreate"
-            >
-              <template #icon>
-                <AppIcon
-                  name="plus"
-                  :size="15"
-                />
-              </template>
-              Qo‘shish
-            </BaseButton>
-          </div>
-        </BaseField>
-      </div>
+  <div>
+    <p class="mb-4 text-xs text-slate-400">
+      Guruhlarni saralash uchun kategoriyalar: ATF, Grammatika, CEFR, IELTS.
+    </p>
 
-      <!-- ───────────────────────── RO'YXAT ───────────────────────── -->
-      <DataStatus
-        :pending="categoriesQuery.isPending.value"
-        :error="listError"
-        :empty="categories.length === 0"
-        :retrying="categoriesQuery.isFetching.value"
-        :skeleton-rows="3"
-        empty-icon="grid"
-        empty-title="Yo‘nalish qo‘shilmagan"
-        empty-text="Birinchi yo‘nalishni yuqoridagi maydondan qo‘shing."
-        @retry="categoriesQuery.refetch()"
+    <!-- ─────────────────────── YANGI YO'NALISH ─────────────────────── -->
+    <div class="mb-5 rounded-xl border border-line bg-ink-900 p-3.5">
+      <BaseField
+        label="Yangi yo‘nalish"
+        hint="Masalan: ATF, Grammatika, CEFR, IELTS"
+        :error="createError"
       >
-        <ul class="divide-y divide-line rounded-xl border border-line">
-          <li
-            v-for="category in categories"
-            :key="category.id"
-            class="p-3.5"
+        <div class="flex gap-2">
+          <input
+            v-model="newName"
+            class="zn-input"
+            maxlength="100"
+            placeholder="Yo‘nalish nomi"
+            @keyup.enter="onCreate"
           >
-            <!-- Tahrirlash rejimi — JOYIDA (ichma-ich panel taqiqlangan). -->
-            <div
-              v-if="editingId === category.id"
-              class="space-y-2.5"
-            >
-              <BaseField
-                label="Nomi"
-                :error="editError"
-              >
-                <input
-                  v-model="editName"
-                  class="zn-input"
-                  maxlength="100"
-                >
-              </BaseField>
-              <!--
-                ⚠️ Yorliq matni ATAYLAB uzun: arxivlash "o'chirish" emas va
-                bu farq xodimga aytilishi kerak — aks holda u yorliqni
-                arxivlab, guruhlardan ham yo'qoldi deb o'ylardi.
-              -->
-              <label class="flex min-h-11 items-center gap-2.5 text-sm text-slate-300">
-                <input
-                  v-model="editActive"
-                  type="checkbox"
-                  class="size-4 accent-brand-500"
-                >
-                Faol (yangi guruhlarga taklif qilinadi)
-              </label>
-              <div class="flex justify-end gap-2">
-                <BaseButton
-                  size="sm"
-                  variant="secondary"
-                  @click="cancelEdit"
-                >
-                  Bekor qilish
-                </BaseButton>
-                <BaseButton
-                  size="sm"
-                  :loading="updateMutation.isPending.value"
-                  @click="onSaveEdit(category)"
-                >
-                  Saqlash
-                </BaseButton>
-              </div>
-            </div>
-
-            <!-- Ko'rish rejimi -->
-            <div
-              v-else
-              class="flex flex-wrap items-center gap-2"
-            >
-              <span
-                class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
-                v-text="category.name ?? '—'"
+          <BaseButton
+            class="shrink-0"
+            :loading="createMutation.isPending.value"
+            @click="onCreate"
+          >
+            <template #icon>
+              <AppIcon
+                name="plus"
+                :size="15"
               />
-              <BaseBadge :tone="category.isActive ? 'success' : 'neutral'">
-                {{ category.isActive ? 'Faol' : 'Arxiv' }}
-              </BaseBadge>
-              <!--
-                🔴 GURUHLAR SONI — o'chirishdan OLDIN ko'rinishi shart:
-                serverdagi FK `SET NULL` bo'lgani uchun bu son o'chirish
-                nechta guruhning yorlig'iga tegishini aytadi.
-              -->
-              <span class="shrink-0 text-xs tabular-nums text-dim">
-                {{ category.groupCount }} guruh
-              </span>
+            </template>
+            Qo‘shish
+          </BaseButton>
+        </div>
+      </BaseField>
+    </div>
+
+    <!-- ───────────────────────── RO'YXAT ───────────────────────── -->
+    <DataStatus
+      :pending="categoriesQuery.isPending.value"
+      :error="listError"
+      :empty="categories.length === 0"
+      :retrying="categoriesQuery.isFetching.value"
+      :skeleton-rows="3"
+      empty-icon="grid"
+      empty-title="Yo‘nalish qo‘shilmagan"
+      empty-text="Birinchi yo‘nalishni yuqoridagi maydondan qo‘shing."
+      @retry="categoriesQuery.refetch()"
+    >
+      <ul class="divide-y divide-line rounded-xl border border-line">
+        <li
+          v-for="category in categories"
+          :key="category.id"
+          class="p-3.5"
+        >
+          <!-- Tahrirlash rejimi — JOYIDA (ichma-ich panel taqiqlangan). -->
+          <div
+            v-if="editingId === category.id"
+            class="space-y-2.5"
+          >
+            <BaseField
+              label="Nomi"
+              :error="editError"
+            >
+              <input
+                v-model="editName"
+                class="zn-input"
+                maxlength="100"
+              >
+            </BaseField>
+            <!--
+              ⚠️ Yorliq matni ATAYLAB uzun: arxivlash "o'chirish" emas va
+              bu farq xodimga aytilishi kerak — aks holda u yorliqni
+              arxivlab, guruhlardan ham yo'qoldi deb o'ylardi.
+            -->
+            <label class="flex min-h-11 items-center gap-2.5 text-sm text-slate-300">
+              <input
+                v-model="editActive"
+                type="checkbox"
+                class="size-4 accent-brand-500"
+              >
+              Faol (yangi guruhlarga taklif qilinadi)
+            </label>
+            <div class="flex justify-end gap-2">
               <BaseButton
                 size="sm"
                 variant="secondary"
-                @click="startEdit(category)"
+                @click="cancelEdit"
               >
-                <template #icon>
-                  <AppIcon
-                    name="edit"
-                    :size="13"
-                  />
-                </template>
-                Tahrirlash
+                Bekor qilish
               </BaseButton>
               <BaseButton
                 size="sm"
-                variant="danger"
-                @click="askDelete(category)"
+                :loading="updateMutation.isPending.value"
+                @click="onSaveEdit(category)"
               >
-                O‘chirish
+                Saqlash
               </BaseButton>
             </div>
-          </li>
-        </ul>
-      </DataStatus>
-    </div>
+          </div>
+
+          <!-- Ko'rish rejimi -->
+          <div
+            v-else
+            class="flex flex-wrap items-center gap-2"
+          >
+            <span
+              class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
+              v-text="category.name ?? '—'"
+            />
+            <BaseBadge :tone="category.isActive ? 'success' : 'neutral'">
+              {{ category.isActive ? 'Faol' : 'Arxiv' }}
+            </BaseBadge>
+            <!--
+              🔴 GURUHLAR SONI — o'chirishdan OLDIN ko'rinishi shart:
+              serverdagi FK `SET NULL` bo'lgani uchun bu son o'chirish
+              nechta guruhning yorlig'iga tegishini aytadi.
+            -->
+            <span class="shrink-0 text-xs tabular-nums text-dim">
+              {{ category.groupCount }} guruh
+            </span>
+            <BaseButton
+              size="sm"
+              variant="secondary"
+              @click="startEdit(category)"
+            >
+              <template #icon>
+                <AppIcon
+                  name="edit"
+                  :size="13"
+                />
+              </template>
+              Tahrirlash
+            </BaseButton>
+            <BaseButton
+              size="sm"
+              variant="danger"
+              @click="askDelete(category)"
+            >
+              O‘chirish
+            </BaseButton>
+          </div>
+        </li>
+      </ul>
+    </DataStatus>
 
     <ConfirmDeleteDialog
       :open="deleting !== null"
@@ -407,5 +386,5 @@ watch(
       @close="deleting = null"
       @confirm="deleting !== null && deleteMutation.mutate(deleting.id)"
     />
-  </BaseDrawer>
+  </div>
 </template>

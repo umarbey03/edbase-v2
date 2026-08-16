@@ -17,7 +17,7 @@ import TestFormDialog from '@/features/test-form/ui/TestFormDialog.vue'
 import TestQuestionsEditor from '@/features/test-questions/ui/TestQuestionsEditor.vue'
 import TestResultsPanel from '@/features/test-results/ui/TestResultsPanel.vue'
 import { toUserMessage } from '@/shared/api'
-import { formatDateTime } from '@/shared/lib/datetime'
+import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import {
   AppIcon,
@@ -271,7 +271,7 @@ function askDelete(): void {
                 :size="13"
               />
               <span class="tabular-nums">
-                {{ test.dueAt === null ? 'Muddatsiz' : formatDateTime(test.dueAt) }}
+                {{ test.dueAt === null ? 'Muddatsiz' : formatDateTimeNumeric(test.dueAt) }}
               </span>
             </div>
             <div class="inline-flex items-center gap-1.5">

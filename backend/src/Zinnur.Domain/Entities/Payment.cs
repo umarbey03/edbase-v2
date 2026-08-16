@@ -161,6 +161,69 @@ public class Payment : BaseEntity
     }
 
     /// <summary>
+    /// ============================================================================
+    /// BOSQICHMA-BOSQICH HISOBLASH (2026-08-16) — bir darsning ulushini
+    /// oy summasiga qo'shadi.
+    /// ============================================================================
+    ///
+    /// Talab (loyiha egasi): *"har bir dars uchun platformani o'zi dars
+    /// o'tilganidan keyin auto yechib olishi kerak"*. Oy BOSHIDA to'liq
+    /// tarif summasi emas — har o'tilgan (va hisoblanadigan) dars shu
+    /// metod orqali o'z ulushini qo'shadi (Application qatlamidagi
+    /// <c>LessonAccrualService</c> da chaqiriladi — Domain undan bexabar,
+    /// faqat qoidani beradi).
+    ///
+    /// ★ IKKI YO'NALISHDA ISHLAYDI (2026-08-16 dan): odatda
+    /// <paramref name="newBaseAmount"/> OLDINGISIDAN katta (yangi dars
+    /// qo'shildi), lekin KICHIK ham bo'lishi mumkin — dars keyinchalik
+    /// "bepul"/"sababli" deb qayta belgilansa, uning ulushi bekor qilinadi
+    /// (`LessonAccrualService` reconciliation, izoh o'sha yerda).
+    ///
+    /// ★ <c>Paid → Partial/Due</c> TUSHISHI (O'SISHDA) — XATO EMAS, KUTILGAN
+    /// HOLAT: balansdan avtomatik yopilgan (yoki kichik summa bilan to'liq
+    /// to'langan) oy keyingi darsda YANA qisman qarz bo'lib qolishi mumkin.
+    ///
+    /// ★ QAYTARIB BERISH (KAMAYISHDA): agar yangi <c>Amount</c> avval
+    /// to'langan summadan KICHIK chiqsa, ortiqcha summa <c>PaidAmount</c>
+    /// dan olib tashlanadi (aks holda bazadagi <c>PaidAmount &lt;= Amount</c>
+    /// CHECK'i buziladi) va NATIJA sifatida QAYTARILADI — chaqiruvchi buni
+    /// <c>StudentAccount.Balance</c> ga qo'shishi SHART, aks holda pul
+    /// hech qayerda ko'rinmay yo'qolib qolardi.
+    /// </summary>
+    public decimal Accrue(decimal newBaseAmount, decimal newDiscountAmount, DateTimeOffset now)
+    {
+        if (Status == PaymentStatus.Waived)
+            throw new DomainException("Kechirilgan oyga dars ulushini qo'shib bo'lmaydi.");
+
+        BaseAmount = newBaseAmount;
+        DiscountAmount = newDiscountAmount;
+        Amount = BaseAmount - DiscountAmount;
+
+        var excess = PaidAmount > Amount ? PaidAmount - Amount : 0m;
+        if (excess > 0m) PaidAmount = Amount;
+
+        var wasPaid = Status == PaymentStatus.Paid;
+
+        // ★ Holat HAR SAFAR qaytadan chiqariladi (faqat "Paid'dan tushish"
+        // emas) — kamayish yo'nalishida "Partial edi, endi to'liq to'langan"
+        // (masalan 100/60 -> Amount 60 ga tushsa 60/60 bo'lib qoladi) kabi
+        // KO'TARILISH holatlari ham bo'ladi, ularni alohida shart yozish
+        // o'rniga formula BIR JOYDA to'g'ri chiqarilishi ishonchliroq.
+        Status = Amount == 0m && PaidAmount == 0m
+            ? PaymentStatus.Due
+            : PaidAmount >= Amount
+                ? PaymentStatus.Paid
+                : PaidAmount > 0m
+                    ? PaymentStatus.Partial
+                    : PaymentStatus.Due;
+
+        PaidAt = Status == PaymentStatus.Paid ? (wasPaid ? PaidAt : now) : null;
+
+        UpdatedAt = now;
+        return excess;
+    }
+
+    /// <summary>
     /// Invariantlar — bazadagi <c>CHECK</c> cheklovlari bilan BIR XIL.
     /// Ikki joyda tekshiriladi: baza oxirgi himoya, Domain esa xatoni
     /// tushunarli xabar bilan darrov aytadi.

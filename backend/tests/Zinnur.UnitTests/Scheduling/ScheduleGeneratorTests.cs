@@ -28,6 +28,13 @@ public class ScheduleGeneratorTests
     private static readonly TimeZoneInfo Tashkent =
         TimeZoneInfo.FindSystemTimeZoneById("Asia/Tashkent");
 
+    /// <summary>
+    /// Bayram kalendari (2026-08-16) — bu fayldagi testlarning aksariyati
+    /// bayramsiz holatni tekshiradi, shuning uchun bo'sh to'plam umumiy
+    /// nomga ega qilingan (har joyda <c>[]</c> takrorlanmasin).
+    /// </summary>
+    private static readonly HashSet<DateOnly> NoExclusions = [];
+
     private const int DurationMinutes = 80;
     private const int CourseMonths = 8;
 
@@ -58,7 +65,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_ForEightMonthsTwiceAWeek_ProducesExpectedCount()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         sessions.Should().HaveCount(ExpectedSessionCount);
     }
@@ -66,7 +73,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_PlacesEverySessionOnAChosenWeekday()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         // Kunni MAHALLIY zonada tekshiramiz: UTC'da 14:00 bo'lsa kun bir xil,
         // lekin masalan 23:00 darsda UTC kuni ERTASI kunga o'tib ketardi va
@@ -83,7 +90,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_StartsAtLocalNineteenHundred_ExpressedAsFourteenUtc()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         // Toshkent = UTC+5, DST yo'q => 19:00 mahalliy == 14:00Z, HAR KUNI.
         sessions.Should().AllSatisfy(session =>
@@ -96,7 +103,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_KeepsExactDurationForEverySession()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         sessions.Should().AllSatisfy(session =>
             (session.End - session.Start).Should().Be(TimeSpan.FromMinutes(DurationMinutes)));
@@ -105,7 +112,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_FirstSessionIsTheGroupStartDate()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         var first = TimeZoneInfo.ConvertTime(sessions[0].Start, Tashkent);
 
@@ -117,7 +124,7 @@ public class ScheduleGeneratorTests
     public void Build_NeverGoesPastTheCourseEndDate()
     {
         var group = NewGroup();
-        var sessions = ScheduleGenerator.Build(group, Tashkent);
+        var sessions = ScheduleGenerator.Build(group, Tashkent, NoExclusions);
 
         sessions.Should().AllSatisfy(session =>
             DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(session.Start, Tashkent).DateTime)
@@ -138,7 +145,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_GivesEverySessionAUniqueRoomName()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         sessions.Select(s => s.RoomName).Should().OnlyHaveUniqueItems();
     }
@@ -150,8 +157,8 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_GivesUniqueRoomNamesAcrossSeparateGroups()
     {
-        var first = ScheduleGenerator.Build(NewGroup(), Tashkent);
-        var second = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var first = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
+        var second = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         first.Concat(second).Select(s => s.RoomName).Should().OnlyHaveUniqueItems();
     }
@@ -163,7 +170,7 @@ public class ScheduleGeneratorTests
     {
         const int StartingIndex = 25;
 
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, startingIndex: StartingIndex);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions, startingIndex: StartingIndex);
 
         sessions[0].Index.Should().Be(StartingIndex);
         sessions[0].Title.Should().Be("ATF-1 — 25-dars");
@@ -177,7 +184,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_WithDefaultStartingIndex_NumbersFromOne()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         sessions.Select(s => s.Index).Should().Equal(Enumerable.Range(1, sessions.Count));
         sessions[0].Title.Should().Be("ATF-1 — 1-dars");
@@ -190,8 +197,8 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_WithStartingIndex_DoesNotChangeTheDates()
     {
-        var plain = ScheduleGenerator.Build(NewGroup(), Tashkent);
-        var shifted = ScheduleGenerator.Build(NewGroup(), Tashkent, startingIndex: 40);
+        var plain = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
+        var shifted = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions, startingIndex: 40);
 
         shifted.Select(s => s.Start).Should().Equal(plain.Select(s => s.Start));
     }
@@ -205,7 +212,7 @@ public class ScheduleGeneratorTests
             GroupType.Curator,
             [DayOfWeek.Monday, DayOfWeek.Wednesday, DayOfWeek.Friday]);
 
-        var sessions = ScheduleGenerator.Build(group, Tashkent);
+        var sessions = ScheduleGenerator.Build(group, Tashkent, NoExclusions);
 
         sessions.Should().AllSatisfy(s => s.Type.Should().Be(SessionType.Assistant));
         sessions[0].Title.Should().Be("ATF-1 — 1-yordamchi dars");
@@ -214,7 +221,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_ForTeacherGroup_ProducesTeacherSessions()
     {
-        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent);
+        var sessions = ScheduleGenerator.Build(NewGroup(), Tashkent, NoExclusions);
 
         sessions.Should().AllSatisfy(s => s.Type.Should().Be(SessionType.Teacher));
     }
@@ -244,7 +251,7 @@ public class ScheduleGeneratorTests
              DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday],
             courseMonths: Group.MaxCourseMonths);
 
-        var sessions = ScheduleGenerator.Build(group, Tashkent);
+        var sessions = ScheduleGenerator.Build(group, Tashkent, NoExclusions);
 
         sessions.Count.Should().BeLessThan(ScheduleGenerator.MaxSessionsPerGroup);
         sessions.Select(s => s.RoomName).Should().OnlyHaveUniqueItems();
@@ -257,7 +264,7 @@ public class ScheduleGeneratorTests
         // BOSHLANMASLIGI kerak (yarim jadval yaratilib qolmasin).
         var group = NewGroup(GroupType.Group, [DayOfWeek.Monday]);
 
-        var build = () => ScheduleGenerator.Build(group, Tashkent);
+        var build = () => ScheduleGenerator.Build(group, Tashkent, NoExclusions);
 
         build.Should().Throw<DomainException>();
     }
@@ -265,7 +272,7 @@ public class ScheduleGeneratorTests
     [Fact]
     public void Build_WithoutTimeZone_Throws()
     {
-        var build = () => ScheduleGenerator.Build(NewGroup(), timeZone: null!);
+        var build = () => ScheduleGenerator.Build(NewGroup(), excludedDates: NoExclusions, timeZone: null!);
 
         build.Should().Throw<ArgumentNullException>();
     }

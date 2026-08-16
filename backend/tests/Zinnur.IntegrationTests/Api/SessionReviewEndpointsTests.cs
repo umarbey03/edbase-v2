@@ -323,6 +323,11 @@ public sealed class SessionReviewEndpointsTests(ZinnurApiFactory factory)
                 ObjectKey = $"itest/{Guid.NewGuid():N}.mp4",
                 Status = status,
                 DurationSeconds = status == RecordingStatus.Completed ? 3600 : null,
+                // ★ 2026-08-15 dan standart `false` (`RecordingVisibilityModelTests`
+                // izohi) — bu yerda ATAYLAB `true`: sinf o'quvchi ko'rinishini
+                // tekshiradi, yozuv yashirin bo'lsa ro'yxat bo'sh chiqib, sinov
+                // maqsadini yo'qotardi.
+                IsVisibleToStudents = true,
             };
 
             db.SessionRecordings.Add(recording);

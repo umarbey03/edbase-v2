@@ -22,7 +22,9 @@ public sealed class LiveSessionService(
     ILiveKitTokenService liveKit,
     ILiveSessionNotifier notifier,
     IPaymentBlockService paymentBlock,
+    ILessonAccrualService accrual,
     IScheduleTimeZoneProvider timeZone,
+    IScheduleService schedule,
     IAutoRecordingScheduler autoRecording,
     TimeProvider clock) : ILiveSessionService
 {
@@ -342,6 +344,28 @@ public sealed class LiveSessionService(
 
         await db.SaveChangesAsync(ct);
 
+        // ═══════════════════════════════════════════════════════════════
+        // BOSQICHMA-BOSQICH HISOBLASH (2026-08-16) — AYNAN SHU NUQTA.
+        //
+        // ★ NEGA ALOHIDA SAQLOV, YUQORIDAGI BILAN BIRGA EMAS: dars
+        // yakunlash (ustoz uchun) va davomat yakunlash pul bilan bog'liq
+        // MUAMMO tufayli HECH QACHON muvaffaqiyatsiz bo'lmasligi kerak —
+        // ular allaqachon YUQORIDA, o'z holicha saqlangan. Hisoblash esa
+        // `Payment` jadvalining `xmin` optimistik qulfi tufayli nazariy
+        // poyga holatida yiqilishi mumkin (`LessonAccrualService` izohi);
+        // bu METOD o'zi xatoni ICHKARIDA tutadi va hech qachon bu yerga
+        // otib chiqmaydi — shuning uchun keyingi qatorlarga try/catch
+        // shart emas.
+        //
+        // ★ HAR IKKI CHAQIRUV NUQTASINI QAMRAB OLADI: bu — `session.End()`
+        // ning Application qatlamidagi YAGONA chaqiruv joyi (grep bilan
+        // tasdiqlangan). `SessionAutoCloseJob` ham `EndAsync` orqali
+        // o'tadi, ya'ni ustoz "Yakunlash" tugmasini bossa ham, avto-
+        // yakunlash fon vazifasi forsé yopsa ham — ikkalasida ham AYNAN
+        // shu bitta yo'ldan hisoblanadi.
+        // ═══════════════════════════════════════════════════════════════
+        await accrual.AccrueForSessionAsync(sessionId, userId, ct);
+
         // ★ COMMIT-THEN-SEND: xabar faqat ma'lumot YOZILGANDAN keyin ketadi.
         // Teskarisi bo'lsa (avval xabar, keyin saqlash) saqlash yiqilganda
         // o'quvchilarda "dars tugadi" ekrani chiqib, baza esa darsni jonli deb
@@ -353,6 +377,69 @@ public sealed class LiveSessionService(
         await notifier.SessionEndedAsync(sessionId, ct);
 
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
+    }
+
+    /// <summary>
+    /// Darsni qo'lda bekor qiladi (masalan ustoz kasal bo'lib qolsa).
+    /// Bayram bilan AYNI mexanizm ishlatadi — bekor qilingandan keyin
+    /// guruh jadvali qayta tuziladi va oxiriga BITTA qo'shimcha (o'rnini
+    /// bosuvchi) dars avtomatik qo'shiladi (`ScheduleGenerator.Build`
+    /// izohi).
+    ///
+    /// ⚠️ FAQAT ACADEMIC/ADMIN (loyiha egasi: *"buni qo'lda o'quv va admin
+    /// bo'limi orqali qilinishi kerak bo'ladi"*) — ustoz/kurator o'z
+    /// darsini o'zi bekor qila olmaydi, faqat host sifatida boshlay/yakunlay
+    /// oladi (`IsHost` tekshiruvi yuqoridagi metodlarda).
+    /// </summary>
+    public async Task<LiveSessionDto> CancelAsync(
+        long sessionId, string? reason, long userId, CancellationToken ct = default)
+    {
+        var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
+
+        if (user.Role is not (UserRole.Admin or UserRole.Academic))
+            throw new ForbiddenException("Darsni faqat o'quv bo'limi yoki admin bekor qila oladi.");
+
+        var now = clock.GetUtcNow();
+        session.Cancel(reason, now);
+
+        await schedule.RegenerateAsync(session.Group!, ct);
+        await db.SaveChangesAsync(ct);
+
+        return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
+    }
+
+    /// <summary>
+    /// Darsni "bepul" deb belgilaydi. ⚠️ FAQAT ACADEMIC/ADMIN — `CancelAsync`
+    /// bilan AYNI mulohaza (moliyaviy oqibat, ustoz/kurator o'zi qaror
+    /// qilolmaydi).
+    ///
+    /// ★ DARS ALLAQACHON YAKUNLANGAN bo'lsa (va pul allaqachon yechilgan
+    /// bo'lsa) ham ISHLAYDI: bayroq qo'yilgandan KEYIN `accrual.
+    /// AccrueForSessionAsync` chaqiriladi — u `session.Status == Ended`
+    /// bo'lsa AVVAL hisoblangan summalarni HAQIQATDA orqaga qaytaradi
+    /// (`LessonAccrualService` sinf izohi). Hali yakunlanmagan darsda bu
+    /// chaqiruv ichkarida hech narsa qilmaydi — `EndAsync` o'zi keyinroq
+    /// yangi bayroqni ko'rib hisoblaydi.
+    /// </summary>
+    public async Task<FreeLessonStatusDto> SetFreeLessonAsync(
+        long sessionId, SetFreeLessonRequest request, long userId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
+
+        if (user.Role is not (UserRole.Admin or UserRole.Academic))
+            throw new ForbiddenException("Darsni faqat o'quv bo'limi yoki administrator bepul qila oladi.");
+
+        var now = clock.GetUtcNow();
+        session.SetFreeLesson(request.IsFree, request.PayrollExcluded, request.Reason, now);
+
+        await db.SaveChangesAsync(ct);
+
+        await accrual.AccrueForSessionAsync(sessionId, userId, ct);
+
+        return new FreeLessonStatusDto(
+            session.Id, session.IsFreeLesson, session.FreeLessonReason, session.PayrollExcluded);
     }
 
     public async Task<LiveKitJoinDto> CreateJoinTokenAsync(

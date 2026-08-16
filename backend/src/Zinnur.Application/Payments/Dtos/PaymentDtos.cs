@@ -190,6 +190,23 @@ public sealed record StudentAccountDto(
     IReadOnlyList<PaymentDto> Months,
     IReadOnlyList<PaymentTransactionDto> RecentTransactions);
 
+/// <summary>
+/// ★ 2026-08-16: BITTA darsning BITTA o'quvchi uchun hisob-kitobi —
+/// "qaysi guruh, qaysi dars uchun qancha yechilgan" hisoboti.
+/// </summary>
+/// <param name="StickerAmount">Bu darsning "narxi" (tarif/darslar soni) — chegirmagacha.</param>
+/// <param name="ChargedAmount">HAQIQATDA yechilgan summa (chegirmadan keyin, sababli/bepul bo'lsa 0).</param>
+/// <param name="SkipReason"><c>null</c> — to'liq yechilgan. Aks holda nega yechilmagani.</param>
+public sealed record LessonChargeDto(
+    long SessionId,
+    long GroupId,
+    string GroupName,
+    DateTimeOffset ScheduledStart,
+    string Period,
+    decimal StickerAmount,
+    decimal ChargedAmount,
+    LessonChargeSkipReason? SkipReason);
+
 /// <summary>Oylik yozuvlar ro'yxati uchun filtr (moliya paneli).</summary>
 /// <param name="OnlyDebt"><c>true</c> — faqat qarzi borlar (Due/Partial).</param>
 public sealed record PaymentListQuery(

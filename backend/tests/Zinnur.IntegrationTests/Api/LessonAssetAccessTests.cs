@@ -361,7 +361,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     /// Guruhga tarif qo'yib, oy yozuvini ochadi — natijada o'quvchining
     /// qarzi chegaradan (540 000) oshadi va `Video` qamrovi bloklaydi.
     /// </summary>
-    private static async Task MakeDebtorAsync(HttpClient admin, long groupId)
+    private async Task MakeDebtorAsync(HttpClient admin, long groupId)
     {
         var tariff = await admin.PostAsJsonAsync("/api/v1/payments/tariffs", new
         {
@@ -379,6 +379,22 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
 
         opened.StatusCode.Should().Be(HttpStatusCode.OK,
             await opened.Content.ReadAsStringAsync());
+
+        // ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): `OpenPeriodAsync` endi
+        // 0 so'mda ochadi — bu qamrov sinovi "qarz allaqachon bor" holatini
+        // boshlang'ich nuqta sifatida oladi, shuning uchun `Payment.Accrue`
+        // bilan TO'G'RIDAN-TO'G'RI to'ldiramiz — xuddi dars allaqachon
+        // o'tilgandek.
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.GroupId == groupId && p.Period == Period);
+
+            payment.Accrue(DebtAmount, 0m, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
     }
 
     private static async Task<long> CreateLessonAsync(

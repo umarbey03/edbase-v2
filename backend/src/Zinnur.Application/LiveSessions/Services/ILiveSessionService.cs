@@ -53,6 +53,23 @@ public interface ILiveSessionService
 
     Task<LiveSessionDto> EndAsync(long sessionId, long userId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Darsni qo'lda bekor qiladi (bayram, ustoz kasal va h.k.) — FAQAT
+    /// Academic/Admin. Guruh jadvali avtomatik qayta tuziladi (izoh:
+    /// <c>LiveSessionService.CancelAsync</c>).
+    /// </summary>
+    Task<LiveSessionDto> CancelAsync(
+        long sessionId, string? reason, long userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Darsni "bepul" deb belgilaydi/bekor qiladi — FAQAT Academic/Admin.
+    /// Dars ALLAQACHON yakunlangan bo'lsa ham chaqirish mumkin — bu holda
+    /// avval hisoblangan summalar HAQIQATDA tuzatiladi (izoh:
+    /// <c>LiveSessionService.SetFreeLessonAsync</c>).
+    /// </summary>
+    Task<FreeLessonStatusDto> SetFreeLessonAsync(
+        long sessionId, SetFreeLessonRequest request, long userId, CancellationToken ct = default);
+
     /// <summary>LiveKit'ga ulanish uchun token. Ruxsat shu yerda tekshiriladi.</summary>
     Task<LiveKitJoinDto> CreateJoinTokenAsync(long sessionId, long userId, CancellationToken ct = default);
 

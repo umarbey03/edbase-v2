@@ -4,7 +4,7 @@ import type { Ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { fetchGroupSchedule } from '@/entities/group'
-import { startLiveSession } from '@/entities/session'
+import { cancelLiveSession, startLiveSession } from '@/entities/session'
 import { toUserMessage } from '@/shared/api'
 
 /**
@@ -66,6 +66,50 @@ export function useSessionStart(groupId: number): SessionStartControls {
     },
     openRoom(sessionId: number): void {
       void router.push({ name: 'live-room', params: { sessionId: String(sessionId) } })
+    },
+    pendingId,
+    error,
+  }
+}
+
+export interface SessionCancelControls {
+  cancel: (sessionId: number, reason?: string) => void
+  pendingId: Ref<number | null>
+  error: Ref<string | null>
+}
+
+/**
+ * "Darsni bekor qilish" (2026-08-16, faqat Academic/Admin — server ham
+ * shu rollarga qulflagan). Muvaffaqiyatda jadval so'rovi invalidatsiya
+ * qilinadi: bekor qilingan dars o'rniga qo'shilgan o'rnini bosuvchi dars
+ * kalendarda DARHOL ko'rinishi kerak.
+ */
+export function useSessionCancel(groupId: number): SessionCancelControls {
+  const queryClient = useQueryClient()
+
+  const error = ref<string | null>(null)
+  const pendingId = ref<number | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (input: { sessionId: number; reason?: string }) =>
+      cancelLiveSession(input.sessionId, input.reason),
+    onSuccess: () => {
+      error.value = null
+      void queryClient.invalidateQueries({ queryKey: ['group', groupId, 'schedule'] })
+      void queryClient.invalidateQueries({ queryKey: ['group', groupId] })
+    },
+    onError: (mutationError: Error) => {
+      error.value = toUserMessage(mutationError)
+    },
+    onSettled: () => {
+      pendingId.value = null
+    },
+  })
+
+  return {
+    cancel(sessionId: number, reason?: string): void {
+      pendingId.value = sessionId
+      mutation.mutate({ sessionId, reason })
     },
     pendingId,
     error,

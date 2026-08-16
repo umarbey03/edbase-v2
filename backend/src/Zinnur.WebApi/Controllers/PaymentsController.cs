@@ -194,6 +194,20 @@ public sealed class PaymentsController(
         long studentId, CancellationToken ct) =>
         Ok(await payments.GetStudentAccountAsync(studentId, CurrentUserId, ct));
 
+    /// <summary>
+    /// ★ 2026-08-16: "qaysi guruh, qaysi dars uchun qancha yechilgan" —
+    /// dars-dars tafsilot. Ruxsat — hisob bilan bir xil.
+    /// </summary>
+    [HttpGet("students/{studentId:long}/lesson-charges")]
+    [ProducesResponseType<IReadOnlyList<LessonChargeDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<LessonChargeDto>>> ListLessonCharges(
+        long studentId,
+        CancellationToken ct,
+        [FromQuery] long? groupId = null,
+        [FromQuery] string? period = null) =>
+        Ok(await payments.GetLessonChargesAsync(studentId, groupId, period, CurrentUserId, ct));
+
     /// <summary>To'lovlar jurnali (sahifalangan). Ruxsat — hisob bilan bir xil.</summary>
     [HttpGet("students/{studentId:long}/transactions")]
     [ProducesResponseType<PagedResult<PaymentTransactionDto>>(StatusCodes.Status200OK)]

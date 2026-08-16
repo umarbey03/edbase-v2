@@ -59,14 +59,18 @@ const errorMessage = computed(() =>
   >
     <ul class="space-y-1.5">
       <li
-        v-for="member in members"
+        v-for="(member, index) in members"
         :key="member.id"
         class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-ink-950 px-3 py-2"
       >
         <span
           class="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-100"
-          v-text="member.fullName ?? `#${member.studentId}`"
-        />
+        >
+          <span
+            class="tabular-nums text-dim"
+            v-text="`${index + 1}.`"
+          /> {{ member.fullName ?? `#${member.studentId}` }}
+        </span>
         <BaseBadge :tone="memberStatusTone(member.status)">
           {{ memberStatusLabel(member.status) }}
         </BaseBadge>

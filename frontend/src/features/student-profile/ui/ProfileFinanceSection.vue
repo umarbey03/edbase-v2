@@ -30,10 +30,12 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
  * KO'RADI, lekin o'zgartira olmaydi. Tugmalarning O'ZI mavjud
  * `features/payment-actions` oynalarini ochadi (nusxa olinmaydi).
  *
- * ★ "QAYSI DARS UCHUN" SAVOLI: to'lov modeli OYLIK (`o'quvchi × guruh × oy`),
- * dars kesimi modelda YO'Q. Shuning uchun jadvalda oy · guruh · summa ·
- * to'langan · qoldiq · holat va O'SHA OYDAGI DARSLAR SONI ko'rsatiladi —
- * xodim "540 000 / 8 dars" deb tushuntira oladi.
+ * ★ "QAYSI DARS UCHUN" SAVOLI (2026-08-16 dan TO'LIQ javob bor): oylik
+ * qatordagi "Darslar" tugmasi shu (oy, guruh) uchun HAR BIR darsning
+ * alohida ulushini ko'rsatadi (`LessonChargesDialog`,
+ * `GET /payments/students/{id}/lesson-charges`). Jadvaldagi son
+ * (`sessionCount`) esa tezkor javob — "540 000 / 8 dars" — tugma esa
+ * "aynan qaysi 8 ta va har biri qancha" savoliga javob beradi.
  */
 const props = defineProps<{
   finance: ProfileFinanceDto
@@ -41,7 +43,13 @@ const props = defineProps<{
   canManageMoney: boolean
 }>()
 
-const emit = defineEmits<{ record: []; reverse: []; 'show-transactions': [] }>()
+const emit = defineEmits<{
+  record: []
+  reverse: []
+  'show-transactions': []
+  /** ★ 2026-08-16: "Darslar" tugmasi — dars-dars tafsilot oynasini ochadi. */
+  'open-lesson-charges': [groupId: number, period: string]
+}>()
 
 /*
   Oylar bloki: kartochka ↔ jadval CSS emas, `v-if` — `hidden lg:block` IKKALA
@@ -192,9 +200,18 @@ const blocked = computed(() => props.finance.blockScope !== 'None')
               class="text-rose-400"
             >· qoldiq {{ formatMoney(period.outstanding) }}</span>
           </p>
-          <p class="mt-0.5 text-[11px] text-slate-400">
-            O‘tkazilgan dars: {{ period.sessionCount }}
-          </p>
+          <div class="mt-1.5 flex items-center justify-between gap-2">
+            <p class="text-[11px] text-slate-400">
+              O‘tkazilgan dars: {{ period.sessionCount }}
+            </p>
+            <button
+              type="button"
+              class="shrink-0 text-[11px] font-semibold text-brand-400 underline-offset-2 hover:underline"
+              @click="emit('open-lesson-charges', period.groupId, period.month)"
+            >
+              Darslar
+            </button>
+          </div>
         </li>
       </ul>
 
@@ -213,6 +230,7 @@ const blocked = computed(() => props.finance.blockScope !== 'None')
               <th>Qoldiq</th>
               <th>Holat</th>
               <th>Dars</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -252,6 +270,15 @@ const blocked = computed(() => props.finance.blockScope !== 'None')
                 class="tabular-nums text-slate-400"
                 v-text="period.sessionCount"
               />
+              <td>
+                <button
+                  type="button"
+                  class="text-xs font-semibold text-brand-400 underline-offset-2 hover:underline"
+                  @click="emit('open-lesson-charges', period.groupId, period.month)"
+                >
+                  Darslar
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>

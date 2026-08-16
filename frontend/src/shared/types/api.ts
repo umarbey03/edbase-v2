@@ -264,6 +264,21 @@ export interface SessionReviewDto {
   scorePercent: number | null
 }
 
+/**
+ * `GET /api/v1/session-reviews/teachers-overview` — bitta xodim (ustoz/
+ * kurator) bo'yicha tahlillar xulosasi ("Tahlillar" jadvali, boshqaruv
+ * paneli, faqat Academic/Admin).
+ */
+export interface TeacherReviewOverviewDto {
+  teacherId: number
+  teacherName: string
+  totalReviews: number
+  approvedCount: number
+  hasIssueCount: number
+  notReviewedCount: number
+  lastReviewAt: string
+}
+
 /** Bitta mezon bo'yicha qo'yilgan ball — yozish vaqtidagi nom/maksimal ball bilan (snapshot). */
 export interface SessionReviewScoreDto {
   criterionId: number | null
@@ -633,6 +648,54 @@ export interface SubmissionDto {
   files: SubmissionFileDto[] | null
   /** R37 · ustoz tekshirishda biriktirgan fayllar. */
   feedbackFiles: SubmissionFeedbackFileDto[] | null
+}
+
+/* ==========================================================================
+   O'QUV BO'LIMI UMUMIY KO'RINISHI (2026-08-15) — `GET /assignments/overview/*`.
+   ========================================================================== */
+
+/** Guruh (yoki "Kurs vazifalari" — `groupId: null`) bo'yicha uy vazifalari xulosasi. */
+export interface AssignmentGroupOverviewDto {
+  groupId: number | null
+  groupName: string
+  groupType: GroupTypeName | null
+  teacherId: number | null
+  teacherName: string | null
+  assignmentCount: number
+  submissionCount: number
+  gradedCount: number
+  ungradedCount: number
+  lastSubmittedAt: string | null
+}
+
+/**
+ * Bitta javob — guruh, ustoz va tekshiruvchi konteksti bilan (`overview/submissions`).
+ *
+ * `graderLabel` — "kim tekshirishi kerak" ko'rsatish matni. `null` — kurs
+ * vazifasi (hamma guruhga taalluqli, bitta aniq tekshiruvchi yo'q).
+ */
+export interface SubmissionOverviewDto {
+  submissionId: number
+  assignmentId: number
+  assignmentTitle: string | null
+  groupId: number | null
+  groupName: string | null
+  groupType: GroupTypeName | null
+  teacherId: number | null
+  teacherName: string | null
+  studentId: number
+  studentName: string | null
+  status: SubmissionStatusName
+  score: number | null
+  maxScore: number
+  scorePercent: number | null
+  submittedAt: string
+  isLate: boolean
+  attemptNumber: number
+  gradedAt: string | null
+  gradedById: number | null
+  gradedByName: string | null
+  graderLabel: string | null
 }
 
 export interface GradeSubmissionRequest {
@@ -2844,3 +2907,163 @@ export interface AvatarUploadedDto {
 }
 
 /* ===== /O'Z PROFILINI TAHRIRLASH ===== */
+
+/* ============================================================================
+   "XABARLAR" PANELI (2026-08-16) — guruhlarga shablon/qo'lda xabar yuborish.
+   ============================================================================ */
+
+export interface MessageTemplateDto {
+  id: number
+  name: string
+  body: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface CreateMessageTemplateRequest {
+  name: string
+  body: string
+  isActive: boolean
+}
+
+export interface UpdateMessageTemplateRequest {
+  name: string
+  body: string
+  isActive: boolean
+}
+
+/** `POST /api/v1/broadcasts` tanasi. */
+export interface SendGroupBroadcastRequest {
+  groupIds: number[]
+  body: string
+  templateId: number | null
+  sendToTelegram: boolean
+  sendToPlatformChat: boolean
+}
+
+/** Yuborilgan xabar tarixi qatori. */
+export interface GroupBroadcastDto {
+  id: number
+  authorId: number
+  authorName: string
+  templateId: number | null
+  templateName: string | null
+  body: string
+  targetGroupNames: string
+  targetGroupCount: number
+  sentToTelegram: boolean
+  sentToPlatformChat: boolean
+  telegramRecipientCount: number
+  createdAt: string
+}
+
+/* ===== /"XABARLAR" PANELI ===== */
+
+/* ============================================================================
+   BAYRAM KALENDARI (2026-08-16) — umumiy sanalar, guruh jadvalini avtomatik
+   suradi va o'sha kunlar uchun to'lov yechilmaydi.
+   ============================================================================ */
+
+export interface HolidayDto {
+  id: number
+  date: string
+  label: string
+  createdById: number
+  createdByName: string | null
+  createdAt: string
+}
+
+export interface CreateHolidayRequest {
+  date: string
+  label: string
+}
+
+/** `POST /api/v1/holidays` javobi — bayram + ta'sirlangan guruh/dars soni. */
+export interface HolidayImpactDto {
+  holiday: HolidayDto
+  affectedGroupCount: number
+  cancelledSessionCount: number
+}
+
+/* ===== /BAYRAM KALENDARI ===== */
+
+/* ============================================================================
+   OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi, FAQAT Admin ko'radi.
+   ============================================================================ */
+
+export interface TeacherRateDto {
+  id: number
+  userId: number | null
+  userName: string | null
+  role: UserRoleName
+  perSessionRate: number
+  perStudentBonusRate: number
+  /** `DateOnly` — `YYYY-MM-DD`. */
+  activeFrom: string
+  isActive: boolean
+  specificity: number
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface CreateTeacherRateRequest {
+  role: UserRoleName
+  perSessionRate: number
+  perStudentBonusRate: number
+  activeFrom: string
+  userId?: number | null
+  isActive: boolean
+}
+
+/** ★ `PUT` — TO'LIQ ALMASHTIRISH (izoh: `UpdateTariffRequest` bilan AYNI naqsh). */
+export interface UpdateTeacherRateRequest {
+  role: UserRoleName
+  perSessionRate: number
+  perStudentBonusRate: number
+  activeFrom: string
+  isActive: boolean
+  userId: number | null
+}
+
+export interface PayrollSummaryRowDto {
+  userId: number
+  fullName: string
+  role: UserRoleName
+  sessionCount: number
+  totalStudentsAttended: number
+  baseAmount: number
+  bonusAmount: number
+  total: number
+  /** Stavka topilmagan darslar soni — 0 bo'lmasa hisobot TO'LIQ EMAS. */
+  sessionsWithoutRate: number
+}
+
+export interface PayrollSummaryDto {
+  period: string
+  rows: PayrollSummaryRowDto[]
+  grandTotal: number
+}
+
+export interface PayrollSessionRowDto {
+  sessionId: number
+  groupId: number
+  groupName: string
+  scheduledStart: string
+  attendedStudents: number
+  sessionRate: number
+  bonusAmount: number
+  total: number
+  rateMissing: boolean
+}
+
+export interface PayrollDetailDto {
+  userId: number
+  fullName: string
+  role: UserRoleName
+  period: string
+  sessions: PayrollSessionRowDto[]
+  grandTotal: number
+}
+
+/* ===== /OYLIK HISOBLASH ===== */

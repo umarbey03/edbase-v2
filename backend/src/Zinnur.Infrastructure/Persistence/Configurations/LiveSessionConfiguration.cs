@@ -16,6 +16,8 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
         builder.Property(s => s.Title).HasMaxLength(200);
         builder.Property(s => s.RoomName).IsRequired().HasMaxLength(64);
         builder.Property(s => s.RecordingUrl).HasMaxLength(500);
+        builder.Property(s => s.CancelReason).HasMaxLength(300);
+        builder.Property(s => s.FreeLessonReason).HasMaxLength(300);
 
         builder.Property(s => s.Type).HasConversion<int>();
         builder.Property(s => s.Status).HasConversion<int>();

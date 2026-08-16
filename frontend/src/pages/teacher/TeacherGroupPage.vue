@@ -23,6 +23,7 @@ import ReopenDialog from '@/features/grading/ui/ReopenDialog.vue'
 import {
   AttendanceTab,
   BoardTab,
+  BroadcastTab,
   defaultGroupTab,
   GradesTab,
   GroupTabs,
@@ -494,6 +495,16 @@ function refreshSubmissions(): void {
             :group-name="groupDisplayName(group)"
           />
         </ChatFillColumn>
+        <!--
+          "Xabar" — guruh ICHIDAN shu guruhga xabar yuborish (loyiha egasi,
+          2026-08-16). Faqat `visibleGroupTabs` da (o'quv bo'limi/admin),
+          shuning uchun bu yerda qo'shimcha `canManage` tekshiruvi shart
+          emas — tab o'zi ustoz/kuratorga UMUMAN chizilmaydi.
+        -->
+        <BroadcastTab
+          v-else-if="activeTab === 'broadcast'"
+          :group="group"
+        />
         <!--
           "Yozuvlar" — eski `academic.html` dagi guruh ichidagi `#t-recordings`
           tabi (663–674-qatorlar). Guruh OLDINDAN tanlangani uchun widget'ga

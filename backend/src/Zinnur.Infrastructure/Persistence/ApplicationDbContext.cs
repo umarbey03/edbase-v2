@@ -99,6 +99,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
 
+    public DbSet<LessonCharge> LessonCharges => Set<LessonCharge>();
+
+    public DbSet<TeacherRate> TeacherRates => Set<TeacherRate>();
+
+    public DbSet<SessionPayout> SessionPayouts => Set<SessionPayout>();
+
     // ---------------------------------------------------------------- FAZA 5.3: dars yozuvi
 
     public DbSet<SessionRecording> SessionRecordings => Set<SessionRecording>();
@@ -156,6 +162,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<GroupCategory> GroupCategories => Set<GroupCategory>();
 
     /* ===== /R21b ===== */
+
+    /* ===== 2026-08-16: "Xabarlar" paneli ===== */
+
+    public DbSet<MessageTemplate> MessageTemplates => Set<MessageTemplate>();
+
+    public DbSet<GroupBroadcast> GroupBroadcasts => Set<GroupBroadcast>();
+
+    /* ===== /2026-08-16 ===== */
+
+    /* ===== 2026-08-16: To'lov (dars-asosida) + bayram kalendari ===== */
+
+    public DbSet<Holiday> Holidays => Set<Holiday>();
+
+    /* ===== /2026-08-16 (to'lov) ===== */
 
     // ---------------------------------------------------------------- FAZA 5.2: notifikatsiya
 

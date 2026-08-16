@@ -273,20 +273,22 @@ public sealed class SessionRecordingTests
     // ================================================================= R5: ko'rinish
 
     /// <summary>
-    /// 🔴 ENG MUHIM YAGONA TEST: standart qiymat <c>true</c>.
+    /// 🔴 ENG MUHIM YAGONA TEST: standart qiymat <c>false</c> (2026-08-15
+    /// dan, loyiha egasi talabi bilan).
     ///
-    /// U shunchaki xossani emas, MIGRATSIYA QARORINI qulflaydi. Bu qiymat
-    /// <c>false</c> ga o'zgartirilsa, deploy kunida HAR BIR o'quvchining
-    /// "Dars yozuvlari" bo'limi bo'shab qolardi va buni hech kim
-    /// nosozlikdan ajrata olmasdi. Sabab batafsil
-    /// <c>SessionRecording.IsVisibleToStudents</c> izohida.
+    /// U shunchaki xossani emas, MIGRATSIYA QARORINI qulflaydi: yangi
+    /// yozuv o'quv bo'limi/ustoz ANIQ `ShowToStudents()` chaqirmaguncha
+    /// (yoki `RecordingBoard`dagi bulk "Hammasini ochish" tugmasi orqali)
+    /// o'quvchiga ko'rinmaydi. Sabab batafsil
+    /// <c>SessionRecording.IsVisibleToStudents</c> izohida — u yerda ham
+    /// nega bu standart MAVJUD yozuvlarni o'zgartirmasligi tushuntirilgan.
     /// </summary>
     [Fact]
-    public void New_IsVisibleToStudents_SoExistingBehaviourIsPreserved()
+    public void New_IsVisibleToStudents_DefaultsToHidden()
     {
         var recording = New();
 
-        recording.IsVisibleToStudents.Should().BeTrue();
+        recording.IsVisibleToStudents.Should().BeFalse();
         recording.VisibilityChangedById.Should().BeNull();
         recording.VisibilityChangedAt.Should().BeNull();
     }

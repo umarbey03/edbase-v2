@@ -94,4 +94,16 @@ public class AttendanceAudit : BaseEntity
     public string? OldReason { get; set; }
 
     public string? NewReason { get; set; }
+
+    /// <summary>
+    /// "Sababli" bayrog'i o'zgarishi (2026-08-16) — <see cref="Status"/>
+    /// bilan AYNI qatorda, alohida jadval EMAS: bitta tuzatish ikkalasini
+    /// ham o'zgartirishi mumkin (masalan `UpdateAsync` orqali holat, keyin
+    /// `SetExcusedAsync` orqali bayroq) va ularning har biri o'z audit
+    /// qatorini oladi — bu ustunlar shunchaki O'SHA qatorda tegilmagan
+    /// tomonni "o'zgarishsiz" deb ko'rsatadi (eski qiymat = yangi qiymat).
+    /// </summary>
+    public bool OldIsExcused { get; set; }
+
+    public bool NewIsExcused { get; set; }
 }

@@ -1,5 +1,9 @@
 import { http } from '@/shared/api'
-import type { SaveSessionReviewRequest, SessionReviewDto } from '@/shared/types'
+import type {
+  SaveSessionReviewRequest,
+  SessionReviewDto,
+  TeacherReviewOverviewDto,
+} from '@/shared/types'
 
 const BASE = '/api/v1/live-sessions'
 
@@ -61,4 +65,30 @@ export function saveSessionReview(
  */
 export function deleteSessionReview(sessionId: number): Promise<void> {
   return http.delete<void>(reviewUrl(sessionId))
+}
+
+/* ==========================================================================
+   TAHLILLAR PANELI (2026-08-16) — "Dars yozuvlari" bo'limi, faqat
+   Academic/Admin. Bitta darsning EMAS, XODIM (ustoz/kurator) bo'yicha
+   ko'rinish: avval xulosa jadvali, so'ng bitta xodimning BARCHA tahlillari.
+   ========================================================================== */
+
+/** `GET /api/v1/session-reviews/teachers-overview` — xodim bo'yicha xulosa jadvali. */
+export function fetchTeacherReviewsOverview(
+  options?: { signal?: AbortSignal },
+): Promise<TeacherReviewOverviewDto[]> {
+  return http.get<TeacherReviewOverviewDto[]>('/api/v1/session-reviews/teachers-overview', {
+    signal: options?.signal,
+  })
+}
+
+/** `GET /api/v1/session-reviews?teacherId=` — bitta xodimning barcha tahlillari. */
+export function fetchSessionReviewsByTeacher(
+  teacherId: number,
+  options?: { signal?: AbortSignal },
+): Promise<SessionReviewDto[]> {
+  return http.get<SessionReviewDto[]>('/api/v1/session-reviews', {
+    query: { TeacherId: teacherId },
+    signal: options?.signal,
+  })
 }

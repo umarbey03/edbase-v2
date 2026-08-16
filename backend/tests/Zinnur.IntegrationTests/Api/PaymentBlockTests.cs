@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.IntegrationTests.Infrastructure;
 
@@ -266,6 +267,22 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
 
         opened.StatusCode.Should().Be(HttpStatusCode.OK);
 
+        // ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): `OpenPeriodAsync` endi
+        // 0 so'mda ochadi — bu bloklash sinovlariga tegishli emas (ular
+        // "qarz allaqachon bor" holatini boshlang'ich nuqta sifatida
+        // oladi), shuning uchun `Payment.Accrue` bilan TO'G'RIDAN-TO'G'RI
+        // to'ldiramiz — xuddi darslar allaqachon o'tilgandek.
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.StudentId == student.Id && p.GroupId == group.Group.Id && p.Period == Period);
+
+            payment.Accrue(DebtAmount, 0m, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
+
         return new DebtorWorld(
             student.Id, student.Email, student.Password, teacher.Email, group.Group.Id);
     }
@@ -423,6 +440,21 @@ public sealed class PaymentSoftModeTests(SoftModePaymentFactory factory)
             .Where(u => u.Email == "student@zinnur.uz")
             .Select(u => u.Id)
             .FirstAsync());
+
+        // ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): `OpenPeriodAsync` endi
+        // 0 so'mda ochadi — `PaymentBlockTests.NewDebtorAsync` dagi bilan
+        // AYNI sabab bilan darslar allaqachon o'tilgandek to'g'ridan-to'g'ri
+        // to'ldiramiz.
+        await factory.WithDbAsync(async db =>
+        {
+            var payment = await db.Payments.FirstAsync(p =>
+                p.StudentId == studentId && p.Period == "2026-04");
+
+            payment.Accrue(600_000m, 0m, DateTimeOffset.UtcNow);
+            payment.Validate();
+
+            return await db.SaveChangesAsync();
+        });
 
         var courseId = await factory.WithDbAsync(db => db.Courses
             .OrderBy(c => c.Id).Select(c => c.Id).FirstAsync());

@@ -61,4 +61,31 @@ public interface IAttendanceService
         UpdateAttendanceRequest request,
         long actorId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// "Sababli" deb belgilaydi (yoki bekor qiladi) — bosqichma-bosqich
+    /// to'lov hisoblash (`LessonAccrualService`) shu bayroqni tekshirib,
+    /// belgilangan o'quvchidan shu dars uchun pul yechmaydi.
+    ///
+    /// ★ RUXSAT `UpdateAsync` DAN TORROQ — FAQAT Academic/Admin (loyiha
+    /// egasi: "buni qo'lda o'quv va admin bo'limi orqali qilinishi kerak
+    /// bo'ladi"). Ustoz/kurator holatni tuzatadi, lekin to'lovga ta'sir
+    /// qiluvchi qarorni yo'q.
+    ///
+    /// Qator yo'q bo'lsa YARATILADI — kelajakdagi darsni OLDINDAN sababli
+    /// deb belgilash mumkin (izoh: `AttendanceService.SetExcusedAsync`).
+    /// </summary>
+    /// <exception cref="Common.Exceptions.NotFoundException">
+    /// Dars yo'q yoki o'quvchi bu darsning guruhiga tegishli emas.
+    /// </exception>
+    /// <exception cref="Common.Exceptions.ForbiddenException">
+    /// Ruxsat yo'q (Academic/Admin emas).
+    /// </exception>
+    /// <exception cref="Common.Exceptions.ConflictException">Dars bekor qilingan.</exception>
+    Task<AttendanceRowDto> SetExcusedAsync(
+        long sessionId,
+        long studentId,
+        SetExcusedRequest request,
+        long actorId,
+        CancellationToken ct = default);
 }

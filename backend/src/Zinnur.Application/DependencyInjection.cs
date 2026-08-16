@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.AnalysisCriteria.Services;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Auth.Services;
+using Zinnur.Application.Broadcasts.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Scope;
 using Zinnur.Application.Courses.Services;
@@ -13,6 +14,7 @@ using Zinnur.Application.Messaging.Services;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Profile.Services;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Payroll.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
@@ -113,6 +115,11 @@ public static class DependencyInjection
         // `IScheduleTimeZoneProvider` — Infrastructure'da (konfiguratsiyadan o'qiladi).
         services.AddScoped<IScheduleService, ScheduleService>();
 
+        // Bayram kalendari (2026-08-16) — `IScheduleService.RegenerateAsync`
+        // ga tayanadi (har ta'sirlangan guruh uchun), ya'ni jadval mantig'i
+        // takrorlanmaydi.
+        services.AddScoped<IHolidayService, HolidayService>();
+
         // ---------------------------------------------------------------- FAZA 3
         //
         // GATING SCOPED bo'lishi SHART: u so'rov ichida hisoblangan daraxtni
@@ -171,6 +178,18 @@ public static class DependencyInjection
         // dependency) va ikkinchi so'rovda allaqachon yopilgan kontekst bilan
         // pul yozishga urinilardi.
         services.AddScoped<IPaymentService, PaymentService>();
+
+        // Bosqichma-bosqich hisoblash (2026-08-16) — `IPaymentService` dan
+        // ATAYLAB ALOHIDA interfeys (izoh: `LessonAccrualService` sinfi
+        // izohida): chaqiruvchi `LiveSessionService`, aktyor ko'pincha
+        // ustoz (moliyaga ruxsati yo'q xodim) — bu YOZISH huquqi emas,
+        // DARS HODISASINING oqibati.
+        services.AddScoped<ILessonAccrualService, LessonAccrualService>();
+
+        // Ustoz/kurator oylik hisoblash (2026-08-16) — `IPaymentService` dan
+        // ALOHIDA: ruxsat FAQAT Admin (Academic emas), izoh `PayrollService`
+        // sinfida.
+        services.AddScoped<IPayrollService, PayrollService>();
 
         // Blok darvozasi ALOHIDA va KICHIK interfeys: uni moliyadan
         // TASHQARIDAGI servislar chaqiradi (jonli darsga kirish, kurs
@@ -287,6 +306,18 @@ public static class DependencyInjection
         // servisda "faqat o'z darsi" kabi qo'shimcha ruxsat qatlami yo'q,
         // controller darvozasi (`Academic,Admin`) yetarli.
         services.AddScoped<IAnalysisCriterionService, AnalysisCriterionService>();
+
+        /* ===== 2026-08-16 · "XABARLAR" PANELI =====
+
+           `IMessageTemplateService` — lug'at (`IGroupCategoryService`/
+           `IAnalysisCriterionService` bilan AYNI toifadagi hayot sikli).
+           `IGroupBroadcastService` esa MUSTAQIL: u `IGroupChatService` va
+           `INotificationOutbox` ni CHAQIRADI (kompozitsiya), ikkalasi ham
+           allaqachon shu ro'yxatda ro'yxatdan o'tgan — DI konteyner ularni
+           avtomatik bog'laydi, buyurtma MUHIM EMAS (Microsoft DI barcha
+           registratsiyalarni birinchi `BuildServiceProvider`gacha yig'adi). */
+        services.AddScoped<IMessageTemplateService, MessageTemplateService>();
+        services.AddScoped<IGroupBroadcastService, GroupBroadcastService>();
 
         // AVTOMATIK YOZUV NAVBATI (2026-08-13).
         //

@@ -107,6 +107,38 @@ public sealed class LiveSessionsController(
         Ok(await sessions.EndAsync(id, CurrentUserId, ct));
 
     /// <summary>
+    /// Darsni qo'lda bekor qilish (bayram, ustoz kasal va h.k.).
+    ///
+    /// ⚠️ FAQAT ACADEMIC/ADMIN — atribut DARVOZA, haqiqiy tekshiruv
+    /// <c>LiveSessionService.CancelAsync</c> ichida (loyiha egasi:
+    /// "buni qo'lda o'quv va admin bo'limi orqali qilinishi kerak bo'ladi").
+    /// Guruh jadvali avtomatik qayta tuziladi — o'rnini bosuvchi dars
+    /// oxiriga qo'shiladi.
+    /// </summary>
+    [HttpPost("{id:long}/cancel")]
+    [Authorize(Roles = "Academic,Admin")]
+    [ProducesResponseType<LiveSessionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LiveSessionDto>> Cancel(
+        long id, [FromBody] CancelSessionRequest? request, CancellationToken ct) =>
+        Ok(await sessions.CancelAsync(id, request?.Reason, CurrentUserId, ct));
+
+    /// <summary>
+    /// Darsni "bepul" deb belgilash/bekor qilish (2026-08-16).
+    ///
+    /// ⚠️ FAQAT ACADEMIC/ADMIN — `Cancel` bilan AYNI mulohaza. Dars
+    /// allaqachon yakunlangan (va hisoblangan) bo'lsa ham ishlaydi: avval
+    /// yechilgan summa HAQIQATDA orqaga qaytariladi (izoh: <c>LiveSessionService.
+    /// SetFreeLessonAsync</c>).
+    /// </summary>
+    [HttpPut("{id:long}/free-lesson")]
+    [Authorize(Roles = "Academic,Admin")]
+    [ProducesResponseType<FreeLessonStatusDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<FreeLessonStatusDto>> SetFreeLesson(
+        long id, [FromBody] SetFreeLessonRequest request, CancellationToken ct) =>
+        Ok(await sessions.SetFreeLessonAsync(id, request, CurrentUserId, ct));
+
+    /// <summary>
     /// LiveKit'ga ulanish uchun token.
     /// Ruxsat (a'zolik/host) va dars holati servis ichida tekshiriladi.
     /// </summary>
@@ -167,6 +199,30 @@ public sealed class LiveSessionsController(
         [FromBody] UpdateAttendanceRequest request,
         CancellationToken ct) =>
         Ok(await attendance.UpdateAsync(id, studentId, request, CurrentUserId, ct));
+
+    /// <summary>
+    /// "Sababli" deb belgilaydi (2026-08-16) — o'quvchi darsga sababli
+    /// kelolmagan bo'lsa, shu dars uchun to'lov yechib olinmasin.
+    ///
+    /// ⚠️ FAQAT ACADEMIC/ADMIN — davomat holatini tuzatishdan (yuqoridagi
+    /// endpoint, kengroq ro'yxat) FARQLI, atribut BU YO'LDA TORROQ.
+    /// Haqiqiy tekshiruv baribir <c>AttendanceService.SetExcusedAsync</c>
+    /// ichida (loyiha egasi: "qo'lda o'quv va admin bo'limi orqali").
+    /// </summary>
+    /// <response code="404">Dars yo'q yoki o'quvchi bu darsning guruhiga tegishli emas.</response>
+    /// <response code="409">Dars bekor qilingan.</response>
+    [HttpPut("{id:long}/attendance/{studentId:long}/excuse")]
+    [Authorize(Roles = "Academic,Admin")]
+    [ProducesResponseType<AttendanceRowDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AttendanceRowDto>> SetExcused(
+        long id,
+        long studentId,
+        [FromBody] SetExcusedRequest request,
+        CancellationToken ct) =>
+        Ok(await attendance.SetExcusedAsync(id, studentId, request, CurrentUserId, ct));
 
     /* ═══════════════════════════════════════════════════════════════════
        R24 · DARS BAHOSI — "baholar har bitta darsga qo'yiladi"

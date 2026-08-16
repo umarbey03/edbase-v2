@@ -302,6 +302,18 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          "Xabarlar" — guruhlarga Telegram/platforma chati orqali xabar
+          yuborish (2026-08-16). Rollar `GroupBroadcastsController.ManageRoles`
+          bilan AYNI ("Academic,Admin") — ustoz/kurator bu ekranni ko'rmaydi,
+          o'z guruh chatiga guruh sahifasidagi "Chat" tabidan yozadi.
+        */
+        path: 'boshqaruv/xabarlar',
+        name: 'manage-broadcasts',
+        component: () => import('@/pages/manage/ManageBroadcastsPage.vue'),
+        meta: { title: 'Xabarlar', roles: MANAGERS },
+      },
+      {
+        /*
           Testlar FAQAT o'quv bo'limi va adminda: `TestsController` da tuzish
           amallari `[Authorize(Roles = "Academic,Admin")]` bilan yopiq va
           `TestService.LoadAuthorAsync` ni takroran tekshiradi — ustoz o'z
@@ -347,16 +359,30 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
-          O'QUV BO'LIMI SOZLAMALARI — Admin'ning "Tizim sozlamalari"
+          SOZLAMALAR (o'quv jarayoni) — Admin'ning "Tizim sozlamalari"
           (`manage-settings`, INFRATUZILMA) dan MUSTAQIL: bu yerdagilar
-          o'quv jarayoni sozlamalari (hozircha — dars tahlili mezonlari,
-          R29/R30 kengaytmasi). Rollar `SessionReviewsController.WriteRoles`
+          o'quv jarayoni sozlamalari (dars tahlili mezonlari, guruh
+          yo'nalishlari). Ko'rinadigan nom shunchaki "Sozlamalar" (loyiha
+          egasi, 2026-08-15) — marshrut nomi va ruxsat ro'yxati o'zgarmadi,
+          faqat yorliq qisqardi. Rollar `SessionReviewsController.WriteRoles`
           bilan AYNI.
         */
         path: 'boshqaruv/oquv-sozlamalari',
         name: 'manage-academic-settings',
         component: () => import('@/pages/manage/ManageAcademicSettingsPage.vue'),
-        meta: { title: 'O‘quv bo‘limi sozlamalari', roles: MANAGERS },
+        meta: { title: 'Sozlamalar', roles: MANAGERS },
+      },
+      {
+        /*
+          OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi. `ADMIN_ONLY`:
+          `PayrollController` ham FAQAT Admin (Academic emas) — izoh
+          `PayrollService` sinfida ("kim TO'LOV OLADI — ustoz VA kurator,
+          lekin kim KO'RADI/BOSHQARADI — faqat Admin").
+        */
+        path: 'boshqaruv/oylik-hisoblash',
+        name: 'manage-payroll',
+        component: () => import('@/pages/manage/ManagePayrollPage.vue'),
+        meta: { title: 'Oylik hisoblash', roles: ADMIN_ONLY },
       },
     ],
   },

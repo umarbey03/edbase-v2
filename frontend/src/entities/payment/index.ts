@@ -6,6 +6,7 @@ export {
   downloadPaymentSummaryCsv,
   fetchBlockStatus,
   fetchFinanceSettings,
+  fetchLessonCharges,
   fetchPayments,
   fetchPaymentSummary,
   fetchStudentAccount,
@@ -35,6 +36,7 @@ export {
   isOutgoingTransaction,
   isValidIsoDate,
   isValidPeriod,
+  lessonChargeSkipReasonLabel,
   monthStartIsoDate,
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_STATUS_OPTIONS,
@@ -48,4 +50,4 @@ export {
   transactionKindLabel,
   transactionKindTone,
 } from './model/types'
-export type { PaymentTone } from './model/types'
+export type { LessonChargeDto, LessonChargeSkipReasonName, PaymentTone } from './model/types'

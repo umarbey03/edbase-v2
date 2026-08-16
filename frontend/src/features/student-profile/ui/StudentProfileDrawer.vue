@@ -12,6 +12,7 @@ import {
   roleTone,
 } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import LessonChargesDialog from '@/features/payment-actions/ui/LessonChargesDialog.vue'
 import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDialog.vue'
 import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDialog.vue'
 import StudentNotesSection from '@/features/student-notes/ui/StudentNotesSection.vue'
@@ -137,6 +138,15 @@ const unlinkOpen = ref(false)
 const recordOpen = ref(false)
 const reverseOpen = ref(false)
 const transactionsOpen = ref(false)
+const lessonChargesOpen = ref(false)
+const lessonChargesGroupId = ref<number | null>(null)
+const lessonChargesPeriod = ref<string | null>(null)
+
+function openLessonCharges(groupId: number, period: string): void {
+  lessonChargesGroupId.value = groupId
+  lessonChargesPeriod.value = period
+  lessonChargesOpen.value = true
+}
 
 // Panel yopilganda ichki oynalar ham yopiladi: aks holda keyingi ochilishda
 // eski oyna "yopishib" chiqardi (ro'yxatdagi boshqa o'quvchi bilan).
@@ -148,6 +158,7 @@ watch(
     recordOpen.value = false
     reverseOpen.value = false
     transactionsOpen.value = false
+    lessonChargesOpen.value = false
   },
 )
 
@@ -262,6 +273,7 @@ function openGroup(groupId: number): void {
           @record="recordOpen = true"
           @reverse="reverseOpen = true"
           @show-transactions="transactionsOpen = true"
+          @open-lesson-charges="openLessonCharges"
         />
 
         <!-- 3 ---------------------------------------------------- guruhlar -->
@@ -325,5 +337,14 @@ function openGroup(groupId: number): void {
     :student-id="props.userId"
     :student-name="displayName"
     @close="transactionsOpen = false"
+  />
+
+  <LessonChargesDialog
+    v-if="lessonChargesOpen"
+    :open="lessonChargesOpen"
+    :student-id="props.userId"
+    :group-id="lessonChargesGroupId"
+    :period="lessonChargesPeriod"
+    @close="lessonChargesOpen = false"
   />
 </template>

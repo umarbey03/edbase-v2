@@ -7,7 +7,7 @@ import { toUserMessage } from '@/shared/api'
 import { fromDateTimeLocalInput, toDateTimeLocalInput } from '@/shared/lib/datetime'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { CreateTestRequest, TestDto, TestKindName, UpdateTestRequest } from '@/shared/types'
-import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
+import { BaseButton, BaseDrawer, BaseField } from '@/shared/ui'
 
 import TestLessonPicker from './TestLessonPicker.vue'
 
@@ -203,7 +203,13 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <BaseModal
+  <!--
+    🔴 `BaseModal` -> `BaseDrawer` (loyiha egasi, 2026-08-15: "test yaratish
+    modali ekranni o'ng tarafidan 85%ini egallab ochilishi kerak"). API bir
+    xil (`open`/`title`/`@close` + `#footer`), shuning uchun forma mantig'i
+    TEGILMAGAN — faqat konteyner almashdi.
+  -->
+  <BaseDrawer
     :open="props.open"
     :title="isEdit ? 'Testni tahrirlash' : 'Yangi test'"
     @close="emit('close')"
@@ -365,5 +371,5 @@ async function handleSubmit(): Promise<void> {
         {{ isEdit ? 'Saqlash' : 'Yaratish' }}
       </BaseButton>
     </template>
-  </BaseModal>
+  </BaseDrawer>
 </template>

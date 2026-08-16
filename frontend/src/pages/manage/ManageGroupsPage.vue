@@ -10,12 +10,12 @@ import {
   groupScheduleSummary,
   groupTypeLabel,
   groupTypeTone,
+  groupWeekdaysLabel,
 } from '@/entities/group'
 import { fetchGroupCategories, groupCategoryLabel } from '@/entities/group-category'
-import { GroupCategoryManagerDrawer } from '@/features/group-category-manage'
 import { GroupEditDrawer } from '@/features/group-form'
 import { toUserMessage } from '@/shared/api'
-import { formatDateWithYear } from '@/shared/lib/datetime'
+import { formatClock, formatDateNumeric } from '@/shared/lib/datetime'
 import { useDebounced } from '@/shared/lib/debounce'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { GroupDto, GroupTypeName } from '@/shared/types'
@@ -133,17 +133,6 @@ const errorMessage = computed(() =>
 const drawerOpen = ref(false)
 const editingId = ref<number | null>(null)
 
-/*
-  R21b · yo'nalishlar lug'ati paneli.
-
-  ★ BIR VAQTDA FAQAT BITTASI ochiladi va bu MAJBURIY: `BaseDrawer` ichma-ich
-  ochilishini taqiqlaydi (`useModalHost` dev'da `console.warn` bilan
-  ushlaydi). Ikkalasi bu yerda birodar (sibling) sifatida turadi va guruh
-  formasi ochiq bo'lganda lug'at tugmasi ekranda ko'rinmaydi (panel ustidan
-  yopadi), ya'ni ular hech qachon ustma-ust tushmaydi.
-*/
-const categoryManagerOpen = ref(false)
-
 function openCreate(): void {
   editingId.value = null
   drawerOpen.value = true
@@ -177,23 +166,6 @@ function openDetail(groupId: number): void {
       :subtitle="`Jami: ${total} ta guruh`"
     >
       <template #actions>
-        <!--
-          R21b · Yo'nalishlar lug'ati. `secondary` — u ikkilamchi amal:
-          asosiy tugma ("Yangi") guruh yaratadi, bu esa uning parametrini
-          tayyorlaydi.
-        -->
-        <BaseButton
-          variant="secondary"
-          @click="categoryManagerOpen = true"
-        >
-          <template #icon>
-            <AppIcon
-              name="grid"
-              :size="16"
-            />
-          </template>
-          Yo‘nalishlar
-        </BaseButton>
         <BaseButton @click="openCreate">
           <template #icon>
             <AppIcon
@@ -381,6 +353,9 @@ function openDetail(groupId: number): void {
           <table class="zn-table">
             <thead>
               <tr>
+                <th class="w-10">
+                  <span class="sr-only">№</span>
+                </th>
                 <th>Nomi</th>
                 <th>Turi</th>
                 <!-- R21b · yo'nalish TURDAN keyin: ikkalasi ham "bu qanday guruh" savoliga javob. -->
@@ -394,10 +369,22 @@ function openDetail(groupId: number): void {
               </tr>
             </thead>
             <tbody>
+              <!--
+                ★ RAQAM SAHIFA BO'YICHA GLOBAL (loyiha egasi, 2026-08-16:
+                "guruhlar ro'yxati nomerlangan bo'lishi kerak") — `index + 1`
+                EMAS, chunki sahifalash bor: 2-sahifada raqamlash 1 dan
+                emas, `(page-1) * PAGE_SIZE + 1` dan davom etishi kerak,
+                aks holda har sahifa "1, 2, 3..." bilan qayta boshlanib,
+                "nechinchi guruh bu?" degan savolga noto'g'ri javob berardi.
+              -->
               <tr
-                v-for="group in groups"
+                v-for="(group, index) in groups"
                 :key="group.id"
               >
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                />
                 <td
                   class="font-medium text-slate-100"
                   v-text="groupDisplayName(group)"
@@ -411,10 +398,19 @@ function openDetail(groupId: number): void {
                   class="text-slate-400"
                   v-text="groupCategoryLabel(group)"
                 />
-                <td
-                  class="text-slate-400"
-                  v-text="groupScheduleSummary(group)"
-                />
+                <!--
+                  ★ IKKI QATOR (loyiha egasi, 2026-08-15): kunlar TEPADA,
+                  vaqt PASTDA — bitta uzun satr ("Du, Ch · 15:00") ko'z
+                  bilan ikkiga bo'lib o'qilardi, endi ustunning O'ZI buni
+                  qiladi.
+                -->
+                <td class="tabular-nums text-slate-400">
+                  <p v-text="groupWeekdaysLabel(group)" />
+                  <p
+                    class="text-xs text-dim"
+                    v-text="formatClock(group.startTime)"
+                  />
+                </td>
                 <!--
                   ★ IKKALASI HAM: guruh nomi ostidagi ikki qatorda —
                   faqat ustoz turgan ilgari holatdan farqli, kurator ham
@@ -430,11 +426,25 @@ function openDetail(groupId: number): void {
                     v-text="group.assistantName ?? 'kurator'"
                   />
                 </td>
+                <!--
+                  🔴 TUZATILDI (loyiha egasi, 2026-08-15: "o'quvchi ustuniga
+                  nega 4/5 dars deb qo'yilgan"): bu katak ILGARI
+                  `memberCount / sessionCount dars` ko'rsatardi — "O'quvchi"
+                  sarlavhasi ostida DARSLAR soni chiqib, "4 tadan 5 o'quvchi
+                  keldi" deb o'qilardi, holbuki ikkinchi son umuman boshqa
+                  narsa (guruhning JAMI dars soni) edi. Endi ustun FAQAT
+                  o'z sarlavhasiga mos qiymatni ko'rsatadi.
+                -->
                 <td class="tabular-nums text-slate-400">
-                  {{ group.memberCount }} / {{ group.sessionCount }} dars
+                  {{ group.memberCount }} ta
                 </td>
+                <!-- Muddat: boshlanish TEPADA, tugash PASTDA (loyiha egasi, 2026-08-15). -->
                 <td class="tabular-nums text-slate-400">
-                  {{ formatDateWithYear(group.startDate) }} — {{ formatDateWithYear(group.endDate) }}
+                  <p v-text="formatDateNumeric(group.startDate)" />
+                  <p
+                    class="text-xs text-dim"
+                    v-text="formatDateNumeric(group.endDate)"
+                  />
                 </td>
                 <td>
                   <BaseBadge :tone="group.isActive ? 'success' : 'neutral'">
@@ -483,16 +493,6 @@ function openDetail(groupId: number): void {
       :group-id="editingId"
       @close="drawerOpen = false"
       @saved="refresh"
-    />
-
-    <!--
-      R21b · yo'nalishlar lug'ati. Panelning O'ZI keshni yangilaydi
-      (`['group-categories']` + `['groups']` + `['group']`), shuning uchun
-      bu yerda `@saved` kerak emas.
-    -->
-    <GroupCategoryManagerDrawer
-      :open="categoryManagerOpen"
-      @close="categoryManagerOpen = false"
     />
   </div>
 </template>

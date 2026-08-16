@@ -1,1 +1,1 @@
-export { default as GroupCategoryManagerDrawer } from './ui/GroupCategoryManagerDrawer.vue'
+export { default as GroupCategoryPanel } from './ui/GroupCategoryPanel.vue'

@@ -113,15 +113,12 @@ public sealed class PaymentService(
 
         var studentIds = members.ConvertAll(m => m.StudentId).Distinct().ToList();
 
+        // ★ CHEGIRMA endi BU YERDA olinmaydi (2026-08-16 dan oldin bor edi):
+        // yozuv 0 so'mda ochilgani uchun bu bosqichda chegirma qo'llash
+        // uchun HALI SUMMA yo'q. Chegirma har dars o'tilganda, O'SHA
+        // darsning sanasiga qarab qo'llaniladi (`LessonAccrualService`).
         var tariffs = await db.Tariffs.AsNoTracking()
             .Where(t => t.IsActive && t.ActiveFrom <= on)
-            .ToListAsync(ct);
-
-        var discounts = await db.StudentDiscounts.AsNoTracking()
-            .Where(d => d.IsActive
-                     && studentIds.Contains(d.StudentId)
-                     && d.ValidFrom <= on
-                     && (d.ValidTo == null || d.ValidTo >= on))
             .ToListAsync(ct);
 
         var created = new List<Payment>();
@@ -153,19 +150,29 @@ public sealed class PaymentService(
                 continue;
             }
 
-            var discount = BillingSelection.PickDiscount(
-                discounts.Where(d => d.StudentId == member.StudentId), member.GroupId, on);
-
-            var (final, cut) = StudentDiscount.ApplyOrNone(discount, tariff.Amount);
-
+            // ★ BOSQICHMA-BOSQICH HISOBLASH (2026-08-16): yozuv 0 SO'MDA
+            // OCHILADI — tarif baribir yuqorida qidirildi ("topilmadi"
+            // ogohlantirishi uchun), lekin uning SUMMASI bu yerda
+            // ISHLATILMAYDI. Har dars o'tilganda `LessonAccrualService`
+            // o'z ulushini qo'shadi (`Payment.Accrue`). Talab (loyiha
+            // egasi): *"har bir dars uchun platformani o'zi dars
+            // o'tilganidan keyin auto yechib olishi kerak"* — oy BOSHIDA
+            // to'liq summa endi YO'Q.
+            //
+            // ★ YOZUV BARIBIR OCHILADI (0 so'mda, tarif topilgan taqdirda
+            // ham): `MonthlyBillingJob` tez-tez/idempotent ishlaydi va
+            // pastdagi kod HAR DOIM bitta qator borligiga tayanadi —
+            // oldindan to'lagan ota-ona uchun "ochiq qarz" (garchi 0 so'm
+            // bo'lsa ham) bo'lishi kerak, aks holda uning puli to'g'ridan-
+            // to'g'ri balansga tushib ketardi.
             var payment = new Payment
             {
                 StudentId = member.StudentId,
                 GroupId = member.GroupId,
                 Period = periodText,
-                BaseAmount = tariff.Amount,
-                DiscountAmount = cut,
-                Amount = final,
+                BaseAmount = 0m,
+                DiscountAmount = 0m,
+                Amount = 0m,
                 PaidAmount = 0m,
                 Status = PaymentStatus.Due,
                 MarkedById = actorId,
@@ -571,6 +578,27 @@ public sealed class PaymentService(
             months.Sum(m => m.PaidAmount),
             months,
             transactions);
+    }
+
+    public async Task<IReadOnlyList<LessonChargeDto>> GetLessonChargesAsync(
+        long studentId, long? groupId, string? period, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+        EnsureCanViewStudent(actor, studentId);
+
+        var rows =
+            from c in db.LessonCharges.AsNoTracking()
+            join s in db.LiveSessions.AsNoTracking() on c.SessionId equals s.Id
+            join g in db.Groups.AsNoTracking() on c.GroupId equals g.Id
+            where c.StudentId == studentId
+               && (groupId == null || c.GroupId == groupId)
+               && (period == null || c.Payment!.Period == period)
+            orderby s.ScheduledStart descending
+            select new LessonChargeDto(
+                c.SessionId, c.GroupId, g.Name, s.ScheduledStart, c.Payment!.Period,
+                c.Amount, c.NetAmount, c.SkipReason);
+
+        return await rows.ToListAsync(ct);
     }
 
     public async Task EnsureCanViewStudentAsync(

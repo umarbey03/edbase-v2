@@ -22,6 +22,7 @@ export {
   groupScheduleSummary,
   groupTypeLabel,
   groupTypeTone,
+  groupWeekdaysLabel,
   memberStatusLabel,
   memberStatusTone,
   videoStartLabel,

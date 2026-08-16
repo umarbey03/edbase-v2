@@ -146,6 +146,119 @@ public sealed class SessionReviewService(
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
+    // ================================================================= TAHLILLAR PANELI (2026-08-16)
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TeacherReviewOverviewDto>> GetTeachersOverviewAsync(
+        long actorId, CancellationToken ct = default)
+    {
+        await EnsureCanViewOverviewAsync(actorId, ct).ConfigureAwait(false);
+
+        /*
+          ★ AVVAL YASSI QATOR, KEYIN GURUHLASH XOTIRADA — `AssignmentService.
+          GetGroupsOverviewAsync` dagi AYNI naqsh (izohi o'sha yerda): xodim
+          Id'si `Session.Type`ga qarab IKKI YO'LDAN (guruh ustozi YOKI
+          kuratori) kelishi mumkin va bu shartni GROUP BY bilan bitta SQL
+          so'rovga sig'dirish o'qib bo'lmas ifoda berardi. Tahlillar soni
+          cheklangan, ya'ni oxirgi guruhlash xotirada arzon.
+        */
+        var flat = await db.SessionReviews
+            .AsNoTracking()
+            .Select(r => new
+            {
+                r.Verdict,
+                r.CreatedAt,
+                TeacherId = r.Session!.Type == SessionType.Assistant
+                    ? r.Session.Group!.AssistantId
+                    : r.Session.Group!.TeacherId,
+            })
+            .Where(x => x.TeacherId != null)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var grouped = flat
+            .GroupBy(x => x.TeacherId!.Value)
+            .Select(g => new
+            {
+                TeacherId = g.Key,
+                Total = g.Count(),
+                Approved = g.Count(x => x.Verdict == SessionReviewVerdict.Approved),
+                HasIssue = g.Count(x => x.Verdict == SessionReviewVerdict.HasIssue),
+                NotReviewed = g.Count(x => x.Verdict == SessionReviewVerdict.NotReviewed),
+                LastReviewAt = g.Max(x => x.CreatedAt),
+            })
+            .ToList();
+
+        var teacherIds = grouped.Select(g => g.TeacherId).ToList();
+        var names = await db.Users.AsNoTracking()
+            .Where(u => teacherIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct)
+            .ConfigureAwait(false);
+
+        return grouped
+            .Select(g => new TeacherReviewOverviewDto(
+                g.TeacherId,
+                names.TryGetValue(g.TeacherId, out var name) ? name : "Noma'lum xodim",
+                g.Total,
+                g.Approved,
+                g.HasIssue,
+                g.NotReviewed,
+                g.LastReviewAt))
+            // ★ ENG YAQINDA TAHLIL QILINGANI BIRINCHI: o'quv bo'limi odatda
+            // "kimni SO'NGGI marta ko'rib chiqdim" savolidan boshlaydi.
+            .OrderByDescending(x => x.LastReviewAt)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SessionReviewDto>> ListByTeacherAsync(
+        long teacherId, long actorId, CancellationToken ct = default)
+    {
+        await EnsureCanViewOverviewAsync(actorId, ct).ConfigureAwait(false);
+
+        var teacherName = await db.Users.AsNoTracking()
+            .Where(u => u.Id == teacherId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        var reviews = await db.SessionReviews
+            .AsNoTracking()
+            .Include(r => r.Author)
+            .Include(r => r.Scores)
+            .Include(r => r.Session!)
+                .ThenInclude(s => s!.Group)
+            // ★ TERNARY EMAS, IKKI SHART OR BILAN: `Session.Type`ga qarab
+            // "kim xodim" tekshiruvi ikkita mustaqil taqqoslashga yoyilgan —
+            // bitta ifodada `(shart ? a : b) == teacherId` EF Core uchun
+            // ko'proq chalkash SQL berardi, bu shakl esa `ResolveHostNameAsync`
+            // dagi qoidaning to'g'ridan-to'g'ri tarjimasi.
+            .Where(r =>
+                (r.Session!.Type == SessionType.Assistant && r.Session.Group!.AssistantId == teacherId)
+                || (r.Session!.Type != SessionType.Assistant && r.Session.Group!.TeacherId == teacherId))
+            .OrderByDescending(r => r.Session!.ScheduledStart)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return reviews
+            .ConvertAll(r => Map(r, UserRole.Academic, r.Session!, teacherName));
+    }
+
+    /// <summary>FAQAT Academic/Admin — sabab `ISessionReviewService` izohida ("Tahlillar paneli").</summary>
+    private async Task EnsureCanViewOverviewAsync(long actorId, CancellationToken ct)
+    {
+        var role = await db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == actorId)
+            .Select(u => u.Role)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        if (role is UserRole.Academic or UserRole.Admin) return;
+
+        throw new ForbiddenException("Bu umumiy ko'rinishga faqat o'quv bo'limi va admin kira oladi.");
+    }
+
     // ================================================================= RUXSAT
 
     /// <summary>

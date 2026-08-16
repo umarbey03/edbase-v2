@@ -49,8 +49,39 @@ public class LiveSession : BaseEntity
 
     public string? RecordingUrl { get; set; }
 
+    /// <summary>
+    /// Bekor qilish sababi — faqat <see cref="SessionStatus.Cancelled"/> da
+    /// ma'noli ("Bayram: Mustaqillik kuni", "Ustoz kasal"). Guruh jadvalida
+    /// "nega bu dars yo'q?" degan savolga javob beradi.
+    /// </summary>
+    public string? CancelReason { get; set; }
+
     /// <summary>Uzaytirilgan daqiqalar (jami, maksimum <see cref="MaxExtendMinutes"/>).</summary>
     public int ExtendedMin { get; set; }
+
+    /// <summary>
+    /// BEPUL DARS (2026-08-16) — bu darsdan HECH BIR o'quvchidan pul
+    /// yechilmaydi (`LessonAccrualService` tekshiradi, izoh o'sha yerda).
+    ///
+    /// `Attendance.IsExcused` dan ATAYLAB FARQ QILADI: excused —
+    /// O'QUVCHINING holati ("sababli kelolmadi"), bu esa DARSNING o'zi
+    /// haqidagi qaror ("sinov darsi", "texnik nosozlik bo'ldi") — barcha
+    /// o'quvchilarga baravar tegishli.
+    /// </summary>
+    public bool IsFreeLesson { get; set; }
+
+    /// <summary>Bepul deb belgilash sababi. Faqat <see cref="IsFreeLesson"/> da ma'noli.</summary>
+    public string? FreeLessonReason { get; set; }
+
+    /// <summary>
+    /// Bepul darsda USTOZ/KURATOR HAM haq olmasinmi?
+    ///
+    /// Standart — <c>false</c>: dars real o'tilgan, ustoz mehnati baholanadi,
+    /// faqat O'QUVCHIDAN pul yechilmaydi. Loyiha egasi (2026-08-16): ba'zan
+    /// ikkalasi ham kerak — shu sabab alohida bayroq, `IsFreeLesson` bilan
+    /// birga QO'YILADI (u yolg'iz holda ma'nosiz).
+    /// </summary>
+    public bool PayrollExcluded { get; set; }
 
     // ---------------------------------------------------------------- hisoblanuvchi
 
@@ -183,4 +214,48 @@ public class LiveSession : BaseEntity
 
     /// <summary>Muddati o'tganmi (fon vazifasi avto-yakunlash uchun).</summary>
     public bool IsOverdue(DateTimeOffset now) => EndsAt is { } end && now >= end;
+
+    /// <summary>
+    /// Darsni bekor qiladi (bayram yoki qo'lda, faqat Academic/Admin —
+    /// ruxsat servis qatlamida). FAQAT hali boshlanmagan (<c>Scheduled</c>)
+    /// darsni bekor qilish mumkin: <c>Live</c>/<c>Ended</c> darsda allaqachon
+    /// davomat/chat tarixi bor, uni "bo'lmagan dars" deb belgilash tarixni
+    /// buzardi. Idempotent — allaqachon bekor qilingan darsda jimgina
+    /// qaytadi (masalan bir sana ikki marta bayram sifatida qayta ishlansa).
+    /// </summary>
+    public void Cancel(string? reason, DateTimeOffset now)
+    {
+        if (Status == SessionStatus.Cancelled) return;
+
+        if (Status != SessionStatus.Scheduled)
+            throw new DomainException("Faqat hali boshlanmagan darsni bekor qilish mumkin.");
+
+        Status = SessionStatus.Cancelled;
+        CancelReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Darsni bepul deb belgilaydi/bekor qiladi (faqat Academic/Admin —
+    /// ruxsat servis qatlamida).
+    ///
+    /// Bekor qilingan darsda ma'nosiz — pul UMUMAN hisoblanmaydi. Dars
+    /// ALLAQACHON yakunlangan (va hisoblangan) bo'lsa ham chaqirish mumkin:
+    /// haqiqiy pul tuzatishi (`LessonAccrualService` reconciliation)
+    /// Application qatlamida, chaqiruvchi shu bayroq o'zgargach uni
+    /// ISHGA TUSHIRISHI kerak — bu METOD faqat bayroqni qo'yadi.
+    /// </summary>
+    public void SetFreeLesson(bool isFree, bool payrollExcluded, string? reason, DateTimeOffset now)
+    {
+        if (Status == SessionStatus.Cancelled)
+            throw new DomainException("Bekor qilingan darsni bepul deb belgilab bo'lmaydi.");
+
+        if (!isFree && payrollExcluded)
+            throw new DomainException("Ustozni haqdan mahrum qilish faqat bepul dars uchun mumkin.");
+
+        IsFreeLesson = isFree;
+        PayrollExcluded = isFree && payrollExcluded;
+        FreeLessonReason = isFree && !string.IsNullOrWhiteSpace(reason) ? reason.Trim() : null;
+        UpdatedAt = now;
+    }
 }

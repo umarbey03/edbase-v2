@@ -2,13 +2,17 @@ import { http } from '@/shared/api'
 import type { DownloadedFile } from '@/shared/api'
 import type {
   AssignmentDto,
+  AssignmentGroupOverviewDto,
   CreateAssignmentRequest,
   GradeSubmissionRequest,
+  GroupTypeName,
   PagedResult,
   ReopenSubmissionRequest,
   StudentAssignmentDto,
   StudentSubmissionDto,
   SubmissionDto,
+  SubmissionOverviewDto,
+  SubmissionStatusName,
   UpdateAssignmentRequest,
 } from '@/shared/types'
 
@@ -169,6 +173,67 @@ export function gradeSubmission(
   body: GradeSubmissionRequest,
 ): Promise<SubmissionDto> {
   return http.post<SubmissionDto>(`/api/v1/submissions/${submissionId}/grade`, body)
+}
+
+/* ==========================================================================
+   O'QUV BO'LIMI UMUMIY KO'RINISHI (2026-08-15) — faqat Academic/Admin.
+
+   Ikkalasi ham SHU IKKI FILTR to'plamini baham ko'radi (teacherId/groupType/
+   groupId + qidiruv) — parametr shakli ATAYLAB bitta interfeysda emas, ikki
+   funksiyaga alohida ajratilgan: guruh xulosasi SAHIFALANMAYDI (butun
+   to'plam bo'yicha aniq son kerak), javoblar ro'yxati esa sahifalanadi va
+   qo'shimcha `status`/`assignmentId` filtriga ega — umumiy interfeys shu
+   ikki funksiya orasidagi farqni yashirib qo'yardi.
+   ========================================================================== */
+
+export interface AssignmentOverviewFilterParams {
+  teacherId?: number
+  groupType?: GroupTypeName
+  groupId?: number
+  search?: string
+}
+
+/** `GET /api/v1/assignments/overview/groups` — guruh bo'yicha tekshirilgan/tekshirilmagan xulosasi. */
+export function fetchAssignmentGroupsOverview(
+  params: AssignmentOverviewFilterParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<AssignmentGroupOverviewDto[]> {
+  return http.get<AssignmentGroupOverviewDto[]>(`${BASE}/overview/groups`, {
+    query: {
+      TeacherId: params.teacherId,
+      GroupType: params.groupType,
+      GroupId: params.groupId,
+      Search: params.search,
+    },
+    signal: options?.signal,
+  })
+}
+
+export interface SubmissionOverviewParams extends AssignmentOverviewFilterParams {
+  assignmentId?: number
+  status?: SubmissionStatusName
+  page?: number
+  pageSize?: number
+}
+
+/** `GET /api/v1/assignments/overview/submissions` — javoblarning yassilangan, sahifalangan ro'yxati. */
+export function fetchSubmissionsOverview(
+  params: SubmissionOverviewParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<PagedResult<SubmissionOverviewDto>> {
+  return http.get<PagedResult<SubmissionOverviewDto>>(`${BASE}/overview/submissions`, {
+    query: {
+      TeacherId: params.teacherId,
+      GroupType: params.groupType,
+      GroupId: params.groupId,
+      AssignmentId: params.assignmentId,
+      Status: params.status,
+      Search: params.search,
+      Page: params.page,
+      PageSize: params.pageSize,
+    },
+    signal: options?.signal,
+  })
 }
 
 /* ==========================================================================

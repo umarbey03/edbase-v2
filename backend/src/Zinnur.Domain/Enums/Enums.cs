@@ -205,6 +205,27 @@ public enum PaymentTransactionKind
 
     /// <summary>Balansdagi ortiqcha puldan yopilgan qarz.</summary>
     BalanceUse = 3,
+
+    /// <summary>
+    /// Allaqachon hisoblangan darsning yechilgan summasi bekor qilinib,
+    /// balansga qaytarildi (dars keyinchalik bepul/sababli deb belgilandi).
+    /// <see cref="Refund"/> DAN FARQ QILADI: bu yerda kassaga pul TUSHMAGAN
+    /// va HALI ham tushmaydi — bu shunchaki "billing" tuzatishi.
+    /// </summary>
+    LessonReversal = 4,
+}
+
+/// <summary>
+/// Bir dars ulushi NEGA yechilmagani (2026-08-16). <c>LessonCharge.
+/// SkipReason</c> da — <c>null</c> "to'liq yechilgan" degani.
+/// </summary>
+public enum LessonChargeSkipReason
+{
+    /// <summary>O'quvchi shu darsga individual "sababli" deb belgilangan.</summary>
+    Excused = 0,
+
+    /// <summary>Butun dars "bepul" deb belgilangan — barcha o'quvchiga baravar.</summary>
+    Free = 1,
 }
 
 /// <summary>

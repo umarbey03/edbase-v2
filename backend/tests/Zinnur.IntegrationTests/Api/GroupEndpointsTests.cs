@@ -61,7 +61,13 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         created.Group.SessionCount.Should().Be(created.SessionsCreated);
         created.Group.Weekdays.Should().Equal(MondayWednesday,
             "`integer[]` ustuni enum nomlariga qaytib o'girilishi kerak");
-        created.Group.EndDate.Should().Be(startDate.AddMonths(CourseMonths));
+
+        // ★ `EndDate` endi FORMULADAN emas — guruhning HAQIQIY oxirgi
+        // (bekor qilinmagan) darsi sanasidan olinadi (izoh: `GroupService.
+        // Map`). Bayram bo'lmasa ham, son-asosida generatsiya oynani bir
+        // necha kunga siljitishi mumkin (dushanba/chorshanba chekkasi).
+        var lastSessionDate = DateOnly.FromDateTime(schedule.Max(s => s.ScheduledStart).UtcDateTime);
+        created.Group.EndDate.Should().Be(lastSessionDate);
     }
 
     /// <summary>

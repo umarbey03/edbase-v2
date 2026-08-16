@@ -43,6 +43,25 @@ public interface IAssignmentService
     Task<IReadOnlyList<SubmissionDto>> ListSubmissionsAsync(
         long assignmentId, long actorId, CancellationToken ct = default);
 
+    // ================================================================= o'quv bo'limi umumiy ko'rinishi
+    //
+    // ★ FAQAT Academic/Admin (servis ichida ham tekshiriladi — controller
+    // darvozasi yagona himoya emas). Ustoz/kurator o'z "Tekshirish" sahifasida
+    // yuqoridagi `ListSubmissionsAsync` dan foydalanadi.
+
+    /// <summary>
+    /// Guruh (va "Kurs vazifalari") bo'yicha xulosa — nechta vazifa, nechta
+    /// javob, nechtasi tekshirilgan/tekshirilmagan. SAHIFALANMAYDI: filtrga
+    /// mos guruhlar soni cheklangan va xulosa BUTUN to'plam bo'yicha aniq
+    /// bo'lishi shart.
+    /// </summary>
+    Task<IReadOnlyList<AssignmentGroupOverviewDto>> GetGroupsOverviewAsync(
+        AssignmentOverviewFilter filter, long actorId, CancellationToken ct = default);
+
+    /// <summary>Javoblarning YASSILANGAN (flattened), sahifalangan ro'yxati — guruh/ustoz/tekshiruvchi konteksti bilan.</summary>
+    Task<PagedResult<SubmissionOverviewDto>> ListSubmissionsOverviewAsync(
+        SubmissionOverviewQuery query, long actorId, CancellationToken ct = default);
+
     Task<SubmissionDto> GradeAsync(
         long submissionId, GradeSubmissionRequest request, long actorId, CancellationToken ct = default);
 
