@@ -2,8 +2,11 @@ using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Messaging.Dtos;
 using Zinnur.Application.Messaging.Services;
+using Zinnur.Domain.Entities;
+using Zinnur.WebApi.Media;
 
 namespace Zinnur.WebApi.Controllers;
 
@@ -73,6 +76,83 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
     }
 
     /// <summary>
+    /// FAYL/RASM BILAN XABAR (2026-08-17) — `multipart/form-data`.
+    /// `GroupChatController.SendWithAttachments` bilan AYNI naqsh, KANAL
+    /// YO'Q (shaxsiy yozishma bitta oqim).
+    /// </summary>
+    [HttpPost("conversations/{peerId:long}/messages/attachments")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxAttachmentRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAttachmentRequestBytes)]
+    [ProducesResponseType<DirectMessageDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<DirectMessageDto>> SendWithAttachments(
+        long peerId,
+        [FromForm] IFormFileCollection? files,
+        [FromForm] string? body,
+        [FromForm] long? moduleLessonId,
+        CancellationToken ct)
+    {
+        if (files is null || files.Count == 0)
+            throw MediaResponse.MissingFile();
+
+        // Oqimlar `finally` da yopiladi — `GroupChatController.SendWithAttachments`
+        // dagi AYNI naqsh.
+        var streams = new List<Stream>(files.Count);
+
+        try
+        {
+            var uploads = new List<LessonAssetUpload>(files.Count);
+
+            foreach (var file in files)
+            {
+                var stream = file.OpenReadStream();
+                streams.Add(stream);
+
+                uploads.Add(new LessonAssetUpload(file.FileName, file.ContentType, stream, file.Length));
+            }
+
+            var created = await messages.SendWithAttachmentsAsync(
+                CurrentUserId,
+                peerId,
+                new SendDirectMessageAttachmentRequest(body, moduleLessonId, uploads),
+                ct);
+
+            return StatusCode(StatusCodes.Status201Created, created);
+        }
+        finally
+        {
+            foreach (var stream in streams)
+                await stream.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Yozishma biriktirmasini OQIM bilan beradi (`Range` qo'llab-quvvatlanadi).
+    /// ⚠️ FRONTEND UCHUN: `GroupChatController.DownloadAttachment` dagi AYNI
+    /// eslatma — `&lt;img src&gt;` ga to'g'ridan-to'g'ri qo'yib bo'lmaydi.
+    /// </summary>
+    [HttpGet("attachments/{attachmentId:long}")]
+    [Produces("application/octet-stream")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status206PartialContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status416RangeNotSatisfiable)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> DownloadAttachment(long attachmentId, CancellationToken ct)
+    {
+        var download = await messages.OpenAttachmentAsync(
+            attachmentId, MediaResponse.RawRange(Request.Headers.Range), CurrentUserId, ct);
+
+        return await MediaResponse.WriteAsync(this, download, ct);
+    }
+
+    /// <summary>
     /// R40 — DARS savollari navbati (xodim uchun): o'quvchilar aynan kurs
     /// darsi sahifasidan yozgan savollar, javobsizlar tepada va eng uzoq
     /// kutgani birinchi.
@@ -97,6 +177,13 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
     public async Task<ActionResult<MarkReadResultDto>> MarkRead(
         long peerId, CancellationToken ct) =>
         Ok(await messages.MarkReadAsync(CurrentUserId, peerId, ct));
+
+    /// <summary>
+    /// Biriktirmali xabar so'rovining QAT'IY yuqori chegarasi (bayt) —
+    /// `GroupChatController.MaxAttachmentRequestBytes` bilan AYNI hisob.
+    /// </summary>
+    private const long MaxAttachmentRequestBytes =
+        (DirectMessageAttachment.MaxPerMessage * 100L * 1024 * 1024) + (1024 * 1024);
 
     private long CurrentUserId =>
         long.Parse(

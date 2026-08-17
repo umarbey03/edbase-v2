@@ -51,6 +51,43 @@ public sealed record TelegramUpdateDto
     /// </summary>
     [JsonPropertyName("edited_message")]
     public TelegramMessageDto? EditedMessage { get; init; }
+
+    /// <summary>
+    /// Inline tugma bosilishi (2026-08-17, ustoz kunlik tasdiqlash).
+    /// Telegram bunda <see cref="TelegramMessageDto"/> EMAS, alohida shakl
+    /// yuboradi — sabab <see cref="TelegramCallbackQueryDto"/> izohida.
+    /// </summary>
+    [JsonPropertyName("callback_query")]
+    public TelegramCallbackQueryDto? CallbackQuery { get; init; }
+}
+
+/// <summary>
+/// Inline tugma bosilganda keladigan yangilanish.
+///
+/// ★ <see cref="Message"/> ORQALI XABAR EMAS: bu foydalanuvchi bosgan
+/// TUGMANING o'zi haqidagi ma'lumot. <see cref="Data"/> — biz o'zimiz
+/// <c>callback_data</c> sifatida yuborgan matn (<c>TelegramTemplates.
+/// EncodeButtons</c>), ya'ni "kim nima bosdi"ni ANIQLASH uchun YAGONA manba.
+/// </summary>
+public sealed record TelegramCallbackQueryDto
+{
+    /// <summary>
+    /// <c>answerCallbackQuery</c> uchun SHART — bo'lmasa Telegram tugmani
+    /// "yuklanmoqda" holatida abadiy qoldiradi.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    /// <summary>Tugmani KIM bosdi — kontaktdagi bilan AYNI ishonch darajasi (Telegram to'ldiradi).</summary>
+    [JsonPropertyName("from")]
+    public TelegramUserDto? From { get; init; }
+
+    [JsonPropertyName("message")]
+    public TelegramMessageDto? Message { get; init; }
+
+    /// <summary>Biz yuborgan <c>callback_data</c> (masalan <c>av:yes:123</c>).</summary>
+    [JsonPropertyName("data")]
+    public string? Data { get; init; }
 }
 
 /// <summary>Telegram xabari (matn, kontakt yoki boshqa turdagi).</summary>

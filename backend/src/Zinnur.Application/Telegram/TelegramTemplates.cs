@@ -1,4 +1,4 @@
-using Zinnur.Application.Notifications;
+﻿using Zinnur.Application.Notifications;
 
 namespace Zinnur.Application.Telegram;
 
@@ -53,12 +53,15 @@ public static class TelegramTemplates
     public const string LoginCode = "auth_login_code";
 
     /// <summary>
-    /// TELEFON ALMASHTIRISH kodi (2026-08-15).
+    /// ⚠️ ESKI KALIT — 2026-08-17 dan BOSHLAB ISHLATILMAYDI.
     ///
-    /// ★ `LoginCode` DAN ALOHIDA KALIT: matn boshqa ("raqamni
-    /// biriktirish", "kirish" emas) va operator navbat jurnalida
-    /// ikkalasini AJRATA olishi kerak — "nega kirish kodlari ko'payib
-    /// ketdi?" degan savolga javob shu ajratmadan chiqadi.
+    /// Telefon almashtirishning o'zi (o'z profilini o'zi tahrirlash bilan
+    /// birga) loyiha egasi tomonidan bekor qilindi — sabab
+    /// `TelegramUpdateHandler.HandleContactAsync` izohida.
+    ///
+    /// ★ NIMA UCHUN O'CHIRILMADI — <see cref="ContactStaff"/> dagi bilan
+    /// AYNI sabab: kalit `MessageOutbox` jadvalidagi eski qatorlarda
+    /// saqlanib turibdi.
     /// </summary>
     public const string PhoneChangeCode = "profile_phone_change_code";
 
@@ -118,6 +121,40 @@ public static class TelegramTemplates
 
     /* ===== /R35/R36 ===== */
 
+    /* ===== 2026-08-17 · USTOZ KUNLIK TASDIQLASH + O'RINBOSAR ===== */
+
+    /// <summary>Ertalabki savol: bugungi darslarga o'ta olasizmi (✅/❌ tugma).</summary>
+    public const string AvailabilityAsk = "availability_ask";
+
+    /// <summary>"Yo'q" bosilgach — qaysi dars(lar) (toggle tugmalar).</summary>
+    public const string AvailabilitySessions = "availability_sessions";
+
+    /// <summary>Sabab so'raladi (tugmasiz, erkin matn kutiladi).</summary>
+    public const string AvailabilityReason = "availability_reason";
+
+    /// <summary>Necha kunga (tez tugmalar).</summary>
+    public const string AvailabilityDays = "availability_days";
+
+    /// <summary>"Ha" tasdiqlandi — yakuniy xabar.</summary>
+    public const string AvailabilityConfirmed = "availability_confirmed";
+
+    /// <summary>Kun soni noto'g'ri kiritildi.</summary>
+    public const string AvailabilityDaysInvalid = "availability_days_invalid";
+
+    /// <summary>O'rinbosarga yuboriladigan taklif (✅/❌ tugma).</summary>
+    public const string SubstituteOfferAsk = "substitute_offer_ask";
+
+    /// <summary>Boshqa nomzod rozi bo'lgani uchun taklif bekor qilindi.</summary>
+    public const string SubstituteOfferWithdrawn = "substitute_offer_withdrawn";
+
+    /// <summary>O'quv bo'limiga: ustoz darsga o'ta olmaydi.</summary>
+    public const string TeacherDeclinedSession = "teacher_declined_session";
+
+    /// <summary>O'quv bo'limiga: o'rinbosar topildi.</summary>
+    public const string SubstituteFound = "substitute_found";
+
+    /* ===== /2026-08-17 ===== */
+
     // ---------------------------------------------------------------- tugmalar
 
     /// <summary>
@@ -143,8 +180,34 @@ public static class TelegramTemplates
         // ketib, u boshlagan oqimni tashlab ketishga majbur qilardi.
         LoginCode => TelegramMarkup.None,
 
+        AvailabilityAsk or AvailabilitySessions or AvailabilityDays or SubstituteOfferAsk =>
+            TelegramMarkup.InlineButtons,
+
         _ => TelegramMarkup.None,
     };
+
+    /// <summary>
+    /// Inline tugmalarni <c>OutboxMessage.CallbackData</c>ga kodlaydi.
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// ★ NIMA UCHUN JSON EMAS: navbat yozuvidagi maydon (2000 belgi) uchun
+    /// oddiy matn formatidagi ajratgichlar (boshqaruv belgilari — foydalanuvchi
+    /// matnida HECH QACHON uchramaydigan ASCII kodlar) yetarli va tezroq
+    /// parslanadi. Format <see cref="Infrastructure.Services.TelegramMessageSender"/>
+    /// dagi <c>WriteInlineButtons</c> bilan AYNAN mos bo'lishi shart:
+    ///   • qatorlar — <c>\n</c> bilan;
+    ///   • bitta qatordagi tugmalar — <c>\t</c> bilan;
+    ///   • tugma matni va <c>callback_data</c>si — <c></c> (Unit
+    ///     Separator) bilan ajratiladi.
+    /// ══════════════════════════════════════════════════════════════════
+    /// </summary>
+    /// <param name="rows">Har qator — bir nechta (matn, callback_data) juftligi.</param>
+    public static string EncodeButtons(IReadOnlyList<IReadOnlyList<(string Label, string CallbackData)>> rows) =>
+        string.Join('\n', rows.Select(row =>
+            string.Join('\t', row.Select(button => $"{button.Label}{LabelDataSeparator}{button.CallbackData}"))));
+
+    /// <summary>Tugma matni va <c>callback_data</c>si orasidagi ajratgich (ASCII Unit Separator, 0x1F).</summary>
+    private const char LabelDataSeparator = '';
 
     // ---------------------------------------------------------------- matnlar
 
@@ -198,6 +261,10 @@ public static class TelegramTemplates
         + "xabarni e'tiborsiz qoldiring va o'quv bo'limiga bildiring.";
 
     /// <summary>
+    /// ⚠️ ESKI MATN — 2026-08-17 dan boshlab HECH QAYERDAN chaqirilmaydi
+    /// (sabab <see cref="PhoneChangeCode"/> izohida). <see cref="ContactStaffText"/>
+    /// dagi bilan AYNI sababga ko'ra qoldirildi.
+    ///
     /// TELEFON ALMASHTIRISH kodi.
     ///
     /// 🔴 MATN ATAYLAB "KIRISH" DEMAYDI: foydalanuvchi bu kodni
@@ -335,6 +402,112 @@ public static class TelegramTemplates
     private const int FeedbackMaxLength = 500;
 
     /* ===== /R35/R36 ===== */
+
+    /* ===== 2026-08-17 · USTOZ KUNLIK TASDIQLASH + O'RINBOSAR ===== */
+
+    /// <summary>Ertalabki savol matni — bugungi darslar ro'yxati bilan.</summary>
+    /// <param name="sessions">Vaqt va guruh nomi juftliklari, vaqt bo'yicha tartiblangan.</param>
+    public static string AvailabilityAskText(IReadOnlyList<(string Time, string GroupName)> sessions)
+    {
+        var lines = string.Join(
+            '\n',
+            sessions.Select(s =>
+                $"🕐 {NotificationText.Parameter(s.Time, 16)} — {NotificationText.Parameter(s.GroupName, 100)}"));
+
+        return "☀️ <b>Xayrli tong!</b>\n\n"
+            + "Bugungi darslaringiz:\n" + lines + "\n\n"
+            + "Barchasiga o'ta olasizmi?";
+    }
+
+    /// <summary>Dars tanlash bosqichi — har dars oldida ☑/☐ belgisi bilan.</summary>
+    /// <param name="sessions">(vaqt, guruh, tanlanganmi) uchligi.</param>
+    public static string AvailabilitySessionsText(
+        IReadOnlyList<(string Time, string GroupName, bool Selected)> sessions)
+    {
+        var lines = string.Join(
+            '\n',
+            sessions.Select(s =>
+                $"{(s.Selected ? "☑" : "☐")} {NotificationText.Parameter(s.Time, 16)} — "
+                + $"{NotificationText.Parameter(s.GroupName, 100)}"));
+
+        return "Qaysi dars(lar)ga o'ta olmaysiz?\n\n" + lines
+            + "\n\nKerakli darslarni belgilang, so'ng <b>«▶ Davom etish»</b> ni bosing.";
+    }
+
+    /// <summary>Sabab so'raladi (erkin matn kutiladi).</summary>
+    public static string AvailabilityReasonPromptText() =>
+        "Sababini yozib yuboring (masalan: <i>kasal bo'lib qoldim</i>).";
+
+    /// <summary>Necha kunga so'raladi (tez tugmalar + erkin son).</summary>
+    public static string AvailabilityDaysPromptText() =>
+        "Necha kunga o'ta olmaysiz?\n\n"
+        + "Tugmalardan birini tanlang yoki kun sonini yozib yuboring.";
+
+    /// <summary>Kun soni noto'g'ri kiritildi (matn orqali).</summary>
+    public static string AvailabilityDaysInvalidText() =>
+        "Iltimos, 1 dan 30 gacha bo'lgan butun son yuboring (masalan: <i>3</i>).";
+
+    /// <summary>"Ha" tasdiqlandi.</summary>
+    public static string AvailabilityConfirmedText() =>
+        "✅ Rahmat! Bugungi barcha darslaringiz rejadagidek qoladi.";
+
+    /// <summary>O'rinbosarga yuboriladigan taklif.</summary>
+    /// <param name="originalTeacherName">Darsni o'ta olmayotgan ustoz.</param>
+    /// <param name="groupName">Guruh nomi.</param>
+    /// <param name="time">Dars vaqti (matn).</param>
+    /// <param name="reason">Sabab.</param>
+    public static string SubstituteOfferText(
+        string originalTeacherName, string groupName, string time, string reason)
+    {
+        var name = NotificationText.Parameter(originalTeacherName);
+        var group = NotificationText.Parameter(groupName, 100);
+        var when = NotificationText.Parameter(time, 16);
+        var why = NotificationText.Parameter(reason, 300);
+
+        var reasonPart = why.Length > 0 ? $"({why}) " : "";
+
+        return $"🔔 <b>{name}</b> {reasonPart}"
+            + "quyidagi darsni o'tolmaydi:\n\n"
+            + $"🕐 {when} — <b>{group}</b>\n\n"
+            + "Siz o'tib bera olasizmi?";
+    }
+
+    /// <summary>Boshqa nomzod rozi bo'lgani uchun taklif bekor qilindi.</summary>
+    public static string SubstituteOfferWithdrawnText() =>
+        "Rahmat! Bu darsga boshqa ustoz allaqachon rozi bo'ldi, sizga endi kerak emas.";
+
+    /// <summary>O'rinbosar rozi bo'lganda unga tasdiq.</summary>
+    /// <param name="groupName">Guruh nomi.</param>
+    public static string SubstituteAcceptedText(string groupName) =>
+        $"✅ Rahmat! Siz <b>{NotificationText.Parameter(groupName, 100)}</b> darsini o'tib berasiz.";
+
+    /// <summary>O'quv bo'limiga: ustoz darsga o'ta olmaydi.</summary>
+    /// <param name="teacherName">Ustoz F.I.Sh.</param>
+    /// <param name="affectedCount">Ta'sirlangan darslar soni.</param>
+    /// <param name="reason">Sabab.</param>
+    /// <param name="days">Necha kunga.</param>
+    public static string TeacherDeclinedSessionText(
+        string teacherName, int affectedCount, string reason, int days)
+    {
+        var name = NotificationText.Parameter(teacherName);
+        var why = NotificationText.Parameter(reason, 300);
+        var dayText = days <= 1 ? "bugun" : $"{days} kunga";
+
+        return $"⚠️ <b>{name}</b> {dayText} <b>{affectedCount}</b> ta darsga o'ta olmaydi.\n\n"
+            + $"Sabab: {why}";
+    }
+
+    /// <summary>O'quv bo'limiga: o'rinbosar topildi.</summary>
+    /// <param name="substituteName">O'rinbosar F.I.Sh.</param>
+    /// <param name="originalTeacherName">Asl ustoz F.I.Sh.</param>
+    /// <param name="groupName">Guruh nomi.</param>
+    public static string SubstituteFoundText(
+        string substituteName, string originalTeacherName, string groupName) =>
+        $"✅ <b>{NotificationText.Parameter(substituteName)}</b> "
+        + $"<b>{NotificationText.Parameter(originalTeacherName)}</b> o'rniga "
+        + $"<b>{NotificationText.Parameter(groupName, 100)}</b> darsini o'tib beradi.";
+
+    /* ===== /2026-08-17 ===== */
 }
 
 /// <summary>
@@ -358,4 +531,11 @@ public enum TelegramMarkup
 
     /// <summary>Ekran ostidagi klaviaturani olib tashlaydi.</summary>
     RemoveKeyboard = 3,
+
+    /// <summary>
+    /// Dinamik inline tugmalar (2026-08-17, ustoz kunlik tasdiqlash) —
+    /// mazmuni <c>OutboxMessage.CallbackData</c> dan o'qiladi
+    /// (<see cref="TelegramTemplates.EncodeButtons"/>).
+    /// </summary>
+    InlineButtons = 4,
 }

@@ -1,8 +1,15 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Courses;
+using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Application.Media;
 using Zinnur.Application.Messaging.Dtos;
+using Zinnur.Application.Settings;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -36,6 +43,10 @@ public sealed class DirectMessageService(
     // berish sur'at nazorati atrofidan aylanib o'tish yo'li bo'lardi
     // (batafsil — `SendAsync` ichida).
     IGatingService gating,
+    // ===== 2026-08-17 · FAYL/RASM BILAN XABAR =====
+    IMediaStorage storage,
+    ISettingsResolver settings,
+    ILogger<DirectMessageService> logger,
     TimeProvider clock) : IDirectMessageService
 {
     /// <summary>Suhbatlar ro'yxatidagi oxirgi xabar ko'chirmasining uzunligi.</summary>
@@ -43,6 +54,16 @@ public sealed class DirectMessageService(
 
     private const int DefaultTake = 50;
     private const int MaxTake = 100;
+
+    /// <summary>
+    /// Ruxsat etilgan fayl turlari — <c>GroupChatService.AttachmentCategories</c>
+    /// bilan AYNI (rasm, ovoz, hujjat; video YO'Q — sabab o'sha izohda).
+    /// </summary>
+    private const MediaCategories AttachmentCategories =
+        MediaCategories.Image | MediaCategories.Audio | MediaCategories.Document;
+
+    /// <summary>Ombordagi mantiqiy papka — operator uni PREFIKS bo'yicha taniydi.</summary>
+    private const string AttachmentFolder = "direct-message";
 
     // ================================================================= suhbatlar
 
@@ -194,6 +215,7 @@ public sealed class DirectMessageService(
         take = take <= 0 ? DefaultTake : Math.Min(take, MaxTake);
 
         var query = db.DirectMessages.AsNoTracking()
+            .Include(m => m.Attachments)
             .Where(m => m.StudentId == pair.StudentId && m.StaffId == pair.StaffId);
 
         if (beforeId is { } cursor)
@@ -287,6 +309,293 @@ public sealed class DirectMessageService(
 
         return Map(message, userId, pair, lessonNames);
     }
+
+    // ================================================================= biriktirmali xabar
+
+    /// <inheritdoc />
+    public async Task<DirectMessageDto> SendWithAttachmentsAsync(
+        long userId,
+        long peerId,
+        SendDirectMessageAttachmentRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Files.Count == 0)
+            throw Invalid("Fayl yuborilmadi.");
+
+        if (request.Files.Count > DirectMessageAttachment.MaxPerMessage)
+        {
+            throw Invalid(
+                "Bitta xabarga ko'pi bilan "
+                + DirectMessageAttachment.MaxPerMessage.ToString(CultureInfo.InvariantCulture)
+                + " ta fayl biriktiriladi.");
+        }
+
+        var pair = await ResolvePairAsync(userId, peerId, ct);
+
+        // ★ GATING — `SendAsync` dagi AYNI qoida va AYNI sabab (fayl
+        //   biriktirilgan savol ham "hali ochilmagan dars haqida savol"
+        //   bo'lishi mumkin).
+        if (request.ModuleLessonId is { } lessonId)
+        {
+            var exists = await db.ModuleLessons.AsNoTracking().AnyAsync(l => l.Id == lessonId, ct);
+
+            if (!exists)
+                throw Invalid("Bunday dars topilmadi.");
+
+            if (pair.ViewerIsStudent)
+                await gating.EnsureLessonUnlockedAsync(pair.StudentId, lessonId, ct);
+        }
+
+        if (!storage.IsConfigured)
+        {
+            throw new ServiceUnavailableException(
+                "Fayl ombori (R2/S3) sozlanmagan — fayl qabul qilinmaydi. "
+                + "Administrator uchun: `Storage:ServiceUrl`, `Storage:Bucket`, "
+                + "`Storage:AccessKey`, `Storage:SecretKey` to'ldirilishi kerak.");
+        }
+
+        var limitBytes = await AttachmentLimitBytesAsync(ct);
+
+        // HAMMA FAYL AVVAL TEKSHIRILADI, KEYIN BITTASI HAM YOZILADI —
+        // sabab `GroupChatService.SendWithAttachmentsAsync` izohida.
+        var prepared = new List<PreparedAttachment>(request.Files.Count);
+
+        foreach (var file in request.Files)
+        {
+            if (file.Length <= 0)
+                throw Invalid("Fayl bo'sh.");
+
+            var signature = await DetectAttachmentAsync(file, ct);
+
+            if (file.Length > limitBytes)
+                throw AttachmentTooLarge(limitBytes);
+
+            prepared.Add(new PreparedAttachment(file, signature));
+        }
+
+        var savedKeys = new List<string>(prepared.Count);
+
+        try
+        {
+            var message = DirectMessage.CreateWithAttachments(
+                pair.StudentId,
+                pair.StaffId,
+                userId,
+                request.ModuleLessonId,
+                request.Body,
+                prepared.Count,
+                clock.GetUtcNow());
+
+            for (var index = 0; index < prepared.Count; index++)
+            {
+                var (file, signature) = prepared[index];
+
+                file.Content.Position = 0;
+
+                var objectKey = await storage.SaveAsync(
+                    new MediaUpload(
+                        AttachmentFolder, signature.Extension, signature.ContentType,
+                        file.Content, file.Length),
+                    ct);
+
+                savedKeys.Add(objectKey);
+
+                message.Attachments.Add(new DirectMessageAttachment
+                {
+                    Kind = ToAttachmentKind(signature.Category),
+                    Position = index,
+                    ObjectKey = objectKey,
+                    ContentType = signature.ContentType,
+                    FileName = GroupChatAttachment.SanitizeFileName(file.ClientFileName),
+                    SizeBytes = file.Length,
+                    DurationSec = file.DurationSec,
+                    CreatedAt = message.SentAt,
+                });
+            }
+
+            db.DirectMessages.Add(message);
+            await db.SaveChangesAsync(ct);
+
+            // Baza qabul qildi — kalitlar endi "yetim" emas.
+            savedKeys.Clear();
+
+            var lessonNames = await LessonNamesAsync([message], ct);
+
+            return Map(message, userId, pair, lessonNames);
+        }
+        finally
+        {
+            // Faqat MUVAFFAQIYATSIZ yo'lda to'ladi (yuqorida `Clear`).
+            foreach (var key in savedKeys)
+                await TryDeleteFromStorageAsync(key, ct);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<LessonAssetDownload> OpenAttachmentAsync(
+        long attachmentId, string? rangeHeader, long userId, CancellationToken ct = default)
+    {
+        var row = await db.DirectMessageAttachments.AsNoTracking()
+            .Where(a => a.Id == attachmentId)
+            .Select(a => new AttachmentRow(
+                a.Id,
+                a.Message!.StudentId,
+                a.Message.StaffId,
+                a.ObjectKey,
+                a.ContentType,
+                a.FileName,
+                a.SizeBytes,
+                a.Kind))
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(DirectMessageAttachment), attachmentId);
+
+        // 🔴 RUXSAT — OMBORGA MUROJAATDAN OLDIN (sabab `GroupChatService`
+        //   dagi AYNI izoh). `userId` ikkala tomon (o'quvchi/xodim) bo'lishi
+        //   mumkin — `peerId` sifatida QARSHI tomon uzatiladi, shunda
+        //   `ResolvePairAsync` AYNI (StudentId, StaffId) juftligini qaytaradi.
+        var peerId = userId == row.StudentId ? row.StaffId : row.StudentId;
+        await ResolvePairAsync(userId, peerId, ct);
+
+        if (!storage.IsConfigured)
+        {
+            throw new ServiceUnavailableException(
+                "Fayl ombori (R2/S3) sozlanmagan — faylni ochib bo'lmadi. "
+                + "Administrator uchun: `Storage:ServiceUrl`, `Storage:Bucket`, "
+                + "`Storage:AccessKey`, `Storage:SecretKey` to'ldirilishi kerak.");
+        }
+
+        var outcome = RangeHeader.TryParse(rangeHeader, row.SizeBytes, out var range);
+
+        if (outcome == RangeParseOutcome.Unsatisfiable)
+            throw new RangeNotSatisfiableException(row.SizeBytes);
+
+        var requested = outcome == RangeParseOutcome.Satisfiable ? range : null;
+
+        var stored = await storage.OpenReadAsync(row.ObjectKey, requested, ct)
+            ?? throw new NotFoundException(nameof(DirectMessageAttachment), attachmentId);
+
+        var contentType = string.IsNullOrWhiteSpace(row.ContentType)
+            ? stored.ContentType
+            : row.ContentType;
+
+        return new LessonAssetDownload(
+            stored,
+            contentType,
+            SuggestAttachmentFileName(row),
+            stored.TotalLength ?? row.SizeBytes,
+            stored.IsPartial ? requested : null);
+    }
+
+    // ---------------------------------------------------------------- biriktirma yordamchilari
+
+    /// <summary>
+    /// Fayl turini SEHRLI BAYTLARDAN aniqlaydi — `GroupChatService.DetectAttachmentAsync`
+    /// bilan AYNI (kengaytma va klient `Content-Type` sarlavhasi HISOBGA OLINMAYDI).
+    /// </summary>
+    private static async Task<MediaSignature> DetectAttachmentAsync(
+        LessonAssetUpload upload, CancellationToken ct)
+    {
+        var header = new byte[MediaSignatures.HeaderSize];
+
+        upload.Content.Position = 0;
+
+        var length = await upload.Content
+            .ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct)
+            .ConfigureAwait(false);
+
+        if (length == 0)
+            throw Invalid("Fayl bo'sh.");
+
+        if (!MediaSignatures.TryDetect(
+                header.AsSpan(0, length), AttachmentCategories, out var signature))
+        {
+            throw Invalid(
+                "Faylning turi qo'llab-quvvatlanmaydi. Rasm (jpg, png, webp, gif, heic), "
+                + "ovoz (mp3, m4a, ogg, webm, wav) yoki PDF yuboring. "
+                + "⚠️ Fayl NOMI hisobga olinmaydi — tur fayl MAZMUNIDAN aniqlanadi.");
+        }
+
+        return signature;
+    }
+
+    /// <summary>Hajm chegarasi — `lesson.image_max_mb` (sabab `GroupChatService` dagi izoh).</summary>
+    private async Task<long> AttachmentLimitBytesAsync(CancellationToken ct)
+    {
+        var resolved = await settings.ResolveAsync(AttachmentLimitSetting, ct);
+
+        var megabytes = SettingValueParser
+            .TryReadDecimal(AttachmentLimitSetting, resolved.Value, out var value)
+            ? value
+            : decimal.Parse(AttachmentLimitSetting.DefaultValue, CultureInfo.InvariantCulture);
+
+        return (long)megabytes * 1024 * 1024;
+    }
+
+    private async Task TryDeleteFromStorageAsync(string objectKey, CancellationToken ct)
+    {
+        try
+        {
+            await storage.DeleteAsync(objectKey, ct);
+        }
+        catch (ServiceUnavailableException ex)
+        {
+            DirectMessageAttachmentLog.OrphanedObject(logger, ex, objectKey);
+        }
+    }
+
+    private static AttachmentKind ToAttachmentKind(MediaCategories category) => category switch
+    {
+        MediaCategories.Audio => AttachmentKind.Audio,
+        MediaCategories.Document => AttachmentKind.Document,
+        _ => AttachmentKind.Image,
+    };
+
+    private static string SuggestAttachmentFileName(AttachmentRow row)
+    {
+        if (row.FileName is { Length: > 0 } name) return name;
+
+        var extension = Path.GetExtension(row.ObjectKey.AsSpan());
+
+        var prefix = row.Kind switch
+        {
+            AttachmentKind.Audio => "ovoz",
+            AttachmentKind.Document => "hujjat",
+            _ => "rasm",
+        };
+
+        return string.Create(CultureInfo.InvariantCulture, $"dm-{prefix}-{row.Id}{extension}");
+    }
+
+    private static PayloadTooLargeException AttachmentTooLarge(long limitBytes)
+    {
+        var megabytes = (limitBytes / (1024 * 1024)).ToString(CultureInfo.InvariantCulture);
+
+        return new PayloadTooLargeException(
+            $"Fayl hajmi {megabytes} MB dan oshmasligi kerak. Chegarani administrator "
+            + $"sozlamalardan (`{SettingsRegistry.Keys.LessonImageMaxMb}`) o'zgartira oladi.");
+    }
+
+    private static readonly SettingDefinition AttachmentLimitSetting =
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.LessonImageMaxMb, out var definition)
+            ? definition
+            : throw new InvalidOperationException(
+                $"Registrda '{SettingsRegistry.Keys.LessonImageMaxMb}' sozlamasi yo'q.");
+
+    /// <summary>Tekshirilgan, lekin HALI YOZILMAGAN fayl.</summary>
+    private sealed record PreparedAttachment(LessonAssetUpload File, MediaSignature Signature);
+
+    /// <summary>Biriktirmani o'qish uchun kerakli TOR proyeksiya.</summary>
+    private sealed record AttachmentRow(
+        long Id,
+        long StudentId,
+        long StaffId,
+        string ObjectKey,
+        string ContentType,
+        string? FileName,
+        long SizeBytes,
+        AttachmentKind Kind);
 
     // ================================================================= o'qildi
 
@@ -514,6 +823,7 @@ public sealed class DirectMessageService(
         if (messageIds.Count == 0) return [];
 
         return await db.DirectMessages.AsNoTracking()
+            .Include(m => m.Attachments)
             .Where(m => messageIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, ct);
     }
@@ -582,13 +892,31 @@ public sealed class DirectMessageService(
             peerRole.ToString(),
             groupName,
             last?.Id,
-            last is null ? null : Preview(last.Body),
+            last is null ? null : Preview(last),
             last?.SentAt,
             last is null ? null : last.SenderId == viewerId,
             stats?.UnreadCount ?? 0);
 
-    private static string Preview(string body) =>
-        body.Length <= PreviewLength ? body : body[..PreviewLength];
+    /// <summary>
+    /// ★ IZOHSIZ BIRIKTIRMA (2026-08-17): matn bo'sh bo'lsa (faqat rasm/fayl
+    /// yuborilgan bo'lsa), ro'yxatda bo'sh qator o'rniga "📎 N ta fayl"
+    /// ko'rinadi — aks holda suhbat ro'yxatida "hech narsa yozilmagan"
+    /// degan yolg'on taassurot qolardi.
+    /// </summary>
+    private static string Preview(DirectMessage message)
+    {
+        if (message.Body.Length > 0)
+            return message.Body.Length <= PreviewLength ? message.Body : message.Body[..PreviewLength];
+
+        var count = message.Attachments.Count;
+
+        return count switch
+        {
+            0 => message.Body,
+            1 => "📎 1 ta fayl",
+            _ => string.Create(CultureInfo.InvariantCulture, $"📎 {count} ta fayl"),
+        };
+    }
 
     private static DirectMessageDto Map(
         DirectMessage message,
@@ -611,11 +939,28 @@ public sealed class DirectMessageService(
             message.ModuleLessonId,
             message.ModuleLessonId is { } id ? lessonNames.GetValueOrDefault(id) : null,
             message.SentAt,
-            readByPeer);
+            readByPeer,
+            MapAttachments(message.Attachments));
     }
+
+    /// <summary>
+    /// `GroupChatService.MapAttachments` bilan AYNI naqsh: tartib
+    /// ANIQ qo'yiladi (EF `Include` navigatsiya tartibini kafolatlamaydi).
+    /// </summary>
+    private static List<DirectMessageAttachmentDto> MapAttachments(
+        IEnumerable<DirectMessageAttachment> attachments) =>
+        attachments
+            .OrderBy(a => a.Position)
+            .ThenBy(a => a.Id)
+            .Select(a => new DirectMessageAttachmentDto(
+                a.Id, a.Kind, a.ContentType, a.FileName, a.SizeBytes, a.DurationSec))
+            .ToList();
 
     private static ValidationException Invalid(string field, string message) =>
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
+
+    /// <summary>Fayl bilan bog'liq xatolar uchun qisqartma — maydon doim <c>"files"</c>.</summary>
+    private static ValidationException Invalid(string message) => Invalid("files", message);
 
     // ---------------------------------------------------------------- ichki shakllar
 
@@ -626,4 +971,15 @@ public sealed class DirectMessageService(
     private sealed record ThreadStats(long PeerId, long LastMessageId, int UnreadCount);
 
     private sealed record PeerRow(long Id, string FullName, UserRole Role);
+}
+
+/// <summary>Manba-generatsiyali loglar (CA1848).</summary>
+internal static partial class DirectMessageAttachmentLog
+{
+    [LoggerMessage(
+        EventId = 5330,
+        Level = LogLevel.Warning,
+        Message = "DM biriktirmasining ombordagi obyekti o'chirilmadi — YETIM qoldi "
+                  + "(bazaga yozish bekor qilingan). key={Key}")]
+    internal static partial void OrphanedObject(ILogger logger, Exception exception, string key);
 }

@@ -1,3 +1,6 @@
+using Zinnur.Application.Courses.Services;
+using Zinnur.Domain.Enums;
+
 namespace Zinnur.Application.Messaging.Dtos;
 
 /// <summary>
@@ -28,6 +31,10 @@ public sealed record ConversationDto(
 /// Suhbatdosh MENING xabarimni o'qidimi ("ikki belgi"). O'zganing xabari
 /// uchun ma'nosiz — u doim <c>true</c> (men uni ko'rib turibman).
 /// </param>
+/// <param name="Attachments">
+/// Biriktirilgan fayllar (2026-08-17) — <c>GroupChatMessageDto.Attachments</c>
+/// bilan AYNI naqsh. Biriktirmasiz xabarda BO'SH RO'YXAT (<c>null</c> emas).
+/// </param>
 public sealed record DirectMessageDto(
     long Id,
     long SenderId,
@@ -37,7 +44,22 @@ public sealed record DirectMessageDto(
     long? ModuleLessonId,
     string? ModuleLessonName,
     DateTimeOffset SentAt,
-    bool ReadByPeer);
+    bool ReadByPeer,
+    IReadOnlyList<DirectMessageAttachmentDto> Attachments);
+
+/// <summary>
+/// Shaxsiy yozishma xabariga biriktirilgan bitta fayl (2026-08-17) —
+/// <c>GroupChatAttachmentDto</c> bilan AYNI naqsh (sabab o'sha turdagi
+/// izohida: ombor kaliti javobga chiqmaydi, baytlar alohida so'rov bilan
+/// olinadi).
+/// </summary>
+public sealed record DirectMessageAttachmentDto(
+    long Id,
+    AttachmentKind Kind,
+    string ContentType,
+    string? FileName,
+    long SizeBytes,
+    int? DurationSec);
 
 /// <summary>
 /// Xabarlar sahifasi — KEYSET (kursorli) sahifalash.
@@ -66,6 +88,21 @@ public sealed record MessagePageDto(
 /// <param name="Body">Matn. Bo'sh bo'lmasin; 2000 belgidan uzuni kesiladi.</param>
 /// <param name="ModuleLessonId">Ixtiyoriy kontekst — savol qaysi dars sahifasidan yozilgan.</param>
 public sealed record SendDirectMessageRequest(string? Body, long? ModuleLessonId);
+
+/// <summary>
+/// FAYL/RASM BILAN XABAR (2026-08-17) — `multipart/form-data`.
+///
+/// `SendGroupChatAttachmentRequest` bilan AYNI naqsh, KANAL YO'Q (shaxsiy
+/// yozishma bitta oqim) — sabab batafsil <see cref="DirectMessageAttachmentDto"/>
+/// izohida.
+/// </summary>
+/// <param name="Body">IXTIYORIY izoh. Bo'sh bo'lishi MUMKIN — kamida bitta fayl bor.</param>
+/// <param name="ModuleLessonId">Ixtiyoriy kontekst — matnli xabardagi bilan bir xil ma'no.</param>
+/// <param name="Files">Kamida 1 ta, ko'pi bilan <c>DirectMessageAttachment.MaxPerMessage</c> ta.</param>
+public sealed record SendDirectMessageAttachmentRequest(
+    string? Body,
+    long? ModuleLessonId,
+    IReadOnlyList<LessonAssetUpload> Files);
 
 /// <summary>"O'qildi" belgilash natijasi.</summary>
 /// <param name="MarkedCount">Nechta xabar o'qilgan deb belgilandi (idempotent: takrorda 0).</param>

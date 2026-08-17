@@ -1,3 +1,4 @@
+using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Messaging.Dtos;
 
 namespace Zinnur.Application.Messaging.Services;
@@ -82,6 +83,23 @@ public interface IDirectMessageService
     /// <summary>Xabar yuboradi.</summary>
     Task<DirectMessageDto> SendAsync(
         long userId, long peerId, SendDirectMessageRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// FAYL/RASM BILAN XABAR (2026-08-17) — `GroupChatService.SendWithAttachmentsAsync`
+    /// bilan AYNI naqsh, sabab <see cref="Dtos.SendDirectMessageAttachmentRequest"/> izohida.
+    /// </summary>
+    Task<DirectMessageDto> SendWithAttachmentsAsync(
+        long userId,
+        long peerId,
+        SendDirectMessageAttachmentRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Yozishma biriktirmasini OQIM bilan beradi (`Range` qo'llab-quvvatlanadi).
+    /// Ruxsat — <see cref="GetThreadAsync"/> bilan AYNI (`ResolvePairAsync`).
+    /// </summary>
+    Task<LessonAssetDownload> OpenAttachmentAsync(
+        long attachmentId, string? rangeHeader, long userId, CancellationToken ct = default);
 
     /// <summary>
     /// Suhbatdagi kiruvchi xabarlarni "o'qildi" deb belgilaydi (idempotent).

@@ -17,6 +17,7 @@ export type {
   CenterLeaderboardDto,
   ChatMessageDto,
   ConversationDto,
+  CoverageStatusDto,
   CourseDto,
   CourseLessonDto,
   CourseModuleDto,
@@ -35,6 +36,7 @@ export type {
   DayOfWeekName,
   DevQuickLoginAccount,
   DevQuickLoginList,
+  DirectMessageAttachmentDto,
   DirectMessageDto,
   DiscountKindName,
   FinanceSettingsDto,
@@ -156,6 +158,7 @@ export type {
   SubmissionFeedbackFileDto,
   SubmissionFileDto,
   SubmissionOverviewDto,
+  TeacherAvailabilityTodayDto,
   TeacherReviewOverviewDto,
   SubmissionStatusName,
   SubmitTestRequest,
@@ -232,15 +235,13 @@ export type {
 } from './api'
 /* ===== /R35/R36 ===== */
 
-/* ===== 2026-08-15 · O'Z PROFILINI TAHRIRLASH ===== */
-export type {
-  AvatarUploadedDto,
-  ChangePhoneRequest,
-  ConfirmPhoneRequest,
-  PhoneChangeStatusDto,
-  UpdateProfileRequest,
-} from './api'
-/* ===== /O'Z PROFILINI TAHRIRLASH ===== */
+/* ===== 2026-08-15 · O'Z PROFIL RASMI (2026-08-17 da qisqartirildi) ===== */
+export type { AvatarUploadedDto } from './api'
+/* ===== /O'Z PROFIL RASMI ===== */
+
+/* ===== 2026-08-17 · "MENING GURUHIM" OYNASI ===== */
+export type { ClassroomDto, ClassroomGroupDto, ClassroomMemberDto } from './api'
+/* ===== /"MENING GURUHIM" OYNASI ===== */
 
 /* ===== Bosqich 4 · Oylik hisoblash (2026-08-16) ===== */
 export type {

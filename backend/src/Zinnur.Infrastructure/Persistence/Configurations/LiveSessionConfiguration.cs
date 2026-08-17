@@ -53,6 +53,12 @@ public sealed class LiveSessionConfiguration : IEntityTypeConfiguration<LiveSess
             .HasForeignKey(s => s.HostId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Asl ustoz (o'rinbosar tayinlanganda audit uchun) — AYNI qoida.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(s => s.OriginalHostId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Jadval so'rovi: guruh bo'yicha va vaqt bo'yicha tartib.
         builder.HasIndex(s => new { s.GroupId, s.ScheduledStart })
             .HasDatabaseName("IX_LiveSessions_GroupId_ScheduledStart");

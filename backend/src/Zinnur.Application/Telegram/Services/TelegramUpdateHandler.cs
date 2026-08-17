@@ -1,12 +1,11 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
-using Zinnur.Application.Profile.Services;
+using Zinnur.Application.TeacherAvailability.Services;
 using Zinnur.Application.Telegram.Dtos;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -47,8 +46,8 @@ public sealed class TelegramUpdateHandler(
     IApplicationDbContext db,
     ITelegramUpdateLog updateLog,
     INotificationOutbox outbox,
-    IPhoneChangeStore phoneChanges,
-    IPhoneLoginCodeStore codes,
+    ITeacherAvailabilityService availability,
+    ITelegramCallbackAcknowledger callbackAcknowledger,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
     /// <summary>Faqat shaxsiy suhbat bilan ishlaymiz (guruhda bot hech nima bog'lamaydi).</summary>
@@ -85,9 +84,21 @@ public sealed class TelegramUpdateHandler(
         //   ochib bermaymiz.
         var message = update.Message;
 
-        var outcome = message is null
-            ? TelegramUpdateOutcome.Ignored
-            : await HandleMessageAsync(update.UpdateId, message, ct).ConfigureAwait(false);
+        // ★ INLINE TUGMA (callback_query) — 2026-08-17, ustoz kunlik
+        //   tasdiqlash. `message`dan MUSTAQIL yo'l: Telegram bu ikkisini
+        //   BIRGA yubormaydi.
+        TelegramUpdateOutcome outcome;
+
+        if (update.CallbackQuery is not null)
+        {
+            outcome = await HandleCallbackQueryAsync(update.CallbackQuery, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            outcome = message is null
+                ? TelegramUpdateOutcome.Ignored
+                : await HandleMessageAsync(update.UpdateId, message, ct).ConfigureAwait(false);
+        }
 
         try
         {
@@ -140,6 +151,13 @@ public sealed class TelegramUpdateHandler(
 
         if (!string.IsNullOrEmpty(text))
         {
+            // ★ USTOZ KUNLIK TASDIQLASH (2026-08-17): matnni "yordam" deb
+            //   javob berishdan OLDIN, shu ustozning sabab/kun-soni kutayotgan
+            //   ochiq checkin'i bormi tekshiriladi — bor bo'lsa matn OQIMGA
+            //   tegishli, "yordam" javobi UMUMAN berilmaydi.
+            if (await availability.HandleFreeTextAsync(sender.Id, text, ct).ConfigureAwait(false))
+                return TelegramUpdateOutcome.AvailabilityTextHandled;
+
             await ReplyAsync(updateId, chat.Id, recipientUserId: null,
                 TelegramTemplates.Help, TelegramTemplates.HelpText(), ct).ConfigureAwait(false);
 
@@ -148,6 +166,33 @@ public sealed class TelegramUpdateHandler(
 
         // Rasm, stiker, ovoz — bizga tegishli emas, JIMGINA tashlanadi.
         return TelegramUpdateOutcome.Ignored;
+    }
+
+    // ---------------------------------------------------------------- callback_query
+
+    /// <summary>
+    /// Inline tugma bosilishini ishlaydi. <c>answerCallbackQuery</c> BU YERDA,
+    /// SINXRON chaqiriladi (sabab <see cref="ITelegramCallbackAcknowledger"/>
+    /// izohida) — u xatoni yutadi, shuning uchun bu metod baribir
+    /// muvaffaqiyatli yakunlanadi.
+    /// </summary>
+    private async Task<TelegramUpdateOutcome> HandleCallbackQueryAsync(
+        TelegramCallbackQueryDto callback, CancellationToken ct)
+    {
+        var sender = callback.From;
+
+        if (string.IsNullOrEmpty(callback.Id) || sender is null || sender.Id <= 0 || sender.IsBot)
+            return TelegramUpdateOutcome.Ignored;
+
+        var data = callback.Data;
+
+        var toast = string.IsNullOrEmpty(data)
+            ? null
+            : await availability.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
+
+        await callbackAcknowledger.AcknowledgeAsync(callback.Id, toast, ct).ConfigureAwait(false);
+
+        return TelegramUpdateOutcome.CallbackHandled;
     }
 
     // ---------------------------------------------------------------- /start
@@ -258,84 +303,21 @@ public sealed class TelegramUpdateHandler(
             .FirstOrDefaultAsync(u => u.PhoneNormalized == normalized, ct)
             .ConfigureAwait(false);
 
-        // ══════════════════════════════════════════════════════════════
-        // ★★ TELEFON ALMASHTIRISH SHOXI (2026-08-15) — QUYIDAGI RAD ETISH
-        //    SHOXLARIDAN OLDIN TURISHI SHART.
+        // ⚠️ TELEFON ALMASHTIRISH SHOXI OLIB TASHLANDI (2026-08-17).
         //
-        // Loyiha egasi: *"nomerini alishtirish imkoniyati ham bo'lsin,
-        // lekin registerdagi kabi telegram orqali tasdiqlash majburiy"*.
+        // 2026-08-15 da qo'shilgan edi: foydalanuvchi ilovada yangi raqam
+        // kiritib, botga o'sha raqamdan kontakt yuborsa, bu yerda kod
+        // yuborilardi (`IProfileService.ConfirmPhoneChangeAsync` bilan
+        // juftlikda). Loyiha egasi bu imkoniyatni BUTUNLAY bekor qildi:
+        // endi hech kim (o'quvchi ham, xodim ham) o'z ism yoki telefonini
+        // O'ZI o'zgartira olmaydi — buni faqat o'quv bo'limi/admin
+        // "Foydalanuvchilar" panelidan qiladi (`UsersController`). Yangi
+        // raqam bilan kelgan kontakt endi pastdagi oddiy qoidaga tushadi:
+        // `candidate is null` → "AKKAUNT YARATILMAYDI".
         //
-        // 🔴 NEGA AYNAN SHU YERDA: yangi raqam hech kimga tegishli emas
-        // (`candidate is null`), ya'ni pastdagi qoida uni "AKKAUNT
-        // YARATILMAYDI" deb RAD ETARDI. Ilova esa u raqamni foydalanuvchi
-        // SO'RAGANINI biladi — bu ma'lumot `IPhoneChangeStore` da turadi.
-        //
-        // ★ BU YERDA HECH NARSA BOG'LANMAYDI VA HECH NARSA O'ZGARMAYDI.
-        // Yagona natija — Telegram hisobiga KOD ketadi. Raqam faqat
-        // foydalanuvchi kodni ILOVAGA kiritganda almashadi
-        // (`IProfileService.ConfirmPhoneChangeAsync`) — ya'ni bot bilan
-        // muloqotning O'ZI hech kimning profilini o'zgartira olmaydi.
-        // ══════════════════════════════════════════════════════════════
-        if (candidate is null)
-        {
-            var pending = await phoneChanges.FindByPhoneAsync(normalized, ct).ConfigureAwait(false);
-
-            if (pending is not null)
-            {
-                // 🔴 BU TELEGRAM HISOBI BOSHQA PROFILGA BOG'LANGAN BO'LSA — RAD.
-                //    Aks holda A odam o'z Telegram'i bilan B ning
-                //    almashtirish so'roviga kod olib, B ning profiliga
-                //    o'z hisobini biriktirib olardi.
-                if (alreadyLinked is not null && alreadyLinked.Id != pending.UserId)
-                {
-                    TelegramBotLog.TelegramTaken(logger, updateId, sender.Id, alreadyLinked.Id);
-
-                    await ReplyAsync(updateId, chatId, alreadyLinked.Id,
-                        TelegramTemplates.ContactTelegramTaken,
-                        TelegramTemplates.ContactTelegramTakenText(), ct).ConfigureAwait(false);
-
-                    return TelegramUpdateOutcome.TelegramTaken;
-                }
-
-                var owner = await db.Users.AsNoTracking()
-                    .FirstOrDefaultAsync(u => u.Id == pending.UserId, ct)
-                    .ConfigureAwait(false);
-
-                // Profil o'chirilgan yoki bloklangan bo'lsa — niyat
-                // ma'nosini yo'qotadi. Javob NOTANISH RAQAM bilan AYNI:
-                // bot bu yerda hech qanday holatni oshkor qilmaydi.
-                if (owner is null || !owner.IsActive)
-                {
-                    await ReplyAsync(updateId, chatId, recipientUserId: null,
-                        TelegramTemplates.ContactUnknown,
-                        TelegramTemplates.ContactUnknownText(), ct).ConfigureAwait(false);
-
-                    return TelegramUpdateOutcome.PhoneNotFound;
-                }
-
-                // ★ KOD YAGONA GENERATORDAN va YAGONA omborga yoziladi
-                //   (`PhoneLoginCodeStore`): TTL, urinishlar chegarasi va
-                //   hash'lash allaqachon o'sha yerda. Ikkinchi mexanizm
-                //   yozilsa, uning chegaralari birinchisidan asta
-                //   ajralib ketardi.
-                var code = PhoneLoginService.GenerateCode();
-
-                await codes.SaveAsync(normalized, owner.Id, code, ct).ConfigureAwait(false);
-
-                await phoneChanges.SaveAsync(
-                    pending with { TelegramId = sender.Id, TelegramUsername = sender.Username },
-                    ct).ConfigureAwait(false);
-
-                await ReplyAsync(updateId, chatId, owner.Id,
-                    TelegramTemplates.PhoneChangeCode,
-                    TelegramTemplates.PhoneChangeCodeText(code, normalized, PhoneLoginCodeStore.CodeTtl),
-                    ct).ConfigureAwait(false);
-
-                TelegramBotLog.PhoneChangeCodeSent(logger, updateId, owner.Id);
-
-                return TelegramUpdateOutcome.PhoneChangeCodeSent;
-            }
-        }
+        // `IPhoneChangeStore`/`PhoneChangeStore` va profil tomonidagi
+        // `RequestPhoneChangeAsync`/`ConfirmPhoneChangeAsync` ham shu bilan
+        // birga OLIB TASHLANDI — ular boshqa hech qayerdan chaqirilmaydi.
 
         if (alreadyLinked is not null)
         {
@@ -602,10 +584,8 @@ internal static partial class TelegramBotLog
         Message = "/start payload (shaxsni ANIQLAMAYDI): update={UpdateId} payload={Payload}")]
     internal static partial void StartPayload(ILogger logger, long updateId, string payload);
 
-    /// 🔴 RAQAM VA KOD LOGGA YOZILMAYDI — `PhoneLoginLog` dagi AYNI qoida.
-    [LoggerMessage(
-        EventId = 6210,
-        Level = LogLevel.Information,
-        Message = "Telefon almashtirish kodi yuborildi: update={UpdateId} profil={UserId}")]
-    internal static partial void PhoneChangeCodeSent(ILogger logger, long updateId, long userId);
+    // ⚠️ `PhoneChangeCodeSent` (EventId 6210) OLIB TASHLANDI (2026-08-17) —
+    //    telefon almashtirish shoxi bilan birga (`HandleContactAsync`
+    //    izohi). EventId QAYTA ISHLATILMAYDI — sabab yuqoridagi 6205
+    //    (`StaffPhone`) izohi bilan AYNI.
 }

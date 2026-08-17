@@ -113,6 +113,13 @@ function openTeacher(row: TeacherReviewOverviewDto): void {
             <table class="zn-table">
               <thead>
                 <tr>
+                  <!--
+                    ★ RAQAMLANGAN QATOR (2026-08-17, loyiha egasi talabi):
+                    "o'qituvchilar ro'yxati raqamlangan bo'lishi kerak".
+                  -->
+                  <th class="w-10">
+                    #
+                  </th>
                   <th>Xodim</th>
                   <th>Jami tahlil</th>
                   <th>Tasdiqlangan</th>
@@ -123,7 +130,7 @@ function openTeacher(row: TeacherReviewOverviewDto): void {
               </thead>
               <tbody>
                 <tr
-                  v-for="row in teacherRows"
+                  v-for="(row, index) in teacherRows"
                   :key="row.teacherId"
                   class="cursor-pointer hover:bg-ink-800"
                   role="button"
@@ -132,6 +139,10 @@ function openTeacher(row: TeacherReviewOverviewDto): void {
                   @click="openTeacher(row)"
                   @keydown.enter.prevent="openTeacher(row)"
                 >
+                  <td
+                    class="tabular-nums text-dim"
+                    v-text="index + 1"
+                  />
                   <td
                     class="font-medium text-slate-100"
                     v-text="row.teacherName"

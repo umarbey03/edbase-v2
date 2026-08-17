@@ -262,6 +262,18 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          USTOZLAR HOLATI (2026-08-17) — kunlik "darsga o'ta olasizmi?"
+          tasdiqlash + o'rinbosar tizimining o'quv bo'limi paneli. Suhbat
+          Telegram bot orqali ketadi; bu sahifa faqat BUGUNGI holatni
+          ko'rsatadi (polling).
+        */
+        path: 'boshqaruv/ustozlar-holati',
+        name: 'manage-teacher-availability',
+        component: () => import('@/pages/manage/ManageTeacherAvailabilityPage.vue'),
+        meta: { title: 'Ustozlar holati', roles: MANAGERS },
+      },
+      {
+        /*
           FAQAT ADMIN (loyiha egasi, 2026-08-15): *"to'lovlar va moliya
           qismi o'quv bo'limi uchun kerak emas, u qismi admin panelda
           bo'lsa yetadi"*. `PaymentsController.ManageRoles` o'zi

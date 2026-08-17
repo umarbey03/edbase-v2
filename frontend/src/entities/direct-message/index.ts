@@ -1,5 +1,6 @@
 export {
   fetchConversations,
+  fetchDirectMessageAttachment,
   fetchLessonQuestions,
   fetchThread,
   markConversationRead,

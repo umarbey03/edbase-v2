@@ -62,6 +62,13 @@ internal sealed class JobsOptions
     /// <summary>Oylik yozuvlarni tekshirish oralig'i (daqiqa).</summary>
     public int BillingIntervalMinutes { get; private init; } = 30;
 
+    // ---------------------------------------------------------------- ustoz kunlik tasdiqlash
+
+    public bool TeacherMorningCheckinEnabled { get; private init; } = true;
+
+    /// <summary>Ertalabki oynani tekshirish oralig'i (daqiqa).</summary>
+    public int TeacherMorningCheckinIntervalMinutes { get; private init; } = 15;
+
     // ---------------------------------------------------------------- chat tarixi
     //
     // 🔴 BU YERDA "Enabled" BAYROG'I YO'Q — VA BU ATAYLAB. Tozalash
@@ -96,6 +103,9 @@ internal sealed class JobsOptions
 
     public MonthlyBillingSettings MonthlyBilling =>
         new(Interval: TimeSpan.FromMinutes(BillingIntervalMinutes));
+
+    public TeacherMorningCheckinSettings TeacherMorningCheckin =>
+        new(Interval: TimeSpan.FromMinutes(TeacherMorningCheckinIntervalMinutes));
 
     public ChatRetentionSettings ChatRetention => new(
         Interval: TimeSpan.FromMinutes(ChatRetentionIntervalMinutes),
@@ -140,6 +150,14 @@ internal sealed class JobsOptions
             BillingIntervalMinutes = Number(
                 configuration, $"{SectionName}:MonthlyBilling:IntervalMinutes",
                 defaults.BillingIntervalMinutes, 1, 1440),
+
+            TeacherMorningCheckinEnabled = Flag(
+                configuration, $"{SectionName}:TeacherMorningCheckin:Enabled",
+                defaults.TeacherMorningCheckinEnabled),
+
+            TeacherMorningCheckinIntervalMinutes = Number(
+                configuration, $"{SectionName}:TeacherMorningCheckin:IntervalMinutes",
+                defaults.TeacherMorningCheckinIntervalMinutes, 1, 60),
 
             // ★ PASTKI CHEGARA 5 DAQIQA: tozalash — kunlik hodisa. Har
             // daqiqada yurish hech nima yutmasdi, lekin har yurish

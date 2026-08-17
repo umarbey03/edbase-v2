@@ -6,7 +6,7 @@ import { reviewVerdictLabel, reviewVerdictTone } from '@/entities/recording'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime, formatWeekdayDateTime } from '@/shared/lib/datetime'
 import type { AnalysisCriterionDto, SessionReviewDto, SessionReviewVerdictName } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseButton, BaseDrawer, BaseField, BaseSpinner } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseButton, BaseDrawer, BaseField, BaseModal, BaseSpinner } from '@/shared/ui'
 
 import { deleteSessionReview, fetchSessionReview, saveSessionReview } from '../api/session-review-api'
 
@@ -69,8 +69,20 @@ const props = withDefaults(
     groupName?: string
     /** ISO sana-vaqt — dars jadval bo'yicha qachon boshlangan. */
     scheduledStart?: string
+    /**
+     * `BaseModal` sifatida ochiladi, `BaseDrawer` EMAS (2026-08-17).
+     *
+     * ★ NIMA UCHUN KERAK: `TeacherReviewsDrawer` — bu komponentning O'ZI
+     * `BaseDrawer`. Ichma-ich drawer TAQIQLANGAN (`BaseDrawer.vue`
+     * izohi, `useModalHost` dev'da ogohlantiradi) — "Tahlillar" jadvalidagi
+     * "Ko'rish" tugmasi bosilganda shu bayroq bilan `BaseModal` ochiladi.
+     * Boshqa barcha chaqiruv joylari (`RecordingCard`, ustozning
+     * "Darslarim" ro'yxati) hech qachon drawer ICHIDA emas, shuning uchun
+     * ular uchun standart (`false`) o'zgarmaydi.
+     */
+    asModal?: boolean
   }>(),
-  { title: '', groupName: '', scheduledStart: '' },
+  { title: '', groupName: '', scheduledStart: '', asModal: false },
 )
 
 const emit = defineEmits<{
@@ -271,9 +283,11 @@ watch(
 </script>
 
 <template>
-  <BaseDrawer
+  <component
+    :is="props.asModal ? BaseModal : BaseDrawer"
     :open="props.sessionId !== null"
     :title="props.title.length > 0 ? `Dars tahlili — ${props.title}` : 'Dars tahlili'"
+    v-bind="props.asModal ? { wide: true } : {}"
     @close="emit('close')"
   >
     <!--
@@ -612,5 +626,5 @@ watch(
         Yopish
       </BaseButton>
     </template>
-  </BaseDrawer>
+  </component>
 </template>

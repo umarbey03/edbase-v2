@@ -278,3 +278,67 @@ public enum PayrollApprovalStatus
     /// <summary>Xodimga to'landi — davr yopiq deb hisoblanadi.</summary>
     Paid = 2,
 }
+
+// ============================================================================
+// USTOZ KUNLIK TASDIQLASH + O'RINBOSAR (2026-08-17)
+// ============================================================================
+
+/// <summary>
+/// <see cref="Zinnur.Domain.Entities.TeacherDailyCheckin"/> ning bosqichi.
+/// Tartib MUHIM (bazaga int sifatida yoziladi) — yangi qiymat FAQAT oxiriga.
+/// </summary>
+public enum TeacherCheckinStatus
+{
+    /// <summary>Savol yuborilgan, hali javob yo'q.</summary>
+    Pending = 0,
+
+    /// <summary>"Ha" — yakuniy holat.</summary>
+    Confirmed = 1,
+
+    /// <summary>"Yo'q" bosilgan — qaysi dars(lar) tanlanayapti.</summary>
+    SelectingSessions = 2,
+
+    /// <summary>Dars(lar) tanlandi — sabab matni kutilmoqda.</summary>
+    AwaitingReason = 3,
+
+    /// <summary>Sabab yozildi — necha kunga ekani kutilmoqda.</summary>
+    AwaitingDays = 4,
+
+    /// <summary>"Yo'q" — yakuniy holat, barcha ma'lumot to'liq.</summary>
+    Declined = 5,
+}
+
+/// <summary>
+/// <see cref="Zinnur.Domain.Entities.SessionCoverageRequest"/> holati.
+/// Tartib MUHIM — yangi qiymat FAQAT oxiriga.
+/// </summary>
+public enum CoverageRequestStatus
+{
+    /// <summary>O'rinbosar hali topilmagan, takliflar yuborilgan/yuborilmoqda.</summary>
+    Open = 0,
+
+    /// <summary>O'rinbosar topildi (biror taklif qabul qilindi).</summary>
+    Resolved = 1,
+
+    /// <summary>Bekor qilindi (masalan dars o'zi bekor qilindi).</summary>
+    Cancelled = 2,
+}
+
+/// <summary>
+/// <see cref="Zinnur.Domain.Entities.SubstituteOffer"/> holati.
+/// Tartib MUHIM — yangi qiymat FAQAT oxiriga.
+/// </summary>
+public enum SubstituteOfferStatus
+{
+    /// <summary>Taklif yuborilgan, hali javob yo'q.</summary>
+    Sent = 0,
+
+    /// <summary>Nomzod rozi bo'ldi — darsni oldi.</summary>
+    Accepted = 1,
+
+    /// <summary>Nomzod rad etdi.</summary>
+    Declined = 2,
+
+    /// <summary>Boshqa nomzod allaqachon rozi bo'lgani uchun bekor qilindi.</summary>
+    Withdrawn = 3,
+}

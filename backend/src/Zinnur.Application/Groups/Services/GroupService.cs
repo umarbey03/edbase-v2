@@ -375,6 +375,48 @@ public sealed class GroupService(
         if (!student.IsActive)
             throw new ConflictException("Foydalanuvchi profili faol emas.");
 
+        // ══════════════════════════════════════════════════════════════
+        // ★★ BIR VAQTDA FAQAT BITTA GURUH (2026-08-17, loyiha egasi:
+        //    "o'quvchi bir vaqtda faqatgina bitta o'qituvchi guruhida
+        //    bo'lishi mumkin").
+        //
+        // Ilgari bu yerda faqat "AYNI guruhda ikkinchi marta" tekshirilardi
+        // — o'quvchini boshqa (uchinchi) ustoz guruhiga qo'shishga hech
+        // narsa to'sqinlik qilmasdi. Amalda bu ikkita "faol" a'zolik
+        // beradi va davomat/to'lov/"Mening guruhim" kabi HAR joyda
+        // ikkilanish paydo qiladi (aynan shunday holat demo ma'lumotida
+        // topilgan edi).
+        //
+        // ★ NEGA `MoveMemberAsync` GA TEGILMAYDI: u bitta tranzaksiyada
+        //   ESKI a'zolikni `Moved` qiladi VA YANGISINI ochadi — natijada
+        //   invariant o'zi saqlanadi. Bu tekshiruv faqat `AddMemberAsync`
+        //   uchun kerak, chunki u ESKINI YOPMAYDI.
+        //
+        // ★ KURATOR GURUHI HISOBGA OLINMAYDI (`Type != Curator`): bu
+        //   metodning O'ZI kurator guruhiga to'g'ridan-to'g'ri qo'shishga
+        //   yo'l qo'ymaydi (`EnsureAcceptsDirectMembers`, yuqorida) — ya'ni
+        //   bu yerga yetib kelgan `group` HAR DOIM ustoz/yakka guruh.
+        // ══════════════════════════════════════════════════════════════
+        // ⚠️ `Paused` HAM HISOBGA OLINADI, faqat `Active` EMAS: pauza —
+        //    vaqtinchalik to'xtash, TO'LIQ chiqish emas (`IsActive`
+        //    hisoblanuvchisi buni "nofaol" desa ham, o'quvchi hamon o'sha
+        //    guruhning a'zosi). Faqat `Stopped`/`Moved` — haqiqiy chiqish.
+        var otherGroup = await db.GroupMembers.AsNoTracking()
+            .Where(m => m.StudentId == student.Id
+                     && (m.Status == MemberStatus.Active || m.Status == MemberStatus.Paused)
+                     && m.GroupId != group.Id
+                     && m.Group!.Type != GroupType.Curator)
+            .Select(m => m.Group!.Name)
+            .FirstOrDefaultAsync(ct);
+
+        if (otherGroup is not null)
+        {
+            throw new ConflictException(
+                $"O'quvchi allaqachon boshqa guruhda: \"{otherGroup}\". "
+                + "Bir vaqtda faqat bitta guruhda bo'lishi mumkin — avval o'sha guruhdan "
+                + "chiqaring yoki \"Ko'chirish\" (Move) funksiyasidan foydalaning.");
+        }
+
         var member = await db.GroupMembers.AsTracking()
             .FirstOrDefaultAsync(m => m.GroupId == group.Id && m.StudentId == student.Id, ct);
 

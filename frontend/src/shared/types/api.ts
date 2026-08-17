@@ -1530,6 +1530,24 @@ export interface DirectMessageDto {
   sentAt: string
   /** Suhbatdosh MENING xabarimni o'qidimi ("ikki belgi"). */
   readByPeer: boolean
+  /** Biriktirilgan fayllar (2026-08-17). Bo'lmasa bo'sh ro'yxat. */
+  attachments: DirectMessageAttachmentDto[] | null
+}
+
+/**
+ * Shaxsiy yozishma xabariga biriktirilgan BITTA fayl (2026-08-17) —
+ * `GroupChatAttachmentDto` bilan AYNI naqsh.
+ *
+ * 🔴 `objectKey` YO'Q: baytlar `GET /api/v1/messages/attachments/{id}`
+ * orqali, oqimni O'QISH ruxsatidan qaytadan o'tib olinadi.
+ */
+export interface DirectMessageAttachmentDto {
+  id: number
+  kind: AttachmentKindName
+  contentType: string
+  fileName: string | null
+  sizeBytes: number
+  durationSec: number | null
 }
 
 /**
@@ -2869,41 +2887,16 @@ export interface DeleteNotificationsRequest {
 
 /* ===== /R35/R36 · BILDIRISHNOMA ===== */
 
-/* ===== 2026-08-15 · O'Z PROFILINI TAHRIRLASH =============================
+/* ===== 2026-08-15 · O'Z PROFIL RASMI (2026-08-17 da qisqartirildi) =======
+
+   ⚠️ ISM VA TELEFONNI O'ZI TAHRIRLASH OLIB TASHLANDI (2026-08-17, loyiha
+   egasining qarori) — `UpdateProfileRequest`/`ChangePhoneRequest`/
+   `ConfirmPhoneRequest`/`PhoneChangeStatusDto` shu bilan birga o'chirildi.
+   Ism va telefon endi FAQAT o'quv bo'limi/admin "Foydalanuvchilar"
+   panelidan o'zgartiriladi (`UpdateUserRequest`).
 
    ★ NEGA ALOHIDA BLOK OXIRDA: yuqoridagi bloklar bilan AYNI sabab — bu
    faylga bir necha tarmoq ayni vaqtda qo'shadi.                        */
-
-/** `PUT /api/v1/profile` — faqat ism (rol/email XODIM ishi). */
-export interface UpdateProfileRequest {
-  fullName: string
-}
-
-/** `POST /api/v1/profile/phone` — almashtirishning 1-bosqichi. */
-export interface ChangePhoneRequest {
-  /** Xom ko'rinish ham bo'ladi — normalizatsiya SERVERDA. */
-  phone: string
-}
-
-/** `POST /api/v1/profile/phone/confirm` — Telegramga kelgan kod. */
-export interface ConfirmPhoneRequest {
-  code: string
-}
-
-/**
- * Kutayotgan telefon almashtirish holati.
- *
- * ★ EKRAN `codeSent` GA QARAB IKKIGA BO'LINADI: `false` — "botga
- * raqamni ulashing" ko'rsatmasi, `true` — kod kiritish maydoni.
- */
-export interface PhoneChangeStatusDto {
-  /** Kutayotgan YANGI raqam (E.164, formatlanmagan). */
-  phone: string
-  codeSent: boolean
-  /** Bot `@username` i — sozlanmagan bo'lsa `null` (havolasiz matn). */
-  botUsername: string | null
-  expiresInSeconds: number
-}
 
 /** `POST /api/v1/profile/avatar` javobi. */
 export interface AvatarUploadedDto {
@@ -2911,7 +2904,35 @@ export interface AvatarUploadedDto {
   avatarUpdatedAt: string
 }
 
-/* ===== /O'Z PROFILINI TAHRIRLASH ===== */
+/* ===== /O'Z PROFIL RASMI ===== */
+
+/* ===== 2026-08-17 · "MENING GURUHIM" OYNASI ===== */
+
+/** Guruhdosh — faqat ism-familiya (telefon/email/Telegram YO'Q). */
+export interface ClassroomMemberDto {
+  id: number
+  fullName: string
+}
+
+/** Bitta guruh — o'quvchi bir nechta guruhda bo'lishi mumkin. */
+export interface ClassroomGroupDto {
+  groupId: number
+  groupName: string
+  /** Ustoz biriktirilmagan bo'lsa `null`. */
+  teacherName: string | null
+  /** Kurator biriktirilmagan bo'lsa `null`. */
+  curatorName: string | null
+  classmates: ClassroomMemberDto[]
+}
+
+/** `GET /api/v1/students/me/classroom` javobi. */
+export interface ClassroomDto {
+  groups: ClassroomGroupDto[]
+  /** Muammo/fikr-taklif kontakti. Sozlanmagan bo'lsa `null`. */
+  supportContact: string | null
+}
+
+/* ===== /"MENING GURUHIM" OYNASI ===== */
 
 /* ============================================================================
    "XABARLAR" PANELI (2026-08-16) — guruhlarga shablon/qo'lda xabar yuborish.
@@ -2999,6 +3020,35 @@ export interface HolidayImpactDto {
 }
 
 /* ===== /BAYRAM KALENDARI ===== */
+
+/* ============================================================================
+   USTOZ KUNLIK TASDIQLASH + O'RINBOSAR (2026-08-17) — o'quv bo'limi paneli.
+   Suhbat mantig'i Telegram bot orqali; bu turlar faqat BUGUNGI holatni
+   ko'rsatish (polling) uchun.
+   ============================================================================ */
+
+/** Bitta ta'sirlangan darsning o'rinbosar qamrovi. */
+export interface CoverageStatusDto {
+  sessionId: number
+  groupName: string
+  scheduledStart: string
+  /** `Open` | `Resolved` | `Cancelled` — so'rov hali OCHILMAGAN bo'lsa `null`. */
+  status: string | null
+  substituteTeacherName: string | null
+}
+
+/** Bugungi kunning bitta ustoz bo'yicha holati. */
+export interface TeacherAvailabilityTodayDto {
+  checkinId: number
+  teacherName: string
+  /** `Pending` | `Confirmed` | `SelectingSessions` | `AwaitingReason` | `AwaitingDays` | `Declined`. */
+  status: string
+  declineReason: string | null
+  unavailableDays: number | null
+  affectedSessions: CoverageStatusDto[]
+}
+
+/* ===== /USTOZ KUNLIK TASDIQLASH ===== */
 
 /* ============================================================================
    OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi, FAQAT Admin ko'radi.

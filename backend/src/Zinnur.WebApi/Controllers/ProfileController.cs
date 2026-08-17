@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Zinnur.Application.Auth.Dtos;
 using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Profile.Dtos;
 using Zinnur.Application.Profile.Services;
@@ -11,12 +10,18 @@ using Zinnur.WebApi.Media;
 namespace Zinnur.WebApi.Controllers;
 
 /// <summary>
-/// O'Z PROFILI — ism, rasm va telefon raqami (2026-08-15).
+/// O'Z PROFILI — faqat RASM (2026-08-15, 2026-08-17 da qisqartirildi).
 ///
-/// ★ ROL ATRIBUTI YO'Q VA BU ATAYLAB: qoida rolga UMUMAN bog'liq emas —
-/// "har qanday user" o'z profilini tahrirlaydi (loyiha egasining talabi).
-/// <c>userId</c> HAR DOIM TOKENDAN olinadi, so'rovdan hech qachon
-/// (<see cref="NotificationsController"/> bilan bir xil qoida).
+/// ⚠️ ISM VA TELEFONNI O'ZI TAHRIRLASH OLIB TASHLANDI (2026-08-17, loyiha
+/// egasining qarori): "foydalanuvchi o'z ism familyasi va nomerini edit
+/// qilish imkoniga ega bo'lmasligi kerak" — BARCHA rol uchun. Bu ikkala
+/// maydonni endi FAQAT o'quv bo'limi/admin <see cref="UsersController"/>
+/// orqali o'zgartira oladi. Batafsil sabab — <c>IProfileService</c> izohida.
+///
+/// ★ ROL ATRIBUTI HALI HAM YO'Q: qolgan yagona amal (rasm) rolga bog'liq
+/// emas — "har qanday user" o'z rasmini yuklaydi. <c>userId</c> HAR DOIM
+/// TOKENDAN olinadi, so'rovdan hech qachon (<see cref="NotificationsController"/>
+/// bilan bir xil qoida).
 ///
 /// 🔴 BU YERDA BOSHQA ODAMNING PROFILINI O'ZGARTIRIB BO'LMAYDI. Xodim
 /// vositasi — <see cref="UsersController"/>, va u butunlay boshqa ruxsat
@@ -37,16 +42,6 @@ public sealed class ProfileController(IProfileService profile) : ControllerBase
     /// o'qilmaydi (xotira va disk bufer sarflanmaydi).
     /// </summary>
     private const int MaxAvatarRequestBytes = 16 * 1024 * 1024;
-
-    /* -------------------------------------------------------------- ism */
-
-    /// <summary>Ismni o'zgartiradi.</summary>
-    [HttpPut]
-    [ProducesResponseType<UserDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<UserDto>> UpdateName(
-        [FromBody] UpdateProfileRequest request, CancellationToken ct) =>
-        Ok(await profile.UpdateNameAsync(CurrentUserId, request, ct));
 
     /* ------------------------------------------------------------- rasm */
 
@@ -118,60 +113,6 @@ public sealed class ProfileController(IProfileService profile) : ControllerBase
             ? NotFound()
             : await MediaResponse.WriteAsync(this, media, ct);
     }
-
-    /* ---------------------------------------------------------- telefon */
-
-    /// <summary>
-    /// TELEFON ALMASHTIRISH — 1-BOSQICH: niyat qayd etiladi.
-    ///
-    /// Javob foydalanuvchiga NIMA QILISHNI aytadi: botga YANGI raqamdan
-    /// «Raqamni ulashish» yuborish. Kod aynan o'sha Telegram hisobiga
-    /// keladi — sabab <see cref="IPhoneChangeStore"/> izohida.
-    /// </summary>
-    [HttpPost("phone")]
-    [ProducesResponseType<PhoneChangeStatusDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<PhoneChangeStatusDto>> RequestPhoneChange(
-        [FromBody] ChangePhoneRequest request, CancellationToken ct) =>
-        Ok(await profile.RequestPhoneChangeAsync(CurrentUserId, request, ct));
-
-    /// <summary>
-    /// Kutayotgan almashtirish holati (yo'q bo'lsa <c>204</c>).
-    ///
-    /// ★ 204, 404 EMAS: "so'rov yo'q" — bu XATO emas, oddiy holat.
-    /// 404 bo'lsa klientda har so'rov konsolga qizil satr chiqarardi.
-    /// </summary>
-    [HttpGet("phone")]
-    [ProducesResponseType<PhoneChangeStatusDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<ActionResult<PhoneChangeStatusDto>> GetPhoneChange(CancellationToken ct)
-    {
-        var status = await profile.GetPhoneChangeAsync(CurrentUserId, ct);
-
-        return status is null ? NoContent() : Ok(status);
-    }
-
-    /// <summary>Kutayotgan almashtirishni bekor qiladi (idempotent).</summary>
-    [HttpDelete("phone")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> CancelPhoneChange(CancellationToken ct)
-    {
-        await profile.CancelPhoneChangeAsync(CurrentUserId, ct);
-        return NoContent();
-    }
-
-    /// <summary>
-    /// TELEFON ALMASHTIRISH — 2-BOSQICH: Telegramga kelgan kod.
-    /// </summary>
-    [HttpPost("phone/confirm")]
-    [ProducesResponseType<UserDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<UserDto>> ConfirmPhoneChange(
-        [FromBody] ConfirmPhoneRequest request, CancellationToken ct) =>
-        Ok(await profile.ConfirmPhoneChangeAsync(CurrentUserId, request, ct));
 
     private long CurrentUserId =>
         long.Parse(

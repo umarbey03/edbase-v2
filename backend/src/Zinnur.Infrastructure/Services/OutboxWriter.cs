@@ -37,6 +37,17 @@ public sealed class OutboxWriter(ApplicationDbContext db, TimeProvider clock) : 
         // qilardi. Parametrni qirqish `NotificationText.Parameter` ning ishi.
         var body = Require(request.Body, nameof(request.Body), NotificationText.MaxBodyLength);
 
+        var callbackData = request.CallbackData;
+
+        if (callbackData is { Length: > 0 }
+            && callbackData.Length > MessageOutboxConfiguration.CallbackDataMaxLength)
+        {
+            throw new ArgumentException(
+                $"Xabarning `CallbackData` maydoni {MessageOutboxConfiguration.CallbackDataMaxLength} "
+                + $"belgidan uzun ({callbackData.Length}).",
+                nameof(request));
+        }
+
         if (request.RecipientUserId is null && string.IsNullOrWhiteSpace(request.RecipientAddress))
         {
             throw new ArgumentException(
@@ -83,6 +94,7 @@ public sealed class OutboxWriter(ApplicationDbContext db, TimeProvider clock) : 
             RecipientAddress = Trim(request.RecipientAddress),
             TemplateKey = templateKey,
             Body = body,
+            CallbackData = string.IsNullOrWhiteSpace(callbackData) ? null : callbackData,
             IdempotencyKey = key,
             Status = OutboxStatus.Pending,
             AttemptCount = 0,

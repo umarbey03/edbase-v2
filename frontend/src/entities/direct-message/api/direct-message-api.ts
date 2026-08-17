@@ -1,3 +1,4 @@
+import type { DownloadedFile } from '@/shared/api'
 import { http } from '@/shared/api'
 import type {
   ConversationDto,
@@ -50,6 +51,24 @@ export function sendDirectMessage(
   body: SendDirectMessageRequest,
 ): Promise<DirectMessageDto> {
   return http.post<DirectMessageDto>(`${BASE}/conversations/${peerId}/messages`, body)
+}
+
+/**
+ * `GET /api/v1/messages/attachments/{id}` — biriktirmaning BAYTLARI (2026-08-17).
+ *
+ * ★ NAQSH `fetchGroupChatAttachment` BILAN AYNI: endpoint `Authorization`
+ * talab qiladi, brauzer esa `<img src>` / `<audio src>` so'rovlarida uni
+ * YUBORMAYDI. Shuning uchun fayl `Blob` sifatida olinadi.
+ */
+export function fetchDirectMessageAttachment(
+  attachmentId: number,
+  options?: { signal?: AbortSignal },
+): Promise<DownloadedFile> {
+  return http.download(
+    `${BASE}/attachments/${attachmentId}`,
+    `fayl-${attachmentId}`,
+    { signal: options?.signal, headers: { Accept: '*/*' } },
+  )
 }
 
 /** `O'qildi` belgilash — idempotent (takrorda `markedCount: 0`). */

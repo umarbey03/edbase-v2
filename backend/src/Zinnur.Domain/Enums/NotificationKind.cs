@@ -29,4 +29,16 @@ public enum NotificationKind
     /// avtomatik studentda ham yangilanish kerak … va notification kelsin"*.
     /// </summary>
     SubmissionGraded = 0,
+
+    /// <summary>
+    /// Ustoz bugungi darsga o'ta olmasligini bildirdi (2026-08-17,
+    /// <c>TeacherDailyCheckin.SubmitDays</c> yakunida) — o'quv bo'limiga.
+    /// </summary>
+    TeacherDeclinedSession = 1,
+
+    /// <summary>
+    /// O'rinbosar ustoz topildi va darsni oldi (2026-08-17,
+    /// <c>ISubstituteOfferService.RespondAsync</c>) — o'quv bo'limiga.
+    /// </summary>
+    SubstituteFound = 2,
 }

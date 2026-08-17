@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.TeacherAvailability.Services;
 using Zinnur.Application.Telegram.Services;
 using Zinnur.Infrastructure.Options;
 using Zinnur.Infrastructure.Services;
@@ -41,11 +42,20 @@ internal static class TelegramSetup
         services.AddScoped<ITelegramUpdateLog, TelegramUpdateLog>();
         services.AddScoped<ITelegramUpdateHandler, TelegramUpdateHandler>();
 
+        // Ustoz kunlik tasdiqlash + o'rinbosar (2026-08-17) — `IApplicationDbContext`
+        // ga tayanadi, shuning uchun SCOPED (yuqoridagi ikkitasi bilan bir xil sabab).
+        services.AddScoped<ITeacherAvailabilityService, TeacherAvailabilityService>();
+
         // Mini App kirishi `IAuthService` (scoped) ga tayanadi.
         services.AddScoped<ITelegramMiniAppAuth, TelegramMiniAppAuth>();
 
         // Imzo tekshiruvchisi HOLATSIZ — Singleton.
         services.AddSingleton<ITelegramInitDataValidator, TelegramInitDataValidator>();
+
+        // `answerCallbackQuery` yuboruvchisi — token HAR chaqiruvda qayta
+        // o'qiladi (`TelegramMessageSender` dagi bilan AYNI sabab), shuning
+        // uchun Singleton bo'lishi xavfsiz.
+        services.AddSingleton<ITelegramCallbackAcknowledger, TelegramCallbackAcknowledger>();
 
         // Nomlangan HTTP klient: socket'larni qayta ishlatadi va DNS ni
         // vaqti-vaqti bilan yangilaydi (`static HttpClient` esa DNS

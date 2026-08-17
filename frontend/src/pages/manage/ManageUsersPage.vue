@@ -73,7 +73,14 @@ const activeFilter = ref<'' | 'true' | 'false'>('')
 const telegramFilter = ref<TelegramFilterValue>('')
 const page = ref(1)
 
-const PAGE_SIZE = 20
+/**
+ * SAHIFA HAJMI — endi TANLANADIGAN (2026-08-17, loyiha egasining talabi).
+ * Standart 20 avvalgidek qoladi; xodim xohlasa 10/50/100 ga o'zgartiradi
+ * yoki "Boshqa..." orqali o'zi xohlagan sonni kiritadi
+ * (`PaginationBar.pageSizeOptions` izohiga qarang).
+ */
+const pageSize = ref(20)
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const
 
 /*
   ★ QIDIRUVNING MINIMAL UZUNLIGI serverda tekshiriladi
@@ -149,6 +156,11 @@ watch([effectiveSearch, roleFilter, activeFilter, groupFilter, telegramFilter], 
   selectedIds.value = new Set()
 })
 
+// Sahifa hajmi o'zgarganda ham 1-sahifaga — sabab AYNI (yuqoridagi izoh).
+watch(pageSize, () => {
+  page.value = 1
+})
+
 /*
   ★ TANLOV SAHIFA O'ZGARGANDA HAM TOZALANADI (yuqoridagi filtr tinglovchisidan
   ALOHIDA): u faqat FILTR o'zgarganda ishga tushadi, `PaginationBar` orqali
@@ -171,6 +183,7 @@ const usersQuery = useQuery({
     groupFilter,
     telegramFilter,
     page,
+    pageSize,
   ],
   queryFn: ({ signal }) =>
     fetchUsers(
@@ -181,7 +194,7 @@ const usersQuery = useQuery({
         groupId: groupFilter.value?.id,
         telegramLinked: telegramFilterToParam(telegramFilter.value),
         page: page.value,
-        pageSize: PAGE_SIZE,
+        pageSize: pageSize.value,
       },
       { signal },
     ),
@@ -189,6 +202,17 @@ const usersQuery = useQuery({
 
 const users = computed(() => usersQuery.data.value?.items ?? [])
 const total = computed(() => usersQuery.data.value?.total ?? 0)
+
+/**
+ * Qator raqamlash uchun HAQIQIY sahifa hajmi — SERVER qaytargani
+ * (`pageSize.value` EMAS). Backend `pageSize` ni 100 gacha CHEGARALAYDI
+ * (`UserService.MaxPageSize`); "Boshqa..." orqali undan katta son
+ * kiritilsa, mahalliy `ref` chegaradan katta qolib ketardi va
+ * `(page-1)*pageSize+index+1` formulasi 2-sahifadan boshlab NOTO'G'RI
+ * raqam berardi. Server javobi har doim HAQIQATDA ishlatilgan qiymatni
+ * qaytaradi, ya'ni bu yerda ikkinchi chegara SAQLASHGA hojat yo'q.
+ */
+const effectivePageSize = computed(() => usersQuery.data.value?.pageSize ?? pageSize.value)
 const totalPages = computed(() => usersQuery.data.value?.totalPages ?? 1)
 
 const errorMessage = computed(() =>
@@ -678,7 +702,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
                 >
                 <span
                   class="shrink-0 tabular-nums text-xs text-dim"
-                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                  v-text="(page - 1) * effectivePageSize + index + 1"
                 />
                 <p
                   class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
@@ -794,7 +818,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
                 -->
                 <td
                   class="tabular-nums text-dim"
-                  v-text="(page - 1) * PAGE_SIZE + index + 1"
+                  v-text="(page - 1) * effectivePageSize + index + 1"
                 />
                 <td
                   class="font-medium text-slate-100"
@@ -858,7 +882,10 @@ async function bulkSetActive(active: boolean): Promise<void> {
           :page="page"
           :total-pages="totalPages"
           :total="total"
+          :page-size="pageSize"
+          :page-size-options="PAGE_SIZE_OPTIONS"
           @update:page="page = $event"
+          @update:page-size="pageSize = $event"
         />
       </BaseCard>
     </DataStatus>

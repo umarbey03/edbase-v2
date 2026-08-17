@@ -7,47 +7,34 @@ namespace Zinnur.Application.Profile.Services;
 
 /// <summary>
 /// ════════════════════════════════════════════════════════════════════════
-/// O'Z PROFILINI TAHRIRLASH (2026-08-15, loyiha egasining talabi)
+/// O'Z PROFIL RASMI (2026-08-15 da qo'shilgan, 2026-08-17 da qisqartirildi)
 /// ════════════════════════════════════════════════════════════════════════
 ///
-/// *"Profil oynasida tahrirlash tugmasi ham bo'lsin... har qanday userlar
-/// o'z profiliga rasm joylash imkoniyati bo'lsin, ismini o'zgartirishi
-/// mumkin bo'lsin, nomerini alishtirish imkoniyati ham bo'lsin — lekin
-/// bunda ham registerdagi kabi telegram orqali tasdiqlash majburiy."*
+/// ⚠️ ISM VA TELEFONNI O'ZI TAHRIRLASH OLIB TASHLANDI (2026-08-17, loyiha
+/// egasining qarori): "foydalanuvchi o'z ism familyasi va nomerini edit
+/// qilish imkoniga ega bo'lmasligi kerak". Bu ikkala maydonni FAQAT o'quv
+/// bo'limi/admin <c>UsersController</c> orqali o'zgartira oladi — xodim
+/// o'ziniki bo'lsa ham emas (talab "barcha foydalanuvchilar" uchun).
+///
+/// Shu bilan birga telefon ALMASHTIRISH oqimi ham (Telegram tasdig'i bilan)
+/// butunlay olib tashlandi — sabab va tafsilot
+/// <c>TelegramUpdateHandler.HandleContactAsync</c> izohida.
 ///
 /// ── NIMA UCHUN `IUserService` GA QO'SHILMADI ───────────────────────────
 ///
 /// 🔴 `IUserService` — XODIM vositasi: u BOSHQA odamning profilini
 /// tahrirlaydi va har metodi `actorId` ning ROLINI tekshiradi (kim kimni
 /// o'zgartira oladi). Bu servis esa TESKARI: u faqat CHAQIRUVCHINING
-/// O'ZINI o'zgartiradi va rol UMUMAN tekshirilmaydi — "har qanday user"
-/// degani aynan shu.
+/// O'ZINI o'zgartiradi va rol UMUMAN tekshirilmaydi.
 ///
 /// Ikkalasi bitta sinfga qo'yilsa, har metodda "bu o'zinikimi yoki
 /// boshqaningmi?" degan shart paydo bo'lardi va o'sha shartning bitta
-/// joyda unutilishi — o'quvchi boshqaning ismini o'zgartira olishi
+/// joyda unutilishi — o'quvchi boshqaning rasmini o'zgartira olishi
 /// degani. Bu yerda `userId` HAR DOIM tokendan keladi va u
 /// PARAMETRDAN boshqa yo'l bilan kelmaydi.
-///
-/// ── UCHTA MAYDON, UCHTA HAR XIL XAVF DARAJASI ──────────────────────────
-///
-///   • ISM     — erkin matn, tasdiqsiz. Xatosi arzon va qaytariladi.
-///   • RASM    — fayl, turi MAZMUNDAN tekshiriladi, hajmi cheklangan.
-///   • TELEFON — 🔴 KIRISH KALITI. U tasdiqsiz o'zgarsa, hisobni
-///                o'g'irlashning eng qisqa yo'li ochilardi: begona odam
-///                bir zumda raqamni o'ziniki qilib, keyin "kirish kodi"
-///                bilan hisobga egalik qilardi. Shuning uchun u IKKI
-///                BOSQICHLI va TELEGRAM orqali tasdiqlanadi.
 /// </summary>
 public interface IProfileService
 {
-    /// <summary>
-    /// Ismni o'zgartiradi.
-    /// </summary>
-    /// <returns>Yangilangan profil — klient `auth.user` ni shu bilan almashtiradi.</returns>
-    Task<UserDto> UpdateNameAsync(
-        long userId, UpdateProfileRequest request, CancellationToken ct = default);
-
     /// <summary>
     /// Profil rasmini yuklaydi (eskisi ALMASHTIRILADI va ombordan
     /// o'chiriladi).
@@ -78,37 +65,4 @@ public interface IProfileService
     /// </summary>
     /// <returns>Rasm yo'q bo'lsa <c>null</c> (klient ism harfini chizadi).</returns>
     Task<LessonAssetDownload?> OpenAvatarAsync(long targetUserId, CancellationToken ct = default);
-
-    /// <summary>
-    /// TELEFON ALMASHTIRISH — 1-BOSQICH: niyatni qayd etadi.
-    ///
-    /// Kod SHU YERDA YUBORILMAYDI: yangi raqamga bog'langan Telegram
-    /// hisobi hali noma'lum (sabab <see cref="IPhoneChangeStore"/>
-    /// izohida). Javob foydalanuvchiga NIMA QILISHNI aytadi — botga
-    /// yangi raqamdan «Raqamni ulashish» yuborish.
-    /// </summary>
-    Task<PhoneChangeStatusDto> RequestPhoneChangeAsync(
-        long userId, ChangePhoneRequest request, CancellationToken ct = default);
-
-    /// <summary>
-    /// Kutayotgan almashtirish holati (yo'q bo'lsa <c>null</c>).
-    ///
-    /// Klient buni QISQA oraliqlarda so'raydi: foydalanuvchi Telegramda
-    /// tugmani bosgani bilan ilova o'z-o'zidan bilmaydi — bu yagona
-    /// "kod keldimi?" signali.
-    /// </summary>
-    Task<PhoneChangeStatusDto?> GetPhoneChangeAsync(long userId, CancellationToken ct = default);
-
-    /// <summary>Kutayotgan almashtirishni bekor qiladi.</summary>
-    Task CancelPhoneChangeAsync(long userId, CancellationToken ct = default);
-
-    /// <summary>
-    /// TELEFON ALMASHTIRISH — 2-BOSQICH: kod tekshiriladi va raqam
-    /// almashadi.
-    ///
-    /// 🔴 PROFIL AYNI PAYTDA YANGI TELEGRAM HISOBIGA BOG'LANADI —
-    /// sabab <see cref="PendingPhoneChange.TelegramId"/> izohida.
-    /// </summary>
-    Task<UserDto> ConfirmPhoneChangeAsync(
-        long userId, ConfirmPhoneRequest request, CancellationToken ct = default);
 }

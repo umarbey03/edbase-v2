@@ -111,6 +111,13 @@ const MANAGE_NAV: NavItem[] = [
     takrorlash o'rniga mavjudi ishlatildi.
   */
   { routeName: 'manage-recordings', label: 'Dars yozuvlari', icon: 'camera' },
+  /*
+    "Ustozlar holati" — v2 qo'shimchasi (2026-08-17): kunlik "darsga o'ta
+    olasizmi?" tasdiqlash + o'rinbosar tizimi paneli. "Uy vazifalari" dan
+    OLDIN qo'yildi: ikkalasi ham kundalik nazorat oqimi, lekin bu band
+    ertalabki eng birinchi tekshiriladigan narsa bo'lgani uchun yuqoriroq.
+  */
+  { routeName: 'manage-teacher-availability', label: 'Ustozlar holati', icon: 'user-check' },
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },
   { routeName: 'manage-sessions', label: 'Jonli darslar', icon: 'calendar' },
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },

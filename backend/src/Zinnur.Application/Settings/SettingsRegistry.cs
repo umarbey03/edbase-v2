@@ -128,6 +128,22 @@ public static class SettingsRegistry
                 + "zona ishga tushishda bir marta o'qiladi. " + StartupBoundReason,
         },
 
+        new()
+        {
+            Key = "general.support_contact",
+            Group = SettingGroup.General,
+            DisplayName = "Muammo/fikr-taklif kontakti",
+            Description =
+                "O'quvchiga ko'rsatiladigan bog'lanish manzili (masalan Telegram "
+                + "`@username` yoki telefon raqami) — \"Mening guruhim\" oynasida "
+                + "muammo yoki fikr-taklif uchun chiqadi. Bo'sh bo'lsa oynada bu "
+                + "qator umuman ko'rsatilmaydi.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            ConfigurationKey = "General:SupportContact",
+            MaxLength = 200,
+        },
+
         // ================================================================ MOLIYA
 
         new()
@@ -930,6 +946,8 @@ public static class SettingsRegistry
     /// <summary>Registrdagi ommaviy kalitlar (kod ichidan murojaat uchun).</summary>
     public static class Keys
     {
+        public const string SupportContact = "general.support_contact";
+
         public const string BlockThreshold = "finance.block_threshold";
         public const string BlockScope = "finance.block_scope";
         public const string EnforceBlock = "finance.enforce_block";

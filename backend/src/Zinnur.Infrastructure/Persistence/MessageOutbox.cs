@@ -51,6 +51,13 @@ public sealed class MessageOutbox : BaseEntity
     /// <summary>Yuborishga TAYYOR matn (Telegram HTML uchun ekranlangan).</summary>
     public required string Body { get; set; }
 
+    /// <summary>
+    /// Inline tugmalar uchun dinamik ma'lumot (2026-08-17) — sabab
+    /// <see cref="Zinnur.Application.Notifications.Dtos.NotificationRequest.CallbackData"/>
+    /// izohida.
+    /// </summary>
+    public string? CallbackData { get; set; }
+
     public OutboxStatus Status { get; set; } = OutboxStatus.Pending;
 
     /// <summary>Necha marta MUVAFFAQIYATSIZ urinilgan (band qilish hisoblanmaydi).</summary>

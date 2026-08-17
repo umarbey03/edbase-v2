@@ -78,6 +78,13 @@ public class DirectMessage : BaseEntity
 
     public DateTimeOffset SentAt { get; set; }
 
+    /// <summary>
+    /// Biriktirilgan fayllar (rasm / ovoz / hujjat) — 2026-08-17, `GroupChatMessage`
+    /// dagi R16b naqshining AYNI o'zi (sabab <see cref="DirectMessageAttachment"/> da).
+    /// </summary>
+    public ICollection<DirectMessageAttachment> Attachments { get; set; } =
+        new List<DirectMessageAttachment>();
+
     // ---------------------------------------------------------------- hisoblanuvchi
 
     /// <summary>Xabarni o'quvchi yozganmi (aks holda kurator).</summary>
@@ -86,7 +93,7 @@ public class DirectMessage : BaseEntity
     // ---------------------------------------------------------------- xatti-harakat
 
     /// <summary>
-    /// Yangi xabar yaratadi.
+    /// Yangi MATNLI xabar: matn tozalanadi, bo'sh rad etiladi.
     ///
     /// ★ O'QILGAN BAYROQLARI SHU YERDA QO'YILADI, chaqiruvchida emas.
     /// Yuboruvchi o'z xabarini albatta "o'qigan" — aks holda o'quvchi
@@ -102,6 +109,60 @@ public class DirectMessage : BaseEntity
         long senderId,
         long? moduleLessonId,
         string? body,
+        DateTimeOffset now) =>
+        Build(
+            studentId, staffId, senderId, moduleLessonId,
+            MessageText.Normalize(body, MaxBodyLength), now);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// BIRIKTIRMALI XABAR (2026-08-17) — MATN IXTIYORIY
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// `GroupChatMessage.CreateWithAttachments` bilan AYNI naqsh va AYNI
+    /// sabab (`MessageText.NormalizeOptional` izohi): bo'sh matnga FAQAT
+    /// shu yo'lda ruxsat beriladi va SHARTSIZ emas —
+    /// <paramref name="attachmentCount"/> kamida 1 bo'lishi kerak.
+    ///
+    /// ⚠️ BIRIKTIRMALARNING O'ZI BU YERDA QO'SHILMAYDI — faqat SONI
+    /// tekshiriladi (sabab o'sha izohda: ombor kaliti fayl R2'ga
+    /// yozilgandan KEYIN ma'lum bo'ladi, Domain esa omborni bilmaydi).
+    /// </summary>
+    public static DirectMessage CreateWithAttachments(
+        long studentId,
+        long staffId,
+        long senderId,
+        long? moduleLessonId,
+        string? body,
+        int attachmentCount,
+        DateTimeOffset now)
+    {
+        if (attachmentCount <= 0)
+            throw new DomainException("Biriktirmasiz xabarda matn bo'lishi shart.");
+
+        if (attachmentCount > DirectMessageAttachment.MaxPerMessage)
+        {
+            throw new DomainException(
+                $"Bitta xabarga ko'pi bilan {DirectMessageAttachment.MaxPerMessage} ta fayl "
+                + "biriktiriladi.");
+        }
+
+        return Build(
+            studentId, staffId, senderId, moduleLessonId,
+            MessageText.NormalizeOptional(body, MaxBodyLength), now);
+    }
+
+    /// <summary>
+    /// Ikkala fabrikaning UMUMIY o'zagi — sabab `GroupChatMessage.Build`
+    /// izohi bilan AYNI: bitta joyda bo'lmasa, tekshiruv ulardan birida
+    /// unutilib qolardi.
+    /// </summary>
+    private static DirectMessage Build(
+        long studentId,
+        long staffId,
+        long senderId,
+        long? moduleLessonId,
+        string body,
         DateTimeOffset now)
     {
         if (studentId == staffId)
@@ -118,7 +179,7 @@ public class DirectMessage : BaseEntity
             StaffId = staffId,
             SenderId = senderId,
             ModuleLessonId = moduleLessonId,
-            Body = MessageText.Normalize(body, MaxBodyLength),
+            Body = body,
             ReadByStudent = sentByStudent,
             ReadByStaff = !sentByStudent,
             SentAt = now,

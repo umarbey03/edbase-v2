@@ -67,6 +67,18 @@ public sealed record NotificationRequest
     /// Bo'sh bo'lsa — birinchi imkoniyatda yuboriladi.
     /// </summary>
     public DateTimeOffset? SendAfter { get; init; }
+
+    /// <summary>
+    /// Inline tugmalar uchun DINAMIK ma'lumot (2026-08-17, ustoz kunlik
+    /// tasdiqlash). <see cref="Telegram.TelegramTemplates.EncodeButtons"/>
+    /// bilan kodlangan — masalan bitta checkin'ning ID'si tugmaning
+    /// <c>callback_data</c>siga kirishi kerak («Ha» va «Yo'q» har checkin
+    /// uchun BOSHQA-BOSHQA tugma). <c>TemplateKey</c> orqali TANLANGAN
+    /// statik tugma turlaridan (<see cref="Telegram.TelegramMarkup.RequestContact"/>
+    /// kabi) farqli — bu maydon FAQAT <see cref="Telegram.TelegramMarkup.InlineButtons"/>
+    /// bilan ishlaydi.
+    /// </summary>
+    public string? CallbackData { get; init; }
 }
 
 /// <summary>
@@ -83,7 +95,8 @@ public sealed record OutboxMessage(
     string? RecipientAddress,
     string TemplateKey,
     string Body,
-    int AttemptCount);
+    int AttemptCount,
+    string? CallbackData = null);
 
 /// <summary>
 /// Yuborish natijasi.

@@ -11,17 +11,8 @@ export {
   verifyPhoneCode,
 } from './api/auth-api'
 export { dropAvatar, useAvatar } from './model/useAvatar'
-export {
-  avatarPath,
-  cancelPhoneChange,
-  confirmPhoneChange,
-  fetchAvatarBlob,
-  fetchPhoneChange,
-  removeAvatar,
-  requestPhoneChange,
-  updateProfileName,
-  uploadAvatar,
-} from './api/profile-api'
+export { avatarPath, fetchAvatarBlob, removeAvatar, uploadAvatar } from './api/profile-api'
+export { fetchClassroom } from './api/classroom-api'
 export {
   createStudentNote,
   deleteStudentNote,

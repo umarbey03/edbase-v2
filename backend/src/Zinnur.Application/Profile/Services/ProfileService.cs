@@ -1,8 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Zinnur.Application.Auth.Dtos;
-using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Courses.Services;
@@ -21,18 +19,12 @@ namespace Zinnur.Application.Profile.Services;
 public sealed class ProfileService(
     IApplicationDbContext db,
     IMediaStorage storage,
-    IPhoneChangeStore changes,
-    IPhoneLoginCodeStore codes,
     ISettingsResolver settings,
-    IRuntimeSettings runtimeSettings,
     TimeProvider clock,
     ILogger<ProfileService> logger) : IProfileService
 {
     /// <summary>Ombordagi mantiqiy papka — kalit prefiksi shundan yasaladi.</summary>
     private const string StorageFolder = "avatars";
-
-    /// <summary>`UserService.MaxFullNameLength` bilan AYNI (ustun 200 belgi).</summary>
-    private const int MaxFullNameLength = 200;
 
     /// <summary>
     /// Avatar uchun FAQAT rasm.
@@ -42,28 +34,6 @@ public sealed class ProfileService(
     /// qilish ekranda buzilgan element bilan tugardi.
     /// </summary>
     private const MediaCategories AllowedCategories = MediaCategories.Image;
-
-    /* ------------------------------------------------------------------ ism */
-
-    /// <inheritdoc />
-    public async Task<UserDto> UpdateNameAsync(
-        long userId, UpdateProfileRequest request, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var fullName = RequireFullName(request.FullName);
-
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
-            .ConfigureAwait(false)
-            ?? throw new NotFoundException(nameof(User), userId);
-
-        user.FullName = fullName;
-        user.UpdatedAt = clock.GetUtcNow();
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-        return Map(user);
-    }
 
     /* ----------------------------------------------------------------- rasm */
 
@@ -187,195 +157,7 @@ public sealed class ProfileService(
             Range: null);
     }
 
-    /* -------------------------------------------------------------- telefon */
-
-    /// <inheritdoc />
-    public async Task<PhoneChangeStatusDto> RequestPhoneChangeAsync(
-        long userId, ChangePhoneRequest request, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        // ★ NORMALIZATSIYA MAVJUD QOIDA BILAN — `User.NormalizePhone`.
-        //   Ikkinchi nusxa yozilsa, bot topgan raqam bilan bu yerda
-        //   saqlangan raqam bir kun mos kelmay qolardi.
-        var normalized = User.NormalizePhone(request.Phone)
-            ?? throw Invalid("Telefon raqami noto'g'ri.");
-
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct)
-            .ConfigureAwait(false)
-            ?? throw new NotFoundException(nameof(User), userId);
-
-        if (user.PhoneNormalized == normalized)
-            throw new ConflictException("Bu raqam allaqachon sizning profilingizda.");
-
-        // 🔴 BAND RAQAM — DARHOL RAD ETILADI. Aks holda foydalanuvchi
-        //    butun oqimni (bot, kod) bosib o'tib, faqat OXIRIDA unikal
-        //    indeks xatosiga urilardi.
-        var taken = await db.Users.AsNoTracking()
-            .AnyAsync(u => u.PhoneNormalized == normalized && u.Id != userId, ct)
-            .ConfigureAwait(false);
-
-        if (taken)
-        {
-            // ⚠️ BU YERDA "HISOB SANASH" XAVFI YO'Q, `PhoneLoginService`
-            //    dan farqli o'laroq: chaqiruvchi allaqachon TIZIMDA va
-            //    uning kimligi ma'lum. Aniq xabar bermasak, foydalanuvchi
-            //    nima uchun kod kelmayotganini hech qachon bilmasdi.
-            throw new ConflictException(
-                "Bu raqam boshqa profilga biriktirilgan. O'quv bo'limi bilan bog'laning.");
-        }
-
-        var pending = new PendingPhoneChange(userId, normalized);
-
-        // Eski niyat (boshqa raqam uchun) BEKOR QILINADI: bir vaqtda
-        // ikkita kutayotgan almashtirish bo'lsa, bot qaysi biriga kod
-        // yuborishini bilmasdi.
-        var previous = await changes.FindByUserAsync(userId, ct).ConfigureAwait(false);
-
-        if (previous is not null && previous.PhoneNormalized != normalized)
-            await changes.RemoveAsync(previous, ct).ConfigureAwait(false);
-
-        await changes.SaveAsync(pending, ct).ConfigureAwait(false);
-
-        ProfileLog.PhoneChangeRequested(logger, userId);
-
-        return Status(pending);
-    }
-
-    /// <inheritdoc />
-    public async Task<PhoneChangeStatusDto?> GetPhoneChangeAsync(
-        long userId, CancellationToken ct = default)
-    {
-        var pending = await changes.FindByUserAsync(userId, ct).ConfigureAwait(false);
-
-        return pending is null ? null : Status(pending);
-    }
-
-    /// <inheritdoc />
-    public async Task CancelPhoneChangeAsync(long userId, CancellationToken ct = default)
-    {
-        var pending = await changes.FindByUserAsync(userId, ct).ConfigureAwait(false);
-
-        if (pending is null) return;
-
-        await changes.RemoveAsync(pending, ct).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<UserDto> ConfirmPhoneChangeAsync(
-        long userId, ConfirmPhoneRequest request, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var pending = await changes.FindByUserAsync(userId, ct).ConfigureAwait(false)
-            ?? throw new ConflictException(
-                "Telefon almashtirish so'rovi topilmadi yoki muddati o'tgan. Qaytadan boshlang.");
-
-        if (pending.TelegramId is not { } telegramId)
-        {
-            throw new ConflictException(
-                "Avval yangi raqamdan botga «Raqamni ulashish» tugmasini bosing — "
-                + "kod o'sha Telegram hisobiga yuboriladi.");
-        }
-
-        // ★ KOD `IPhoneLoginCodeStore` DA — YANGI raqam bo'yicha
-        //   kalitlangan (uni bot ham shu yo'l bilan saqlagan). Ikkinchi
-        //   kod mexanizmi yozilmadi: urinishlar chegarasi, TTL va
-        //   hash'lash allaqachon o'sha yerda va sinovdan o'tgan.
-        var check = await codes
-            .ConsumeAsync(pending.PhoneNormalized, request.Code ?? string.Empty, ct)
-            .ConfigureAwait(false);
-
-        if (check == PhoneCodeCheck.TooManyAttempts)
-        {
-            throw new TooManyRequestsException(
-                "Juda ko'p noto'g'ri urinish. Yangi kod so'rang.",
-                (int)PhoneLoginCodeStore.CodeTtl.TotalSeconds);
-        }
-
-        if (check != PhoneCodeCheck.Ok)
-            throw new UnauthorizedException("Kod noto'g'ri yoki muddati o'tgan.");
-
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
-            .ConfigureAwait(false)
-            ?? throw new NotFoundException(nameof(User), userId);
-
-        // ══════════════════════════════════════════════════════════════
-        // QAYTA TEKSHIRUV — KOD BERILGANDAN KEYINGI 5 DAQIQADA HOLAT
-        // O'ZGARGAN BO'LISHI MUMKIN.
-        //
-        // `PhoneLoginService.VerifyAsync` dagi AYNI qoida: kod to'g'ri
-        // bo'lgani "amal hali ham mumkin" degani emas. Shu oraliqda
-        // o'quv bo'limi o'sha raqamni boshqa profilga bergan bo'lishi
-        // mumkin.
-        // ══════════════════════════════════════════════════════════════
-        var taken = await db.Users.AsNoTracking()
-            .AnyAsync(u => u.PhoneNormalized == pending.PhoneNormalized && u.Id != userId, ct)
-            .ConfigureAwait(false);
-
-        if (taken)
-        {
-            await changes.RemoveAsync(pending, ct).ConfigureAwait(false);
-
-            throw new ConflictException(
-                "Bu raqam endi boshqa profilga biriktirilgan. O'quv bo'limi bilan bog'laning.");
-        }
-
-        // 🔴 TELEGRAM HISOBI HAM BAND BO'LISHI MUMKIN: foydalanuvchi
-        //    kodni kutayotgan paytda o'sha hisob boshqa profilga
-        //    bog'langan bo'lsa, unikal indeks (`IX_Users_TelegramId`)
-        //    `SaveChanges` da yiqilardi — va foydalanuvchi "nimadir xato
-        //    ketdi" degan tushunarsiz xabar olardi.
-        var telegramTaken = await db.Users.AsNoTracking()
-            .AnyAsync(u => u.TelegramId == telegramId && u.Id != userId, ct)
-            .ConfigureAwait(false);
-
-        if (telegramTaken)
-        {
-            await changes.RemoveAsync(pending, ct).ConfigureAwait(false);
-
-            throw new ConflictException(
-                "Bu Telegram hisobi boshqa profilga bog'langan.");
-        }
-
-        var now = clock.GetUtcNow();
-
-        user.SetPhone(pending.PhoneNormalized);
-
-        // ★ PROFIL YANGI TELEGRAM HISOBIGA KO'CHADI — sabab
-        //   `PendingPhoneChange.TelegramId` izohida: kirish kodi HAR
-        //   DOIM `User.TelegramId` ga ketadi, ya'ni bog'lanish eski
-        //   hisobda qolsa foydalanuvchi yangi raqami bilan kira olmasdi.
-        user.LinkTelegram(telegramId, pending.TelegramUsername, now);
-
-        user.UpdatedAt = now;
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        await changes.RemoveAsync(pending, ct).ConfigureAwait(false);
-
-        ProfileLog.PhoneChanged(logger, userId);
-
-        return Map(user);
-    }
-
     // ================================================================ ichki
-
-    private PhoneChangeStatusDto Status(PendingPhoneChange pending) =>
-        new(pending.PhoneNormalized,
-            pending.CodeSent,
-            BotUsername(),
-            (int)IPhoneChangeStore.Ttl.TotalSeconds);
-
-    /// <summary>
-    /// Bot <c>@username</c> i — sozlamalardan (`telegram.bot_username`).
-    /// Bo'sh bo'lsa <c>null</c>: ekran havolasiz ko'rsatma beradi.
-    /// </summary>
-    private string? BotUsername()
-    {
-        var value = runtimeSettings.Current.Value(SettingsRegistry.Keys.TelegramBotUsername)?.Trim();
-
-        return string.IsNullOrEmpty(value) ? null : value.TrimStart('@');
-    }
 
     /// <summary>
     /// Rasm hajmi chegarasi — `lesson.image_max_mb` sozlamasidan.
@@ -447,27 +229,8 @@ public sealed class ProfileService(
         }
     }
 
-    private static string RequireFullName(string? fullName)
-    {
-        var value = fullName?.Trim();
-
-        if (string.IsNullOrEmpty(value))
-            throw Invalid("F.I.Sh. kiritilishi shart.");
-
-        return value.Length > MaxFullNameLength
-            ? throw Invalid("F.I.Sh. juda uzun.")
-            : value;
-    }
-
     private static ValidationException Invalid(string message) =>
         new(new Dictionary<string, string[]> { ["profile"] = [message] });
-
-    // `Phone` — XOM ustun (`PhoneNormalized` emas): `AuthService.Map`
-    // bilan AYNI kelishuv.
-    private static UserDto Map(User u) =>
-        new(u.Id, u.FullName, u.Email, u.Phone, u.Role.ToString(),
-            // Rasm YO'Q bo'lsa tamg'a ham `null` — sabab `AuthService.AvatarStamp` da.
-            u.AvatarKey is null ? null : u.AvatarUpdatedAt);
 }
 
 /// <summary>
@@ -475,17 +238,15 @@ public sealed class ProfileService(
 ///
 /// 🔴 TELEFON RAQAMI VA KOD LOGGA YOZILMAYDI — `PhoneLoginLog` dagi AYNI
 /// qoida. Profil <c>Id</c> si qo'llab-quvvatlash uchun yetarli.
+///
+/// ⚠️ `PhoneChangeRequested` (6101) va `PhoneChanged` (6102) OLIB
+/// TASHLANDI (2026-08-17) — ism/telefonni o'zi tahrirlash imkoniyati
+/// bilan birga (sabab `IProfileService` izohida). EventId'lar QAYTA
+/// ISHLATILMAYDI — sabab `TelegramUpdateHandler` dagi 6205 izohi bilan
+/// AYNI.
 /// </summary>
 internal static partial class ProfileLog
 {
-    [LoggerMessage(EventId = 6101, Level = LogLevel.Information,
-        Message = "Profil {UserId}: telefon almashtirish so'raldi.")]
-    public static partial void PhoneChangeRequested(ILogger logger, long userId);
-
-    [LoggerMessage(EventId = 6102, Level = LogLevel.Information,
-        Message = "Profil {UserId}: telefon almashtirildi.")]
-    public static partial void PhoneChanged(ILogger logger, long userId);
-
     [LoggerMessage(EventId = 6103, Level = LogLevel.Warning,
         Message = "Eski avatar ombordan o'chirilmadi: {ObjectKey}. Yetim obyekt qoldi.")]
     public static partial void OrphanedAvatar(ILogger logger, Exception ex, string objectKey);

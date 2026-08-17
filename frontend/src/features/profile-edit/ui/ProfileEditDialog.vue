@@ -1,65 +1,33 @@
 <script setup lang="ts">
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
-import {
-  cancelPhoneChange,
-  confirmPhoneChange,
-  dropAvatar,
-  fetchPhoneChange,
-  removeAvatar,
-  requestPhoneChange,
-  updateProfileName,
-  uploadAvatar,
-  useAvatar,
-} from '@/entities/user'
+import { dropAvatar, removeAvatar, uploadAvatar, useAvatar } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
-import {
-  formatPhone,
-  maskPhoneField,
-  PHONE_INPUT_MAXLENGTH,
-  phoneDigits,
-  stripPhoneFormatting,
-} from '@/shared/lib/phone'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import { showToast } from '@/shared/lib/useToast'
-import { AppIcon, BaseButton, BaseField, BaseModal, BaseSpinner } from '@/shared/ui'
+import { AppIcon, BaseButton, BaseModal, BaseSpinner } from '@/shared/ui'
 
 /**
  * ============================================================================
- *  PROFILNI TAHRIRLASH (2026-08-15, loyiha egasining talabi)
+ *  PROFILNI TAHRIRLASH — FAQAT RASM (2026-08-15, 2026-08-17 da qisqartirildi)
  * ============================================================================
  *
- * *"Profil oynasida tahrirlash tugmasi ham bo'lsin, bunda yangi modal
- * window ochilsin va bunda user(har qanday userlar) o'z profiliga rasm
- * joylash imkoniyati bo'lsin, ismini o'zgartirishi mumkin bo'lsin,
- * nomerini alishtirish imkoniyati ham bo'lsin — lekin bunda ham
- * registerdagi kabi telegram orqali tasdiqlash majburiy bo'lishi shart."*
+ * ⚠️ ISM VA TELEFONNI O'ZI TAHRIRLASH OLIB TASHLANDI (2026-08-17, loyiha
+ * egasining qarori): *"foydalanuvchi o'z ism familyasi va nomerini edit
+ * qilish imkoniga ega bo'lmasligi kerak"* — BARCHA rol uchun (xodim ham).
+ * Bu ikkala maydonni endi FAQAT o'quv bo'limi/admin "Foydalanuvchilar"
+ * panelidan (`UserFormDialog`) o'zgartira oladi.
  *
- * ── UCHTA MAYDON — UCHTA HAR XIL SAQLASH YO'LI ─────────────────────────────
+ * Shu bilan birga telefon ALMASHTIRISH oqimi ham (Telegram tasdig'i bilan)
+ * butunlay olib tashlandi — sabab va tafsilot serverdagi
+ * `TelegramUpdateHandler.HandleContactAsync` izohida.
  *
- * 🔴 BU OYNADA YAGONA "SAQLASH" TUGMASI YO'Q va bu ATAYLAB:
- *
- *   • RASM    — tanlangan zahoti yuklanadi (fayl tanlash oynasi
- *               foydalanuvchi uchun allaqachon "tasdiq");
- *   • ISM     — "Saqlash" tugmasi bilan (matn maydoni, xatosi arzon);
- *   • TELEFON — IKKI BOSQICHLI oqim, Telegram tasdig'i bilan.
- *
- * Ularni bitta tugma ostiga yig'ish IMKONSIZ edi: telefon oqimi ilovadan
- * CHIQIB Telegramga o'tishni talab qiladi, ya'ni "saqlash" bosilgan
- * paytda u hali tugamagan bo'ladi. Bitta tugma bo'lsa, ism saqlanib,
- * telefon esa jimgina saqlanmay qolardi.
- *
- * ── TELEFON OQIMI (uch holat) ──────────────────────────────────────────────
- *
- *   1) `pending === null`        — raqam kiritish maydoni;
- *   2) `pending.codeSent === false` — "botga raqamni ulashing" ko'rsatmasi
- *      (ilova bu paytda holatni QISQA oraliqlarda so'rab turadi —
- *      foydalanuvchi Telegramda tugmani bosganini boshqa yo'l bilan
- *      bilib bo'lmaydi);
- *   3) `pending.codeSent === true`  — kod kiritish maydoni.
+ * ★ RASM QOLDI: u kirish yoki huquqlarga ta'sir qilmaydigan, arzon
+ * xato bilan tuzatiladigan yagona maydon — shuning uchun o'zini o'zi
+ * boshqarish xavfsiz.
  */
 const props = defineProps<{
   open: boolean
@@ -68,7 +36,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
-const queryClient = useQueryClient()
 const confirm = useConfirm()
 const auth = useAuthStore()
 
@@ -84,11 +51,6 @@ const auth = useAuthStore()
  * ya'ni yuklash muvaffaqiyatli tugagan bo'lsa ham ekranda ESKI rasm
  * (yoki ism harfi) qolaverardi.
  *
- * ★ AYNI XATO ISMDA HAM BOR EDI, faqat ko'zga kamroq tashlanardi:
- *   `nameDirty` yangi qiymatni ESKI `props.user.fullName` bilan
- *   solishtirardi, ya'ni saqlangandan keyin ham "Ismni saqlash" tugmasi
- *   FAOL qolaverardi.
- *
  * Endi har muvaffaqiyatli amaldan keyin `reloadProfile()` chaqiriladi:
  * bitta qo'shimcha `GET /auth/me` — evaziga sarlavhadagi va yon
  * menyudagi avatar ham SHU ZAHOTI yangilanadi (ular ham AYNI
@@ -102,13 +64,6 @@ const avatarUrl = useAvatar(userId, avatarVersion)
 const shownAvatar = computed(() => preview.value ?? avatarUrl.value)
 
 const initial = computed(() => (props.user?.fullName?.trim()[0] ?? '?').toUpperCase())
-
-/* --------------------------------- ism ---------------------------------- */
-
-const fullName = ref('')
-const nameError = ref<string | null>(null)
-
-/* -------------------------------- rasm ---------------------------------- */
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarError = ref<string | null>(null)
@@ -133,12 +88,6 @@ function clearPreview(): void {
   preview.value = null
 }
 
-/* ------------------------------- telefon -------------------------------- */
-
-const newPhone = ref('')
-const code = ref('')
-const phoneError = ref<string | null>(null)
-
 /**
  * MAHALLIY KO'RINISHDAN HAQIQIY RASMGA O'TISH.
  *
@@ -161,52 +110,20 @@ onScopeDispose(clearPreview)
 /**
  * Oyna ochilganda TOZA holatga qaytadi.
  *
- * ★ Ayniqsa XATO SATRLARI: ular tozalanmasa, foydalanuvchi oynani yopib
- * qayta ochganda o'tgan safargi qizil xabar yana ko'rinardi va u
- * hozirgi holatga umuman aloqador bo'lmasdi.
+ * ★ Ayniqsa XATO SATRI: tozalanmasa, foydalanuvchi oynani yopib qayta
+ * ochganda o'tgan safargi qizil xabar yana ko'rinardi va u hozirgi
+ * holatga umuman aloqador bo'lmasdi.
  */
 watch(
   () => [props.open, props.user] as const,
   ([isOpen]) => {
     if (!isOpen) return
 
-    fullName.value = props.user?.fullName ?? ''
-    newPhone.value = ''
-    code.value = ''
-    nameError.value = null
     avatarError.value = null
-    phoneError.value = null
     clearPreview()
   },
   { immediate: true },
 )
-
-/* ============================== ism: saqlash ============================= */
-
-const nameMutation = useMutation({
-  mutationFn: () => updateProfileName(fullName.value.trim()),
-  onSuccess: async () => {
-    nameError.value = null
-    await auth.reloadProfile()
-    showToast('Ism saqlandi')
-  },
-  onError: (error: Error) => {
-    nameError.value = toUserMessage(error)
-    showToast('Ism saqlanmadi', 'error')
-  },
-})
-
-const nameDirty = computed(
-  () => fullName.value.trim().length > 0 && fullName.value.trim() !== (props.user?.fullName ?? ''),
-)
-
-function saveName(): void {
-  if (!nameDirty.value || nameMutation.isPending.value) return
-  nameError.value = null
-  nameMutation.mutate()
-}
-
-/* ============================= rasm: yuklash ============================= */
 
 const avatarMutation = useMutation({
   mutationFn: (file: File) => uploadAvatar(file),
@@ -283,114 +200,12 @@ async function handleRemoveAvatar(): Promise<void> {
 
   removeMutation.mutate()
 }
-
-/* =========================== telefon: 1-bosqich ========================== */
-
-/**
- * Kutayotgan almashtirish.
- *
- * ★ `refetchInterval` — FAQAT bot javobini kutayotganda (3 soniya).
- * Foydalanuvchi Telegramda tugmani bosganini ilova boshqa yo'l bilan
- * BILA OLMAYDI: hub kanali bu hodisani tarqatmaydi va uni qo'shish
- * butun realtime infratuzilmasiga bitta ekran uchun yangi hodisa turi
- * qo'shish degani bo'lardi.
- *
- * Kod kelgach (`codeSent === true`) so'rov TO'XTAYDI — kutadigan narsa
- * qolmadi.
- */
-const pendingQuery = useQuery({
-  queryKey: ['profile', 'phone-change'],
-  queryFn: ({ signal }) => fetchPhoneChange({ signal }),
-  enabled: computed(() => props.open),
-  refetchInterval: (query) => (query.state.data?.codeSent === false ? 3000 : false),
-})
-
-const pending = computed(() => pendingQuery.data.value ?? null)
-
-const requestMutation = useMutation({
-  mutationFn: () => requestPhoneChange(stripPhoneFormatting(newPhone.value)),
-  onSuccess: (status) => {
-    phoneError.value = null
-    queryClient.setQueryData(['profile', 'phone-change'], status)
-    showToast('Endi botga yangi raqamdan «Raqamni ulashish» yuboring', 'info')
-  },
-  onError: (error: Error) => {
-    phoneError.value = toUserMessage(error)
-  },
-})
-
-const confirmMutation = useMutation({
-  mutationFn: () => confirmPhoneChange(code.value.trim()),
-  onSuccess: async () => {
-    phoneError.value = null
-    code.value = ''
-    newPhone.value = ''
-    queryClient.setQueryData(['profile', 'phone-change'], null)
-    await auth.reloadProfile()
-    showToast('Telefon raqami almashtirildi')
-  },
-  onError: (error: Error) => {
-    phoneError.value = toUserMessage(error)
-  },
-})
-
-const cancelMutation = useMutation({
-  mutationFn: () => cancelPhoneChange(),
-  onSuccess: () => {
-    phoneError.value = null
-    code.value = ''
-    queryClient.setQueryData(['profile', 'phone-change'], null)
-  },
-  onError: (error: Error) => {
-    phoneError.value = toUserMessage(error)
-  },
-})
-
-/** Kamida 7 raqam — `LoginPage` dagi AYNI yumshoq filtr (chet el raqami uchun). */
-const canRequest = computed(
-  () => phoneDigits(newPhone.value).length >= 7 && !requestMutation.isPending.value,
-)
-
-const canConfirm = computed(
-  () => /^\d{6}$/u.test(code.value.trim()) && !confirmMutation.isPending.value,
-)
-
-function submitPhone(): void {
-  if (!canRequest.value) return
-  phoneError.value = null
-  requestMutation.mutate()
-}
-
-function submitCode(): void {
-  if (!canConfirm.value) return
-  phoneError.value = null
-  confirmMutation.mutate()
-}
-
-async function handleCancelPhone(): Promise<void> {
-  const ok = await confirm({
-    title: 'Almashtirishni bekor qilish',
-    message: 'Telefon raqamini almashtirish so‘rovi bekor qilinadi.',
-    confirmLabel: 'Bekor qilish',
-    cancelLabel: 'Davom etish',
-    tone: 'warning',
-  })
-  if (!ok) return
-
-  cancelMutation.mutate()
-}
-
-/** Botga o'tish havolasi (`t.me/...`). Bot nomi sozlanmagan bo'lsa `null`. */
-const botLink = computed(() => {
-  const name = pending.value?.botUsername ?? null
-  return name === null ? null : `https://t.me/${name}`
-})
 </script>
 
 <template>
   <BaseModal
     :open="props.open"
-    title="Profilni tahrirlash"
+    title="Profil rasmi"
     sheet
     @close="emit('close')"
   >
@@ -479,175 +294,20 @@ const botLink = computed(() => {
         />
       </section>
 
-      <!-- ============================================ ISM -->
-      <section>
-        <BaseField label="To‘liq ism">
-          <input
-            v-model="fullName"
-            class="zn-input"
-            autocomplete="name"
-            maxlength="200"
-            @keydown.enter.prevent="saveName"
-          >
-        </BaseField>
-
+      <!--
+        ★ ISM VA TELEFON ENDI O'QISH-UCHUN-GINA (edit imkoni yo'q) —
+        foydalanuvchi bu ma'lumotlar qayerdan kelganini va nega
+        o'zgartirib bo'lmasligini bilib tursin.
+      -->
+      <section class="rounded-2xl border border-line bg-ink-850 p-3.5 text-center">
         <p
-          v-if="nameError !== null"
-          class="mt-2 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-[12px] leading-relaxed text-rose-400"
-          role="alert"
-          v-text="nameError"
+          class="text-[15px] font-bold text-slate-100"
+          v-text="props.user?.fullName ?? '—'"
         />
-
-        <BaseButton
-          class="mt-2.5"
-          variant="primary"
-          block
-          :disabled="!nameDirty"
-          :loading="nameMutation.isPending.value"
-          @click="saveName"
-        >
-          Ismni saqlash
-        </BaseButton>
-      </section>
-
-      <!-- ============================================ TELEFON -->
-      <section class="rounded-2xl border border-line bg-ink-850 p-3.5">
-        <h3 class="text-[13px] font-bold text-slate-200">
-          Telefon raqami
-        </h3>
-        <p class="mt-1 text-[12px] leading-relaxed text-dim">
-          Joriy raqam:
-          <span
-            class="font-semibold text-slate-300 tabular-nums"
-            v-text="formatPhone(props.user?.phone) || 'kiritilmagan'"
-          />
+        <p class="mt-2 text-[12px] leading-relaxed text-dim">
+          Ism va telefon raqamini faqat <b>o‘quv bo‘limi</b> o‘zgartira oladi.
+          Xato bo‘lsa — o‘quv bo‘limiga murojaat qiling.
         </p>
-
-        <!-- ---- 1-BOSQICH: yangi raqam ---- -->
-        <template v-if="pending === null">
-          <div class="mt-3">
-            <BaseField label="Yangi raqam">
-              <input
-                :value="newPhone"
-                class="zn-input tabular-nums"
-                type="tel"
-                inputmode="tel"
-                autocomplete="tel"
-                :maxlength="PHONE_INPUT_MAXLENGTH"
-                placeholder="+998 90 123 45 67"
-                @input="newPhone = maskPhoneField($event.target as HTMLInputElement)"
-                @keydown.enter.prevent="submitPhone"
-              >
-            </BaseField>
-          </div>
-
-          <BaseButton
-            class="mt-2.5"
-            variant="secondary"
-            block
-            :disabled="!canRequest"
-            :loading="requestMutation.isPending.value"
-            @click="submitPhone"
-          >
-            Raqamni almashtirish
-          </BaseButton>
-        </template>
-
-        <!-- ---- 2-BOSQICH: botga raqamni ulash ---- -->
-        <template v-else-if="!pending.codeSent">
-          <div class="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3">
-            <p class="text-[12px] font-semibold text-amber-400">
-              Telegram tasdig‘i kutilmoqda
-            </p>
-            <p class="mt-1.5 text-[12px] leading-relaxed text-slate-300">
-              <span
-                class="font-semibold tabular-nums"
-                v-text="formatPhone(pending.phone)"
-              />
-              raqamini tasdiqlash uchun <b>o‘sha raqam ulangan Telegram
-                hisobidan</b> botga kiring va «Raqamni ulashish» tugmasini
-              bosing. Kod o‘sha hisobga keladi.
-            </p>
-
-            <a
-              v-if="botLink !== null"
-              :href="botLink"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="tap-target mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-[12px] font-semibold text-on-brand transition-colors hover:bg-brand-600"
-            >
-              <AppIcon
-                name="send"
-                :size="14"
-              />
-              Botni ochish
-            </a>
-
-            <p class="mt-2 flex items-center gap-1.5 text-[11px] text-dim">
-              <BaseSpinner size="sm" />
-              Tugmani bosishingizni kutmoqdamiz…
-            </p>
-          </div>
-
-          <button
-            type="button"
-            class="tap-expand mt-2.5 text-[12px] font-semibold text-slate-400 transition-colors hover:text-rose-400"
-            @click="handleCancelPhone"
-          >
-            So‘rovni bekor qilish
-          </button>
-        </template>
-
-        <!-- ---- 3-BOSQICH: kod ---- -->
-        <template v-else>
-          <div class="mt-3">
-            <BaseField label="Telegramga kelgan kod">
-              <input
-                v-model="code"
-                class="zn-input text-center text-lg font-bold tracking-[6px] tabular-nums"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                maxlength="6"
-                placeholder="000000"
-                @keydown.enter.prevent="submitCode"
-              >
-            </BaseField>
-            <p class="mt-1.5 text-[11px] leading-relaxed text-dim">
-              Kod
-              <span
-                class="font-semibold tabular-nums"
-                v-text="formatPhone(pending.phone)"
-              />
-              raqamiga ulangan Telegram hisobiga yuborildi.
-            </p>
-          </div>
-
-          <BaseButton
-            class="mt-2.5"
-            variant="primary"
-            block
-            :disabled="!canConfirm"
-            :loading="confirmMutation.isPending.value"
-            @click="submitCode"
-          >
-            Tasdiqlash va almashtirish
-          </BaseButton>
-
-          <button
-            type="button"
-            class="tap-expand mt-2.5 text-[12px] font-semibold text-slate-400 transition-colors hover:text-rose-400"
-            @click="handleCancelPhone"
-          >
-            So‘rovni bekor qilish
-          </button>
-        </template>
-
-        <p
-          v-if="phoneError !== null"
-          class="mt-2.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-[12px] leading-relaxed text-rose-400"
-          role="alert"
-          v-text="phoneError"
-        />
       </section>
     </div>
 

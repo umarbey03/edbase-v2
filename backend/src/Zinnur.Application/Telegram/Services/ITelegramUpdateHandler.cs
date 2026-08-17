@@ -79,13 +79,21 @@ public enum TelegramUpdateOutcome
     Failed = 12,
 
     /// <summary>
-    /// TELEFON ALMASHTIRISH uchun kod yuborildi (2026-08-15).
+    /// ⚠️ ESKI NATIJA — 2026-08-17 dan boshlab HECH QACHON qaytmaydi.
     ///
-    /// ★ `Linked` DAN FARQI: profil hali BOG'LANMADI va raqam hali
-    /// ALMASHMADI — bu shunchaki "kod ketdi" degani. Haqiqiy o'zgarish
-    /// foydalanuvchi kodni ILOVAGA kiritganda bo'ladi
-    /// (`IProfileService.ConfirmPhoneChangeAsync`). Ikkalasi bir natija
-    /// bilan belgilansa, "bog'landi" statistikasi yolg'on ko'rsatardi.
+    /// Telefon almashtirishning o'zi (o'z profilini o'zi tahrirlash
+    /// imkoniyati bilan birga) loyiha egasi tomonidan BUTUNLAY bekor
+    /// qilindi — sabab va tafsilot `TelegramUpdateHandler.HandleContactAsync`
+    /// izohida.
+    ///
+    /// ★ RAQAM SAQLANADI, QAYTA ISHLATILMAYDI — sabab <see cref="StaffPhone"/>
+    /// izohi bilan AYNI.
     /// </summary>
     PhoneChangeCodeSent = 13,
+
+    /// <summary>Inline tugma (<c>callback_query</c>) ishlandi (2026-08-17, ustoz kunlik tasdiqlash).</summary>
+    CallbackHandled = 14,
+
+    /// <summary>Erkin matn ustoz kunlik tasdiqlash oqimining bir qismi sifatida qabul qilindi.</summary>
+    AvailabilityTextHandled = 15,
 }

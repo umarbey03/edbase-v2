@@ -3,7 +3,9 @@ using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Media;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings.Services;
+using Zinnur.Application.TeacherAvailability.Services;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Services;
 
@@ -81,6 +83,15 @@ internal static class JobsSetup
                 sp.GetRequiredService<IPaymentService>(),
                 options.MonthlyBilling,
                 sp.GetRequiredService<ILogger<MonthlyBillingJob>>()));
+        }
+
+        if (options.TeacherMorningCheckinEnabled)
+        {
+            services.AddScoped<IScheduledJob>(sp => new TeacherMorningCheckinJob(
+                sp.GetRequiredService<ITeacherAvailabilityService>(),
+                sp.GetRequiredService<IScheduleTimeZoneProvider>(),
+                sp.GetRequiredService<TimeProvider>(),
+                options.TeacherMorningCheckin));
         }
 
         // ================================================================

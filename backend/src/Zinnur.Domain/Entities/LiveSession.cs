@@ -21,8 +21,16 @@ public class LiveSession : BaseEntity
 
     public Group? Group { get; set; }
 
-    /// <summary>Darsni o'tuvchi (ustoz yoki kurator).</summary>
+    /// <summary>Darsni o'tuvchi (ustoz yoki kurator). O'rinbosar tayinlansa — SHU maydon o'zgaradi (oylik ham shunga qarab hisoblanadi).</summary>
     public long? HostId { get; set; }
+
+    /// <summary>
+    /// Asl (rejadagi) ustoz — faqat <see cref="HostId"/> o'rinbosarga
+    /// almashtirilganda to'ldiriladi. Audit/UI belgisi uchun ("bugun
+    /// o'rinbosar o'tayapti") — oylik hisobiga TA'SIR QILMAYDI, u faqat
+    /// <see cref="HostId"/>ga bog'liq (<c>LessonAccrualService</c>).
+    /// </summary>
+    public long? OriginalHostId { get; set; }
 
     public string? Title { get; set; }
 
@@ -214,6 +222,22 @@ public class LiveSession : BaseEntity
 
     /// <summary>Muddati o'tganmi (fon vazifasi avto-yakunlash uchun).</summary>
     public bool IsOverdue(DateTimeOffset now) => EndsAt is { } end && now >= end;
+
+    /// <summary>
+    /// O'rinbosar ustozni tayinlaydi (<c>ISubstituteOfferService.RespondAsync</c>
+    /// dan chaqiriladi, taklif qabul qilinganda). Faqat hali BOSHLANMAGAN
+    /// darsda mumkin — jonli/yakunlangan darsda host allaqachon amalda
+    /// ishtirok etgan, uni orqaga qaytarish tarixni buzardi.
+    /// </summary>
+    public void AssignSubstitute(long substituteTeacherId, DateTimeOffset now)
+    {
+        if (Status != SessionStatus.Scheduled)
+            throw new DomainException("Faqat hali boshlanmagan darsga o'rinbosar tayinlash mumkin.");
+
+        OriginalHostId ??= HostId;
+        HostId = substituteTeacherId;
+        UpdatedAt = now;
+    }
 
     /// <summary>
     /// Darsni bekor qiladi (bayram yoki qo'lda, faqat Academic/Admin —

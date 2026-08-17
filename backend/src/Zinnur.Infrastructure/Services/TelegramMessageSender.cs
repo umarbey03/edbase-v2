@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -127,7 +127,8 @@ public sealed class TelegramMessageSender(
         }
 
         var payload = BuildPayload(
-            chatId, message.Body, TelegramTemplates.MarkupFor(message.TemplateKey), settings);
+            chatId, message.Body, TelegramTemplates.MarkupFor(message.TemplateKey),
+            message.CallbackData, settings);
 
         using var content = new ByteArrayContent(payload);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
@@ -208,7 +209,7 @@ public sealed class TelegramMessageSender(
     /// esa faqat xabar TURINI biladi (izoh: <c>TelegramTemplates</c>).
     /// </summary>
     private static byte[] BuildPayload(
-        long chatId, string text, TelegramMarkup markup, TelegramOptions settings)
+        long chatId, string text, TelegramMarkup markup, string? callbackData, TelegramOptions settings)
     {
         var buffer = new ArrayBufferWriter<byte>(text.Length + PayloadOverhead);
 
@@ -228,7 +229,7 @@ public sealed class TelegramMessageSender(
             // yangi `link_preview_options` esa faqat yangi serverda.
             writer.WriteBoolean("disable_web_page_preview", true);
 
-            WriteMarkup(writer, markup, settings);
+            WriteMarkup(writer, markup, callbackData, settings);
 
             writer.WriteEndObject();
         }
@@ -237,7 +238,7 @@ public sealed class TelegramMessageSender(
     }
 
     private static void WriteMarkup(
-        Utf8JsonWriter writer, TelegramMarkup markup, TelegramOptions settings)
+        Utf8JsonWriter writer, TelegramMarkup markup, string? callbackData, TelegramOptions settings)
     {
         switch (markup)
         {
@@ -285,16 +286,69 @@ public sealed class TelegramMessageSender(
                 writer.WriteEndObject();
                 break;
 
+            // ★ USTOZ KUNLIK TASDIQLASH (2026-08-17) — sabab
+            // `TelegramTemplates.EncodeButtons` izohida: qatorlar/tugmalar
+            // ayni `CallbackData` ichida kodlangan, chunki har checkin/offer
+            // uchun `callback_data` BOSHQA-BOSHQA (dinamik). `CallbackData`
+            // bo'sh bo'lsa — tugmasiz yuboriladi (matn baribir yetib borsin).
+            case TelegramMarkup.InlineButtons when !string.IsNullOrWhiteSpace(callbackData):
+                WriteInlineButtons(writer, callbackData);
+                break;
+
             // `OpenApp` bo'lsa-yu manzil sozlanmagan bo'lsa — tugmasiz
             // yuboriladi. MATN baribir yetib borishi kerak: `web_app` uchun
             // `https` shart va `http` bo'lsa Telegram BUTUN xabarni 400
             // bilan rad etardi.
             case TelegramMarkup.None:
             case TelegramMarkup.OpenApp:
+            case TelegramMarkup.InlineButtons:
             default:
                 break;
         }
     }
+
+    /// <summary>
+    /// <see cref="TelegramTemplates.EncodeButtons"/> bilan kodlangan
+    /// matnni <c>inline_keyboard</c> ga aylantiradi (kodlash formati o'sha
+    /// metod izohida).
+    /// </summary>
+    private static void WriteInlineButtons(Utf8JsonWriter writer, string encoded)
+    {
+        writer.WriteStartObject("reply_markup");
+        writer.WriteStartArray("inline_keyboard");
+
+        foreach (var row in encoded.Split(RowSeparator))
+        {
+            if (row.Length == 0) continue;
+
+            writer.WriteStartArray();
+
+            foreach (var button in row.Split(ButtonSeparator))
+            {
+                var parts = button.Split(LabelDataSeparator, 2);
+                if (parts.Length != 2) continue;
+
+                writer.WriteStartObject();
+                writer.WriteString("text", parts[0]);
+                writer.WriteString("callback_data", parts[1]);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
+    /// <summary>Qatorlar orasidagi ajratgich (<see cref="TelegramTemplates.EncodeButtons"/> bilan bir xil).</summary>
+    private const char RowSeparator = '\n';
+
+    /// <summary>Bitta qatordagi tugmalar orasidagi ajratgich.</summary>
+    private const char ButtonSeparator = '\t';
+
+    /// <summary>Tugma matni va <c>callback_data</c>si orasidagi ajratgich (ASCII Unit Separator, 0x1F).</summary>
+    private const char LabelDataSeparator = '\u001F';
 
     private static Uri BuildUri(TelegramOptions settings) =>
         new($"{settings.ApiBaseUrl.TrimEnd('/')}/bot{settings.BotToken}/sendMessage");

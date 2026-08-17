@@ -49,6 +49,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
 
+    public DbSet<DirectMessageAttachment> DirectMessageAttachments => Set<DirectMessageAttachment>();
+
     // ---------------------------------------------------------------- FAZA 6: guruh chati
 
     public DbSet<GroupChatMessage> GroupChatMessages => Set<GroupChatMessage>();
@@ -218,6 +220,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// holatining o'zgarishi bilan BITTA tranzaksiyada saqlanadi.
     /// </summary>
     public DbSet<RecordingWebhookEvent> RecordingWebhookEvents => Set<RecordingWebhookEvent>();
+
+    // ---------------------------------------------------------------- 2026-08-17: ustoz kunlik tasdiqlash + o'rinbosar
+
+    public DbSet<TeacherDailyCheckin> TeacherDailyCheckins => Set<TeacherDailyCheckin>();
+
+    public DbSet<TeacherCheckinAffectedSession> TeacherCheckinAffectedSessions => Set<TeacherCheckinAffectedSession>();
+
+    public DbSet<SessionCoverageRequest> SessionCoverageRequests => Set<SessionCoverageRequest>();
+
+    public DbSet<SubstituteOffer> SubstituteOffers => Set<SubstituteOffer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

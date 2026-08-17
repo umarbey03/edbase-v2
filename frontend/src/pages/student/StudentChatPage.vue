@@ -16,6 +16,11 @@ import {
 } from '@/entities/direct-message'
 import { threadKey } from '@/entities/group-chat'
 import {
+  DirectAttachment,
+  DM_ATTACHMENT_MAX_FILES,
+  sendDirectMessageAttachments,
+} from '@/features/direct-message'
+import {
   ChatDaySeparator,
   ChatNotice,
   GroupChatRoom,
@@ -24,8 +29,9 @@ import {
 import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
+import { formatFileSize } from '@/shared/lib/text'
 import type { ConversationDto, GroupChatThreadDto } from '@/shared/types'
-import { AppIcon, BaseAvatar, DataStatus, EmptyState } from '@/shared/ui'
+import { AppIcon, BaseAvatar, DataStatus, EmptyState, ImageLightbox } from '@/shared/ui'
 
 /**
  * ============================================================================
@@ -256,12 +262,85 @@ const sendMutation = useMutation({
   },
 })
 
+/* ------------------------------ biriktirmalar (2026-08-17) ------------------------------ */
+
+/**
+ * ★ Xuddi `GroupChatRoom` dagi kabi: fayllar SERVERGA FAQAT "yuborish"
+ * bosilganda ketadi — tanlanganda emas (sabab `send-direct-message-attachments.ts`
+ * izohida: xabar va biriktirma bitta tranzaksiyada, yetim obyekt bo'lmasin).
+ */
+const pendingFiles = ref<File[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
+const attachmentError = ref<string | null>(null)
+const uploadPercent = ref<number | null>(null)
+const zoomUrl = ref<string | null>(null)
+
+function pickFiles(): void {
+  fileInput.value?.click()
+}
+
+function onFilesChosen(event: Event): void {
+  const target = event.target as HTMLInputElement
+  const chosen = Array.from(target.files ?? [])
+
+  // Bir xil faylni ikki marta tanlash uchun — `GroupChatRoom` dagi AYNI naqsh.
+  target.value = ''
+
+  if (chosen.length === 0) return
+
+  const room = pendingFiles.value.length + chosen.length
+  if (room > DM_ATTACHMENT_MAX_FILES) {
+    attachmentError.value = `Bitta xabarga ko‘pi bilan ${DM_ATTACHMENT_MAX_FILES} ta fayl.`
+    return
+  }
+
+  attachmentError.value = null
+  pendingFiles.value = [...pendingFiles.value, ...chosen]
+}
+
+function removeFile(index: number): void {
+  pendingFiles.value = pendingFiles.value.filter((_, position) => position !== index)
+  attachmentError.value = null
+}
+
+const hasFiles = computed(() => pendingFiles.value.length > 0)
+
+const attachMutation = useMutation({
+  mutationFn: (input: { peerId: number; files: File[]; body: string; moduleLessonId: number | null }) =>
+    sendDirectMessageAttachments({
+      peerId: input.peerId,
+      files: input.files,
+      body: input.body,
+      moduleLessonId: input.moduleLessonId,
+      onProgress: (progress) => {
+        uploadPercent.value = progress.percent
+      },
+    }),
+  onSuccess: () => {
+    draft.value = ''
+    pendingFiles.value = []
+    attachmentError.value = null
+    sendError.value = null
+    uploadPercent.value = null
+
+    clearLessonQuestionContext()
+
+    void threadQuery.refetch()
+    void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
+  },
+  onError: (error: Error) => {
+    uploadPercent.value = null
+    sendError.value = toUserMessage(error)
+  },
+})
+
 const canSend = computed(
   () =>
     activePeer.value !== null &&
-    draft.value.trim().length > 0 &&
+    (draft.value.trim().length > 0 || hasFiles.value) &&
     draft.value.length <= DM_BODY_MAX &&
-    !sendMutation.isPending.value,
+    !sendMutation.isPending.value &&
+    !attachMutation.isPending.value,
 )
 
 /**
@@ -273,6 +352,18 @@ const showCounter = computed(() => draft.value.length > DM_BODY_MAX - 200)
 function submit(): void {
   const peer = activePeer.value
   if (peer === null || !canSend.value) return
+
+  // Fayl bor -> biriktirmali yo'l, yo'q -> oddiy matn (`GroupChatRoom`
+  // dagi "yo'l tanlash — yagona joy" qoidasi bilan AYNI).
+  if (hasFiles.value) {
+    attachMutation.mutate({
+      peerId: peer.peerId,
+      files: pendingFiles.value,
+      body: draft.value.trim(),
+      moduleLessonId: lessonContext.value?.lessonId ?? null,
+    })
+    return
+  }
 
   sendMutation.mutate({
     peerId: peer.peerId,
@@ -298,6 +389,8 @@ function openConversation(conversation: ConversationDto): void {
   if (activePeer.value?.peerId === conversation.peerId) return
   sendError.value = null
   draft.value = ''
+  pendingFiles.value = []
+  attachmentError.value = null
   activeThread.value = null
   activePeer.value = conversation
 }
@@ -734,9 +827,27 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
                     v-text="row.message.moduleLessonName"
                   />
                   <p
+                    v-if="row.message.body.length > 0"
                     class="whitespace-pre-line break-words text-[13px] leading-relaxed"
                     v-text="row.message.body"
                   />
+
+                  <!--
+                    ★ BIRIKTIRMALAR (2026-08-17) — `GroupChatMessageRow` dagi
+                    AYNI naqsh: matn BO'SH bo'lishi mumkin (izohsiz surat),
+                    shuning uchun yuqoridagi `<p>` da `v-if` bor.
+                  -->
+                  <div
+                    v-if="(row.message.attachments ?? []).length > 0"
+                    :class="row.message.body.length > 0 ? 'mt-1.5' : ''"
+                  >
+                    <DirectAttachment
+                      v-for="item in row.message.attachments ?? []"
+                      :key="item.id"
+                      :attachment="item"
+                      @zoom="(url) => (zoomUrl = url)"
+                    />
+                  </div>
                   <p
                     class="mt-1 flex items-center justify-end gap-1 text-[10px] tabular-nums"
                     :class="row.message.mine ? 'text-on-brand/75' : 'text-dim'"
@@ -793,6 +904,64 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
         </button>
       </div>
 
+      <!--
+        BIRIKTIRILGAN, LEKIN HALI YUBORILMAGAN FAYLLAR — `GroupChatRoom`
+        dagi AYNI naqsh (izohi `pendingFiles` da).
+      -->
+      <div
+        v-if="pendingFiles.length > 0 || attachmentError !== null"
+        class="mt-2 shrink-0"
+      >
+        <p
+          v-if="attachmentError !== null"
+          class="mb-1.5 text-[11px] text-rose-400"
+          role="alert"
+          v-text="attachmentError"
+        />
+        <ul class="flex flex-wrap gap-1.5">
+          <li
+            v-for="(file, index) in pendingFiles"
+            :key="`${file.name}:${index}`"
+            class="flex max-w-full items-center gap-1.5 rounded-full border border-line bg-ink-900 py-1 pl-2.5 pr-1"
+          >
+            <AppIcon
+              name="paperclip"
+              :size="12"
+            />
+            <span
+              class="min-w-0 max-w-40 truncate text-[11.5px] text-slate-300"
+              v-text="file.name"
+            />
+            <span
+              class="shrink-0 text-[10.5px] tabular-nums text-dim"
+              v-text="formatFileSize(file.size)"
+            />
+            <button
+              type="button"
+              class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+              title="Olib tashlash"
+              aria-label="Faylni olib tashlash"
+              @click="removeFile(index)"
+            >
+              <AppIcon
+                name="close"
+                :size="12"
+              />
+            </button>
+          </li>
+        </ul>
+
+        <div
+          v-if="uploadPercent !== null"
+          class="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-800"
+        >
+          <div
+            class="h-full rounded-full bg-brand-500 transition-[width]"
+            :style="{ width: `${uploadPercent}%` }"
+          />
+        </div>
+      </div>
+
       <!-- Yozish maydoni -->
       <!--
         ★ TELEGRAM NAQSHI — GURUH CHATI BILAN AYNI (2026-08-15).
@@ -806,8 +975,17 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
         novalidate
         @submit.prevent="submit"
       >
+        <input
+          ref="fileInput"
+          class="hidden"
+          type="file"
+          multiple
+          accept="image/*,audio/*,application/pdf"
+          @change="onFilesChosen"
+        >
+
         <div
-          class="flex min-w-0 flex-1 items-end gap-1 rounded-[22px] border border-line-strong bg-ink-900 py-1 pl-1 pr-2 transition-[border-color,box-shadow] focus-within:border-brand-500 focus-within:ring-3 focus-within:ring-brand-500/15"
+          class="flex min-w-0 flex-1 items-end gap-1 rounded-[22px] border border-line-strong bg-ink-900 py-1 pl-1 pr-1.5 transition-[border-color,box-shadow] focus-within:border-brand-500 focus-within:ring-3 focus-within:ring-brand-500/15"
         >
           <ChatEmojiPicker
             v-model="draft"
@@ -842,6 +1020,20 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
               {{ draft.length }} / {{ DM_BODY_MAX }}
             </p>
           </div>
+
+          <!-- BIRIKTIRMA — `GroupChatRoom` dagi AYNI joy va uslub. -->
+          <button
+            type="button"
+            class="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-ink-800 hover:text-slate-300"
+            title="Fayl biriktirish"
+            aria-label="Fayl biriktirish"
+            @click="pickFiles"
+          >
+            <AppIcon
+              name="paperclip"
+              :size="19"
+            />
+          </button>
         </div>
 
         <button
@@ -868,6 +1060,12 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
         class="mt-2"
         :text="sendError"
         @dismiss="sendError = null"
+      />
+
+      <!-- Rasm kattalashtirish — `GroupChatRoom` dagi AYNI komponent. -->
+      <ImageLightbox
+        :src="zoomUrl"
+        @close="zoomUrl = null"
       />
     </div>
 

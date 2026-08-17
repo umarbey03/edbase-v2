@@ -1,30 +1,23 @@
 import { http } from '@/shared/api'
-import type {
-  AvatarUploadedDto,
-  PhoneChangeStatusDto,
-  UserDto,
-} from '@/shared/types'
+import type { AvatarUploadedDto } from '@/shared/types'
 
 /**
  * ============================================================================
- *  O'Z PROFILI — `/api/v1/profile` (2026-08-15)
+ *  O'Z PROFIL RASMI — `/api/v1/profile` (2026-08-15, 2026-08-17 da qisqartirildi)
  * ============================================================================
+ *
+ * ⚠️ ISM VA TELEFONNI O'ZI TAHRIRLASH OLIB TASHLANDI (2026-08-17, loyiha
+ * egasining qarori): "foydalanuvchi o'z ism familyasi va nomerini edit
+ * qilish imkoniga ega bo'lmasligi kerak" — BARCHA rol uchun. Bu ikkala
+ * maydonni endi FAQAT o'quv bo'limi/admin `user-api.ts` (`/api/v1/users/{id}`)
+ * orqali o'zgartira oladi.
  *
  * 🔴 `user-api.ts` DAN ALOHIDA FAYL VA BU ATAYLAB. U yerdagi chaqiruvlar
  * XODIM vositasi: ular BOSHQA odamning profilini o'zgartiradi
  * (`/api/v1/users/{id}`) va faqat boshqaruv ekranlarida ishlatiladi. Bu
- * yerdagilar esa DOIM chaqiruvchining O'ZINI o'zgartiradi va `id` UMUMAN
- * uzatilmaydi — u serverda tokendan olinadi.
- *
- * Ikkalasi bitta faylda bo'lsa, chaqiruvchi noto'g'ri funksiyani tanlab
- * (`updateUser` o'rniga `updateProfileName`) jimgina boshqa odamning
- * ma'lumotini o'zgartirib qo'yishi mumkin edi.
+ * yerdagi (rasm) esa DOIM chaqiruvchining O'ZINI o'zgartiradi va `id`
+ * UMUMAN uzatilmaydi — u serverda tokendan olinadi.
  */
-
-/** `PUT /api/v1/profile` — ism. */
-export function updateProfileName(fullName: string): Promise<UserDto> {
-  return http.put<UserDto>('/api/v1/profile', { fullName })
-}
 
 /**
  * `POST /api/v1/profile/avatar` — rasm yuklash (`multipart/form-data`).
@@ -66,45 +59,4 @@ export function avatarPath(userId: number, version: string | null): string {
 export async function fetchAvatarBlob(userId: number, version: string | null): Promise<Blob> {
   const { blob } = await http.download(avatarPath(userId, version), `avatar-${userId}`)
   return blob
-}
-
-/* ------------------------------ telefon ---------------------------------- */
-
-/**
- * `POST /api/v1/profile/phone` — almashtirishning 1-BOSQICHI.
- *
- * ⚠️ KOD SHU YERDA KELMAYDI. Javob "endi botga yangi raqamdan
- * «Raqamni ulashish» yuboring" degani — kod aynan o'sha Telegram
- * hisobiga boradi (sabab serverdagi `IPhoneChangeStore` izohida).
- */
-export function requestPhoneChange(phone: string): Promise<PhoneChangeStatusDto> {
-  return http.post<PhoneChangeStatusDto>('/api/v1/profile/phone', { phone })
-}
-
-/**
- * `GET /api/v1/profile/phone` — kutayotgan almashtirish holati.
- *
- * ★ SERVER 204 QAYTARADI (404 emas) — "so'rov yo'q" xato emas, oddiy
- * holat. `http.get` bo'sh tanani `null` ga aylantiradi.
- */
-export async function fetchPhoneChange(options?: {
-  signal?: AbortSignal
-}): Promise<PhoneChangeStatusDto | null> {
-  // ⚠️ `?? null` SHART: `parseBody` tanasiz javobda `undefined` qaytaradi,
-  // chaqiruvchilar esa `null` bilan taqqoslaydi.
-  const status = await http.get<PhoneChangeStatusDto | undefined>('/api/v1/profile/phone', {
-    signal: options?.signal,
-  })
-
-  return status ?? null
-}
-
-/** `DELETE /api/v1/profile/phone` — bekor qilish (idempotent). */
-export function cancelPhoneChange(): Promise<void> {
-  return http.delete<void>('/api/v1/profile/phone')
-}
-
-/** `POST /api/v1/profile/phone/confirm` — 2-BOSQICH: Telegramga kelgan kod. */
-export function confirmPhoneChange(code: string): Promise<UserDto> {
-  return http.post<UserDto>('/api/v1/profile/phone/confirm', { code })
 }

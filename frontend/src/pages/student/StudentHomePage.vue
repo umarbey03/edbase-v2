@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { fetchRecordingSection } from '@/entities/recording'
+import { ClassroomModal } from '@/features/classroom'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import NextLessonCard from '@/features/student-schedule/ui/NextLessonCard.vue'
 import { useNow } from '@/shared/lib/use-now'
@@ -71,6 +72,18 @@ const sectionQuery = useQuery({
 })
 
 const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? true)
+
+/*
+  ============================================================================
+   "MENING GURUHIM" OYNASI (2026-08-17)
+  ============================================================================
+
+  Karta bosilganda modal ochiladi (`ClassroomModal`) — guruh nomi, ustoz,
+  kurator va guruhdoshlar (faqat ism-familiya, Telegram "chat info"
+  uslubida) + bog'lanish kontakti. Ma'lumot MODAL OCHILGANDA so'raladi
+  (`enabled: open`), bosh sahifa yuklanishini sekinlashtirmasin uchun.
+*/
+const classroomOpen = ref(false)
 </script>
 
 <template>
@@ -324,6 +337,52 @@ const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? tru
       </section>
     </div>
   </div>
+
+  <!--
+    ==================== Mening guruhim (2026-08-17) ====================
+    Ustoz, kurator, guruhdoshlar va bog'lanish kontakti — `ClassroomModal`.
+  -->
+  <div class="mt-6">
+    <h2
+      class="mb-3 ml-1 flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-slate-400"
+    >
+      <AppIcon
+        name="users"
+        :size="15"
+      />
+      Mening guruhim
+    </h2>
+
+    <button
+      type="button"
+      class="group flex min-h-11 w-full items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] text-left transition-colors hover:border-line-strong hover:bg-ink-800"
+      @click="classroomOpen = true"
+    >
+      <span
+        class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-300"
+        aria-hidden="true"
+      >
+        <AppIcon
+          name="users"
+          :size="20"
+        />
+      </span>
+      <span class="min-w-0 flex-1">
+        <b class="block text-base">Guruhim va aloqa</b>
+        <span class="block text-xs text-dim">Ustoz, kurator, guruhdoshlar</span>
+      </span>
+      <AppIcon
+        name="chevron-right"
+        :size="20"
+        class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
+      />
+    </button>
+  </div>
+
+  <ClassroomModal
+    :open="classroomOpen"
+    @close="classroomOpen = false"
+  />
 
   <!--
     ==================== Vazifa va testlar ("O'quv"dan ko'chirilgan) ====================

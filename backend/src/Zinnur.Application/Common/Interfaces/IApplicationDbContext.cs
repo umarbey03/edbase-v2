@@ -65,6 +65,13 @@ public interface IApplicationDbContext
     DbSet<DirectMessage> DirectMessages { get; }
 
     /// <summary>
+    /// Shaxsiy yozishmaga biriktirilgan fayl (2026-08-17) —
+    /// <see cref="GroupChatAttachments"/> bilan AYNI naqsh, sabab
+    /// <see cref="DirectMessageAttachment"/> izohida.
+    /// </summary>
+    DbSet<DirectMessageAttachment> DirectMessageAttachments { get; }
+
+    /// <summary>
     /// Guruhning DOIMIY chati — dars vaqtidan TASHQARIDA ham ishlaydi.
     /// Yuqoridagi ikkalasi bilan ARALASHTIRILMAYDI: uchalasining farqi
     /// <see cref="GroupChatMessage"/> sinfi izohida batafsil.
@@ -253,6 +260,18 @@ public interface IApplicationDbContext
     DbSet<Holiday> Holidays { get; }
 
     /* ===== /2026-08-16 (to'lov) ===== */
+
+    /* ===== 2026-08-17: ustoz kunlik tasdiqlash + o'rinbosar ===== */
+
+    DbSet<TeacherDailyCheckin> TeacherDailyCheckins { get; }
+
+    DbSet<TeacherCheckinAffectedSession> TeacherCheckinAffectedSessions { get; }
+
+    DbSet<SessionCoverageRequest> SessionCoverageRequests { get; }
+
+    DbSet<SubstituteOffer> SubstituteOffers { get; }
+
+    /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

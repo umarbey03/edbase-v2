@@ -60,6 +60,34 @@ public static class NotificationTemplates
         return note.Length == 0 ? text : $"{text} Izoh: {note}";
     }
 
+    /// <summary>Ustoz "yo'q" deganida o'quv bo'limiga ketadigan sarlavha.</summary>
+    public static string TeacherDeclinedSessionTitle() => "Ustoz darsga o'ta olmaydi";
+
+    /// <param name="teacherName">Ustoz F.I.Sh.</param>
+    /// <param name="affectedCount">Ta'sirlangan darslar soni.</param>
+    /// <param name="reason">Ustoz yozgan sabab.</param>
+    /// <param name="days">Necha kunga (1 — faqat bugun).</param>
+    public static string TeacherDeclinedSessionBody(
+        string teacherName, int affectedCount, string reason, int days)
+    {
+        var dayText = days <= 1 ? "bugun" : $"{days} kunga";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{teacherName} {dayText} {affectedCount} ta darsga o'ta olmaydi. Sabab: {Clean(reason)}");
+    }
+
+    /// <summary>O'rinbosar topilganda o'quv bo'limiga ketadigan sarlavha.</summary>
+    public static string SubstituteFoundTitle() => "O'rinbosar topildi";
+
+    /// <param name="substituteName">O'rinbosar ustoz F.I.Sh.</param>
+    /// <param name="originalTeacherName">Asl ustoz F.I.Sh.</param>
+    /// <param name="groupName">Guruh nomi.</param>
+    public static string SubstituteFoundBody(
+        string substituteName, string originalTeacherName, string groupName) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{substituteName} {originalTeacherName} o'rniga \"{groupName}\" darsini o'tib beradi.");
+
     /// <summary>
     /// Ballni matnga aylantiradi.
     ///

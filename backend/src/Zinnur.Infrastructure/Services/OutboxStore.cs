@@ -59,7 +59,7 @@ public sealed class OutboxStore(ApplicationDbContext db, TimeProvider clock) : I
         ) AS c
         WHERE o."Id" = c."Id"
         RETURNING o."Id", o."Channel", o."RecipientUserId", o."RecipientAddress",
-                  o."TemplateKey", o."Body", o."AttemptCount";
+                  o."TemplateKey", o."Body", o."AttemptCount", o."CallbackData";
         """;
 
     /// <inheritdoc />
@@ -189,7 +189,8 @@ public sealed class OutboxStore(ApplicationDbContext db, TimeProvider clock) : I
             RecipientAddress: reader.IsDBNull(3) ? null : reader.GetString(3),
             TemplateKey: reader.GetString(4),
             Body: reader.GetString(5),
-            AttemptCount: reader.GetInt32(6));
+            AttemptCount: reader.GetInt32(6),
+            CallbackData: reader.IsDBNull(7) ? null : reader.GetString(7));
 
     /// <summary>
     /// Xato matnini ustun chegarasiga sig'diradi. Uzun matn to'liq holda

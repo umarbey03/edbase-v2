@@ -19,6 +19,9 @@ public sealed class MessageOutboxConfiguration : IEntityTypeConfiguration<Messag
     /// <summary>Oxirgi xato matni — logga to'liq, bazaga qisqartirilgan holda.</summary>
     public const int LastErrorMaxLength = 500;
 
+    /// <summary>Inline tugmalar uchun kodlangan ma'lumot (bir necha qator tugma sig'ishi uchun).</summary>
+    public const int CallbackDataMaxLength = 2000;
+
     public void Configure(EntityTypeBuilder<MessageOutbox> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -36,6 +39,8 @@ public sealed class MessageOutboxConfiguration : IEntityTypeConfiguration<Messag
         builder.Property(m => m.Body).IsRequired().HasMaxLength(NotificationText.MaxBodyLength);
 
         builder.Property(m => m.LastError).HasMaxLength(LastErrorMaxLength);
+
+        builder.Property(m => m.CallbackData).HasMaxLength(CallbackDataMaxLength);
 
         builder.Property(m => m.IdempotencyKey)
             .IsRequired()

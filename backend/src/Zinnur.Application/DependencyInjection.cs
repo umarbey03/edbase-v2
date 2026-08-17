@@ -21,6 +21,7 @@ using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.SessionReviews.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.StudentNotes.Services;
+using Zinnur.Application.Students.Services;
 using Zinnur.Application.Tests.Services;
 using Zinnur.Application.Users.Services;
 
@@ -55,13 +56,14 @@ public static class DependencyInjection
         services.AddSingleton<IPhoneLoginCodeStore, PhoneLoginCodeStore>();
         services.AddScoped<IPhoneLoginService, PhoneLoginService>();
 
-        // O'Z PROFILINI TAHRIRLASH (2026-08-15).
-        //
-        // ★ Kutayotgan telefon almashtirish ombori — SINGLETON, sabab
-        //   `IPhoneLoginCodeStore` dagi bilan AYNI (yagona bog'liqligi
-        //   `ICacheService` va o'zi holat saqlamaydi).
-        services.AddSingleton<IPhoneChangeStore, PhoneChangeStore>();
+        // O'Z PROFIL RASMI (2026-08-15, 2026-08-17 da qisqartirildi — sabab
+        // `IProfileService` izohida: ism/telefonni o'zi tahrirlash olib
+        // tashlandi, faqat rasm qoldi).
         services.AddScoped<IProfileService, ProfileService>();
+
+        // "MENING GURUHIM" OYNASI (2026-08-17) — bosh sahifadagi
+        // karta/tugma. SCOPED: `IApplicationDbContext` ga bog'liq.
+        services.AddScoped<IStudentClassroomService, StudentClassroomService>();
 
         // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
         // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).
