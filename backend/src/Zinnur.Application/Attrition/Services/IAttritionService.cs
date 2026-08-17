@@ -31,4 +31,13 @@ public interface IAttritionService
     /// <summary>Guruh kesimi.</summary>
     Task<IReadOnlyList<AttritionByGroupDto>> GetByGroupAsync(
         AttritionListQuery query, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bitta guruhning TAFSILOTI: guruh haqida to'liq ma'lumot (ustoz,
+    /// boshlangan sana, kursda qayerga kelgani) + shu guruhdagi to'kilish
+    /// yig'masi. O'quvchilar ro'yxati ALOHIDA olinadi (sabab
+    /// <see cref="GroupAttritionDetailDto"/> izohida).
+    /// </summary>
+    Task<GroupAttritionDetailDto> GetGroupDetailAsync(
+        long groupId, AttritionListQuery query, long actorId, CancellationToken ct = default);
 }

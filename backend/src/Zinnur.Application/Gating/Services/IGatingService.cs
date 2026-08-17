@@ -55,4 +55,23 @@ public interface IGatingService
     /// istisno qo'yildi.
     /// </summary>
     Task InvalidateAsync(long studentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// GURUH kursda qayerga yetgani — xodim hisobotlari uchun (2026-08-17).
+    ///
+    /// ★ NIMA UCHUN SHU SERVISDA: "guruh nechta dars o'tgan" degan fakt
+    /// gating'ning O'ZAK hisobi (<see cref="LessonGate"/> shunga qarab
+    /// darsni ochadi) va u YAKUNLANGAN ustoz darslari sonidan hisoblanadi.
+    /// Darslarning BARQAROR tartibi ham shu yerda (`OrderedLessons`).
+    /// Ikkinchi joyda takrorlansa, ikki xil "guruh qayerda" javobi paydo
+    /// bo'lardi — biri o'quvchiga dars ochadi, ikkinchisi hisobotda boshqa
+    /// raqam ko'rsatardi.
+    ///
+    /// 🔴 KESHLANMAYDI: kesh o'quvchi bo'yicha kalitlangan va progress
+    /// o'zgarganda bekor qilinadi. Bu esa xodim hisoboti — kamdan-kam
+    /// so'raladi va har safar yangi ma'lumot berishi kerak.
+    ///
+    /// Guruh topilmasa yoki kursi bo'lmasa — <c>null</c>.
+    /// </summary>
+    Task<GroupPaceDto?> GetGroupPaceAsync(long groupId, CancellationToken ct = default);
 }

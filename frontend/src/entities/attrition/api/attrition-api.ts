@@ -5,6 +5,7 @@ import type {
   AttritionListParams,
   AttritionRowDto,
   AttritionSummaryDto,
+  GroupAttritionDetailDto,
   PagedResult,
 } from '@/shared/types'
 
@@ -78,6 +79,19 @@ export function fetchAttritionByGroup(
   const { page: _page, pageSize: _pageSize, sort: _sort, desc: _desc, ...rest } = params
 
   return http.get<AttritionByGroupDto[]>(`${BASE}/by-group`, {
+    query: toQuery(rest),
+    signal: options?.signal,
+  })
+}
+
+export function fetchAttritionGroupDetail(
+  groupId: number,
+  params: AttritionListParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<GroupAttritionDetailDto> {
+  const { page: _page, pageSize: _pageSize, sort: _sort, desc: _desc, ...rest } = params
+
+  return http.get<GroupAttritionDetailDto>(`${BASE}/group/${groupId}`, {
     query: toQuery(rest),
     signal: options?.signal,
   })

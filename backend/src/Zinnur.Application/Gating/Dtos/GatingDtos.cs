@@ -92,3 +92,34 @@ public sealed record CourseGateDto(
     long? VideoStartLessonId,
     int StartIndex,
     IReadOnlyList<LessonGateDto> Lessons);
+
+/// <summary>
+/// GURUH kursda qayerga yetgani (2026-08-17) — xodim hisobotlari uchun.
+///
+/// ★ POZITSIYA ORDINAL, HAVOLA EMAS: `LiveSession` da `ModuleLessonId`
+/// YO'Q, ya'ni "12-sentabrdagi dars aynan qaysi mavzu edi" degan bog'lanish
+/// modelda umuman saqlanmaydi. Shuning uchun joriy dars YAKUNLANGAN ustoz
+/// darslari SONI bo'yicha, darslarning barqaror tartibiga indeks sifatida
+/// aniqlanadi — gating ham AYNAN shunday ishlaydi. Bu taxmin: bitta
+/// yakunlangan dars = kursda bir dars oldinga.
+/// </summary>
+/// <param name="TaughtLessonCount">Guruhda yakunlangan ustoz darslari soni.</param>
+/// <param name="TotalLessons">Kursdagi jami darslar soni.</param>
+/// <param name="CoveredLessons">
+/// Guruh boshlanish nuqtasidan hisoblab, jami nechta darsni qoplagan
+/// (<see cref="StartIndex"/> + <see cref="TaughtLessonCount"/>, kurs
+/// oxiridan oshmaydi) — "8 darsdan 3 tasi" ko'rinishi uchun.
+/// </param>
+/// <param name="CurrentModuleName">Oxirgi o'tilgan darsning moduli. Hali dars o'tilmagan bo'lsa <c>null</c>.</param>
+/// <param name="CurrentLessonName">Oxirgi o'tilgan dars. Hali dars o'tilmagan bo'lsa <c>null</c>.</param>
+/// <param name="NextModuleName">Navbatdagi darsning moduli. Kurs tugagan bo'lsa <c>null</c>.</param>
+/// <param name="NextLessonName">Navbatdagi dars. Kurs tugagan bo'lsa <c>null</c>.</param>
+public sealed record GroupPaceDto(
+    int TaughtLessonCount,
+    int StartIndex,
+    int TotalLessons,
+    int CoveredLessons,
+    string? CurrentModuleName,
+    string? CurrentLessonName,
+    string? NextModuleName,
+    string? NextLessonName);

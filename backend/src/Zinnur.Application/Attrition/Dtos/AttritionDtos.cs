@@ -96,6 +96,41 @@ public sealed record AttritionSummaryDto(
     int ActiveLosses,
     double AverageLessonsBeforeLeaving);
 
+/// <summary>
+/// GURUH TAFSILOTI modali uchun (2026-08-17) — guruh haqida to'liq
+/// ma'lumot + o'sha guruhdagi to'kilish yig'masi.
+///
+/// ★ O'QUVCHILAR RO'YXATI BU YERDA EMAS: u mavjud
+/// <c>GET /attrition?groupId=X</c> orqali olinadi (sahifalash va saralash
+/// tekinga keladi). Bu yerda faqat SARLAVHA ma'lumoti.
+/// </summary>
+/// <param name="CurrentPosition">
+/// "Hozir qaysi modul, qaysi darsga kelgani" — masalan
+/// <c>"Harflar moduli · 12-dars"</c>. Hali dars o'tilmagan bo'lsa <c>null</c>.
+/// </param>
+/// <param name="NextPosition">Navbatdagi dars. Kurs tugagan bo'lsa <c>null</c>.</param>
+/// <param name="TaughtLessonCount">Guruhda yakunlangan ustoz darslari soni.</param>
+/// <param name="CoveredLessons">Kurs boshlanish nuqtasidan jami qoplangan darslar.</param>
+/// <param name="TotalLessons">Kursdagi jami darslar.</param>
+public sealed record GroupAttritionDetailDto(
+    long GroupId,
+    string GroupName,
+    string? CourseName,
+    string? TeacherName,
+    string? AssistantName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    int ActiveMembers,
+    string? CurrentPosition,
+    string? NextPosition,
+    int TaughtLessonCount,
+    int CoveredLessons,
+    int TotalLessons,
+    int Stopped,
+    int Paused,
+    int Moved,
+    int TrialLosses);
+
 /// <summary>Ustoz kesimidagi to'kilish — "kimning guruhida ko'p to'kiladi".</summary>
 public sealed record AttritionByTeacherDto(
     long? TeacherId,
@@ -105,12 +140,23 @@ public sealed record AttritionByTeacherDto(
     int Moved,
     int TrialLosses);
 
-/// <summary>Guruh kesimidagi to'kilish.</summary>
+/// <summary>
+/// Guruh kesimidagi to'kilish.
+///
+/// ★ <c>Paused</c>/<c>Moved</c> HAM BOR (2026-08-17): bu DTO ikki joyda
+/// ishlatiladi — "Guruhlar kesimi" jadvalida VA "Ustozlar kesimi" dagi
+/// ochiladigan guruh tafsilotida. Ikkinchisida ustoz qatorining o'zi
+/// uchta ustunni ko'rsatadi, shuning uchun ochilgan guruhlar ham AYNI
+/// uchta ustunni ko'rsatishi kerak — aks holda raqamlar "yig'ilmayotgandek"
+/// tuyulardi.
+/// </summary>
+/// <param name="ActiveMembers">Guruhdagi hozirgi FAOL o'quvchilar soni — to'kilishni nisbatda ko'rish uchun.</param>
 public sealed record AttritionByGroupDto(
     long GroupId,
     string GroupName,
     string? TeacherName,
     int Stopped,
+    int Paused,
+    int Moved,
     int TrialLosses,
-    /// <summary>Guruhdagi hozirgi FAOL o'quvchilar soni — to'kilishni nisbatda ko'rish uchun.</summary>
     int ActiveMembers);

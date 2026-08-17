@@ -347,6 +347,70 @@ public sealed class GatingService(
                                     && p.ModuleLessonId == l.Id
                                     && p.UnlockedOverride)));
 
+    // ================================================================= guruh sur'ati (hisobot)
+
+    /// <inheritdoc />
+    public async Task<GroupPaceDto?> GetGroupPaceAsync(long groupId, CancellationToken ct = default)
+    {
+        var group = await db.Groups
+            .AsNoTracking()
+            .Where(g => g.Id == groupId)
+            .Select(g => new { g.CourseId, g.VideoStartLessonId })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        // Kursi biriktirilmagan guruhda "qaysi darsga kelgani" MA'NOSIZ —
+        // chaqiruvchi buni `null` bo'yicha ajratadi (port izohi).
+        if (group?.CourseId is not { } courseId) return null;
+
+        // ★ AYNI SO'ROV `ResolvePaceAsync` DAGI BILAN: yakunlangan USTOZ
+        //   darslari soni. Kurator darslari sanalmaydi — ular kurs mavzusini
+        //   oldinga surmaydi.
+        var taught = await db.LiveSessions
+            .AsNoTracking()
+            .CountAsync(
+                s => s.GroupId == groupId
+                    && s.Type == SessionType.Teacher
+                    && s.Status == SessionStatus.Ended,
+                ct)
+            .ConfigureAwait(false);
+
+        // Faqat NOM va ID kerak — butun entity emas.
+        var ordered = await OrderedLessons(courseId)
+            .Select(l => new { l.Id, LessonName = l.Name, ModuleName = l.Module!.Name })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var startIndex = StartIndexOf([.. ordered.Select(l => l.Id)], group.VideoStartLessonId);
+
+        // Qoida `LessonGate` bilan AYNI: guruh `startIndex .. startIndex+N-1`
+        // darslarini o'tgan, ya'ni oxirgi o'tilgani `startIndex+N-1`,
+        // navbatdagisi esa `startIndex+N`.
+        var lastIndex = startIndex + taught - 1;
+        var nextIndex = startIndex + taught;
+
+        // ⚠️ KURS OXIRIDAN OSHIB KETISHI MUMKIN: sur'at ORDINAL sanoq, ya'ni
+        // guruh kursdagi darslardan KO'P dars o'tgan bo'lishi mumkin
+        // (takrorlash darslari, qo'shimcha mashg'ulotlar). O'shanda joriy
+        // pozitsiya OXIRGI darsga qisqartiriladi — aks holda u `null` bo'lib,
+        // "kurs tugagan" holati "hali boshlanmagan" bilan bir xil ko'rinardi.
+        if (ordered.Count > 0 && lastIndex >= ordered.Count)
+            lastIndex = ordered.Count - 1;
+
+        var last = lastIndex >= 0 && lastIndex < ordered.Count ? ordered[lastIndex] : null;
+        var next = nextIndex >= 0 && nextIndex < ordered.Count ? ordered[nextIndex] : null;
+
+        return new GroupPaceDto(
+            TaughtLessonCount: taught,
+            StartIndex: startIndex,
+            TotalLessons: ordered.Count,
+            CoveredLessons: Math.Min(startIndex + taught, ordered.Count),
+            CurrentModuleName: last?.ModuleName,
+            CurrentLessonName: last?.LessonName,
+            NextModuleName: next?.ModuleName,
+            NextLessonName: next?.LessonName);
+    }
+
     /// <summary>
     /// Kurs darslari GLOBAL tartibda: modul tartibi, so'ng dars tartibi.
     /// Tartib BARQAROR bo'lishi shart (`Id` bilan yakunlanadi) — aks holda

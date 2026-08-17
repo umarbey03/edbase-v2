@@ -15,6 +15,7 @@ import {
   trialTone,
 } from '@/entities/attrition'
 import { RANGE_PRESETS, daysAgoIso, rangeError, todayIso } from '@/entities/teacher-availability'
+import { GroupAttritionModal, TeacherGroupsBreakdown } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
@@ -202,6 +203,47 @@ function ariaSort(column: AttritionSortName): 'ascending' | 'descending' | 'none
   if (sort.value !== column) return 'none'
   return desc.value ? 'descending' : 'ascending'
 }
+
+/* ------------------------------------------------------------ drill-down */
+
+/**
+ * Ochilgan ustoz qatori. `null` — hech biri ochiq emas.
+ *
+ * ⚠️ `teacherId` NING O'ZI `null` BO'LISHI MUMKIN ("ustoz tayinlanmagan"
+ * guruhlar to'plami), shuning uchun "ochiq emas" holati alohida bayroq
+ * bilan ajratiladi — aks holda o'sha qator hech qachon ochilmasdi.
+ */
+const expandedTeacherId = ref<number | null>(null)
+const teacherExpanded = ref(false)
+
+function isTeacherOpen(teacherId: number | null): boolean {
+  return teacherExpanded.value && expandedTeacherId.value === teacherId
+}
+
+function toggleTeacher(teacherId: number | null): void {
+  if (isTeacherOpen(teacherId)) {
+    teacherExpanded.value = false
+    expandedTeacherId.value = null
+    return
+  }
+
+  teacherExpanded.value = true
+  expandedTeacherId.value = teacherId
+}
+
+/** Ochilgan guruh modali. */
+const groupModal = ref<{ groupId: number; groupName: string } | null>(null)
+
+function openGroup(groupId: number, groupName: string): void {
+  groupModal.value = { groupId, groupName }
+}
+
+/* Bo'lim almashsa ochilgan qator yopiladi — aks holda boshqa tabga
+   qaytganda eski ochiq holat "yopishib" qolardi. */
+watch(activeTab, () => {
+  teacherExpanded.value = false
+  expandedTeacherId.value = null
+})
 </script>
 
 <template>
@@ -670,36 +712,71 @@ function ariaSort(column: AttritionSortName): 'ascending' | 'descending' | 'none
               </tr>
             </thead>
             <tbody>
-              <tr
+              <!--
+                ★ OCHILADIGAN QATOR (loyiha egasi, 2026-08-17): ustoz ustiga
+                bosilganda uning guruhlari bo'yicha bo'linish ochiladi,
+                guruh ustiga bosilganda esa o'quvchilar modali. Uch qatlam
+                jadval ICHIDA sig'masdi, shuning uchun uchinchisi modal.
+              -->
+              <template
                 v-for="(row, index) in teacherRows"
                 :key="row.teacherId ?? 0"
               >
-                <td
-                  class="tabular-nums text-dim"
-                  v-text="index + 1"
-                />
-                <td
-                  class="font-medium text-slate-100"
-                  v-text="row.teacherName"
-                />
-                <td
-                  class="tabular-nums"
-                  :class="row.stopped > 0 ? 'font-semibold text-rose-400' : 'text-dim'"
-                  v-text="row.stopped"
-                />
-                <td
-                  class="tabular-nums text-amber-400"
-                  v-text="row.paused"
-                />
-                <td
-                  class="tabular-nums text-slate-400"
-                  v-text="row.moved"
-                />
-                <td
-                  class="tabular-nums text-slate-300"
-                  v-text="row.trialLosses"
-                />
-              </tr>
+                <tr
+                  class="cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  :aria-expanded="isTeacherOpen(row.teacherId)"
+                  :aria-label="`${row.teacherName} guruhlarini ${isTeacherOpen(row.teacherId) ? 'yopish' : 'ochish'}`"
+                  @click="toggleTeacher(row.teacherId)"
+                  @keydown.enter.prevent="toggleTeacher(row.teacherId)"
+                >
+                  <td
+                    class="tabular-nums text-dim"
+                    v-text="index + 1"
+                  />
+                  <td class="font-medium text-slate-100">
+                    <span class="inline-flex items-center gap-1.5">
+                      <AppIcon
+                        :name="isTeacherOpen(row.teacherId) ? 'chevron-down' : 'chevron-right'"
+                        :size="14"
+                        class="text-dim"
+                      />
+                      {{ row.teacherName }}
+                    </span>
+                  </td>
+                  <td
+                    class="tabular-nums"
+                    :class="row.stopped > 0 ? 'font-semibold text-rose-400' : 'text-dim'"
+                    v-text="row.stopped"
+                  />
+                  <td
+                    class="tabular-nums text-amber-400"
+                    v-text="row.paused"
+                  />
+                  <td
+                    class="tabular-nums text-slate-400"
+                    v-text="row.moved"
+                  />
+                  <td
+                    class="tabular-nums text-slate-300"
+                    v-text="row.trialLosses"
+                  />
+                </tr>
+
+                <tr v-if="isTeacherOpen(row.teacherId)">
+                  <td
+                    colspan="6"
+                    class="!p-0"
+                  >
+                    <TeacherGroupsBreakdown
+                      :teacher-id="row.teacherId"
+                      :params="filters"
+                      @open-group="openGroup"
+                    />
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -734,23 +811,43 @@ function ariaSort(column: AttritionSortName): 'ascending' | 'descending' | 'none
                 <th>Guruh</th>
                 <th>Ustoz</th>
                 <th>Chiqarilgan</th>
+                <th>Muzlatilgan</th>
+                <th>Ko‘chirilgan</th>
                 <th>Probniy yo‘qotish</th>
                 <th>Hozir faol</th>
               </tr>
             </thead>
             <tbody>
+              <!--
+                ★ QATOR BOSILADIGAN (loyiha egasi, 2026-08-17): guruh
+                ustiga bosilganda to'liq ma'lumot modali ochiladi —
+                guruh haqida (ustoz, boshlangan sana, qaysi darsga
+                kelgani) va kim, nima sababdan ketgani.
+              -->
               <tr
                 v-for="(row, index) in groupRows"
                 :key="row.groupId"
+                class="cursor-pointer"
+                role="button"
+                tabindex="0"
+                :aria-label="`${row.groupName} to‘kilishlarini ochish`"
+                @click="openGroup(row.groupId, row.groupName)"
+                @keydown.enter.prevent="openGroup(row.groupId, row.groupName)"
               >
                 <td
                   class="tabular-nums text-dim"
                   v-text="index + 1"
                 />
-                <td
-                  class="font-medium text-slate-100"
-                  v-text="row.groupName"
-                />
+                <td class="font-medium text-slate-100">
+                  <span class="inline-flex items-center gap-1.5">
+                    {{ row.groupName }}
+                    <AppIcon
+                      name="chevron-right"
+                      :size="13"
+                      class="text-dim"
+                    />
+                  </span>
+                </td>
                 <td
                   class="text-slate-400"
                   v-text="row.teacherName ?? '—'"
@@ -762,6 +859,14 @@ function ariaSort(column: AttritionSortName): 'ascending' | 'descending' | 'none
                 />
                 <td
                   class="tabular-nums text-amber-400"
+                  v-text="row.paused"
+                />
+                <td
+                  class="tabular-nums text-slate-400"
+                  v-text="row.moved"
+                />
+                <td
+                  class="tabular-nums text-slate-300"
                   v-text="row.trialLosses"
                 />
                 <td
@@ -774,5 +879,17 @@ function ariaSort(column: AttritionSortName): 'ascending' | 'descending' | 'none
         </div>
       </DataStatus>
     </BaseCard>
+
+    <!--
+      Guruh tafsiloti modali — IKKI JOYDAN ochiladi: "Guruhlar kesimi"
+      jadvalidan va "Ustozlar kesimi" dagi ochilgan guruh qatoridan.
+      Bitta nusxa, bitta holat.
+    -->
+    <GroupAttritionModal
+      :group-id="groupModal?.groupId ?? null"
+      :group-name="groupModal?.groupName ?? ''"
+      :params="filters"
+      @close="groupModal = null"
+    />
   </div>
 </template>

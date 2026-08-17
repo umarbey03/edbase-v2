@@ -2,6 +2,7 @@ export {
   fetchAttrition,
   fetchAttritionByGroup,
   fetchAttritionByTeacher,
+  fetchAttritionGroupDetail,
   fetchAttritionSummary,
 } from './api/attrition-api'
 

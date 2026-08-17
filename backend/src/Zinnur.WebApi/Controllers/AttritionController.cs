@@ -49,6 +49,18 @@ public sealed class AttritionController(IAttritionService attrition) : Controlle
         [FromQuery] AttritionListQuery query, CancellationToken ct) =>
         Ok(await attrition.GetByGroupAsync(query, CurrentUserId, ct));
 
+    /// <summary>
+    /// Bitta guruhning tafsiloti: ustoz, boshlangan sana, kursda qayerga
+    /// kelgani va shu guruhdagi to'kilish yig'masi. O'quvchilar ro'yxati
+    /// <c>GET /attrition?groupId=X</c> orqali olinadi.
+    /// </summary>
+    [HttpGet("group/{groupId:long}")]
+    [ProducesResponseType<GroupAttritionDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GroupAttritionDetailDto>> GroupDetail(
+        long groupId, [FromQuery] AttritionListQuery query, CancellationToken ct) =>
+        Ok(await attrition.GetGroupDetailAsync(groupId, query, CurrentUserId, ct));
+
     private long CurrentUserId =>
         long.Parse(
             User.FindFirstValue(ClaimTypes.NameIdentifier)!,

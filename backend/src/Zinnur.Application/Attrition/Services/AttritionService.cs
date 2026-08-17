@@ -3,6 +3,7 @@ using Zinnur.Application.Attrition.Dtos;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
+using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
@@ -13,7 +14,8 @@ namespace Zinnur.Application.Attrition.Services;
 /// <inheritdoc cref="IAttritionService"/>
 public sealed class AttritionService(
     IApplicationDbContext db,
-    IScheduleTimeZoneProvider timeZone) : IAttritionService
+    IScheduleTimeZoneProvider timeZone,
+    IGatingService gating) : IAttritionService
 {
     /// <inheritdoc />
     public async Task<PagedResult<AttritionRowDto>> ListAsync(
@@ -210,6 +212,8 @@ public sealed class AttritionService(
                     first.GroupName,
                     first.TeacherName,
                     g.Count(x => x.Kind == MembershipEventKind.Stopped),
+                    g.Count(x => x.Kind == MembershipEventKind.Paused),
+                    g.Count(x => x.Kind == MembershipEventKind.Moved),
                     g.Count(x => x.Kind is MembershipEventKind.Stopped or MembershipEventKind.Moved
                               && x.LessonsCompleted < GroupMembershipEvent.TrialLessonCount),
                     activeCounts.TryGetValue(g.Key, out var active) ? active : 0);
@@ -217,6 +221,80 @@ public sealed class AttritionService(
             .OrderByDescending(x => x.Stopped)
             .ThenBy(x => x.GroupName, StringComparer.Ordinal)
             .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<GroupAttritionDetailDto> GetGroupDetailAsync(
+        long groupId, AttritionListQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await EnsureCanViewAsync(actorId, ct);
+
+        var group = await db.Groups
+            .AsNoTracking()
+            .Where(g => g.Id == groupId)
+            .Select(g => new
+            {
+                g.Id,
+                g.Name,
+                CourseName = g.Course!.Name,
+                g.StartDate,
+                g.CourseMonths,
+
+                // ★ Ustoz/kurator — navigatsiyasiz FK, shuning uchun
+                //   korrelyatsiyalangan ichki so'rov (loyihadagi AYNI naqsh).
+                TeacherName = g.TeacherId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == g.TeacherId).Select(u => u.FullName).FirstOrDefault(),
+                AssistantName = g.AssistantId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == g.AssistantId).Select(u => u.FullName).FirstOrDefault(),
+                ActiveMembers = db.GroupMembers.Count(
+                    m => m.GroupId == g.Id && m.Status == MemberStatus.Active),
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(Group), groupId);
+
+        // Shu guruhga TORAYTIRILGAN filtr — panelning sana oralig'i va
+        // boshqa shartlari SAQLANADI, aks holda modal tepadagi jadvaldan
+        // boshqa raqam ko'rsatardi.
+        var counts = await Filter(query with { GroupId = groupId })
+            .Select(e => new { e.Kind, e.LessonsCompleted })
+            .ToListAsync(ct);
+
+        // ★ SUR'AT `IGatingService` DAN: "guruh qayerga yetgani" gating'ning
+        //   o'zak hisobi va uni ikkinchi joyda takrorlash ikki xil javob
+        //   berardi (sabab port izohida).
+        var pace = await gating.GetGroupPaceAsync(groupId, ct);
+
+        return new GroupAttritionDetailDto(
+            GroupId: group.Id,
+            GroupName: group.Name,
+            CourseName: group.CourseName,
+            TeacherName: group.TeacherName,
+            AssistantName: group.AssistantName,
+            StartDate: group.StartDate,
+            EndDate: group.StartDate.AddMonths(group.CourseMonths),
+            ActiveMembers: group.ActiveMembers,
+            CurrentPosition: FormatPosition(pace?.CurrentModuleName, pace?.CurrentLessonName),
+            NextPosition: FormatPosition(pace?.NextModuleName, pace?.NextLessonName),
+            TaughtLessonCount: pace?.TaughtLessonCount ?? 0,
+            CoveredLessons: pace?.CoveredLessons ?? 0,
+            TotalLessons: pace?.TotalLessons ?? 0,
+            Stopped: counts.Count(x => x.Kind == MembershipEventKind.Stopped),
+            Paused: counts.Count(x => x.Kind == MembershipEventKind.Paused),
+            Moved: counts.Count(x => x.Kind == MembershipEventKind.Moved),
+            TrialLosses: counts.Count(
+                x => x.Kind is MembershipEventKind.Stopped or MembershipEventKind.Moved
+                    && x.LessonsCompleted < GroupMembershipEvent.TrialLessonCount));
+    }
+
+    /// <summary>`"Harflar moduli · 12-dars"`. Dars nomi bo'lmasa `null`.</summary>
+    private static string? FormatPosition(string? moduleName, string? lessonName)
+    {
+        if (string.IsNullOrWhiteSpace(lessonName)) return null;
+
+        return string.IsNullOrWhiteSpace(moduleName) ? lessonName : $"{moduleName} · {lessonName}";
     }
 
     // ---------------------------------------------------------------- filtr / saralash

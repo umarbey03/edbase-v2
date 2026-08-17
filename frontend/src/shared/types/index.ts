@@ -70,6 +70,7 @@ export type {
   GroupMemberDto,
   GroupTypeName,
   GroupWriteRequest,
+  GroupAttritionDetailDto,
   /* ===== Bayram kalendari ===== */
   HolidayDto,
   HolidayImpactDto,

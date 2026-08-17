@@ -3202,6 +3202,32 @@ export interface AttritionSummaryDto {
   averageLessonsBeforeLeaving: number
 }
 
+/**
+ * Guruh tafsiloti modali uchun. O'quvchilar ro'yxati BU YERDA EMAS —
+ * u `GET /attrition?groupId=X` orqali olinadi.
+ */
+export interface GroupAttritionDetailDto {
+  groupId: number
+  groupName: string
+  courseName: string | null
+  teacherName: string | null
+  assistantName: string | null
+  startDate: string
+  endDate: string
+  activeMembers: number
+  /** "Harflar moduli · 12-dars" — hali dars o'tilmagan bo'lsa `null`. */
+  currentPosition: string | null
+  /** Navbatdagi dars — kurs tugagan bo'lsa `null`. */
+  nextPosition: string | null
+  taughtLessonCount: number
+  coveredLessons: number
+  totalLessons: number
+  stopped: number
+  paused: number
+  moved: number
+  trialLosses: number
+}
+
 export interface AttritionByTeacherDto {
   teacherId: number | null
   teacherName: string
@@ -3216,6 +3242,8 @@ export interface AttritionByGroupDto {
   groupName: string
   teacherName: string | null
   stopped: number
+  paused: number
+  moved: number
   trialLosses: number
   activeMembers: number
 }
