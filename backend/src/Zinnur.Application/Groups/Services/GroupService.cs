@@ -456,6 +456,12 @@ public sealed class GroupService(
 
         SetPausedUntil(member, null);
 
+        // ★ TARIXGA YOZILADI (2026-08-17): arxiv izi yuqorida tozalangani
+        //   uchun "qaytdi" fakti FAQAT shu jurnalda qoladi.
+        await RecordMembershipEventAsync(
+            member, group, MembershipEventKind.Joined,
+            reason: null, movedToGroupId: null, actorId, ct);
+
         await SaveWithUniqueGuardAsync(ct);
         return await GetMemberDtoAsync(member.Id, ct);
     }
@@ -466,7 +472,7 @@ public sealed class GroupService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+        var (member, group) = await LoadMemberForManageAsync(id, studentId, actorId, ct);
 
         if (member.Status == MemberStatus.Stopped)
             throw new ConflictException("Guruhdan chiqarilgan o'quvchini pauzaga qo'yish mumkin emas.");
@@ -477,8 +483,17 @@ public sealed class GroupService(
         if (request.PausedUntil is { } until && until < DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
             throw Invalid(nameof(request.PausedUntil), "Pauza muddati o'tgan sana bo'lishi mumkin emas.");
 
+        // MAJBURIY SABAB (loyiha egasi, 2026-08-17): "to'kilishlar" paneli
+        // muzlatishni ham ko'rsatadi va sababsiz qator u yerda ma'nosiz
+        // bo'lardi. Ko'chirishdagi AYNI qoida (2026-08-15) endi muzlatish
+        // va chiqarishga ham yoyildi.
+        var reason = RequireReason(request.Reason, nameof(request.Reason), "Muzlatish sababini kiriting.");
+
         member.Status = MemberStatus.Paused;
         SetPausedUntil(member, request.PausedUntil);
+
+        await RecordMembershipEventAsync(
+            member, group, MembershipEventKind.Paused, reason, movedToGroupId: null, actorId, ct);
 
         await db.SaveChangesAsync(ct);
         return await GetMemberDtoAsync(member.Id, ct);
@@ -487,7 +502,7 @@ public sealed class GroupService(
     public async Task<GroupMemberDto> ResumeMemberAsync(
         long id, long studentId, long actorId, CancellationToken ct = default)
     {
-        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+        var (member, group) = await LoadMemberForManageAsync(id, studentId, actorId, ct);
 
         // Chiqarilgan yoki ko'chirilgan a'zolik "tiklanmaydi" — bu boshqa
         // amal (qayta qo'shish), aks holda ko'chirish tarixini jimgina
@@ -501,6 +516,11 @@ public sealed class GroupService(
         {
             member.Status = MemberStatus.Active;
             SetPausedUntil(member, null);
+
+            await RecordMembershipEventAsync(
+                member, group, MembershipEventKind.Resumed,
+                reason: null, movedToGroupId: null, actorId, ct);
+
             await db.SaveChangesAsync(ct);
         }
 
@@ -508,9 +528,18 @@ public sealed class GroupService(
     }
 
     public async Task<GroupMemberDto> RemoveMemberAsync(
-        long id, long studentId, long actorId, CancellationToken ct = default)
+        long id, long studentId, RemoveMemberRequest request, long actorId,
+        CancellationToken ct = default)
     {
-        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var (member, group) = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+
+        // MAJBURIY SABAB (loyiha egasi, 2026-08-17) — sabab TEKSHIRUVI holat
+        // tekshiruvidan OLDIN: allaqachon chiqarilgan o'quvchida ham bo'sh
+        // sabab yuborilsa, xodim "nega hech nima bo'lmadi?" degan holatga
+        // tushmasin, aniq xato olsin.
+        var reason = RequireReason(request.Reason, nameof(request.Reason), "Chiqarish sababini kiriting.");
 
         // YUMSHOQ o'chirish: yozuv qoladi. Davomat, to'lov va hisobotlar
         // a'zolikka ishora qiladi — qator o'chirilsa ular yetim qolardi.
@@ -519,7 +548,16 @@ public sealed class GroupService(
             member.Status = MemberStatus.Stopped;
             member.LeftAt = clock.GetUtcNow();
             member.LeftById = actorId;
+
+            // Sabab endi a'zolik qatoriga HAM yoziladi: arxiv jadvali
+            // (`GroupMembersPanel`) uni o'sha yerdan o'qiydi. Tarixiy,
+            // o'chmaydigan nusxa esa hodisa jurnalida.
+            member.Reason = reason;
             SetPausedUntil(member, null);
+
+            await RecordMembershipEventAsync(
+                member, group, MembershipEventKind.Stopped, reason, movedToGroupId: null, actorId, ct);
+
             await db.SaveChangesAsync(ct);
         }
 
@@ -537,21 +575,14 @@ public sealed class GroupService(
 
         // MAJBURIY SABAB (loyiha egasi, 2026-08-15): ko'chirish — boshqa
         // xodim keyinroq "nega bu o'quvchi shu yerda emas?" deb so'raganda
-        // javob topadigan yagona joy. `DomainException` emas, shu yerda:
-        // `GroupMember` hali ham "sababsiz" holatga tushmaydigan sodda
-        // entity (`RemoveMemberAsync`dagi IXTIYORIY sabab bilan farqi
-        // aynan shu — talab faqat ko'chirishga tegishli).
-        var reason = request.Reason.Trim();
-        if (reason.Length == 0)
-            throw Invalid(nameof(request.Reason), "Ko'chirish sababini kiriting.");
+        // javob topadigan yagona joy.
+        //
+        // ⚠️ 2026-08-17: bu qoida endi FAQAT ko'chirishga tegishli emas —
+        // chiqarish va muzlatish ham sabab talab qiladi, shuning uchun
+        // tekshiruv umumiy `RequireReason` yordamchisiga ko'chirildi.
+        var reason = RequireReason(request.Reason, nameof(request.Reason), "Ko'chirish sababini kiriting.");
 
-        if (reason.Length > GroupMember.MaxReasonLength)
-        {
-            throw Invalid(
-                nameof(request.Reason), $"Sabab {GroupMember.MaxReasonLength} belgidan oshmasin.");
-        }
-
-        var member = await LoadMemberForManageAsync(id, studentId, actorId, ct);
+        var (member, group) = await LoadMemberForManageAsync(id, studentId, actorId, ct);
 
         var target = await LoadGroupAsync(request.TargetGroupId, ct);
         EnsureAcceptsDirectMembers(target);
@@ -573,6 +604,14 @@ public sealed class GroupService(
         member.MovedToGroupId = target.Id;
         member.Reason = reason;
         SetPausedUntil(member, null);
+
+        // ★ IKKI HODISA, IKKI GURUH: manba guruhdan "ko'chirildi", nishon
+        //   guruhga "qo'shildi". Ikkinchisi ham kerak — aks holda nishon
+        //   guruhning tarixida o'quvchi qayerdan paydo bo'lgani ko'rinmasdi.
+        //   `Moved` hodisasi manba guruh MA'LUMOTI bilan yoziladi (ustoz
+        //   surati ham manba ustozi) — to'kilish hisoboti aynan shuni sanaydi.
+        await RecordMembershipEventAsync(
+            member, group, MembershipEventKind.Moved, reason, target.Id, actorId, ct);
 
         if (arrived is null)
         {
@@ -601,6 +640,10 @@ public sealed class GroupService(
         }
 
         SetPausedUntil(arrived, null);
+
+        await RecordMembershipEventAsync(
+            arrived, target, MembershipEventKind.Joined,
+            reason: null, movedToGroupId: null, actorId, ct);
 
         // ATOMIK: bitta SaveChanges = bitta tranzaksiya. "Eski guruhdan
         // chiqib, yangisiga kirmagan" yarim holat MUMKIN EMAS — eski tizimda
@@ -798,7 +841,12 @@ public sealed class GroupService(
         ?? throw new NotFoundException(nameof(Group), id);
 
     /// <summary>A'zolikni boshqarish uchun yuklaydi (ruxsat + kurator tekshiruvi bilan).</summary>
-    private async Task<GroupMember> LoadMemberForManageAsync(
+    /// <remarks>
+    /// ★ GURUH HAM QAYTADI (2026-08-17): a'zolik hodisasi jurnaliga ustoz
+    /// SURATI yozilishi kerak (<c>Group.TeacherId</c>), guruh esa baribir
+    /// shu yerda yuklanadi — ikkinchi marta so'ramaslik uchun qaytariladi.
+    /// </remarks>
+    private async Task<(GroupMember Member, Group Group)> LoadMemberForManageAsync(
         long groupId, long studentId, long actorId, CancellationToken ct)
     {
         var actor = await LoadActorAsync(actorId, ct);
@@ -807,9 +855,11 @@ public sealed class GroupService(
         var group = await LoadGroupAsync(groupId, ct);
         EnsureAcceptsDirectMembers(group);
 
-        return await db.GroupMembers.AsTracking()
+        var member = await db.GroupMembers.AsTracking()
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.StudentId == studentId, ct)
             ?? throw new NotFoundException(nameof(GroupMember), studentId);
+
+        return (member, group);
     }
 
     /// <summary>
@@ -823,6 +873,91 @@ public sealed class GroupService(
         group.IsCuratorGroup
             ? db.GroupMembers.AsNoTracking().Where(m => m.Group!.CuratorGroupId == group.Id)
             : db.GroupMembers.AsNoTracking().Where(m => m.GroupId == group.Id);
+
+    /// <summary>
+    /// Majburiy sababni tekshiradi va tozalaydi (2026-08-17).
+    ///
+    /// ★ BITTA JOYDA: chiqarish, muzlatish va ko'chirish — uchalasi ham
+    /// sabab talab qiladi. Uch joyda takrorlansa, chegara yoki xato matni
+    /// biriga qo'shilib, ikkinchisiga qo'shilmay qolardi.
+    /// </summary>
+    private static string RequireReason(string? value, string field, string emptyMessage)
+    {
+        var reason = (value ?? string.Empty).Trim();
+
+        if (reason.Length == 0)
+            throw Invalid(field, emptyMessage);
+
+        if (reason.Length > GroupMember.MaxReasonLength)
+            throw Invalid(field, $"Sabab {GroupMember.MaxReasonLength} belgidan oshmasin.");
+
+        return reason;
+    }
+
+    // ---------------------------------------------------------------- a'zolik tarixi (2026-08-17)
+
+    /// <summary>
+    /// A'zolik hodisasini O'CHMAYDIGAN jurnalga yozadi.
+    ///
+    /// ★ <c>SaveChanges</c> BU YERDA CHAQIRILMAYDI: hodisa a'zolikning
+    /// o'zgarishi bilan BITTA tranzaksiyada saqlanishi shart. Aks holda
+    /// "o'quvchi chiqarildi, lekin tarixda yo'q" yarim holati paydo
+    /// bo'lardi — aynan shu narsa eski yechimning asosiy nuqsoni edi.
+    /// </summary>
+    private async Task RecordMembershipEventAsync(
+        GroupMember member,
+        Group group,
+        MembershipEventKind kind,
+        string? reason,
+        long? movedToGroupId,
+        long actorId,
+        CancellationToken ct)
+    {
+        var lessons = await CountCompletedLessonsAsync(member.StudentId, ct);
+
+        db.GroupMembershipEvents.Add(GroupMembershipEvent.Create(
+            member.StudentId,
+            group.Id,
+            // Ustoz SURATGA olinadi: `Group.TeacherId` keyinroq almashishi
+            // mumkin va o'shanda eski to'kilish yangi ustozga yozilib qolardi.
+            group.TeacherId,
+            kind,
+            reason,
+            movedToGroupId,
+            actorId,
+            lessons,
+            clock.GetUtcNow()));
+    }
+
+    /// <summary>
+    /// O'quvchi MARKAZDA jami nechta YAKUNLANGAN darsni o'tagan — "probniy"
+    /// hisobining asosi (chegara <c>GroupMembershipEvent.TrialLessonCount</c>).
+    ///
+    /// ★ HISOB O'QUVCHIGA NISBATAN, GURUHGA EMAS. Loyiha egasi ta'rifi
+    /// *"8 darsdan to'kilmasdan o'qib ketgan o'quvchilar aktiv hisoblanadi"*
+    /// — ya'ni muhimi O'QUVCHI nechta dars ko'rgani.
+    ///
+    /// 🔴 SHUNING UCHUN BARCHA A'ZOLIKLAR BO'YICHA SANALADI: agar faqat
+    /// HOZIRGI guruh hisoblanganda, guruhdan guruhga KO'CHIRISH o'quvchining
+    /// "tajribasi"ni nolga qaytarardi (ko'chirishda yangi a'zolikning
+    /// `JoinedAt` i bugunga o'rnatiladi). Natijada 40 dars o'qib, ko'chirilib,
+    /// ikki kundan keyin ketgan o'quvchi "sinovdan o'tmagan" bo'lib
+    /// ko'rinardi — bu hisobotning ma'nosini butunlay buzardi.
+    ///
+    /// Har a'zolik uchun o'sha a'zolikka QO'SHILGANDAN KEYINGI yakunlangan
+    /// darslar sanaladi (rejalashtirilgan yoki bekor qilingani emas), va
+    /// natija barcha a'zoliklar bo'yicha yig'iladi — bitta korrelyatsiyalangan
+    /// `EXISTS` so'rovi bilan.
+    /// </summary>
+    private Task<int> CountCompletedLessonsAsync(long studentId, CancellationToken ct) =>
+        db.LiveSessions.AsNoTracking()
+            .CountAsync(
+                s => s.Status == SessionStatus.Ended
+                    && db.GroupMembers.Any(m =>
+                        m.StudentId == studentId
+                        && m.GroupId == s.GroupId
+                        && s.ScheduledStart >= m.JoinedAt),
+                ct);
 
     private void SetPausedUntil(GroupMember member, DateOnly? value) =>
         db.GroupMembers

@@ -1177,6 +1177,16 @@ export interface AddMemberRequest {
 /** `pausedUntil` — `YYYY-MM-DD`. `null` bo'lsa muddatsiz pauza (qo'lda tiklanadi). */
 export interface PauseMemberRequest {
   pausedUntil?: string | null
+  /** MAJBURIY (2026-08-17) — bo'sh yuborilsa server 400 qaytaradi. */
+  reason: string
+}
+
+/**
+ * Guruhdan chiqarish (2026-08-17 dan tanaga ega).
+ * Sabab MAJBURIY — "to'kilishlar" paneli uni ko'rsatadi.
+ */
+export interface RemoveMemberRequest {
+  reason: string
 }
 
 export interface MoveMemberRequest {

@@ -271,6 +271,12 @@ public interface IApplicationDbContext
 
     DbSet<SubstituteOffer> SubstituteOffers { get; }
 
+    /// <summary>
+    /// A'zolik hodisalari jurnali (to'kilish/muzlatish/ko'chirish tarixi).
+    /// FAQAT QO'SHILADI — sabab <see cref="GroupMembershipEvent"/> izohida.
+    /// </summary>
+    DbSet<GroupMembershipEvent> GroupMembershipEvents { get; }
+
     /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);

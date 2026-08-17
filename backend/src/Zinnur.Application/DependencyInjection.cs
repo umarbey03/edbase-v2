@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Zinnur.Application.AnalysisCriteria.Services;
 using Zinnur.Application.Assignments.Services;
+using Zinnur.Application.Attrition.Services;
 using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Broadcasts.Services;
 using Zinnur.Application.Common.Interfaces;
@@ -103,6 +104,10 @@ public static class DependencyInjection
         services.AddScoped<IStudentNoteService, StudentNoteService>();
 
         services.AddScoped<IGroupService, GroupService>();
+
+        // To'kilishlar hisoboti (2026-08-17) — a'zolik hodisalari jurnalini
+        // FAQAT O'QIYDI; jurnalga `GroupService` yozadi.
+        services.AddScoped<IAttritionService, AttritionService>();
 
         /* ===== R21b · GURUH KATEGORIYALARI LUG'ATI =====
 

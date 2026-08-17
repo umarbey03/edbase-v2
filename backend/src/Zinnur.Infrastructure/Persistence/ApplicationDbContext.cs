@@ -231,6 +231,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SubstituteOffer> SubstituteOffers => Set<SubstituteOffer>();
 
+    public DbSet<GroupMembershipEvent> GroupMembershipEvents => Set<GroupMembershipEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

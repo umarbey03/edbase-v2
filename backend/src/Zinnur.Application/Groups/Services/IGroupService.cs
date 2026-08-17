@@ -66,9 +66,13 @@ public interface IGroupService
     Task<GroupMemberDto> ResumeMemberAsync(
         long id, long studentId, long actorId, CancellationToken ct = default);
 
-    /// <summary>YUMSHOQ chiqarish: yozuv o'chirilmaydi, holati <c>Stopped</c> bo'ladi.</summary>
+    /// <summary>
+    /// YUMSHOQ chiqarish: yozuv o'chirilmaydi, holati <c>Stopped</c> bo'ladi.
+    /// Sabab MAJBURIY (2026-08-17) — sabab <see cref="RemoveMemberRequest"/> izohida.
+    /// </summary>
     Task<GroupMemberDto> RemoveMemberAsync(
-        long id, long studentId, long actorId, CancellationToken ct = default);
+        long id, long studentId, RemoveMemberRequest request, long actorId,
+        CancellationToken ct = default);
 
     /// <summary>Boshqa guruhga ko'chirish — ATOMIK (bitta tranzaksiya).</summary>
     Task<MoveMemberResponse> MoveMemberAsync(

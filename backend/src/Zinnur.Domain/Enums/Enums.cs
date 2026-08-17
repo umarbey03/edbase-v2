@@ -324,6 +324,40 @@ public enum CoverageRequestStatus
     Cancelled = 2,
 }
 
+// ============================================================================
+// A'ZOLIK TARIXI / TO'KILISHLAR (2026-08-17)
+// ============================================================================
+
+/// <summary>
+/// O'quvchining guruhdagi a'zoligi bilan sodir bo'lgan HODISA turi
+/// (<see cref="Zinnur.Domain.Entities.GroupMembershipEvent"/>).
+///
+/// ★ NIMA UCHUN <see cref="MemberStatus"/> YETARLI EMAS: u HOZIRGI holatni
+/// bildiradi va o'zgarganda eskisi YO'QOLADI. Bu enum esa TARIXdagi
+/// o'zgarish nuqtasini bildiradi — "3-avgustda muzlatilgan, 12-avgustda
+/// qaytgan, 20-avgustda butunlay ketgan" zanjirini faqat shu yozib beradi.
+///
+/// 🔴 TARTIB MUHIM: bazaga <c>int</c> sifatida yoziladi. Yangi tur FAQAT
+/// oxiriga qo'shiladi.
+/// </summary>
+public enum MembershipEventKind
+{
+    /// <summary>Guruhga qo'shildi (yangi yoki arxivdan qaytdi).</summary>
+    Joined = 0,
+
+    /// <summary>Muzlatildi (vaqtinchalik to'xtatildi).</summary>
+    Paused = 1,
+
+    /// <summary>Muzlatishdan qaytarildi.</summary>
+    Resumed = 2,
+
+    /// <summary>Guruhdan chiqarildi — HAQIQIY to'kilish.</summary>
+    Stopped = 3,
+
+    /// <summary>Boshqa guruhga ko'chirildi.</summary>
+    Moved = 4,
+}
+
 /// <summary>
 /// <see cref="Zinnur.Domain.Entities.SubstituteOffer"/> holati.
 /// Tartib MUHIM — yangi qiymat FAQAT oxiriga.

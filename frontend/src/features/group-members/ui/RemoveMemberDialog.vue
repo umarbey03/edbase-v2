@@ -2,18 +2,21 @@
 import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
-import { pauseMember } from '@/entities/group'
+import { removeMember } from '@/entities/group'
 import { toUserMessage } from '@/shared/api'
 import type { GroupMemberDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
 
 /**
- * A'zolikni pauza qilish.
+ * GURUHDAN CHIQARISH — MAJBURIY SABAB BILAN (2026-08-17).
  *
- * Muddat IXTIYORIY: sana berilmasa pauza muddatsiz bo'ladi va faqat qo'lda
- * tiklanadi. Ikkalasi ham kerak — "bir oy ta'tilga chiqdi" bilan "noma'lum
- * muddatga to'xtatdi" boshqa-boshqa holat va ularni bitta tugma ostiga
- * yashirish keyin "nega o'zi qaytmadi?" degan savol tug'dirardi.
+ * ★ NIMA UCHUN `useConfirm` O'RNIGA ALOHIDA DIALOG: chiqarish endi sabab
+ * talab qiladi, `useConfirm` esa faqat "ha/yo'q" so'raydi va MATN
+ * MAYDONINI ko'rsatmaydi. Sababni oldindan so'ramasdan yuborish esa
+ * serverdan 400 olib, xodimga tushunarsiz xato ko'rsatardi.
+ *
+ * ★ Ogohlantirish matnlari ESKI `confirm` dialogidan AYNAN ko'chirildi —
+ * xodim o'rgangan ma'lumot yo'qolmasin.
  */
 const props = defineProps<{
   open: boolean
@@ -23,31 +26,23 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: []; saved: [] }>()
 
-const pausedUntil = ref('')
 const reason = ref('')
 const errorMessage = ref<string | null>(null)
 
-/** Sabab MAJBURIY (2026-08-17) — "to'kilishlar" paneli uni ko'rsatadi. */
 const reasonMissing = computed(() => reason.value.trim().length === 0)
 
 watch(
   () => [props.open, props.member],
   () => {
-    pausedUntil.value = props.member?.pausedUntil ?? ''
     reason.value = ''
     errorMessage.value = null
   },
   { immediate: true },
 )
 
-const pauseMutation = useMutation({
+const removeMutation = useMutation({
   mutationFn: (studentId: number) =>
-    pauseMember(props.groupId, studentId, {
-      // Bo'sh maydon = muddatsiz. `""` yuborilsa server sanani parse qila olmay
-      // 400 berardi, shuning uchun ataylab `null`.
-      pausedUntil: pausedUntil.value.length > 0 ? pausedUntil.value : null,
-      reason: reason.value.trim(),
-    }),
+    removeMember(props.groupId, studentId, { reason: reason.value.trim() }),
   onSuccess: () => {
     emit('saved')
     emit('close')
@@ -64,46 +59,30 @@ function handleSubmit(): void {
   errorMessage.value = null
 
   if (reasonMissing.value) {
-    errorMessage.value = 'Muzlatish sababini kiriting.'
+    errorMessage.value = 'Chiqarish sababini kiriting.'
     return
   }
 
-  pauseMutation.mutate(member.studentId)
+  removeMutation.mutate(member.studentId)
 }
 </script>
 
 <template>
   <BaseModal
     :open="props.open"
-    :title="`Pauza: ${props.member?.fullName ?? 'o‘quvchi'}`"
+    :title="`Guruhdan chiqarish: ${props.member?.fullName ?? 'o‘quvchi'}`"
     @close="emit('close')"
   >
-    <p class="text-sm text-slate-300">
-      Pauzadagi o‘quvchi guruh darslariga qo‘shilmaydi va davomatda hisobga
-      olinmaydi.
-    </p>
+    <ul class="space-y-1 text-sm text-slate-300">
+      <li>• Yozuv o‘chirilmaydi — holati “Chiqarilgan” bo‘ladi.</li>
+      <li>• Davomat va to‘lov tarixi saqlanadi.</li>
+      <li>• Qaytarish uchun o‘quvchini guruhga qaytadan qo‘shish kerak bo‘ladi.</li>
+    </ul>
 
-    <div class="mt-3">
-      <BaseField
-        label="Qaysi sanagacha"
-        hint="Bo‘sh qoldirilsa — muddatsiz pauza (keyin qo‘lda tiklanadi)."
-      >
-        <input
-          v-model="pausedUntil"
-          class="zn-input"
-          type="date"
-        >
-      </BaseField>
-    </div>
-
-    <!--
-      ★ SABAB — MAJBURIY (loyiha egasi, 2026-08-17): "to'kilishlar" paneli
-      muzlatishni ham ko'rsatadi va sababsiz qator u yerda ma'nosiz bo'lardi.
-    -->
     <div class="mt-3">
       <BaseField
         label="Sabab"
-        hint="Masalan: uzoq muddatli kasallik, ta'til, imtihon davri."
+        hint="Masalan: boshqa markazga o‘tdi, to‘lov imkoni bo‘lmadi, vaqti to‘g‘ri kelmadi."
         :error="reasonMissing && reason.length > 0 ? 'Sabab bo‘sh bo‘lishi mumkin emas.' : null"
       >
         <textarea
@@ -111,7 +90,7 @@ function handleSubmit(): void {
           class="zn-input min-h-20"
           maxlength="500"
           rows="2"
-          placeholder="Nima uchun muzlatilyapti?"
+          placeholder="Nima uchun chiqarilyapti?"
         />
       </BaseField>
     </div>
@@ -131,10 +110,11 @@ function handleSubmit(): void {
         Bekor qilish
       </BaseButton>
       <BaseButton
-        :loading="pauseMutation.isPending.value"
+        variant="danger"
+        :loading="removeMutation.isPending.value"
         @click="handleSubmit"
       >
-        Pauza qilish
+        Chiqarish
       </BaseButton>
     </template>
   </BaseModal>

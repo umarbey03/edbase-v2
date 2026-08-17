@@ -93,6 +93,7 @@ export type {
   OpenPeriodResult,
   PagedResult,
   PauseMemberRequest,
+  RemoveMemberRequest,
   PaymentAgingBucketDto,
   PaymentAgingBucketName,
   PaymentBlockDto,

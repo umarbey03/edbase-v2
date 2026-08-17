@@ -328,7 +328,21 @@ public sealed record AddMemberRequest(long StudentId);
 /// <param name="PausedUntil">
 /// Pauza tugash sanasi. <c>null</c> — muddatsiz pauza (qo'lda tiklanadi).
 /// </param>
-public sealed record PauseMemberRequest(DateOnly? PausedUntil = null);
+/// <param name="Reason">
+/// Muzlatish sababi — MAJBURIY (loyiha egasi, 2026-08-17). "To'kilishlar"
+/// paneli muzlatishni ham ko'rsatadi; sababsiz qator u yerda ma'nosiz.
+/// </param>
+public sealed record PauseMemberRequest(DateOnly? PausedUntil = null, string? Reason = null);
+
+/// <summary>
+/// Guruhdan chiqarish (2026-08-17 dan tanaga ega).
+///
+/// ★ NIMA UCHUN SO'ROV TANASI PAYDO BO'LDI: ilgari chiqarish sababsiz
+/// bajarilardi va "nega bu o'quvchi ketdi?" savoliga javob HECH QAYERDA
+/// yo'q edi. Endi sabab majburiy — u a'zolik qatoriga ham, o'chmaydigan
+/// hodisa jurnaliga ham yoziladi.
+/// </summary>
+public sealed record RemoveMemberRequest(string? Reason = null);
 
 /// <param name="TargetGroupId">Qaysi guruhga ko'chiriladi.</param>
 /// <param name="Reason">

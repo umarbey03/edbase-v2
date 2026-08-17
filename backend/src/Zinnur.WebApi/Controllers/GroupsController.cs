@@ -144,13 +144,20 @@ public sealed class GroupsController(IGroupService groups) : ControllerBase
     /// <summary>
     /// YUMSHOQ chiqarish: yozuv o'chirilmaydi, holati <c>Stopped</c> bo'ladi —
     /// davomat va to'lov tarixi a'zolikka ishora qiladi.
+    ///
+    /// ★ `POST`, `DELETE` EMAS (2026-08-17): amal endi MAJBURIY sabab
+    /// (so'rov tanasi) talab qiladi. `DELETE` bilan tana yuborish
+    /// rasman mumkin bo'lsa ham, ko'p klient va proksi uni tashlab
+    /// yuboradi — shuning uchun `pause`/`resume`/`move` bilan AYNI
+    /// `POST` naqshiga o'tkazildi.
     /// </summary>
-    [HttpDelete("{id:long}/members/{studentId:long}")]
+    [HttpPost("{id:long}/members/{studentId:long}/remove")]
     [Authorize(Roles = ManageRoles)]
     [ProducesResponseType<GroupMemberDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<GroupMemberDto>> RemoveMember(
-        long id, long studentId, CancellationToken ct) =>
-        Ok(await groups.RemoveMemberAsync(id, studentId, CurrentUserId, ct));
+        long id, long studentId, [FromBody] RemoveMemberRequest request, CancellationToken ct) =>
+        Ok(await groups.RemoveMemberAsync(id, studentId, request, CurrentUserId, ct));
 
     /// <summary>Boshqa guruhga ko'chirish — ATOMIK (bitta tranzaksiya).</summary>
     [HttpPost("{id:long}/members/{studentId:long}/move")]

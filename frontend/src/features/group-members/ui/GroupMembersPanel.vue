@@ -7,7 +7,6 @@ import {
   fetchGroupMembers,
   memberStatusLabel,
   memberStatusTone,
-  removeMember,
   resumeMember,
 } from '@/entities/group'
 import { canSeeStudentContact } from '@/entities/user'
@@ -23,6 +22,7 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, IconButton } from
 import AddMemberDialog from './AddMemberDialog.vue'
 import MoveMemberDialog from './MoveMemberDialog.vue'
 import PauseMemberDialog from './PauseMemberDialog.vue'
+import RemoveMemberDialog from './RemoveMemberDialog.vue'
 import RestoreMemberDialog from './RestoreMemberDialog.vue'
 
 /**
@@ -197,16 +197,12 @@ const resumeMutation = useMutation({
   },
 })
 
-const removeMutation = useMutation({
-  mutationFn: (studentId: number) => removeMember(props.groupId, studentId),
-  onSuccess: refresh,
-  onError: (error: Error) => {
-    actionError.value = toUserMessage(error)
-  },
-  onSettled: () => {
-    busyStudentId.value = null
-  },
-})
+/**
+ * Chiqarish endi ALOHIDA DIALOG orqali (2026-08-17): sabab MAJBURIY va
+ * `useConfirm` matn maydonini ko'rsatmaydi — sabab
+ * `RemoveMemberDialog.vue` izohida.
+ */
+const removingMember = ref<GroupMemberDto | null>(null)
 
 /**
  * ARXIVDAGI o'quvchini SHU guruhga qaytarish (loyiha egasi, 2026-08-16).
@@ -229,9 +225,11 @@ const restoreMutation = useMutation({
 })
 
 function isBusy(member: GroupMemberDto, kind: 'resume' | 'remove' | 'restore'): boolean {
+  // Chiqarish endi dialog ichida bajariladi — uning yuklanish holati
+  // `RemoveMemberDialog` ning O'ZIDA ko'rsatiladi.
+  if (kind === 'remove') return false
   if (busyStudentId.value !== member.studentId) return false
   if (kind === 'resume') return resumeMutation.isPending.value
-  if (kind === 'remove') return removeMutation.isPending.value
   return restoreMutation.isPending.value
 }
 
@@ -261,22 +259,9 @@ async function askResume(member: GroupMemberDto): Promise<void> {
   resumeMutation.mutate(member.studentId)
 }
 
-async function askRemove(member: GroupMemberDto): Promise<void> {
+function askRemove(member: GroupMemberDto): void {
   actionError.value = null
-  const ok = await confirm({
-    title: 'Guruhdan chiqarish',
-    message: `${memberName(member)} guruhdan chiqariladi.`,
-    confirmLabel: 'Chiqarish',
-    tone: 'danger',
-    details: [
-      'Yozuv o‘chirilmaydi — holati “Chiqarilgan” bo‘ladi.',
-      'Davomat va to‘lov tarixi saqlanadi.',
-      'Qaytarish uchun o‘quvchini guruhga qaytadan qo‘shish kerak bo‘ladi.',
-    ],
-  })
-  if (!ok) return
-  busyStudentId.value = member.studentId
-  removeMutation.mutate(member.studentId)
+  removingMember.value = member
 }
 
 async function askRestore(member: GroupMemberDto): Promise<void> {
@@ -752,6 +737,14 @@ function isHistorical(member: GroupMemberDto): boolean {
       :group-id="props.groupId"
       :member="pauseTarget"
       @close="pauseTarget = null"
+      @saved="refresh"
+    />
+
+    <RemoveMemberDialog
+      :open="removingMember !== null"
+      :group-id="props.groupId"
+      :member="removingMember"
+      @close="removingMember = null"
       @saved="refresh"
     />
 

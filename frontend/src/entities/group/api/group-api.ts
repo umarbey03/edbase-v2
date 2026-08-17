@@ -11,6 +11,7 @@ import type {
   MoveMemberResponse,
   PagedResult,
   PauseMemberRequest,
+  RemoveMemberRequest,
   ScheduleChangeSummary,
   ScheduledSessionDto,
   UpdateGroupResponse,
@@ -130,7 +131,7 @@ export function addMember(groupId: number, body: AddMemberRequest): Promise<Grou
 export function pauseMember(
   groupId: number,
   studentId: number,
-  body: PauseMemberRequest = {},
+  body: PauseMemberRequest,
 ): Promise<GroupMemberDto> {
   return http.post<GroupMemberDto>(`${BASE}/${groupId}/members/${studentId}/pause`, body)
 }
@@ -144,8 +145,15 @@ export function resumeMember(groupId: number, studentId: number): Promise<GroupM
  * davomat va to'lov tarixi a'zolikka ishora qilib turadi (server izohi).
  * Shuning uchun UI'da ham "o'chirish" emas, "chiqarish" deb ataladi.
  */
-export function removeMember(groupId: number, studentId: number): Promise<GroupMemberDto> {
-  return http.delete<GroupMemberDto>(`${BASE}/${groupId}/members/${studentId}`)
+export function removeMember(
+  groupId: number,
+  studentId: number,
+  body: RemoveMemberRequest,
+): Promise<GroupMemberDto> {
+  // ★ `POST`, `DELETE` EMAS (2026-08-17): chiqarish endi MAJBURIY sabab
+  //   talab qiladi va u so'rov TANASIDA ketadi — `DELETE` bilan tana
+  //   yuborish ko'p klient/proksida ishonchsiz (server izohi ham shu).
+  return http.post<GroupMemberDto>(`${BASE}/${groupId}/members/${studentId}/remove`, body)
 }
 
 /** Boshqa guruhga ko'chirish — serverda ATOMIK (bitta tranzaksiya). */
