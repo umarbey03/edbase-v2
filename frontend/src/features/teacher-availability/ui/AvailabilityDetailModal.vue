@@ -13,7 +13,7 @@ import {
 } from '@/entities/teacher-availability'
 import { toUserMessage } from '@/shared/api'
 import { formatDateNumeric, formatDateTimeNumeric } from '@/shared/lib/datetime'
-import { BaseBadge, BaseModal, DataStatus } from '@/shared/ui'
+import { BaseBadge, BaseButton, BaseModal, DataStatus } from '@/shared/ui'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -195,5 +195,19 @@ const errorMessage = computed(() =>
         </div>
       </div>
     </DataStatus>
+
+    <!--
+      ★ STANDART PASTKI PANEL: faqat o'qish uchun tafsilot modallarida
+      ilovadagi qonun (`PayrollDetailDialog` bilan AYNI) — pastda bitta
+      "Yopish" tugmasi.
+    -->
+    <template #footer>
+      <BaseButton
+        variant="secondary"
+        @click="emit('close')"
+      >
+        Yopish
+      </BaseButton>
+    </template>
   </BaseModal>
 </template>

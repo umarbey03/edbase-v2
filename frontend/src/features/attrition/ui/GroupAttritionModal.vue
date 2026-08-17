@@ -13,7 +13,7 @@ import {
 import { toUserMessage } from '@/shared/api'
 import { formatDateNumeric, formatDateTimeNumeric } from '@/shared/lib/datetime'
 import type { AttritionListParams } from '@/shared/types'
-import { BaseBadge, BaseModal, DataStatus } from '@/shared/ui'
+import { BaseBadge, BaseButton, BaseModal, DataStatus } from '@/shared/ui'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -294,5 +294,21 @@ const courseFinished = computed(
         </li>
       </ul>
     </DataStatus>
+
+    <!--
+      ★ STANDART PASTKI PANEL (loyiha egasi, 2026-08-17): faqat o'qish
+      uchun tafsilot modallarida ilovadagi qonun — pastda bitta
+      "Yopish" tugmasi (`PayrollDetailDialog` bilan AYNI). Bunsiz oyna
+      boshqa dialoglardan farq qilib turardi: yopish uchun faqat
+      yuqoridagi kichik ✕ qolardi.
+    -->
+    <template #footer>
+      <BaseButton
+        variant="secondary"
+        @click="emit('close')"
+      >
+        Yopish
+      </BaseButton>
+    </template>
   </BaseModal>
 </template>
