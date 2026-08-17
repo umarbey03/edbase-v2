@@ -6,7 +6,7 @@ import { fetchTeacherAvailabilityToday } from '@/entities/teacher-availability'
 import { toUserMessage } from '@/shared/api'
 import { lookup } from '@/shared/lib/lookup'
 import { formatTime } from '@/shared/lib/datetime'
-import type { CoverageStatusDto, TeacherAvailabilityTodayDto } from '@/shared/types'
+import type { TeacherAvailabilityTodayDto } from '@/shared/types'
 import { BaseBadge, BaseCard, DataStatus, PageHeader } from '@/shared/ui'
 
 /**
@@ -69,10 +69,14 @@ function coverageTone(status: string | null): 'neutral' | 'success' | 'warning' 
   return lookup(COVERAGE_TONES, status, 'neutral')
 }
 
-function coverageText(session: CoverageStatusDto): string {
-  if (session.substituteTeacherName !== null) return session.substituteTeacherName
-  return coverageLabel(session.status)
-}
+/*
+  ★ TUSHUNARSIZLIK (loyiha egasi, 2026-08-17): avval o'rinbosarning ISMI
+  YALANG'OCH holda ko'rsatilardi — "Nodira Qosimova ... Bekzod Rahimov"
+  qatorida kim ASL ustoz, kim O'RNIGA o'tayotgani umuman aniq emas edi.
+  Endi shablonda TO'LIQ jumla chiziladi: "<asl ustoz> o'tolmaydi →
+  <o'rinbosar> o'tib beradi" — funksiya emas, to'g'ridan-to'g'ri shablonda
+  (mantiq juda oddiy, alohida yordamchiga chiqarish o'qishni qiyinlashtirardi).
+*/
 
 const query = useQuery({
   queryKey: ['teacher-availability', 'today'],
@@ -132,27 +136,52 @@ const errorMessage = computed(() => (query.error.value !== null ? toUserMessage(
 
               <ul
                 v-if="row.affectedSessions.length > 0"
-                class="mt-2 space-y-1"
+                class="mt-2 space-y-1.5"
               >
                 <li
                   v-for="session in row.affectedSessions"
                   :key="session.sessionId"
-                  class="flex flex-wrap items-center gap-2 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs"
+                  class="rounded-lg bg-ink-800 px-2.5 py-2 text-xs"
                 >
-                  <span
-                    class="tabular-nums text-slate-400"
-                    v-text="formatTime(session.scheduledStart)"
-                  />
-                  <span
-                    class="min-w-0 flex-1 truncate font-medium text-slate-200"
-                    v-text="session.groupName"
-                  />
-                  <BaseBadge
-                    size="xs"
-                    :tone="coverageTone(session.status)"
-                  >
-                    {{ coverageText(session) }}
-                  </BaseBadge>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      class="tabular-nums text-slate-400"
+                      v-text="formatTime(session.scheduledStart)"
+                    />
+                    <span
+                      class="min-w-0 flex-1 truncate font-medium text-slate-200"
+                      v-text="session.groupName"
+                    />
+                    <BaseBadge
+                      size="xs"
+                      :tone="session.substituteTeacherName !== null ? 'success' : coverageTone(session.status)"
+                    >
+                      {{ coverageLabel(session.status) }}
+                    </BaseBadge>
+                  </div>
+
+                  <!--
+                    ★ ANIQ JUMLA (loyiha egasi talabi): "kim asli o'tishi
+                    kerak edi" va "kim o'tib berdi" bitta o'qib ketiladigan
+                    qatorda, YO'NALISH belgisi (→) bilan.
+                  -->
+                  <p class="mt-1 text-slate-400">
+                    <span v-text="row.teacherName" />
+                    <span> o‘tolmaydi</span>
+                    <span
+                      v-if="session.substituteTeacherName !== null"
+                      class="text-slate-500"
+                    > → </span>
+                    <span
+                      v-if="session.substituteTeacherName !== null"
+                      class="font-semibold text-emerald-400"
+                      v-text="`${session.substituteTeacherName} o‘tib beradi`"
+                    />
+                    <span
+                      v-else
+                      class="text-amber-400"
+                    > — {{ coverageLabel(session.status) }}</span>
+                  </p>
                 </li>
               </ul>
             </template>
