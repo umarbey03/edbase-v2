@@ -638,4 +638,113 @@ public class LiveSessionTests
     {
         LiveSession.MaxExtendMinutes.Should().Be(10);
     }
+
+    // ------------------------------------------------------------------ AssignSubstitute (2026-08-17, ustoz kunlik tasdiqlash)
+
+    /// <summary>
+    /// ★ OYLIK SHU MAYDONGA BOG'LANGAN (<c>LessonAccrualService</c>): o'rinbosarni
+    /// <c>HostId</c>ga yozish — payroll'ni unga o'tkazish uchun YAGONA va YETARLI
+    /// amal, boshqa hech qanday moliya kodi o'zgarmaydi.
+    /// </summary>
+    [Fact]
+    public void AssignSubstitute_OnScheduledSession_SetsHostIdToSubstitute()
+    {
+        var session = NewSession();
+
+        session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(-10));
+
+        session.HostId.Should().Be(42);
+    }
+
+    [Fact]
+    public void AssignSubstitute_OnScheduledSession_SetsOriginalHostIdToPreviousHost()
+    {
+        var session = NewSession();
+
+        session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(-10));
+
+        session.OriginalHostId.Should().Be(7);
+    }
+
+    [Fact]
+    public void AssignSubstitute_OnScheduledSession_SetsUpdatedAt()
+    {
+        var session = NewSession();
+        var now = Scheduled.AddMinutes(-10);
+
+        session.AssignSubstitute(substituteTeacherId: 42, now);
+
+        session.UpdatedAt.Should().Be(now);
+    }
+
+    /// <summary>
+    /// ★ REGRESSIYA: agar dars ikkinchi marta boshqa o'rinbosarga
+    /// qayta tayinlansa (masalan birinchi o'rinbosar ham voz kechsa),
+    /// <c>OriginalHostId</c> ASL ustozga ishora qilib QOLISHI kerak —
+    /// birinchi o'rinbosarga emas, aks holda audit "kim asl ustoz edi"
+    /// savolini yo'qotardi.
+    /// </summary>
+    [Fact]
+    public void AssignSubstitute_CalledTwice_KeepsOriginalHostIdFromFirstCall()
+    {
+        var session = NewSession();
+        session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(-10));
+
+        session.AssignSubstitute(substituteTeacherId: 43, Scheduled.AddMinutes(-5));
+
+        session.OriginalHostId.Should().Be(7);
+    }
+
+    [Fact]
+    public void AssignSubstitute_CalledTwice_UpdatesHostIdToLatestSubstitute()
+    {
+        var session = NewSession();
+        session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(-10));
+
+        session.AssignSubstitute(substituteTeacherId: 43, Scheduled.AddMinutes(-5));
+
+        session.HostId.Should().Be(43);
+    }
+
+    [Fact]
+    public void AssignSubstitute_OnLiveSession_ThrowsDomainException()
+    {
+        var session = LiveSessionStartedAtScheduledTime();
+
+        var act = () => session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(10));
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void AssignSubstitute_OnEndedSession_ThrowsDomainException()
+    {
+        var session = LiveSessionStartedAtScheduledTime();
+        session.End(Scheduled.AddMinutes(PlannedMinutes));
+
+        var act = () => session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(PlannedMinutes + 5));
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void AssignSubstitute_OnCancelledSession_ThrowsDomainException()
+    {
+        var session = NewSession(SessionStatus.Cancelled);
+
+        var act = () => session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(-10));
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void AssignSubstitute_WhenRejected_DoesNotChangeHostId()
+    {
+        var session = LiveSessionStartedAtScheduledTime();
+
+        var act = () => session.AssignSubstitute(substituteTeacherId: 42, Scheduled.AddMinutes(10));
+
+        act.Should().Throw<DomainException>();
+        session.HostId.Should().Be(7);
+    }
 }
