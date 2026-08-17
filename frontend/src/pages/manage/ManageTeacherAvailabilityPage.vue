@@ -13,7 +13,7 @@ import {
   rangeError,
   todayIso,
 } from '@/entities/teacher-availability'
-import { AvailabilityDetailModal } from '@/features/teacher-availability'
+import { AvailabilityDetailDrawer } from '@/features/teacher-availability'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateNumeric, formatTime } from '@/shared/lib/datetime'
@@ -577,7 +577,7 @@ const selectedCheckinId = ref<number | null>(null)
       </BaseCard>
     </DataStatus>
 
-    <AvailabilityDetailModal
+    <AvailabilityDetailDrawer
       :checkin-id="selectedCheckinId"
       @close="selectedCheckinId = null"
     />

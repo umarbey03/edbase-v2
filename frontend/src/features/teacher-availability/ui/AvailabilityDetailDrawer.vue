@@ -13,7 +13,7 @@ import {
 } from '@/entities/teacher-availability'
 import { toUserMessage } from '@/shared/api'
 import { formatDateNumeric, formatDateTimeNumeric } from '@/shared/lib/datetime'
-import { BaseBadge, BaseButton, BaseModal, DataStatus } from '@/shared/ui'
+import { BaseBadge, BaseButton, BaseDrawer, DataStatus } from '@/shared/ui'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -50,10 +50,10 @@ const errorMessage = computed(() =>
 </script>
 
 <template>
-  <BaseModal
+  <BaseDrawer
     :open="props.checkinId !== null"
-    wide
-    :title="detail !== null ? `${detail.teacherName} — ${formatDateNumeric(detail.checkinDate)}` : 'Tafsilot'"
+    :title="detail !== null ? detail.teacherName : 'Tafsilot'"
+    :subtitle="detail !== null ? formatDateNumeric(detail.checkinDate) : ''"
     @close="emit('close')"
   >
     <DataStatus
@@ -209,5 +209,5 @@ const errorMessage = computed(() =>
         Yopish
       </BaseButton>
     </template>
-  </BaseModal>
+  </BaseDrawer>
 </template>

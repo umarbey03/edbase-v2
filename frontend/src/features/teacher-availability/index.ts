@@ -1,1 +1,1 @@
-export { default as AvailabilityDetailModal } from './ui/AvailabilityDetailModal.vue'
+export { default as AvailabilityDetailDrawer } from './ui/AvailabilityDetailDrawer.vue'

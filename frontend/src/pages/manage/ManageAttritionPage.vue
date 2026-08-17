@@ -15,7 +15,7 @@ import {
   trialTone,
 } from '@/entities/attrition'
 import { RANGE_PRESETS, daysAgoIso, rangeError, todayIso } from '@/entities/teacher-availability'
-import { GroupAttritionModal, TeacherGroupsBreakdown } from '@/features/attrition'
+import { GroupAttritionDrawer, TeacherGroupsBreakdown } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
 import { useDebounced } from '@/shared/lib/debounce'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
@@ -885,7 +885,7 @@ watch(activeTab, () => {
       jadvalidan va "Ustozlar kesimi" dagi ochilgan guruh qatoridan.
       Bitta nusxa, bitta holat.
     -->
-    <GroupAttritionModal
+    <GroupAttritionDrawer
       :group-id="groupModal?.groupId ?? null"
       :group-name="groupModal?.groupName ?? ''"
       :params="filters"

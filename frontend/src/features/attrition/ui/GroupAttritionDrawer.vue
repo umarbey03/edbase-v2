@@ -13,7 +13,7 @@ import {
 import { toUserMessage } from '@/shared/api'
 import { formatDateNumeric, formatDateTimeNumeric } from '@/shared/lib/datetime'
 import type { AttritionListParams } from '@/shared/types'
-import { BaseBadge, BaseButton, BaseModal, DataStatus } from '@/shared/ui'
+import { BaseBadge, BaseButton, BaseDrawer, DataStatus } from '@/shared/ui'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -84,10 +84,10 @@ const courseFinished = computed(
 </script>
 
 <template>
-  <BaseModal
+  <BaseDrawer
     :open="isOpen"
-    wide
-    :title="`To‘kilishlar — ${detail?.groupName ?? props.groupName}`"
+    :title="detail?.groupName ?? props.groupName"
+    subtitle="To‘kilishlar va guruh ma’lumotlari"
     @close="emit('close')"
   >
     <!-- ══════════════ GURUH HAQIDA ══════════════ -->
@@ -310,5 +310,5 @@ const courseFinished = computed(
         Yopish
       </BaseButton>
     </template>
-  </BaseModal>
+  </BaseDrawer>
 </template>
