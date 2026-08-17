@@ -3145,6 +3145,84 @@ export interface TeacherAvailabilityDetailDto {
 /* ===== /USTOZ KUNLIK TASDIQLASH ===== */
 
 /* ============================================================================
+   TO'KILISHLAR (2026-08-17) — a'zolik hodisalari jurnali asosidagi hisobot.
+   ============================================================================ */
+
+/** `MembershipEventKind` enum nomlari. */
+export type MembershipEventKindName = 'Joined' | 'Paused' | 'Resumed' | 'Stopped' | 'Moved'
+
+/** Saralash ustuni — backend OQ RO'YXATI. */
+export type AttritionSortName = 'Date' | 'Student' | 'Group' | 'Lessons'
+
+export interface AttritionListParams {
+  search?: string
+  kind?: MembershipEventKindName
+  groupId?: number
+  teacherId?: number
+  /** Mahalliy sana `YYYY-MM-DD` (KIRADI). */
+  from?: string
+  to?: string
+  /** `true` — faqat sinov (probniy) davridagi; `false` — faqat aktiv o'quvchi. */
+  trial?: boolean
+  sort?: AttritionSortName
+  desc?: boolean
+  page?: number
+  pageSize?: number
+}
+
+/** Ro'yxatdagi bitta hodisa. */
+export interface AttritionRowDto {
+  eventId: number
+  occurredAt: string
+  studentId: number
+  studentName: string
+  groupId: number
+  groupName: string
+  /** Hodisa PAYTIDAGI ustoz (surat) — keyin almashtirilgani ta'sir qilmaydi. */
+  teacherId: number | null
+  teacherName: string | null
+  kind: string
+  reason: string | null
+  movedToGroupId: number | null
+  movedToGroupName: string | null
+  actorName: string
+  /** Ketishdan oldin nechta yakunlangan darsni o'tagan. */
+  lessonsCompleted: number
+  /** 8 darsdan kam — sinov (probniy) davri. */
+  isTrial: boolean
+}
+
+export interface AttritionSummaryDto {
+  total: number
+  stopped: number
+  paused: number
+  moved: number
+  trialLosses: number
+  activeLosses: number
+  averageLessonsBeforeLeaving: number
+}
+
+export interface AttritionByTeacherDto {
+  teacherId: number | null
+  teacherName: string
+  stopped: number
+  paused: number
+  moved: number
+  trialLosses: number
+}
+
+export interface AttritionByGroupDto {
+  groupId: number
+  groupName: string
+  teacherName: string | null
+  stopped: number
+  trialLosses: number
+  activeMembers: number
+}
+
+/* ===== /TO'KILISHLAR ===== */
+
+/* ============================================================================
    OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi, FAQAT Admin ko'radi.
    ============================================================================ */
 

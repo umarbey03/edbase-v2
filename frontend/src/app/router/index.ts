@@ -274,6 +274,17 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          TO'KILISHLAR (2026-08-17) — o'quvchi qachon, qaysi guruhdan, qaysi
+          ustozdan va nima sababdan ketgani/muzlatilgani/ko'chirilgani.
+          Manba: o'chmaydigan `GroupMembershipEvent` jurnali.
+        */
+        path: 'boshqaruv/tokilishlar',
+        name: 'manage-attrition',
+        component: () => import('@/pages/manage/ManageAttritionPage.vue'),
+        meta: { title: 'To‘kilishlar', roles: MANAGERS },
+      },
+      {
+        /*
           FAQAT ADMIN (loyiha egasi, 2026-08-15): *"to'lovlar va moliya
           qismi o'quv bo'limi uchun kerak emas, u qismi admin panelda
           bo'lsa yetadi"*. `PaymentsController.ManageRoles` o'zi

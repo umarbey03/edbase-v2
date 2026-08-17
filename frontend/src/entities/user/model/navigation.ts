@@ -118,6 +118,13 @@ const MANAGE_NAV: NavItem[] = [
     ertalabki eng birinchi tekshiriladigan narsa bo'lgani uchun yuqoriroq.
   */
   { routeName: 'manage-teacher-availability', label: 'Ustozlar holati', icon: 'user-check' },
+  /*
+    "To'kilishlar" — v2 qo'shimchasi (2026-08-17): o'quvchilarning guruhdan
+    ketishi/muzlatilishi/ko'chirilishi hisoboti. "Ustozlar holati" dan
+    KEYIN: ikkalasi ham kundalik nazorat, lekin to'kilish haftalik/oylik
+    ko'rib chiqiladigan ko'rsatkich, ertalabki tekshiruv emas.
+  */
+  { routeName: 'manage-attrition', label: 'To‘kilishlar', icon: 'chart' },
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },
   { routeName: 'manage-sessions', label: 'Jonli darslar', icon: 'calendar' },
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },
