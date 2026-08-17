@@ -3027,6 +3027,18 @@ export interface HolidayImpactDto {
    ko'rsatish (polling) uchun.
    ============================================================================ */
 
+/** `TeacherCheckinStatus` enum nomlari. */
+export type TeacherCheckinStatusName =
+  | 'Pending'
+  | 'Confirmed'
+  | 'SelectingSessions'
+  | 'AwaitingReason'
+  | 'AwaitingDays'
+  | 'Declined'
+
+/** Saralash ustuni — backend OQ RO'YXATI (noto'g'ri qiymat 400 beradi). */
+export type TeacherAvailabilitySortName = 'Date' | 'Teacher' | 'Status'
+
 /** Bitta ta'sirlangan darsning o'rinbosar qamrovi. */
 export interface CoverageStatusDto {
   sessionId: number
@@ -3037,15 +3049,87 @@ export interface CoverageStatusDto {
   substituteTeacherName: string | null
 }
 
-/** Bugungi kunning bitta ustoz bo'yicha holati. */
-export interface TeacherAvailabilityTodayDto {
+/** `GET /api/v1/teacher-availability` so'rov parametrlari. */
+export interface TeacherAvailabilityListParams {
+  search?: string
+  status?: TeacherCheckinStatusName
+  /** Mahalliy sana `YYYY-MM-DD` (KIRADI). */
+  from?: string
+  /** Mahalliy sana `YYYY-MM-DD` (KIRADI). */
+  to?: string
+  /** Faqat o'rinbosar hali topilmagan yozuvlar. */
+  onlyUncovered?: boolean
+  sort?: TeacherAvailabilitySortName
+  desc?: boolean
+  page?: number
+  pageSize?: number
+}
+
+/** Ro'yxatdagi bitta qator — bitta ustozning bitta kunlik javobi. */
+export interface TeacherAvailabilityRowDto {
   checkinId: number
+  teacherId: number
   teacherName: string
-  /** `Pending` | `Confirmed` | `SelectingSessions` | `AwaitingReason` | `AwaitingDays` | `Declined`. */
+  /** Mahalliy sana `YYYY-MM-DD`. */
+  checkinDate: string
   status: string
   declineReason: string | null
   unavailableDays: number | null
+  sentAt: string
+  respondedAt: string | null
   affectedSessions: CoverageStatusDto[]
+}
+
+/**
+ * Filtrga mos BUTUN to'plam bo'yicha yig'ma — sahifalashga bog'liq EMAS
+ * (shuning uchun alohida so'rov).
+ */
+export interface TeacherAvailabilitySummaryDto {
+  total: number
+  confirmed: number
+  declined: number
+  pending: number
+  /** Suhbat yarim qolgan (dars tanlash / sabab / kun kutilmoqda). */
+  inProgress: number
+  affectedSessions: number
+  coverageResolved: number
+  coverageOpen: number
+}
+
+/** Bitta nomzodga yuborilgan taklif va uning javobi. */
+export interface SubstituteOfferRowDto {
+  offerId: number
+  candidateTeacherId: number
+  candidateTeacherName: string
+  /** `Sent` | `Accepted` | `Declined` | `Withdrawn`. */
+  status: string
+  sentAt: string
+  respondedAt: string | null
+}
+
+/** Bitta dars uchun o'rinbosar qidiruvining to'liq tarixi. */
+export interface CoverageDetailDto {
+  sessionId: number
+  groupName: string
+  scheduledStart: string
+  status: string | null
+  substituteTeacherName: string | null
+  reason: string | null
+  offers: SubstituteOfferRowDto[]
+}
+
+/** Modal uchun — bitta yozuvning to'liq tafsiloti. */
+export interface TeacherAvailabilityDetailDto {
+  checkinId: number
+  teacherId: number
+  teacherName: string
+  checkinDate: string
+  status: string
+  declineReason: string | null
+  unavailableDays: number | null
+  sentAt: string
+  respondedAt: string | null
+  coverages: CoverageDetailDto[]
 }
 
 /* ===== /USTOZ KUNLIK TASDIQLASH ===== */

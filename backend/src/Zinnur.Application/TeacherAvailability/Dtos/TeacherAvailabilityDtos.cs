@@ -1,37 +1,142 @@
+using Zinnur.Domain.Enums;
+
 namespace Zinnur.Application.TeacherAvailability.Dtos;
 
 /// <summary>
-/// O'quv bo'limi paneli uchun — bugungi kunning bitta ustoz bo'yicha holati.
+/// "Ustozlar holati" ro'yxati uchun so'rov (2026-08-17 kengaytmasi).
+///
+/// ★ SANA FILTRI UTC O'GIRISHNI TALAB QILMAYDI: <c>TeacherDailyCheckin.
+/// CheckinDate</c> allaqachon MAHALLIY kalendar sanasi (<c>DateOnly</c>)
+/// sifatida saqlanadi. UTC chegaralari faqat <c>LiveSession.ScheduledStart</c>
+/// uchun kerak — u bu yerda filtrlanmaydi.
 /// </summary>
-/// <param name="CheckinId">Checkin yozuvi ID'si.</param>
-/// <param name="TeacherName">Ustoz F.I.Sh.</param>
-/// <param name="Status">
-/// <see cref="Zinnur.Domain.Enums.TeacherCheckinStatus"/> nomi (matn —
-/// frontend ko'rsatish uchun, qiymatni o'zi qayta hisoblamaydi).
+/// <param name="Search">Ustoz ismi yoki sabab matni bo'yicha (ixtiyoriy).</param>
+/// <param name="Status">Aniq bir holat bo'yicha.</param>
+/// <param name="From">Davr boshi (mahalliy sana, KIRADI).</param>
+/// <param name="To">Davr oxiri (mahalliy sana, KIRADI).</param>
+/// <param name="OnlyUncovered">
+/// Faqat DIQQAT TALAB QILADIGANLAR: "yo'q" degan, lekin hali o'rinbosar
+/// topilmagan yozuvlar. O'quv bo'limining kundalik "kim bilan ishlash
+/// kerak" savoliga bitta bosishda javob beradi.
 /// </param>
-/// <param name="DeclineReason">"Yo'q" bo'lsa — sabab.</param>
-/// <param name="UnavailableDays">"Yo'q" bo'lsa — necha kunga.</param>
-/// <param name="AffectedSessions">Ta'sirlangan darslar va ularning qamrov holati.</param>
-public sealed record TeacherAvailabilityTodayDto(
+public sealed record TeacherAvailabilityListQuery(
+    string? Search = null,
+    TeacherCheckinStatus? Status = null,
+    DateOnly? From = null,
+    DateOnly? To = null,
+    bool OnlyUncovered = false,
+    TeacherAvailabilitySort Sort = TeacherAvailabilitySort.Date,
+    bool Desc = true,
+    int Page = 1,
+    int PageSize = 20);
+
+/// <summary>
+/// Saralash ustuni — OQ RO'YXAT.
+///
+/// ★ NIMA UCHUN ENUM, ERKIN SATR EMAS: erkin `sortBy=...` satri bilan
+/// klient bazadagi istalgan ustunni (yoki umuman mavjud bo'lmagan nomni)
+/// yuborishi mumkin bo'lardi. Enum bilan noto'g'ri qiymat MODEL BOG'LASH
+/// bosqichida rad etiladi va servisga umuman yetib bormaydi.
+///
+/// 🔴 TARTIB MUHIM EMAS (bazaga yozilmaydi), lekin nomlar API shartnomasi:
+/// `JsonStringEnumConverter` ularni SATR sifatida qabul qiladi (`?sort=Teacher`).
+/// </summary>
+public enum TeacherAvailabilitySort
+{
+    /// <summary>Kunlik sana bo'yicha (standart).</summary>
+    Date = 0,
+
+    /// <summary>Ustoz F.I.Sh. bo'yicha.</summary>
+    Teacher = 1,
+
+    /// <summary>Holat bo'yicha (Kutilmoqda → Tasdiqladi → ... → Yo'q dedi).</summary>
+    Status = 2,
+}
+
+/// <summary>Ro'yxatdagi bitta qator — bitta ustozning bitta kunlik javobi.</summary>
+/// <param name="Status"><see cref="TeacherCheckinStatus"/> nomi (matn).</param>
+public sealed record TeacherAvailabilityRowDto(
     long CheckinId,
+    long TeacherId,
     string TeacherName,
+    DateOnly CheckinDate,
     string Status,
     string? DeclineReason,
     int? UnavailableDays,
+    DateTimeOffset SentAt,
+    DateTimeOffset? RespondedAt,
     IReadOnlyList<CoverageStatusDto> AffectedSessions);
 
 /// <summary>Bitta ta'sirlangan darsning o'rinbosar qamrovi.</summary>
-/// <param name="SessionId">Dars ID'si.</param>
-/// <param name="GroupName">Guruh nomi.</param>
-/// <param name="ScheduledStart">Dars vaqti.</param>
 /// <param name="Status">
-/// <see cref="Zinnur.Domain.Enums.CoverageRequestStatus"/> nomi — so'rov
-/// umuman OCHILMAGAN bo'lsa (masalan hali qayta ishlanmoqda) <c>null</c>.
+/// <see cref="CoverageRequestStatus"/> nomi — so'rov umuman OCHILMAGAN
+/// bo'lsa <c>null</c>.
 /// </param>
-/// <param name="SubstituteTeacherName">Topilgan bo'lsa — o'rinbosar F.I.Sh.</param>
 public sealed record CoverageStatusDto(
     long SessionId,
     string GroupName,
     DateTimeOffset ScheduledStart,
     string? Status,
     string? SubstituteTeacherName);
+
+/// <summary>
+/// Filtrga mos BUTUN to'plam bo'yicha yig'ma ko'rsatkichlar.
+///
+/// ★ RO'YXATDAN ALOHIDA ENDPOINT — ATAYLAB: ro'yxat SAHIFALANGAN, yig'ma
+/// esa butun to'plamni sanashi kerak. Bitta javobga qo'shilsa, ikkinchi
+/// sahifada raqamlar "o'zgargandek" ko'rinardi (AYNI qaror
+/// `AssignmentDtos` da ham izohlangan).
+/// </summary>
+/// <param name="InProgress">Suhbat yarim qolgan (dars tanlash/sabab/kun kutilmoqda).</param>
+/// <param name="AffectedSessions">"Yo'q" javoblari ta'sir qilgan darslar soni.</param>
+/// <param name="CoverageResolved">Shulardan o'rinbosar TOPILGANI.</param>
+/// <param name="CoverageOpen">Shulardan hali OCHIQ (o'rinbosar kutilmoqda).</param>
+public sealed record TeacherAvailabilitySummaryDto(
+    int Total,
+    int Confirmed,
+    int Declined,
+    int Pending,
+    int InProgress,
+    int AffectedSessions,
+    int CoverageResolved,
+    int CoverageOpen);
+
+/// <summary>
+/// Bitta yozuvning TO'LIQ tafsiloti (modal uchun) — jumladan KIMGA taklif
+/// yuborilgani va kim qanday javob bergani.
+///
+/// ★ NIMA UCHUN RO'YXATDA EMAS: taklif tarixi bitta darsga 5-10 qator
+/// bo'lishi mumkin. Ro'yxatning har qatorida yuklansa, 20 qatorli sahifa
+/// yuzlab ortiqcha yozuvni tortardi — u faqat SO'RALGANDA olinadi.
+/// </summary>
+public sealed record TeacherAvailabilityDetailDto(
+    long CheckinId,
+    long TeacherId,
+    string TeacherName,
+    DateOnly CheckinDate,
+    string Status,
+    string? DeclineReason,
+    int? UnavailableDays,
+    DateTimeOffset SentAt,
+    DateTimeOffset? RespondedAt,
+    IReadOnlyList<CoverageDetailDto> Coverages);
+
+/// <summary>Bitta dars uchun o'rinbosar qidiruvining to'liq tarixi.</summary>
+public sealed record CoverageDetailDto(
+    long SessionId,
+    string GroupName,
+    DateTimeOffset ScheduledStart,
+    string? Status,
+    string? SubstituteTeacherName,
+    string? Reason,
+    IReadOnlyList<SubstituteOfferRowDto> Offers);
+
+/// <summary>Bitta nomzodga yuborilgan taklif va uning javobi.</summary>
+/// <param name="Status"><see cref="SubstituteOfferStatus"/> nomi (matn).</param>
+public sealed record SubstituteOfferRowDto(
+    long OfferId,
+    long CandidateTeacherId,
+    string CandidateTeacherName,
+    string Status,
+    DateTimeOffset SentAt,
+    DateTimeOffset? RespondedAt);

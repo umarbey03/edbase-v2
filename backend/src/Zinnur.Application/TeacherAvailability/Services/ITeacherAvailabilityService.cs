@@ -1,3 +1,4 @@
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.TeacherAvailability.Dtos;
 
 namespace Zinnur.Application.TeacherAvailability.Services;
@@ -43,6 +44,23 @@ public interface ITeacherAvailabilityService
     /// <returns><c>true</c> — matn shu oqim uchun edi va ISHLANDI (chaqiruvchi "yordam" javobini bermasin).</returns>
     Task<bool> HandleFreeTextAsync(long senderTelegramId, string text, CancellationToken ct = default);
 
-    /// <summary>O'quv bo'limi paneli uchun — bugungi holat, barcha ustozlar bo'yicha.</summary>
-    Task<IReadOnlyList<TeacherAvailabilityTodayDto>> GetTodayAsync(CancellationToken ct = default);
+    /// <summary>
+    /// O'quv bo'limi paneli — YOZUVLAR ro'yxati (filtr + qidiruv + saralash
+    /// + sahifalash). Sana oralig'i berilmasa BARCHA kunlar qaytadi.
+    /// </summary>
+    Task<PagedResult<TeacherAvailabilityRowDto>> ListAsync(
+        TeacherAvailabilityListQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// AYNI filtrga mos BUTUN to'plam bo'yicha yig'ma ko'rsatkichlar.
+    /// Sahifalash e'tiborga OLINMAYDI (sabab <see cref="TeacherAvailabilitySummaryDto"/> izohida).
+    /// </summary>
+    Task<TeacherAvailabilitySummaryDto> GetSummaryAsync(
+        TeacherAvailabilityListQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bitta yozuvning to'liq tafsiloti — jumladan qaysi nomzodlarga
+    /// taklif yuborilgani va kim qanday javob bergani.
+    /// </summary>
+    Task<TeacherAvailabilityDetailDto> GetDetailAsync(long checkinId, CancellationToken ct = default);
 }

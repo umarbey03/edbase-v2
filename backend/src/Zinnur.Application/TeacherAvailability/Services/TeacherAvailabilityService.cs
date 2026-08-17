@@ -1,12 +1,15 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.TeacherAvailability.Dtos;
 using Zinnur.Application.Telegram;
+using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -625,27 +628,258 @@ public sealed class TeacherAvailabilityService(
     // ================================================================ o'quv bo'limi paneli
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<TeacherAvailabilityTodayDto>> GetTodayAsync(CancellationToken ct = default)
+    public async Task<PagedResult<TeacherAvailabilityRowDto>> ListAsync(
+        TeacherAvailabilityListQuery query, CancellationToken ct = default)
     {
-        var today = LocalToday(clock.GetUtcNow());
+        ArgumentNullException.ThrowIfNull(query);
 
-        var checkins = await db.TeacherDailyCheckins
-            .Where(c => c.CheckinDate == today)
+        var page = Math.Max(query.Page, 1);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
+
+        var rows = Filter(query);
+
+        var total = await rows.CountAsync(ct).ConfigureAwait(false);
+
+        // ★ AVVAL SAHIFALASH, KEYIN QAMROV MA'LUMOTI: qamrov (o'rinbosar)
+        //   so'rovlari FAQAT shu sahifadagi darslar uchun olinadi. Ilgari
+        //   (bugungi ko'rinishda) butun to'plam xotiraga yuklanardi — 11
+        //   kunlik tarixda bu yuzlab keraksiz qator degani edi.
+        var checkins = await Sort(rows, query)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(c => c.Teacher)
             .Include(c => c.AffectedSessions).ThenInclude(a => a.Session!).ThenInclude(s => s.Group)
-            .AsNoTracking()
-            .OrderBy(c => c.Teacher!.FullName)
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
+        var items = await MapRowsAsync(checkins, ct).ConfigureAwait(false);
+
+        return new PagedResult<TeacherAvailabilityRowDto>(items, page, pageSize, total);
+    }
+
+    /// <inheritdoc />
+    public async Task<TeacherAvailabilitySummaryDto> GetSummaryAsync(
+        TeacherAvailabilityListQuery query, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var rows = Filter(query);
+
+        // Holatlar bo'yicha sanoq — BITTA `GROUP BY` so'rovi.
+        var byStatus = await rows
+            .GroupBy(c => c.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        int CountOf(TeacherCheckinStatus status) =>
+            byStatus.FirstOrDefault(x => x.Status == status)?.Count ?? 0;
+
+        var total = byStatus.Sum(x => x.Count);
+
+        // Suhbat yarim qolgan holatlar — uchtasi bitta ko'rsatkichga yig'iladi:
+        // o'quv bo'limi uchun ular bir xil ma'noda ("ustoz javobni tugatmagan").
+        var inProgress = CountOf(TeacherCheckinStatus.SelectingSessions)
+            + CountOf(TeacherCheckinStatus.AwaitingReason)
+            + CountOf(TeacherCheckinStatus.AwaitingDays);
+
+        // Ta'sirlangan darslar va ularning qamrov holati.
+        var sessionIds = await rows
+            .SelectMany(c => c.AffectedSessions.Select(a => a.SessionId))
+            .Distinct()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var coverageByStatus = sessionIds.Count == 0
+            ? []
+            : await db.SessionCoverageRequests
+                .Where(r => sessionIds.Contains(r.SessionId))
+                .GroupBy(r => r.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+        int CoverageOf(CoverageRequestStatus status) =>
+            coverageByStatus.FirstOrDefault(x => x.Status == status)?.Count ?? 0;
+
+        return new TeacherAvailabilitySummaryDto(
+            Total: total,
+            Confirmed: CountOf(TeacherCheckinStatus.Confirmed),
+            Declined: CountOf(TeacherCheckinStatus.Declined),
+            Pending: CountOf(TeacherCheckinStatus.Pending),
+            InProgress: inProgress,
+            AffectedSessions: sessionIds.Count,
+            CoverageResolved: CoverageOf(CoverageRequestStatus.Resolved),
+            CoverageOpen: CoverageOf(CoverageRequestStatus.Open));
+    }
+
+    /// <inheritdoc />
+    public async Task<TeacherAvailabilityDetailDto> GetDetailAsync(
+        long checkinId, CancellationToken ct = default)
+    {
+        var checkin = await db.TeacherDailyCheckins
+            .Where(c => c.Id == checkinId)
+            .Include(c => c.Teacher)
+            .Include(c => c.AffectedSessions).ThenInclude(a => a.Session!).ThenInclude(s => s.Group)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false)
+            ?? throw new NotFoundException(nameof(TeacherDailyCheckin), checkinId);
+
+        var sessionIds = checkin.AffectedSessions.Select(a => a.SessionId).ToList();
+
+        var requests = sessionIds.Count == 0
+            ? []
+            : await db.SessionCoverageRequests
+                .Where(r => sessionIds.Contains(r.SessionId))
+                .Include(r => r.Offers)
+                .AsNoTracking()
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+        // Barcha kerakli ismlar BITTA so'rovda (nomzodlar + o'rinbosarlar).
+        var userIds = requests
+            .SelectMany(r => r.Offers.Select(o => o.CandidateTeacherId))
+            .Concat(requests.Where(r => r.ResolvedByUserId is not null).Select(r => r.ResolvedByUserId!.Value))
+            .Distinct()
+            .ToList();
+
+        var names = userIds.Count == 0
+            ? new Dictionary<long, string>()
+            : await db.Users.AsNoTracking()
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.FullName, ct)
+                .ConfigureAwait(false);
+
+        string NameOf(long id) => names.TryGetValue(id, out var name) ? name : "Noma'lum xodim";
+
+        var coverages = checkin.AffectedSessions
+            .Select(a =>
+            {
+                // Bitta darsga bir nechta TARIXIY so'rov bo'lishi mumkin —
+                // eng OXIRGISI ko'rsatiladi (sabab `SessionCoverageRequest` izohida).
+                var request = requests
+                    .Where(r => r.SessionId == a.SessionId)
+                    .OrderByDescending(r => r.Id)
+                    .FirstOrDefault();
+
+                return new CoverageDetailDto(
+                    a.SessionId,
+                    a.Session?.Group?.Name ?? "",
+                    a.Session?.ScheduledStart ?? default,
+                    request?.Status.ToString(),
+                    request?.ResolvedByUserId is { } resolverId ? NameOf(resolverId) : null,
+                    request?.Reason,
+                    request is null
+                        ? []
+                        : [.. request.Offers
+                            .OrderBy(o => o.SentAt)
+                            .ThenBy(o => o.Id)
+                            .Select(o => new SubstituteOfferRowDto(
+                                o.Id,
+                                o.CandidateTeacherId,
+                                NameOf(o.CandidateTeacherId),
+                                o.Status.ToString(),
+                                o.SentAt,
+                                o.RespondedAt))]);
+            })
+            .OrderBy(c => c.ScheduledStart)
+            .ToList();
+
+        return new TeacherAvailabilityDetailDto(
+            checkin.Id,
+            checkin.TeacherId,
+            checkin.Teacher?.FullName ?? "",
+            checkin.CheckinDate,
+            checkin.Status.ToString(),
+            checkin.DeclineReason,
+            checkin.UnavailableDays,
+            checkin.SentAt,
+            checkin.RespondedAt,
+            coverages);
+    }
+
+    // ---------------------------------------------------------------- filtr / saralash / xaritalash
+
+    /// <summary>
+    /// Ro'yxat va yig'ma UCHALASI uchun AYNI filtr — ikki joyda takrorlansa
+    /// vaqt o'tib ular ajralib ketardi va yig'ma raqamlar ro'yxatga
+    /// mos kelmay qolardi.
+    /// </summary>
+    private IQueryable<TeacherDailyCheckin> Filter(TeacherAvailabilityListQuery query)
+    {
+        var rows = db.TeacherDailyCheckins.AsNoTracking();
+
+        // ★ UTC O'GIRISH YO'Q: `CheckinDate` allaqachon mahalliy `DateOnly`
+        //   (sabab `TeacherAvailabilityListQuery` izohida).
+        if (query.From is { } from) rows = rows.Where(c => c.CheckinDate >= from);
+        if (query.To is { } to) rows = rows.Where(c => c.CheckinDate <= to);
+
+        if (query.Status is { } status) rows = rows.Where(c => c.Status == status);
+
+        if (query.OnlyUncovered)
+        {
+            // "Diqqat talab qiladi" = ta'sirlangan darsi bor, lekin kamida
+            // bittasiga o'rinbosar HALI topilmagan.
+            rows = rows.Where(c => c.AffectedSessions.Any(a =>
+                db.SessionCoverageRequests.Any(r =>
+                    r.SessionId == a.SessionId && r.Status == CoverageRequestStatus.Open)));
+        }
+
+        var term = NormalizeSearch(query.Search);
+
+        if (term is not null)
+        {
+            // ⚠️ `Contains` EMAS: `lower(col) LIKE '%…%'` ko'rinishi
+            //    Postgres'da trigramma indeksidan foydalanadi (loyihadagi
+            //    boshqa qidiruvlar bilan AYNI naqsh).
+#pragma warning disable CA1304, CA1311
+            rows = rows.Where(c =>
+                EF.Functions.Like(c.Teacher!.FullName.ToLower(), term)
+                || (c.DeclineReason != null && EF.Functions.Like(c.DeclineReason.ToLower(), term)));
+#pragma warning restore CA1304, CA1311
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Saralash — OQ RO'YXAT bo'yicha.
+    ///
+    /// ★ `ThenBy(Id)` HAR VARIANTDA: bir xil sanali/ismli qatorlarda tartib
+    /// so'rovdan so'rovga sakramasin (aks holda 2-sahifada 1-sahifadagi
+    /// qator qayta chiqib qolardi).
+    /// </summary>
+    private static IQueryable<TeacherDailyCheckin> Sort(
+        IQueryable<TeacherDailyCheckin> rows, TeacherAvailabilityListQuery query) =>
+        (query.Sort, query.Desc) switch
+        {
+            (TeacherAvailabilitySort.Teacher, false) =>
+                rows.OrderBy(c => c.Teacher!.FullName).ThenBy(c => c.Id),
+            (TeacherAvailabilitySort.Teacher, true) =>
+                rows.OrderByDescending(c => c.Teacher!.FullName).ThenBy(c => c.Id),
+
+            (TeacherAvailabilitySort.Status, false) =>
+                rows.OrderBy(c => c.Status).ThenByDescending(c => c.CheckinDate).ThenBy(c => c.Id),
+            (TeacherAvailabilitySort.Status, true) =>
+                rows.OrderByDescending(c => c.Status).ThenByDescending(c => c.CheckinDate).ThenBy(c => c.Id),
+
+            (_, false) => rows.OrderBy(c => c.CheckinDate).ThenBy(c => c.Teacher!.FullName).ThenBy(c => c.Id),
+            (_, true) => rows.OrderByDescending(c => c.CheckinDate).ThenBy(c => c.Teacher!.FullName).ThenBy(c => c.Id),
+        };
+
+    /// <summary>Sahifadagi qatorlarni qamrov ma'lumoti bilan to'ldiradi.</summary>
+    private async Task<List<TeacherAvailabilityRowDto>> MapRowsAsync(
+        List<TeacherDailyCheckin> checkins, CancellationToken ct)
+    {
         if (checkins.Count == 0) return [];
 
-        var allSessionIds = checkins.SelectMany(c => c.AffectedSessions.Select(a => a.SessionId)).ToList();
+        var sessionIds = checkins.SelectMany(c => c.AffectedSessions.Select(a => a.SessionId)).ToList();
 
-        var coverageBySession = allSessionIds.Count == 0
+        var coverageBySession = sessionIds.Count == 0
             ? new Dictionary<long, SessionCoverageRequest>()
             : (await db.SessionCoverageRequests
-                    .Where(r => allSessionIds.Contains(r.SessionId))
+                    .Where(r => sessionIds.Contains(r.SessionId))
                     .AsNoTracking()
                     .ToListAsync(ct)
                     .ConfigureAwait(false))
@@ -667,32 +901,57 @@ public sealed class TeacherAvailabilityService(
 
         return
         [
-            .. checkins.Select(c => new TeacherAvailabilityTodayDto(
+            .. checkins.Select(c => new TeacherAvailabilityRowDto(
                 c.Id,
+                c.TeacherId,
                 c.Teacher?.FullName ?? "",
+                c.CheckinDate,
                 c.Status.ToString(),
                 c.DeclineReason,
                 c.UnavailableDays,
+                c.SentAt,
+                c.RespondedAt,
                 [
-                    .. c.AffectedSessions.Select(a =>
-                    {
-                        coverageBySession.TryGetValue(a.SessionId, out var coverage);
+                    .. c.AffectedSessions
+                        .OrderBy(a => a.Session?.ScheduledStart ?? default)
+                        .Select(a =>
+                        {
+                            coverageBySession.TryGetValue(a.SessionId, out var coverage);
 
-                        var substituteName = coverage?.ResolvedByUserId is { } resolverId
-                            && resolverNames.TryGetValue(resolverId, out var name)
-                                ? name
-                                : null;
+                            var substituteName = coverage?.ResolvedByUserId is { } resolverId
+                                && resolverNames.TryGetValue(resolverId, out var name)
+                                    ? name
+                                    : null;
 
-                        return new CoverageStatusDto(
-                            a.SessionId,
-                            a.Session?.Group?.Name ?? "",
-                            a.Session?.ScheduledStart ?? default,
-                            coverage?.Status.ToString(),
-                            substituteName);
-                    }),
+                            return new CoverageStatusDto(
+                                a.SessionId,
+                                a.Session?.Group?.Name ?? "",
+                                a.Session?.ScheduledStart ?? default,
+                                coverage?.Status.ToString(),
+                                substituteName);
+                        }),
                 ])),
         ];
     }
+
+    /// <summary>`"  Ism  "` -> `"%ism%"`. Bo'sh bo'lsa `null` (filtrlanmaydi).</summary>
+    private static string? NormalizeSearch(string? search)
+    {
+        var trimmed = search?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed)) return null;
+
+        return "%" + EscapeLike(trimmed.ToLowerInvariant()) + "%";
+    }
+
+    /// <summary>LIKE metabelgilarini zararsizlantiradi (aks holda '%' butun jadvalni tortadi).</summary>
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+             .Replace("%", "\\%", StringComparison.Ordinal)
+             .Replace("_", "\\_", StringComparison.Ordinal);
+
+    /// <summary>Bir sahifadagi eng ko'p yozuv (loyihadagi boshqa ro'yxatlar bilan AYNI).</summary>
+    private const int MaxPageSize = 100;
 
     // ================================================================ yordamchi
 
@@ -745,19 +1004,23 @@ public sealed class TeacherAvailabilityService(
             .ToString("HH:mm", CultureInfo.InvariantCulture);
 
     private DateOnly LocalToday(DateTimeOffset nowUtc) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, timeZoneProvider.TimeZone).DateTime);
+        LocalWallClock.LocalDate(nowUtc, timeZoneProvider.TimeZone);
 
     /// <summary>
     /// Mahalliy <paramref name="date"/> dan boshlab <paramref name="days"/>
-    /// kunlik oralig'ining UTC chegaralari. DST o'tishlarini e'tiborsiz
-    /// qoldiradi (Toshkentda DST yo'q — sabab yetarli).
+    /// kunlik oralig'ining UTC chegaralari — yarim ochiq: <c>[start, end)</c>.
+    ///
+    /// ★ <see cref="LocalWallClock"/> ORQALI (2026-08-17 da to'g'rilandi):
+    /// ilgari bu yerda o'z hisobi bor edi va DST o'tishida MAVJUD BO'LMAGAN
+    /// soatga tushib qolishi mumkin edi. `LocalWallClock` uni hisobga oladi
+    /// va loyihadagi BARCHA sana-oraliq hisoblari (davomat, moliya, jadval)
+    /// allaqachon shu yagona manbadan foydalanadi.
     /// </summary>
     private (DateTimeOffset Start, DateTimeOffset End) LocalDayRangeUtc(DateOnly date, int days)
     {
         var tz = timeZoneProvider.TimeZone;
-        var localStart = date.ToDateTime(TimeOnly.MinValue);
-        var start = new DateTimeOffset(localStart, tz.GetUtcOffset(localStart));
 
-        return (start, start.AddDays(days));
+        return (LocalWallClock.StartOfDayUtc(date, tz),
+                LocalWallClock.StartOfDayUtc(date.AddDays(days), tz));
     }
 }
