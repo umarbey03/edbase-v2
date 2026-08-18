@@ -1,4 +1,5 @@
-﻿using Zinnur.Application.Notifications;
+﻿using System.Globalization;
+using Zinnur.Application.Notifications;
 
 namespace Zinnur.Application.Telegram;
 
@@ -183,6 +184,9 @@ public static class TelegramTemplates
     /// </summary>
     public const string AbsenceReplySaved = "absence_reply_saved";
 
+    /// <summary>"Boshqa sabab" bosilgach: sababni yozishni so'rovchi yo'riq (2026-08-18).</summary>
+    public const string AbsenceReplyPrompt = "absence_reply_prompt";
+
     /* ===== /2026-08-17 ===== */
 
     // ---------------------------------------------------------------- tugmalar
@@ -223,7 +227,12 @@ public static class TelegramTemplates
         // xabar o'quvchidan SABABNI YOZIShNI so'raydi. «Ilovani ochish»
         // tugmasi uni Mini App'ga olib ketib, aynan kutilayotgan
         // javobdan chalg'itardi (kirish kodi bilan AYNI mulohaza).
-        AbsenceNotice or AbsenceReplySaved => TelegramMarkup.None,
+        // Kelmaganlik xabari — TAYYOR SABAB TUGMALARI bilan (2026-08-18):
+        // "sababini yozing" degan matnning o'zi yetarli emas, tugma
+        // javob berish darajasini keskin oshiradi.
+        AbsenceNotice => TelegramMarkup.InlineButtons,
+
+        AbsenceReplySaved or AbsenceReplyPrompt => TelegramMarkup.None,
 
         _ => TelegramMarkup.None,
     };
@@ -569,6 +578,57 @@ public static class TelegramTemplates
     /// ish tugaganini bildiradi. Aks holda u sababini qayta-qayta
     /// yozib yuborardi.
     /// </summary>
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// TAYYOR SABABLAR — BIR BOSISHLIK JAVOB (2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Loyiha egasi: *"javob yoki sababini yuborish degan tugma bo'lsin,
+    /// bo'lmasa o'quvchi sababini qanday yozib yuborishni tushunmasligi
+    /// mumkin"*.
+    ///
+    /// ★ NEGA MATNNING O'ZI YETARLI EMAS: "sababini shu yerga yozing"
+    /// degan yo'riqni o'qish va bajarish — ikki qadam. Telegramda
+    /// odam tugma ko'rsa bosadi, matn ko'rsa ko'pincha o'tkazib
+    /// yuboradi. Tugma javob berish darajasini keskin oshiradi, bu esa
+    /// kuratorning qo'ng'iroq ro'yxatini to'g'ridan-to'g'ri qisqartiradi.
+    ///
+    /// ★ TAYYOR SABABLAR + ERKIN MATN: eng ko'p uchraydigan ikkitasi bir
+    /// bosishda tugaydi, qolgani uchun "boshqa sabab" tugmasi yo'riqni
+    /// takrorlaydi.
+    ///
+    /// Kalitlar QISQA: `callback_data` chegarasi — 64 bayt.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Code, string Label, string Text)> AbsenceReasons =
+    [
+        ("ill", "🤒 Kasal bo'ldim", "Kasal bo'ldim"),
+        ("busy", "📌 Bandlik bo'ldi", "Oilaviy/ish bandligi bo'ldi"),
+    ];
+
+    /// <summary>"Boshqa sabab" tugmasining kodi — erkin matn so'raladi.</summary>
+    public const string AbsenceReasonOther = "other";
+
+    /// <summary>Kelmaganlik xabari uchun inline tugmalar.</summary>
+    /// <param name="noticeId">Qaysi xabarga javob berilyapti.</param>
+    public static string AbsenceReasonButtons(long noticeId)
+    {
+        var quick = AbsenceReasons
+            .Select(r => (r.Label, $"ab:r:{noticeId.ToString(CultureInfo.InvariantCulture)}:{r.Code}"))
+            .ToList();
+
+        return EncodeButtons(
+        [
+            quick,
+            [("✍️ Boshqa sabab — yozaman",
+              $"ab:r:{noticeId.ToString(CultureInfo.InvariantCulture)}:{AbsenceReasonOther}")],
+        ]);
+    }
+
+    /// <summary>"Boshqa sabab" bosilganda ko'rsatiladigan yo'riq.</summary>
+    public static string AbsenceReplyPromptText() =>
+        "✍️ <b>Sababingizni shu yerga yozing.</b>\n\n"
+        + "Xabar yozib, yuborish tugmasini bosing — kuratoringiz uni ko'radi.";
+
     public static string AbsenceReplySavedText() =>
         "✅ <b>Rahmat, sababingiz qabul qilindi.</b>\n\n"
         + "Uni kuratoringiz ko'radi. Keyingi darsni qoldirmang!";

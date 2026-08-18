@@ -153,6 +153,12 @@ public sealed class AbsenceNoticeService(
                     TemplateKey = TemplateKey,
                     Body = NotificationText.Escape(notice.Body),
                     IdempotencyKey = key,
+
+                    // ★ TAYYOR SABAB TUGMALARI: "sababini yozing" degan
+                    //   matnning o'zi yetarli emas — Telegramda odam
+                    //   tugma ko'rsa bosadi, yo'riqni ko'pincha
+                    //   o'tkazib yuboradi (sabab shablon izohida).
+                    CallbackData = TelegramTemplates.AbsenceReasonButtons(notice.Id),
                 },
                 ct);
 
@@ -176,12 +182,12 @@ public sealed class AbsenceNoticeService(
         AbsenceNoticeListQuery query, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        await EnsureCanViewAsync(actorId, ct);
+        var role = await EnsureCanViewAsync(actorId, ct);
 
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
 
-        var rows = Filter(query);
+        var rows = await ApplyDeliveryAsync(Filter(query, role, actorId), query.Delivery, ct);
         var total = await rows.CountAsync(ct);
 
         var items = rows
@@ -192,18 +198,6 @@ public sealed class AbsenceNoticeService(
 
         var mapped = await ProjectAsync(items, ct);
 
-        // ★ YETKAZILISH FILTRI XOTIRADA: holat navbat jadvalida, ro'yxat
-        //   esa boshqa jadvalda. Ularni SQL'da qo'shish uchun navbatni
-        //   Application qatlamiga ochish kerak bo'lardi — bu esa ataylab
-        //   qilinmagan (`IOutboxStatusReader` izohi). Sahifa kichik
-        //   (20-100 qator), shuning uchun narxi sezilmaydi.
-        if (!string.IsNullOrWhiteSpace(query.Delivery))
-        {
-            mapped = mapped
-                .Where(r => string.Equals(r.DeliveryStatus, query.Delivery, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
         return new PagedResult<AbsenceNoticeRowDto>(mapped, page, pageSize, total);
     }
 
@@ -212,9 +206,13 @@ public sealed class AbsenceNoticeService(
         AbsenceNoticeListQuery query, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        await EnsureCanViewAsync(actorId, ct);
+        var role = await EnsureCanViewAsync(actorId, ct);
 
-        var flat = await Filter(query)
+        // Yig'ma ham AYNI to'plamdan (yetkazilish filtri bilan birga) —
+        // aks holda kartadagi raqam jadvaldagidan farq qilardi.
+        var scoped = await ApplyDeliveryAsync(Filter(query, role, actorId), query.Delivery, ct);
+
+        var flat = await scoped
             .Select(n => new { n.ToTelegram, n.OutboxKey, n.RepliedAt })
             .ToListAsync(ct);
 
@@ -243,7 +241,7 @@ public sealed class AbsenceNoticeService(
         IReadOnlyCollection<long> sessionIds, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(sessionIds);
-        await EnsureCanViewAsync(actorId, ct);
+        var role = await EnsureCanViewAsync(actorId, ct);
 
         if (sessionIds.Count == 0) return [];
 
@@ -320,6 +318,74 @@ public sealed class AbsenceNoticeService(
     }
 
     /// <inheritdoc />
+    public async Task<string?> HandleCallbackAsync(
+        long telegramUserId, string? data, CancellationToken ct = default)
+    {
+        // `ab:r:{noticeId}:{code}` — boshqa prefikslar bizga tegishli emas.
+        if (string.IsNullOrEmpty(data) || !data.StartsWith("ab:r:", StringComparison.Ordinal))
+            return null;
+
+        var parts = data.Split(':');
+
+        if (parts.Length != 4
+            || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var noticeId))
+        {
+            return null;
+        }
+
+        var code = parts[3];
+
+        var notice = await db.AbsenceNotices.AsTracking()
+            .FirstOrDefaultAsync(n => n.Id == noticeId, ct);
+
+        // 🔴 EGALIK TEKSHIRUVI: `callback_data` — ochiq matn. Tekshirilmasa
+        //    boshqa odam tugmani "bosib", begona o'quvchi nomidan sabab
+        //    yozib qo'ya olardi (`HandleContactAsync` dagi AYNI falsafa).
+        if (notice is null) return null;
+
+        var ownerTelegramId = await db.Users.AsNoTracking()
+            .Where(u => u.Id == notice.StudentId)
+            .Select(u => u.TelegramId)
+            .FirstOrDefaultAsync(ct);
+
+        if (ownerTelegramId != telegramUserId) return null;
+
+        if (notice.HasReply) return "Sababingiz allaqachon qabul qilingan.";
+
+        // "Boshqa sabab" — yozishni so'raymiz; matnni `TryCaptureReplyAsync`
+        // ushlaydi (u allaqachon shu o'quvchining ochiq xabarini topadi).
+        if (string.Equals(code, TelegramTemplates.AbsenceReasonOther, StringComparison.Ordinal))
+        {
+            await outbox.EnqueueAsync(
+                new NotificationRequest
+                {
+                    Channel = NotificationChannel.Telegram,
+                    RecipientUserId = notice.StudentId,
+                    RecipientAddress = telegramUserId.ToString(CultureInfo.InvariantCulture),
+                    TemplateKey = TelegramTemplates.AbsenceReplyPrompt,
+                    Body = TelegramTemplates.AbsenceReplyPromptText(),
+                    IdempotencyKey = $"absence_prompt:{notice.Id}",
+                },
+                ct);
+
+            await db.SaveChangesAsync(ct);
+
+            return "Sababingizni yozib yuboring";
+        }
+
+        var preset = TelegramTemplates.AbsenceReasons
+            .FirstOrDefault(r => string.Equals(r.Code, code, StringComparison.Ordinal));
+
+        if (preset.Code is null) return null;
+
+        if (!notice.Reply(preset.Text, clock.GetUtcNow())) return null;
+
+        await db.SaveChangesAsync(ct);
+
+        return "Rahmat, qabul qilindi";
+    }
+
+    /// <inheritdoc />
     public async Task<AbsenceNoticeRowDto> MarkCalledAsync(
         long noticeId, MarkCalledRequest request, long actorId, CancellationToken ct = default)
     {
@@ -327,7 +393,7 @@ public sealed class AbsenceNoticeService(
 
         // Qo'ng'iroqni AMALDA kurator/ustoz qiladi — shuning uchun
         // ko'rish huquqi yetarli (yuborish huquqi emas).
-        await EnsureCanViewAsync(actorId, ct);
+        var role = await EnsureCanViewAsync(actorId, ct);
 
         var notice = await db.AbsenceNotices.AsTracking()
             .FirstOrDefaultAsync(n => n.Id == noticeId, ct)
@@ -426,9 +492,79 @@ public sealed class AbsenceNoticeService(
         return (status.Status, status.SentAt, status.LastError);
     }
 
-    private IQueryable<AbsenceNotice> Filter(AbsenceNoticeListQuery query)
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// YETKAZILISH FILTRINI SO'ROVGA QAYTARADI (2026-08-18 da to'g'rilandi)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 ILGARI QANDAY BUZILGAN EDI: filtr SAHIFALASHDAN KEYIN, xotirada
+    /// qo'llanardi. Natijada bitta savolga uchta har xil raqam chiqardi —
+    /// `total` filtrni umuman bilmasdi (153), sahifa esa faqat o'sha 20
+    /// qatordan mos kelganini ko'rsatardi (ko'pincha 0), yig'ma esa
+    /// uchinchisini (12). Sahifalash ham buzilgan edi: 4-sahifada
+    /// to'satdan 2 qator paydo bo'lishi mumkin edi.
+    ///
+    /// ★ YECHIM: holat NAVBAT jadvalida, ro'yxat esa boshqa jadvalda —
+    /// ularni bitta SQL'ga qo'shib bo'lmaydi (navbat Application
+    /// qatlamiga ATAYLAB ochilmagan). Shuning uchun avval FILTRLANGAN
+    /// to'plamning yengil ustunlari o'qiladi, holat aniqlanadi va mos
+    /// `Id` lar so'rovga QAYTA qo'shiladi. Shu tarzda `total`, sahifa va
+    /// yig'ma AYNI to'plamdan hisoblanadi.
+    /// </summary>
+    private async Task<IQueryable<AbsenceNotice>> ApplyDeliveryAsync(
+        IQueryable<AbsenceNotice> source, string? delivery, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(delivery)) return source;
+
+        // Telegramga umuman ketmaganini navbatsiz ham bilamiz.
+        if (string.Equals(delivery, "NoTelegram", StringComparison.OrdinalIgnoreCase))
+            return source.Where(n => !n.ToTelegram);
+
+        var candidates = await source
+            .Where(n => n.ToTelegram)
+            .Select(n => new { n.Id, n.OutboxKey })
+            .ToListAsync(ct);
+
+        if (candidates.Count == 0) return source.Where(_ => false);
+
+        var statuses = await outboxStatus.GetStatusesAsync(
+            candidates.Where(x => x.OutboxKey is not null).Select(x => x.OutboxKey!).ToList(), ct);
+
+        var ids = candidates
+            .Where(x =>
+            {
+                var (status, _, _) = Resolve(true, x.OutboxKey, statuses);
+
+                return string.Equals(status, delivery, StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(x => x.Id)
+            .ToList();
+
+        return source.Where(n => ids.Contains(n.Id));
+    }
+
+    private IQueryable<AbsenceNotice> Filter(AbsenceNoticeListQuery query, UserRole role, long actorId)
     {
         var rows = db.AbsenceNotices.AsNoTracking();
+
+        // ═══════════════════════════════════════════════════════════
+        // 🔴 ROLGA QARAB TORAYTIRISH (2026-08-18 da to'g'rilandi)
+        //
+        // Ilgari cheklov YO'Q edi: istalgan ustoz butun markazga
+        // yuborilgan xabarlarni, ularning MATNINI va o'quvchilar yozgan
+        // SABABLARNI o'qiy olardi. `AbsenteeService` dagi AYNI qoida
+        // (`GroupService.VisibleTo` mantig'i).
+        // ═══════════════════════════════════════════════════════════
+        if (role is UserRole.Teacher or UserRole.Assistant)
+        {
+            rows = rows.Where(n =>
+                n.Group!.TeacherId == actorId
+                || n.Group.AssistantId == actorId
+                || (n.Group.CuratorGroup != null
+                    && (n.Group.CuratorGroup.TeacherId == actorId
+                        || n.Group.CuratorGroup.AssistantId == actorId)));
+        }
+
         var zone = timeZone.TimeZone;
 
         // Yarim ochiq oraliq mahalliy kun chegarasida — loyihadagi AYNI qoida.
@@ -490,10 +626,14 @@ public sealed class AbsenceNoticeService(
     }
 
     /// <summary>Tarixni o'quvchidan boshqa hamma ko'radi (kurator ham ish yuritadi).</summary>
-    private async Task EnsureCanViewAsync(long actorId, CancellationToken ct)
+    private async Task<UserRole> EnsureCanViewAsync(long actorId, CancellationToken ct)
     {
-        if (await RoleOfAsync(actorId, ct) is UserRole.Student)
+        var role = await RoleOfAsync(actorId, ct);
+
+        if (role is UserRole.Student)
             throw new ForbiddenException("Bu ro'yxatni o'quvchi ko'ra olmaydi.");
+
+        return role;
     }
 
     private async Task<UserRole> RoleOfAsync(long actorId, CancellationToken ct)

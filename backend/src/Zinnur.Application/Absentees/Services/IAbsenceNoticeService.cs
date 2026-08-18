@@ -72,6 +72,24 @@ public interface IAbsenceNoticeService
         long telegramUserId, string? text, CancellationToken ct = default);
 
     /// <summary>
+    /// Xabardagi TAYYOR SABAB tugmasi bosilganini ishlaydi (2026-08-18).
+    ///
+    /// ★ NEGA TUGMA KERAK: "sababini shu yerga yozing" degan yo'riqni
+    /// o'qish va bajarish — ikki qadam, va ko'p o'quvchi ikkinchisiga
+    /// yetib bormaydi. Tugma esa bir bosishda tugaydi.
+    /// </summary>
+    /// <param name="data">
+    /// <c>callback_data</c>: <c>ab:r:{noticeId}:{code}</c>. Kod
+    /// <c>other</c> bo'lsa erkin matn so'raladi.
+    /// </param>
+    /// <returns>
+    /// Telegramga ko'rsatiladigan qisqa xabar (toast), yoki bu callback
+    /// bizga tegishli bo'lmasa <c>null</c>.
+    /// </returns>
+    Task<string?> HandleCallbackAsync(
+        long telegramUserId, string? data, CancellationToken ct = default);
+
+    /// <summary>
     /// "Qo'ng'iroq qilindi" izini yozadi.
     ///
     /// ★ NEGA KERAK: xabar yuborgan odam va qo'ng'iroq qilgan odam

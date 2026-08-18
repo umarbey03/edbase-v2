@@ -17,6 +17,7 @@ import {
   trialLabel,
   trialTone,
 } from '@/entities/attrition'
+import { memberStatusLabel, memberStatusTone } from '@/entities/group'
 import { RANGE_PRESETS, daysAgoIso, rangeError, todayIso } from '@/entities/teacher-availability'
 import { GroupAttritionDrawer, TeacherGroupsBreakdown } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
@@ -617,6 +618,14 @@ watch(activeTab, () => {
               <BaseBadge :tone="eventKindTone(row.kind)">
                 {{ eventKindLabel(row.kind) }}
               </BaseBadge>
+              <!-- Joriy holat — telefonda ham (sabab jadval variantida). -->
+              <BaseBadge
+                v-if="row.currentStatus !== null && row.currentStatus !== row.kind"
+                size="xs"
+                :tone="memberStatusTone(row.currentStatus)"
+              >
+                Hozir: {{ memberStatusLabel(row.currentStatus) }}
+              </BaseBadge>
               <BaseBadge
                 size="xs"
                 :tone="trialTone(row.isTrial)"
@@ -777,6 +786,24 @@ watch(activeTab, () => {
                   <BaseBadge :tone="eventKindTone(row.kind)">
                     {{ eventKindLabel(row.kind) }}
                   </BaseBadge>
+
+                  <!--
+                    ★ HODISA — TARIX, "HOZIR" — JORIY HOLAT.
+                    Jurnalda "muzlatilgan" turgani o'quvchi HOZIR ham
+                    muzlatilgan degani emas — u qaytgan bo'lishi mumkin.
+                    Ikkisi ko'rsatilmasa ro'yxat chalg'itardi (loyiha
+                    egasi aynan shu chalkashlikni topgan).
+                  -->
+                  <span
+                    v-if="row.currentStatus !== null && row.currentStatus !== row.kind"
+                    class="mt-1 block text-[11px] text-dim"
+                  >
+                    Hozir:
+                    <span
+                      :class="row.currentStatus === 'Active' ? 'font-semibold text-emerald-400' : ''"
+                      v-text="memberStatusLabel(row.currentStatus)"
+                    />
+                  </span>
                 </td>
                 <td>
                   <span

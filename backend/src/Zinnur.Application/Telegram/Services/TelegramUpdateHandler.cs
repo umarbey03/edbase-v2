@@ -206,9 +206,15 @@ public sealed class TelegramUpdateHandler(
 
         var data = callback.Data;
 
+        // ★ IKKI OQIM, IKKI PREFIKS: ustoz kunlik tasdiqlashi (`av:`,
+        //   `of:`) va o'quvchining kelmaganlik sababi (`ab:`). Har servis
+        //   O'ZIGA tegishli bo'lmagan callbackda `null` qaytaradi, ya'ni
+        //   tartib xavfsiz va yangi oqim qo'shish shu yerga bitta `??`
+        //   qo'shish bilan cheklanadi.
         var toast = string.IsNullOrEmpty(data)
             ? null
-            : await availability.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
+            : await availability.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
+              ?? await absenceNotices.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
 
         await callbackAcknowledger.AcknowledgeAsync(callback.Id, toast, ct).ConfigureAwait(false);
 

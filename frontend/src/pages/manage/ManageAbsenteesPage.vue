@@ -289,6 +289,87 @@ function telHref(student: AbsenteeStudentDto): string | null {
       </button>
     </div>
 
+    <!--
+      ═════════════ UMUMIY SANA ORALIG'I (2026-08-18) ═════════════
+      Loyiha egasi: *"kelmaganlar va yuborilgan xabarlar tabi uchun
+      umumiy sana va filtr qilib qo'y"*.
+
+      ★ NEGA TABLARDAN TASHQARIDA: ilgari sana faqat "Kelmaganlar"
+      tabida ko'rinardi, lekin "Yuborilgan xabarlar" ga ham JIMGINA
+      qo'llanardi. Xodim xabarlar tabida sanani ko'rmay, ro'yxat nega
+      qisqarganini tushunmasdi. Endi oraliq ikkala tab uchun BITTA
+      joyda va DOIM ko'rinadi.
+    -->
+    <div class="mb-4 rounded-2xl border border-line bg-ink-900 p-4">
+      <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <label class="block">
+          <span class="mb-1 block text-[11px] font-semibold text-slate-400">Kundan</span>
+          <input
+            v-model="from"
+            class="zn-input"
+            type="date"
+            :max="todayIso()"
+          >
+        </label>
+
+        <label class="block">
+          <span class="mb-1 block text-[11px] font-semibold text-slate-400">Kungacha</span>
+          <input
+            v-model="to"
+            class="zn-input"
+            type="date"
+            :max="todayIso()"
+          >
+        </label>
+
+        <div class="flex flex-wrap items-end gap-1.5 pb-1 sm:col-span-2">
+          <span class="mr-1 self-center text-[11px] text-dim">Tez tanlash:</span>
+          <button
+            type="button"
+            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
+            @click="from = daysAgoIso(1); to = daysAgoIso(1)"
+          >
+            Kecha
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
+            @click="from = todayIso(); to = todayIso()"
+          >
+            Bugun
+          </button>
+          <button
+            v-for="preset in RANGE_PRESETS"
+            :key="preset.key"
+            type="button"
+            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
+            @click="applyPreset(preset)"
+          >
+            {{ preset.label }}
+          </button>
+        </div>
+      </div>
+
+      <p
+        v-if="dateError !== null"
+        class="mt-2 text-[11px] text-rose-400"
+        role="alert"
+        v-text="dateError"
+      />
+
+      <!--
+        Xabarlar tabida sana KELMAGANLIK sanasi emas, XABAR YUBORILGAN
+        sana bo'yicha ishlaydi — aks holda xodim "kecha kelmaganlarga
+        bugun yuborilgan xabar" ni topa olmasdi.
+      -->
+      <p
+        v-if="activeTab === 'notices'"
+        class="mt-2 text-[11px] text-dim"
+      >
+        Oraliq xabar YUBORILGAN sana bo‘yicha qo‘llanadi.
+      </p>
+    </div>
+
     <AbsenceNoticeHistory
       v-if="activeTab === 'notices'"
       :from="from"
@@ -300,26 +381,6 @@ function telHref(student: AbsenteeStudentDto): string | null {
       <!-- ═════════════════════ FILTRLAR ═════════════════════ -->
       <div class="mb-4 rounded-2xl border border-line bg-ink-900 p-4">
         <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-          <label class="block">
-            <span class="mb-1 block text-[11px] font-semibold text-slate-400">Kundan</span>
-            <input
-              v-model="from"
-              class="zn-input"
-              type="date"
-              :max="todayIso()"
-            >
-          </label>
-
-          <label class="block">
-            <span class="mb-1 block text-[11px] font-semibold text-slate-400">Kungacha</span>
-            <input
-              v-model="to"
-              class="zn-input"
-              type="date"
-              :max="todayIso()"
-            >
-          </label>
-
           <label class="block sm:col-span-2 lg:col-span-1">
             <span class="mb-1 block text-[11px] font-semibold text-slate-400">O‘quvchi ismi</span>
             <input
@@ -346,41 +407,6 @@ function telHref(student: AbsenteeStudentDto): string | null {
             </label>
           </div>
         </div>
-
-        <div class="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
-          <span class="mr-1 text-[11px] text-dim">Tez tanlash:</span>
-          <button
-            type="button"
-            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
-            @click="from = daysAgoIso(1); to = daysAgoIso(1)"
-          >
-            Kecha
-          </button>
-          <button
-            type="button"
-            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
-            @click="from = todayIso(); to = todayIso()"
-          >
-            Bugun
-          </button>
-          <!-- Oraliq shablonlari "Ustozlar holati" paneli bilan AYNI manbadan. -->
-          <button
-            v-for="preset in RANGE_PRESETS"
-            :key="preset.key"
-            type="button"
-            class="rounded-lg border border-line bg-ink-800 px-2.5 py-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-100"
-            @click="applyPreset(preset)"
-          >
-            {{ preset.label }}
-          </button>
-        </div>
-
-        <p
-          v-if="dateError !== null"
-          class="mt-2 text-[11px] text-rose-400"
-          role="alert"
-          v-text="dateError"
-        />
       </div>
 
       <!-- ═════════════════════ YIG'MA ═════════════════════ -->
@@ -471,9 +497,10 @@ function telHref(student: AbsenteeStudentDto): string | null {
               />
               <span class="ml-auto text-sm font-bold tabular-nums text-rose-400">
                 {{ group.absentCount }}<span
-                  v-if="group.activeMembers > 0"
+                  v-if="group.expectedStudents > 0"
                   class="text-xs font-normal text-dim"
-                >/{{ group.activeMembers }}</span>
+                  title="Davrdagi darslarda qatnashishi kutilgan o‘quvchilar"
+                >/{{ group.expectedStudents }}</span>
               </span>
 
               <!-- Butun guruhni bir bosishda tanlash — eng ko'p uchraydigan holat. -->

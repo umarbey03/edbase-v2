@@ -54,6 +54,15 @@ public sealed class AttritionService(
                 e.Kind,
                 e.Reason,
                 ReasonLabel = e.ReasonRef == null ? null : e.ReasonRef.Label,
+
+                // ★ JORIY HOLAT — a'zolik jadvalidan (sabab DTO izohida):
+                //   hodisa TARIX, bu esa HOZIR. Ikkisi ko'rsatilmasa,
+                //   "muzlatilgan" yozuvini o'qigan xodim o'quvchini
+                //   hozir ham muzlatilgan deb tushunardi.
+                CurrentStatus = db.GroupMembers
+                    .Where(m => m.GroupId == e.GroupId && m.StudentId == e.StudentId)
+                    .Select(m => (MemberStatus?)m.Status)
+                    .FirstOrDefault(),
                 e.MovedToGroupId,
                 MovedToGroupName = e.MovedToGroupId == null
                     ? null
@@ -78,6 +87,7 @@ public sealed class AttritionService(
             x.Kind.ToString(),
             x.Reason,
             x.ReasonLabel,
+            x.CurrentStatus?.ToString(),
             x.MovedToGroupId,
             x.MovedToGroupName,
             x.ActorName,

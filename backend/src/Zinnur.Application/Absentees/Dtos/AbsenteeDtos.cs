@@ -81,14 +81,22 @@ public sealed record AbsenteeStudentDto(
     int MissedInRange);
 
 /// <param name="AbsentCount">Shu guruhdan nechta o'quvchi kelmagan.</param>
-/// <param name="ActiveMembers">Guruhdagi faol o'quvchilar — nisbatni ko'rish uchun.</param>
+/// <param name="ExpectedStudents">
+/// Davrdagi darslarda QATNASHISHI KUTILGAN noyob o'quvchilar —
+/// <paramref name="AbsentCount"/> ning maxraji.
+///
+/// ★ NEGA "HOZIRGI FAOL A'ZOLAR" EMAS (2026-08-18 da to'g'rilandi):
+/// surat TARIXIY (o'sha kuni kim kelmagan), maxraj esa HOZIRGI holat
+/// edi. Guruhdan keyin chiqib ketganlar bo'lsa "4/1" kabi ma'nosiz
+/// nisbat chiqardi. Endi ikkalasi ham AYNI to'plamdan hisoblanadi.
+/// </param>
 public sealed record AbsenteeGroupDto(
     long GroupId,
     string GroupName,
     string? TeacherName,
     string? AssistantName,
     int AbsentCount,
-    int ActiveMembers,
+    int ExpectedStudents,
     IReadOnlyList<AbsenteeStudentDto> Students);
 
 /// <param name="SessionCount">Davrda yakunlangan darslar soni.</param>

@@ -3202,6 +3202,14 @@ export interface AttritionRowDto {
   reason: string | null
   /** Tanlangan sabab tasnifi (2026-08-18). Tasnifsiz yozuvda `null`. */
   reasonLabel: string | null
+  /**
+   * O'quvchining shu guruhdagi HOZIRGI holati (`MemberStatus` nomi).
+   *
+   * ★ HODISA — TARIX, BU — HOZIR: jurnalda "muzlatilgan" yozuvi
+   * turgani o'quvchi hozir ham muzlatilgan degani EMAS (u qaytgan
+   * bo'lishi mumkin). Ikkalasi ko'rsatilmasa ro'yxat chalg'itardi.
+   */
+  currentStatus: string | null
   movedToGroupId: number | null
   movedToGroupName: string | null
   actorName: string
@@ -3768,7 +3776,14 @@ export interface AbsenteeGroupDto {
   teacherName: string | null
   assistantName: string | null
   absentCount: number
-  activeMembers: number
+  /**
+   * Davrdagi darslarda QATNASHISHI KUTILGAN noyob o'quvchilar —
+   * `absentCount` ning maxraji.
+   *
+   * ★ NEGA "hozirgi faol a'zolar" EMAS: surat tarixiy, maxraj esa
+   * hozirgi holat bo'lsa "4/1" kabi ma'nosiz nisbat chiqardi.
+   */
+  expectedStudents: number
   students: AbsenteeStudentDto[]
 }
 

@@ -67,6 +67,28 @@ public sealed record AttritionRowDto(
     string? Reason,
     /// <summary>Tanlangan sabab tasnifi (2026-08-18). Tasnifsiz yozuvda <c>null</c>.</summary>
     string? ReasonLabel,
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// O'QUVCHINING SHU GURUHDAGI HOZIRGI HOLATI (2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// <see cref="MemberStatus"/> nomi. A'zolik butunlay o'chirilgan
+    /// bo'lsa <c>null</c>.
+    ///
+    /// ★ NEGA QO'SHILDI — HAQIQIY CHALKASHLIK: loyiha egasi ko'rgan
+    /// holat — *"o'quvchi ATF-1 guruhida FAOL turibdi, lekin
+    /// to'kilishlar tabida muzlatilgan, qaytgan statusida"*. Ma'lumot
+    /// buzilmagan: jurnalda muzlatish VA 18 soniyadan keyin qaytarish
+    /// bor, joriy holati esa Faol. Lekin ro'yxat FAQAT hodisani
+    /// ko'rsatardi, ya'ni "muzlatilgan" yozuvini o'qigan xodim uni
+    /// HOZIR ham muzlatilgan deb tushunardi.
+    ///
+    /// ★ MANBA — `GroupMembers` JADVALI, jurnal EMAS: jurnaldan
+    /// tiklansa hodisalar ketma-ketligini qayta o'ynash kerak bo'lardi
+    /// va har yangi hodisa turi bu hisobni buzardi. Joriy holatning
+    /// yagona ishonchli manbai — a'zolik qatorining o'zi.
+    /// </summary>
+    string? CurrentStatus,
     long? MovedToGroupId,
     string? MovedToGroupName,
     string ActorName,
