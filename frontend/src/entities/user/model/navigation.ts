@@ -125,6 +125,13 @@ const MANAGE_NAV: NavItem[] = [
     ko'rib chiqiladigan ko'rsatkich, ertalabki tekshiruv emas.
   */
   { routeName: 'manage-attrition', label: 'To‘kilishlar', icon: 'chart' },
+  /*
+    "Jarimalar" — v2 qo'shimchasi (2026-08-18): ustoz/kurator intizomi
+    (kech boshlangan va o'tilmagan darslar). To'kilishlardan KEYIN:
+    ikkalasi ham nazorat hisoboti, lekin jarima oylikka ta'sir qiladi
+    va kamroq ochiladi.
+  */
+  { routeName: 'manage-penalties', label: 'Jarimalar', icon: 'wallet' },
   { routeName: 'manage-courses', label: 'Kurs quruvchi', icon: 'file-text' },
   { routeName: 'manage-sessions', label: 'Jonli darslar', icon: 'calendar' },
   { routeName: 'manage-assignments', label: 'Uy vazifalari', icon: 'clipboard' },

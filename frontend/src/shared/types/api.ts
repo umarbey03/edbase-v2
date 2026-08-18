@@ -3258,6 +3258,92 @@ export interface AttritionByGroupDto {
 
 /* ===== /TO'KILISHLAR ===== */
 
+/* ============================================================================
+   USTOZ/KURATOR JARIMALARI (2026-08-18).
+
+   ★ IKKI BOSQICH: jarima `Pending` bo'lib tug'iladi va oylikka TEGMAYDI;
+   faqat ADMIN tasdiqlagach oylikka manfiy tuzatma yaratiladi.
+   ============================================================================ */
+
+/** `PenaltyKind` enum nomlari. */
+export type PenaltyKindName = 'LateStart' | 'MissedLesson' | 'Manual'
+
+/** `PenaltyStatus` enum nomlari. */
+export type PenaltyStatusName = 'Pending' | 'Approved' | 'Cancelled'
+
+export interface PenaltyListParams {
+  /** Oylik davri `YYYY-MM`. Bo'sh — barcha davrlar. */
+  period?: string
+  userId?: number
+  kind?: PenaltyKindName
+  status?: PenaltyStatusName
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface PenaltyRowDto {
+  id: number
+  userId: number
+  userName: string
+  /** `Teacher` | `Assistant`. */
+  userRole: string
+  sessionId: number | null
+  groupName: string | null
+  /** Isbot uchun: dars REJADAGI vaqti. */
+  sessionScheduledStart: string | null
+  /** Isbot uchun: dars HAQIQATDA boshlangan vaqti. */
+  sessionActualStart: string | null
+  kind: string
+  status: string
+  /** Faqat kechikish jarimasida. */
+  lateMinutes: number | null
+  amount: number
+  reason: string
+  occurredAt: string
+  /** Oylik davri — oyning 1-kuni. */
+  periodStart: string
+  createdByName: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+}
+
+export interface PenaltySummaryDto {
+  total: number
+  pendingCount: number
+  approvedCount: number
+  cancelledCount: number
+  /** Hali tasdiqlanmagan summa — oylikka HALI tushmagan. */
+  pendingAmount: number
+  /** Tasdiqlangan summa — oylikdan ushlanadi. */
+  approvedAmount: number
+}
+
+export interface PenaltyByUserDto {
+  userId: number
+  userName: string
+  userRole: string
+  pendingCount: number
+  approvedCount: number
+  approvedAmount: number
+  totalLateMinutes: number
+}
+
+export interface CreateManualPenaltyRequest {
+  userId: number
+  /** Musbat summa (so'm) — ushlab qolinadi. */
+  amount: number
+  reason: string
+  occurredAt?: string
+}
+
+export interface CancelPenaltyRequest {
+  /** Bekor qilish sababi — jarima matniga qo'shiladi. */
+  reason?: string
+}
+
+/* ===== /JARIMALAR ===== */
+
 /**
  * "Foydalanuvchilar" paneli kartalari (2026-08-18) — o'quvchilar bo'yicha
  * umumiy manzara.

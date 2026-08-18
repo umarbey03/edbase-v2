@@ -285,6 +285,18 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          JARIMALAR (2026-08-18) — ustoz/kurator uchun. O'quv bo'limi
+          ko'radi va qo'lda kirita oladi; TASDIQLASH esa faqat adminda
+          (server 403 bilan qo'riqlaydi, UI tugmani ham yashiradi).
+          Shu sababli marshrut `MANAGERS` — admin-only EMAS.
+        */
+        path: 'boshqaruv/jarimalar',
+        name: 'manage-penalties',
+        component: () => import('@/pages/manage/ManagePenaltiesPage.vue'),
+        meta: { title: 'Jarimalar', roles: MANAGERS },
+      },
+      {
+        /*
           FAQAT ADMIN (loyiha egasi, 2026-08-15): *"to'lovlar va moliya
           qismi o'quv bo'limi uchun kerak emas, u qismi admin panelda
           bo'lsa yetadi"*. `PaymentsController.ManageRoles` o'zi

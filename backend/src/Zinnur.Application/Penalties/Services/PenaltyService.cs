@@ -160,7 +160,12 @@ public sealed class PenaltyService(
         CreateManualPenaltyRequest request, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await EnsureCanManageAsync(actorId, ct);
+
+        // ★ KIRITISH — O'QUV BO'LIMIGA HAM OCHIQ (tasdiqlashdan FARQLI):
+        //   qo'lda kiritilgan jarima ham `Pending` bo'lib tug'iladi va
+        //   oylikka TEGMAYDI. Pulga aylanadigan qadam — tasdiqlash, va
+        //   u faqat adminda (`EnsureCanManageAsync`).
+        await EnsureCanViewAsync(actorId, ct);
 
         var target = await db.Users.AsNoTracking()
             .Where(u => u.Id == request.UserId)
