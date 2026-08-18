@@ -19,6 +19,17 @@ public sealed class AbsenceNoticeConfiguration : IEntityTypeConfiguration<Absenc
 
         builder.Property(n => n.Body).IsRequired().HasMaxLength(AbsenceNotice.MaxBodyLength);
         builder.Property(n => n.OutboxKey).HasMaxLength(AbsenceNotice.MaxOutboxKeyLength);
+        builder.Property(n => n.ReplyText).HasMaxLength(AbsenceNotice.MaxReplyLength);
+        builder.Property(n => n.CallNote).HasMaxLength(AbsenceNotice.MaxReplyLength);
+
+        // Hisoblanadigan xossalar — ustun EMAS.
+        builder.Ignore(n => n.HasReply);
+        builder.Ignore(n => n.WasCalled);
+
+        builder.HasOne(n => n.CalledBy)
+            .WithMany()
+            .HasForeignKey(n => n.CalledById)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Barcha havolalar `Restrict` — bu YOZUV, ya'ni ish tarixi.
         // O'quvchi yoki dars o'chirilsa ham "unga xabar yuborilgan edi"
@@ -55,5 +66,14 @@ public sealed class AbsenceNoticeConfiguration : IEntityTypeConfiguration<Absenc
         // Yetkazilish holatini kalit bo'yicha o'qish uchun.
         builder.HasIndex(n => n.OutboxKey)
             .HasDatabaseName("IX_AbsenceNotices_OutboxKey");
+
+        // ★ TELEGRAM JAVOBINI TOPISH: bot o'quvchining matnini qabul
+        //   qilganda "shu o'quvchining javob kutayotgan eng so'nggi
+        //   xabari" izlanadi. Bu — har kelgan xabarda bajariladigan
+        //   so'rov, ya'ni indeks bo'lmasa butun jadval skanerlanardi.
+        //   Qisman: javob KELGANLARI umuman qidirilmaydi.
+        builder.HasIndex(n => new { n.StudentId, n.SentAt })
+            .HasFilter(""" "RepliedAt" IS NULL """)
+            .HasDatabaseName("IX_AbsenceNotices_AwaitingReply");
     }
 }

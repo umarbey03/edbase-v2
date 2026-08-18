@@ -3855,6 +3855,16 @@ export interface AbsenceNoticeTarget {
   sessionId: number
 }
 
+/** Kelmaganlar ro'yxatidagi belgilar uchun: yuborilganmi va sabab keldimi. */
+export interface AbsenceNoticeStatusDto {
+  studentId: number
+  sessionId: number
+  replied: boolean
+  /** O'quvchi Telegramda yozgan sabab. `null` — QO'NG'IROQ QILISH KERAK. */
+  replyText: string | null
+  repliedAt: string | null
+}
+
 export interface SendAbsenceNoticeRequest {
   targets: AbsenceNoticeTarget[]
   /** O'rin egallovchilar: `{ism}` `{guruh}` `{sana}` `{vaqt}` `{ustoz}`. */
@@ -3876,6 +3886,8 @@ export interface AbsenceNoticeListParams {
   groupId?: number
   studentId?: number
   delivery?: AbsenceDeliveryName
+  /** `false` — javob bermaganlar, ya'ni qo'ng'iroq ro'yxati. */
+  replied?: boolean
   search?: string
   page?: number
   pageSize?: number
@@ -3886,8 +3898,12 @@ export interface AbsenceNoticeRowDto {
   studentId: number
   studentName: string
   studentPhone: string | null
+  /** Telegram username (`@` siz) — bosiladigan havola uchun. */
+  studentTelegram: string | null
   groupId: number
   groupName: string
+  teacherName: string | null
+  assistantName: string | null
   sessionId: number
   sessionStart: string
   body: string
@@ -3897,6 +3913,13 @@ export interface AbsenceNoticeRowDto {
   deliveryStatus: string
   deliveredAt: string | null
   deliveryError: string | null
+  /** O'quvchi Telegramda yozgan sabab. */
+  replyText: string | null
+  repliedAt: string | null
+  /** Qo'ng'iroq qilgan xodim. `null` — qo'ng'iroq qilinmagan. */
+  calledByName: string | null
+  calledAt: string | null
+  callNote: string | null
 }
 
 export interface AbsenceNoticeSummaryDto {
@@ -3905,4 +3928,13 @@ export interface AbsenceNoticeSummaryDto {
   pending: number
   failed: number
   withoutTelegram: number
+  replied: number
+  /** Javob bermaganlar — kuratorning haqiqiy qo'ng'iroq ro'yxati. */
+  awaitingReply: number
+}
+
+/** Qo'ng'iroq izi (2026-08-18). */
+export interface MarkCalledRequest {
+  /** Qo'ng'iroqda aniqlangan sabab yoki qisqa izoh. */
+  note?: string
 }

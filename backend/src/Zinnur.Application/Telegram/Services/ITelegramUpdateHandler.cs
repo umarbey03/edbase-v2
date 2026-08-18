@@ -96,4 +96,11 @@ public enum TelegramUpdateOutcome
 
     /// <summary>Erkin matn ustoz kunlik tasdiqlash oqimining bir qismi sifatida qabul qilindi.</summary>
     AvailabilityTextHandled = 15,
+
+    /// <summary>
+    /// Erkin matn DARSGA KELMAGANLIK sababi sifatida qabul qilindi
+    /// (2026-08-18). Yangi qiymat FAQAT oxiriga qo'shiladi — enum
+    /// jurnalda son sifatida saqlanadi.
+    /// </summary>
+    AbsenceReplyHandled = 16,
 }

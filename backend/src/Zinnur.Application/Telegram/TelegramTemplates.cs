@@ -173,6 +173,16 @@ public static class TelegramTemplates
     /// </summary>
     public const string AbsenceNotice = "absence_notice";
 
+    /// <summary>
+    /// O'quvchi darsga kelmaganlik sababini yozib yuborgach beriladigan
+    /// tasdiq (2026-08-18).
+    ///
+    /// ★ NEGA JAVOB QAYTARILADI: javobsiz qolgan xabar "yetib bordimi?"
+    /// degan shubha qoldiradi va o'quvchi sababini QAYTA yozib yuboradi.
+    /// Qisqa tasdiq buni to'xtatadi.
+    /// </summary>
+    public const string AbsenceReplySaved = "absence_reply_saved";
+
     /* ===== /2026-08-17 ===== */
 
     // ---------------------------------------------------------------- tugmalar
@@ -209,7 +219,11 @@ public static class TelegramTemplates
         // Kelmaganlik xabari — «Ilovani ochish» tugmasi bilan: o'quvchi
         // dars yozuvini ko'rishi yoki jadvalni tekshirishi mumkin, ya'ni
         // tugma haqiqiy keyingi qadamga olib boradi.
-        AbsenceNotice => TelegramMarkup.OpenApp,
+        // Kelmaganlik xabari — TUGMASIZ, VA BU ATAYLAB (2026-08-18):
+        // xabar o'quvchidan SABABNI YOZIShNI so'raydi. «Ilovani ochish»
+        // tugmasi uni Mini App'ga olib ketib, aynan kutilayotgan
+        // javobdan chalg'itardi (kirish kodi bilan AYNI mulohaza).
+        AbsenceNotice or AbsenceReplySaved => TelegramMarkup.None,
 
         _ => TelegramMarkup.None,
     };
@@ -548,6 +562,17 @@ public static class TelegramTemplates
     /// </summary>
     /// <param name="groupName">Guruh nomi.</param>
     /// <param name="title">Dars sarlavhasi (bo'lmasligi mumkin).</param>
+    /// <summary>
+    /// Sabab qabul qilingani haqida qisqa tasdiq (2026-08-18).
+    ///
+    /// ★ QISQA VA YAKUNIY: "kuratoringiz ko'radi" deyilishi o'quvchiga
+    /// ish tugaganini bildiradi. Aks holda u sababini qayta-qayta
+    /// yozib yuborardi.
+    /// </summary>
+    public static string AbsenceReplySavedText() =>
+        "✅ <b>Rahmat, sababingiz qabul qilindi.</b>\n\n"
+        + "Uni kuratoringiz ko'radi. Keyingi darsni qoldirmang!";
+
     public static string SessionStartedText(string groupName, string? title)
     {
         var group = NotificationText.Parameter(groupName, 100);

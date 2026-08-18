@@ -43,10 +43,24 @@ const emit = defineEmits<{ close: []; sent: [] }>()
 
 const queryClient = useQueryClient()
 
+/**
+ * ★ MATN SABABNI SHU YERGA YOZISHNI so'raydi (loyiha egasi, 2026-08-18):
+ * *"sababini yuborilgan xabarning o'zida so'rab olish kerak va shu
+ * yerning o'ziga sababini yozib yuborsin"*.
+ *
+ * ★ "kuratoringizga bildiring" DEGAN ESKI MATN NEGA YOMON EDI: u
+ * o'quvchidan QO'SHIMCHA harakat talab qilardi (kuratorni topish,
+ * qo'ng'iroq qilish) va shuning uchun ko'pchilik javob bermasdi.
+ * Botga yozish esa bir bosishlik ish — javob berish darajasi
+ * shu qadar yuqori bo'ladiki, kuratorning qo'ng'iroq ro'yxati
+ * sezilarli qisqaradi.
+ */
 const DEFAULT_BODY =
   'Assalomu alaykum, {ism}!\n\n'
-  + 'Siz {sana} kuni soat {vaqt} dagi {guruh} guruhi darsiga qatnashmadingiz.\n'
-  + 'Iltimos, sababini kuratoringizga bildiring va keyingi darsni qoldirmang.'
+  + 'Siz {sana} kuni soat {vaqt} dagi {guruh} guruhi darsiga qatnashmadingiz.\n\n'
+  + '❓ Nima sababdan qatnasha olmadingiz?\n'
+  + 'Iltimos, sababini SHU YERGA — javob xabari sifatida yozib yuboring.\n\n'
+  + 'Javobingiz kuratoringizga yetib boradi. Keyingi darsni qoldirmang!'
 
 const body = ref(DEFAULT_BODY)
 const templateId = ref<number | ''>('')

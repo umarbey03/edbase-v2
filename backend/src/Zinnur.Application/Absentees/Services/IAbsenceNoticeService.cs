@@ -37,11 +37,50 @@ public interface IAbsenceNoticeService
         AbsenceNoticeListQuery query, long actorId, CancellationToken ct = default);
 
     /// <summary>
-    /// Berilgan darslar bo'yicha ALLAQACHON xabar olgan o'quvchilar.
+    /// Berilgan darslar bo'yicha ALLAQACHON xabar olgan o'quvchilar va
+    /// ularning javob holati.
     ///
-    /// Kelmaganlar ro'yxatida "yuborilgan" belgisini chizish uchun —
-    /// kurator bir odamga ikki marta yozmasin.
+    /// Kelmaganlar ro'yxatida "yuborilgan" va "sabab keldi" belgilarini
+    /// chizish uchun — kurator bir odamga ikki marta yozmasin va faqat
+    /// JAVOB BERMAGANLARGA qo'ng'iroq qilsin.
     /// </summary>
-    Task<IReadOnlyList<AbsenceNoticeTarget>> GetSentTargetsAsync(
+    Task<IReadOnlyList<AbsenceNoticeStatusDto>> GetSentTargetsAsync(
         IReadOnlyCollection<long> sessionIds, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// TELEGRAMDAN KELGAN SABABNI QABUL QILADI (2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Bot o'quvchidan matn olganda chaqiriladi: shu o'quvchining javob
+    /// KUTAYOTGAN eng so'nggi xabari topilib, matn sabab sifatida
+    /// yoziladi.
+    ///
+    /// ★ NEGA BOT TOMONDAN, ALOHIDA ENDPOINT EMAS: o'quvchi ilovaga
+    /// kirmaydi — u xabarni Telegramda oladi va o'sha yerga javob
+    /// yozadi. Boshqa yo'l talab qilinsa, javob berish darajasi keskin
+    /// tushardi (aynan shu narsa kuratorning qo'ng'iroq ro'yxatini
+    /// qisqartiradi).
+    /// </summary>
+    /// <param name="telegramUserId">Telegram foydalanuvchi ID'si.</param>
+    /// <returns>
+    /// <c>true</c> — matn sabab sifatida qabul qilindi (bot "rahmat"
+    /// deb javob beradi); <c>false</c> — kutilayotgan xabar yo'q, matn
+    /// odatiy yo'l bilan ishlanadi.
+    /// </returns>
+    Task<bool> TryCaptureReplyAsync(
+        long telegramUserId, string? text, CancellationToken ct = default);
+
+    /// <summary>
+    /// "Qo'ng'iroq qilindi" izini yozadi.
+    ///
+    /// ★ NEGA KERAK: xabar yuborgan odam va qo'ng'iroq qilgan odam
+    /// odatda BOSHQA (xabarni o'quv bo'limi yuboradi, qo'ng'iroqni
+    /// kurator qiladi). Iz bo'lmasa, ikki kurator bir o'quvchiga ikki
+    /// marta qo'ng'iroq qilardi.
+    ///
+    /// Ustoz va kurator ham bajara oladi — qo'ng'iroq amalda ularning ishi.
+    /// </summary>
+    Task<AbsenceNoticeRowDto> MarkCalledAsync(
+        long noticeId, MarkCalledRequest request, long actorId, CancellationToken ct = default);
 }

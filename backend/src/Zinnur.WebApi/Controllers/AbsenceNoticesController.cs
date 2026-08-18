@@ -52,8 +52,8 @@ public sealed class AbsenceNoticesController(IAbsenceNoticeService notices) : Co
     /// qilardi.
     /// </param>
     [HttpGet("sent")]
-    [ProducesResponseType<IReadOnlyList<AbsenceNoticeTarget>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<AbsenceNoticeTarget>>> Sent(
+    [ProducesResponseType<IReadOnlyList<AbsenceNoticeStatusDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AbsenceNoticeStatusDto>>> Sent(
         [FromQuery] string? sessionIds, CancellationToken ct)
     {
         var ids = (sessionIds ?? string.Empty)
@@ -73,6 +73,17 @@ public sealed class AbsenceNoticesController(IAbsenceNoticeService notices) : Co
     public async Task<ActionResult<SendAbsenceNoticeResultDto>> Send(
         [FromBody] SendAbsenceNoticeRequest request, CancellationToken ct) =>
         Ok(await notices.SendAsync(request, CurrentUserId, ct));
+
+    /// <summary>
+    /// "Qo'ng'iroq qilindi" izi — ustoz va kurator ham bajara oladi
+    /// (qo'ng'iroq amalda ularning ishi).
+    /// </summary>
+    [HttpPost("{id:long}/called")]
+    [ProducesResponseType<AbsenceNoticeRowDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AbsenceNoticeRowDto>> MarkCalled(
+        long id, [FromBody] MarkCalledRequest? request, CancellationToken ct) =>
+        Ok(await notices.MarkCalledAsync(id, request ?? new MarkCalledRequest(), CurrentUserId, ct));
 
     private long CurrentUserId =>
         long.Parse(

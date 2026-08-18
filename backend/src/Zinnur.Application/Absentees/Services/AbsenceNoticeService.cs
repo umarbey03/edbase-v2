@@ -37,6 +37,15 @@ public sealed class AbsenceNoticeService(
     /// </summary>
     private const int MaxTargets = 200;
 
+    /// <summary>
+    /// Telegramdan kelgan matn necha kun ichida sabab deb qabul qilinadi.
+    ///
+    /// ★ SABAB: chegarasiz bo'lsa, bir oy oldingi javobsiz xabarga bugun
+    /// yozilgan tasodifiy matn ("salom") sabab bo'lib tushardi va
+    /// kurator uni haqiqiy javob deb o'ylardi.
+    /// </summary>
+    private const int ReplyWindowDays = 14;
+
     // ================================================================= yuborish
 
     /// <inheritdoc />
@@ -175,42 +184,13 @@ public sealed class AbsenceNoticeService(
         var rows = Filter(query);
         var total = await rows.CountAsync(ct);
 
-        var items = await rows
+        var items = rows
             .OrderByDescending(n => n.SentAt)
             .ThenByDescending(n => n.Id)
             .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(n => new
-            {
-                n.Id,
-                n.StudentId,
-                StudentName = n.Student!.FullName,
-                StudentPhone = n.Student.Phone,
-                n.GroupId,
-                GroupName = n.Group!.Name,
-                n.SessionId,
-                n.SessionStart,
-                n.Body,
-                SentByName = n.SentBy!.FullName,
-                n.SentAt,
-                n.ToTelegram,
-                n.OutboxKey,
-            })
-            .ToListAsync(ct);
+            .Take(pageSize);
 
-        var statuses = await outboxStatus.GetStatusesAsync(
-            items.Where(x => x.OutboxKey is not null).Select(x => x.OutboxKey!).ToList(), ct);
-
-        var mapped = items.ConvertAll(x =>
-        {
-            var (status, deliveredAt, error) = Resolve(x.ToTelegram, x.OutboxKey, statuses);
-
-            return new AbsenceNoticeRowDto(
-                x.Id, x.StudentId, x.StudentName, x.StudentPhone,
-                x.GroupId, x.GroupName, x.SessionId, x.SessionStart,
-                x.Body, x.SentByName, x.SentAt, x.ToTelegram,
-                status, deliveredAt, error);
-        });
+        var mapped = await ProjectAsync(items, ct);
 
         // ★ YETKAZILISH FILTRI XOTIRADA: holat navbat jadvalida, ro'yxat
         //   esa boshqa jadvalda. Ularni SQL'da qo'shish uchun navbatni
@@ -235,26 +215,31 @@ public sealed class AbsenceNoticeService(
         await EnsureCanViewAsync(actorId, ct);
 
         var flat = await Filter(query)
-            .Select(n => new { n.ToTelegram, n.OutboxKey })
+            .Select(n => new { n.ToTelegram, n.OutboxKey, n.RepliedAt })
             .ToListAsync(ct);
 
-        if (flat.Count == 0) return new AbsenceNoticeSummaryDto(0, 0, 0, 0, 0);
+        if (flat.Count == 0) return new AbsenceNoticeSummaryDto(0, 0, 0, 0, 0, 0, 0);
 
         var statuses = await outboxStatus.GetStatusesAsync(
             flat.Where(x => x.OutboxKey is not null).Select(x => x.OutboxKey!).ToList(), ct);
 
         var resolved = flat.ConvertAll(x => Resolve(x.ToTelegram, x.OutboxKey, statuses).Status);
+        var replied = flat.Count(x => x.RepliedAt is not null);
 
         return new AbsenceNoticeSummaryDto(
             flat.Count,
             resolved.Count(s => s == "Sent"),
             resolved.Count(s => s == "Pending"),
             resolved.Count(s => s == "Failed"),
-            resolved.Count(s => s == "NoTelegram"));
+            resolved.Count(s => s == "NoTelegram"),
+            replied,
+            // ★ QO'NG'IROQ RO'YXATI: kuratorning haqiqiy ish hajmi
+            //   AYNAN shu raqam. "Jami yuborildi" emas.
+            flat.Count - replied);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AbsenceNoticeTarget>> GetSentTargetsAsync(
+    public async Task<IReadOnlyList<AbsenceNoticeStatusDto>> GetSentTargetsAsync(
         IReadOnlyCollection<long> sessionIds, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(sessionIds);
@@ -264,11 +249,160 @@ public sealed class AbsenceNoticeService(
 
         var ids = sessionIds.Distinct().ToList();
 
-        return await db.AbsenceNotices.AsNoTracking()
+        var rows = await db.AbsenceNotices.AsNoTracking()
             .Where(n => ids.Contains(n.SessionId))
-            .Select(n => new AbsenceNoticeTarget(n.StudentId, n.SessionId))
-            .Distinct()
+            .Select(n => new
+            {
+                n.StudentId,
+                n.SessionId,
+                n.ReplyText,
+                n.RepliedAt,
+                n.SentAt,
+            })
             .ToListAsync(ct);
+
+        // Bir (o'quvchi, dars) uchun bir necha xabar bo'lishi mumkin
+        // (takroriy eslatma) — JAVOBLISI ustun, aks holda eng so'nggisi.
+        return rows
+            .GroupBy(x => (x.StudentId, x.SessionId))
+            .Select(g =>
+            {
+                var best = g.OrderByDescending(x => x.RepliedAt is not null)
+                    .ThenByDescending(x => x.SentAt)
+                    .First();
+
+                return new AbsenceNoticeStatusDto(
+                    g.Key.StudentId,
+                    g.Key.SessionId,
+                    best.RepliedAt is not null,
+                    best.ReplyText,
+                    best.RepliedAt);
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryCaptureReplyAsync(
+        long telegramUserId, string? text, CancellationToken ct = default)
+    {
+        var trimmed = (text ?? string.Empty).Trim();
+
+        if (trimmed.Length == 0 || telegramUserId <= 0) return false;
+
+        var studentId = await db.Users.AsNoTracking()
+            .Where(u => u.TelegramId == telegramUserId && u.Role == UserRole.Student)
+            .Select(u => (long?)u.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (studentId is not { } id) return false;
+
+        var now = clock.GetUtcNow();
+
+        // ★ MUDDAT CHEGARASI: aks holda bir oy oldingi xabarga bugun
+        //   yozilgan "salom" sabab bo'lib tushardi. Oyna ichida javob
+        //   kutayotgan xabar bo'lsa — matn AYNAN unga tegishli.
+        var since = now.AddDays(-ReplyWindowDays);
+
+        var notice = await db.AbsenceNotices.AsTracking()
+            .Where(n => n.StudentId == id && n.RepliedAt == null && n.SentAt >= since)
+            // Eng so'nggi xabar: o'quvchi odatda oxirgi kelgan xabarga
+            // javob yozadi.
+            .OrderByDescending(n => n.SentAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (notice is null) return false;
+
+        if (!notice.Reply(trimmed, now)) return false;
+
+        await db.SaveChangesAsync(ct);
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<AbsenceNoticeRowDto> MarkCalledAsync(
+        long noticeId, MarkCalledRequest request, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Qo'ng'iroqni AMALDA kurator/ustoz qiladi — shuning uchun
+        // ko'rish huquqi yetarli (yuborish huquqi emas).
+        await EnsureCanViewAsync(actorId, ct);
+
+        var notice = await db.AbsenceNotices.AsTracking()
+            .FirstOrDefaultAsync(n => n.Id == noticeId, ct)
+            ?? throw new NotFoundException(nameof(AbsenceNotice), noticeId);
+
+        notice.MarkCalled(actorId, request.Note, clock.GetUtcNow());
+        await db.SaveChangesAsync(ct);
+
+        var rows = await ProjectAsync(
+            db.AbsenceNotices.AsNoTracking().Where(n => n.Id == noticeId), ct);
+
+        return rows[0];
+    }
+
+    /// <summary>
+    /// Yozuvlarni DTO'ga aylantiradi va yetkazilish holatini navbatdan
+    /// qo'shadi.
+    ///
+    /// ★ NEGA AJRATILDI: AYNI proyeksiya ro'yxatda ham, qo'ng'iroq
+    /// belgilanganda bitta qatorni qaytarishda ham kerak. Ikki nusxa
+    /// yozilsa, ustun qo'shilganda biri yangilanib ikkinchisi eskirib
+    /// qolardi.
+    /// </summary>
+    private async Task<List<AbsenceNoticeRowDto>> ProjectAsync(
+        IQueryable<AbsenceNotice> source, CancellationToken ct)
+    {
+        var items = await source
+            .Select(n => new
+            {
+                n.Id,
+                n.StudentId,
+                StudentName = n.Student!.FullName,
+                StudentPhone = n.Student.Phone,
+                StudentTelegram = n.Student.TelegramUsername,
+                n.GroupId,
+                GroupName = n.Group!.Name,
+
+                // Ustoz/kurator — navigatsiyasiz FK, shuning uchun
+                // korrelyatsiyalangan ichki so'rov (loyihadagi AYNI naqsh).
+                TeacherName = n.Group.TeacherId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == n.Group.TeacherId).Select(u => u.FullName).FirstOrDefault(),
+                AssistantName = n.Group.AssistantId == null
+                    ? null
+                    : db.Users.Where(u => u.Id == n.Group.AssistantId).Select(u => u.FullName).FirstOrDefault(),
+                n.SessionId,
+                n.SessionStart,
+                n.Body,
+                SentByName = n.SentBy!.FullName,
+                n.SentAt,
+                n.ToTelegram,
+                n.OutboxKey,
+                n.ReplyText,
+                n.RepliedAt,
+                CalledByName = n.CalledBy == null ? null : n.CalledBy.FullName,
+                n.CalledAt,
+                n.CallNote,
+            })
+            .ToListAsync(ct);
+
+        var statuses = await outboxStatus.GetStatusesAsync(
+            items.Where(x => x.OutboxKey is not null).Select(x => x.OutboxKey!).ToList(), ct);
+
+        return items.ConvertAll(x =>
+        {
+            var (status, deliveredAt, error) = Resolve(x.ToTelegram, x.OutboxKey, statuses);
+
+            return new AbsenceNoticeRowDto(
+                x.Id, x.StudentId, x.StudentName, x.StudentPhone, x.StudentTelegram,
+                x.GroupId, x.GroupName, x.TeacherName, x.AssistantName,
+                x.SessionId, x.SessionStart,
+                x.Body, x.SentByName, x.SentAt, x.ToTelegram,
+                status, deliveredAt, error, x.ReplyText, x.RepliedAt,
+                x.CalledByName, x.CalledAt, x.CallNote);
+        });
     }
 
     // ================================================================= yordamchi
@@ -313,6 +447,16 @@ public sealed class AbsenceNoticeService(
         if (query.GroupId is { } groupId) rows = rows.Where(n => n.GroupId == groupId);
         if (query.StudentId is { } studentId) rows = rows.Where(n => n.StudentId == studentId);
 
+        // ★ "JAVOB BERMAGANLAR" — KURATORNING QO'NG'IROQ RO'YXATI.
+        //   Sababini yozganlar bilan bog'lanish shart emas, sabab
+        //   allaqachon ma'lum (loyiha egasi qoidasi).
+        if (query.Replied is { } replied)
+        {
+            rows = replied
+                ? rows.Where(n => n.RepliedAt != null)
+                : rows.Where(n => n.RepliedAt == null);
+        }
+
         var term = NormalizeSearch(query.Search);
 
         if (term is not null)
@@ -321,7 +465,10 @@ public sealed class AbsenceNoticeService(
             rows = rows.Where(n =>
                 EF.Functions.Like(n.Student!.FullName.ToLower(), term)
                 || EF.Functions.Like(n.Group!.Name.ToLower(), term)
-                || EF.Functions.Like(n.Body.ToLower(), term));
+                || EF.Functions.Like(n.Body.ToLower(), term)
+                // O'quvchi yozgan sabab bo'yicha ham: "kasal" deb
+                // qidirilganda kim shu sababni aytganini topish kerak.
+                || (n.ReplyText != null && EF.Functions.Like(n.ReplyText.ToLower(), term)));
 #pragma warning restore CA1304, CA1311
         }
 

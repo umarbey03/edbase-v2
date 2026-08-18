@@ -3,7 +3,8 @@ import type {
   AbsenceNoticeListParams,
   AbsenceNoticeRowDto,
   AbsenceNoticeSummaryDto,
-  AbsenceNoticeTarget,
+  AbsenceNoticeStatusDto,
+  MarkCalledRequest,
   PagedResult,
   SendAbsenceNoticeRequest,
   SendAbsenceNoticeResultDto,
@@ -19,13 +20,16 @@ const BASE = '/api/v1/absence-notices'
  * "Doniyorga xabar bordimi?" degan savolga javob berish uchun.
  */
 
-function toQuery(params: AbsenceNoticeListParams): Record<string, string | number | undefined> {
+function toQuery(
+  params: AbsenceNoticeListParams,
+): Record<string, string | number | boolean | undefined> {
   return {
     from: params.from,
     to: params.to,
     groupId: params.groupId,
     studentId: params.studentId,
     delivery: params.delivery,
+    replied: params.replied,
     search: params.search,
     page: params.page,
     pageSize: params.pageSize,
@@ -63,8 +67,8 @@ export function fetchAbsenceNoticeSummary(
 export function fetchSentNoticeTargets(
   sessionIds: number[],
   options?: { signal?: AbortSignal },
-): Promise<AbsenceNoticeTarget[]> {
-  return http.get<AbsenceNoticeTarget[]>(`${BASE}/sent`, {
+): Promise<AbsenceNoticeStatusDto[]> {
+  return http.get<AbsenceNoticeStatusDto[]>(`${BASE}/sent`, {
     // ★ VERGUL BILAN, massiv sifatida EMAS: `http` mijozi so'rov
     //   parametrida massivni qo'llab-quvvatlamaydi (`QueryValue` —
     //   oddiy qiymat). Uni massivga kengaytirish butun loyihadagi
@@ -79,4 +83,19 @@ export function sendAbsenceNotices(
   body: SendAbsenceNoticeRequest,
 ): Promise<SendAbsenceNoticeResultDto> {
   return http.post<SendAbsenceNoticeResultDto>(BASE, body)
+}
+
+/**
+ * "Qo'ng'iroq qilindi" izi — ustoz va kurator ham bajara oladi.
+ *
+ * ★ NEGA KERAK: xabar yuborgan odam va qo'ng'iroq qilgan odam odatda
+ * BOSHQA (xabarni o'quv bo'limi yuboradi, qo'ng'iroqni kurator qiladi).
+ * Iz bo'lmasa, ikki kurator bir o'quvchiga ikki marta qo'ng'iroq
+ * qilardi.
+ */
+export function markNoticeCalled(
+  id: number,
+  body: MarkCalledRequest = {},
+): Promise<AbsenceNoticeRowDto> {
+  return http.post<AbsenceNoticeRowDto>(`${BASE}/${id}/called`, body)
 }

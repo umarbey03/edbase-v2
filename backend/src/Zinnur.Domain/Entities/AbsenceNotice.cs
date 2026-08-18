@@ -85,6 +85,105 @@ public class AbsenceNotice : BaseEntity
     public string? OutboxKey { get; set; }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// O'QUVCHI TELEGRAMDA YOZGAN SABAB (2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Loyiha egasi: *"sababini yuborilgan xabarning o'zida so'rab olish
+    /// kerak va shu yerning o'ziga sababini yozib yuborsin, va u
+    /// platformada ko'rinsin"*.
+    ///
+    /// ★ NEGA BU ENG MUHIM MAYDON: u kuratorning ISH RO'YXATINI ikkiga
+    /// bo'ladi. Sababini yozib yuborganlar bilan bog'lanish SHART EMAS —
+    /// sabab allaqachon ma'lum. Javob bermaganlar esa qo'ng'iroq qilib,
+    /// sababini aniqlab, darsga qaytarishga urinish kerak bo'lgan
+    /// ro'yxat. Bu maydonsiz kurator hammasini birma-bir qo'ng'iroq
+    /// qilardi va vaqtining yarmi bekorga ketardi.
+    /// </summary>
+    public string? ReplyText { get; set; }
+
+    /// <summary>Javob qachon kelgani. <c>null</c> — hali javob yo'q.</summary>
+    public DateTimeOffset? RepliedAt { get; set; }
+
+    /// <summary>Javob kelganmi — qo'ng'iroq ro'yxatini ajratishning yagona mezoni.</summary>
+    public bool HasReply => RepliedAt is not null;
+
+    /// <summary>
+    /// O'quvchi yozgan sababni yozib qo'yadi.
+    ///
+    /// ★ FAQAT BIR MARTA: birinchi javob saqlanadi va keyingi xabarlar
+    /// uni O'ZGARTIRMAYDI. Aks holda o'quvchining keyingi tasodifiy
+    /// xabari ("rahmat", "salom") aniq yozilgan sababni o'chirib
+    /// yuborardi.
+    /// </summary>
+    /// <returns><c>false</c> — javob allaqachon bor yoki matn bo'sh.</returns>
+    public bool Reply(string? text, DateTimeOffset now)
+    {
+        if (HasReply) return false;
+
+        var trimmed = (text ?? string.Empty).Trim();
+
+        if (trimmed.Length == 0) return false;
+
+        ReplyText = trimmed.Length > MaxReplyLength ? trimmed[..MaxReplyLength] : trimmed;
+        RepliedAt = now;
+        UpdatedAt = now;
+
+        return true;
+    }
+
+    /// <summary>Javob matni uchun chegara.</summary>
+    public const int MaxReplyLength = 500;
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// QO'NG'IROQ IZI (2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Loyiha egasi: ro'yxatda *"kim bog'langani — agar tel qilingan
+    /// bo'lsa yoki TG xabar yuborilgan bo'lsa"* ko'rinishi kerak.
+    ///
+    /// ★ TELEGRAM XABARINI KIM YUBORGANI <see cref="SentById"/> DA, bu
+    /// esa QO'NG'IROQNI kim qilgani. Ikkalasi har xil odam bo'lishi
+    /// odatiy: xabarni o'quv bo'limi yuboradi, qo'ng'iroqni kurator
+    /// qiladi. Bitta maydonga siqilsa, "men qo'ng'iroq qildim" degan
+    /// fakt yo'qolardi.
+    /// </summary>
+    public long? CalledById { get; set; }
+
+    public User? CalledBy { get; set; }
+
+    public DateTimeOffset? CalledAt { get; set; }
+
+    /// <summary>Qo'ng'iroqda aniqlangan sabab yoki qisqa izoh.</summary>
+    public string? CallNote { get; set; }
+
+    /// <summary>Qo'ng'iroq qilinganmi.</summary>
+    public bool WasCalled => CalledAt is not null;
+
+    /// <summary>
+    /// Qo'ng'iroq izini yozadi.
+    ///
+    /// ★ TAKROR RUXSAT ETILADI (javobdan FARQLI): birinchi qo'ng'iroqda
+    /// o'quvchi ko'tarmasligi mumkin va kurator qayta uringanini yozib
+    /// qo'yishi kerak. Oxirgi urinish saqlanadi.
+    /// </summary>
+    public void MarkCalled(long actorId, string? note, DateTimeOffset now)
+    {
+        if (actorId <= 0) throw new DomainException("Qo'ng'iroq qilgan xodim ko'rsatilmagan.");
+
+        var trimmed = (note ?? string.Empty).Trim();
+
+        CalledById = actorId;
+        CalledAt = now;
+        CallNote = trimmed.Length == 0
+            ? null
+            : trimmed.Length > MaxReplyLength ? trimmed[..MaxReplyLength] : trimmed;
+
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Yozuvni yaratadi.
     ///
     /// ★ FABRIKA METOD: matnni tozalash va chegaralash BITTA joyda —

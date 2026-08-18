@@ -17,6 +17,21 @@ namespace Zinnur.Application.Absentees.Dtos;
 /// <param name="SessionId">Qaysi qoldirilgan dars uchun.</param>
 public sealed record AbsenceNoticeTarget(long StudentId, long SessionId);
 
+/// <summary>
+/// Kelmaganlar ro'yxatidagi belgilar uchun: xabar yuborilganmi va
+/// o'quvchi sababini yozganmi.
+/// </summary>
+/// <param name="ReplyText">
+/// O'quvchi Telegramda yozgan sabab. <c>null</c> — javob yo'q, ya'ni
+/// QO'NG'IROQ QILISH KERAK.
+/// </param>
+public sealed record AbsenceNoticeStatusDto(
+    long StudentId,
+    long SessionId,
+    bool Replied,
+    string? ReplyText,
+    DateTimeOffset? RepliedAt);
+
 /// <param name="Body">
 /// Xabar matni. O'RIN EGALLOVCHILAR qo'llab-quvvatlanadi — ro'yxati
 /// <c>AbsenceNoticePlaceholders</c> da.
@@ -54,6 +69,7 @@ public sealed record AbsenceNoticeListQuery(
     long? GroupId = null,
     long? StudentId = null,
     string? Delivery = null,
+    bool? Replied = null,
     string? Search = null,
     int Page = 1,
     int PageSize = 20);
@@ -65,13 +81,23 @@ public sealed record AbsenceNoticeListQuery(
 /// o'qilganlik belgisi Telegram Bot API'da mavjud emas.
 /// </param>
 /// <param name="DeliveryError">Xato bo'lsa sababi (bot bloklangan va h.k.).</param>
+/// <param name="StudentTelegram">
+/// Telegram username (<c>@</c> siz). Bosiladigan havola uchun —
+/// raqamli ID Telegram qidiruvida ishlamaydi.
+/// </param>
+/// <param name="TeacherName">Guruh ustozi — jadvalda "kimning guruhi" savoliga javob.</param>
+/// <param name="AssistantName">Guruh kuratori — qo'ng'iroq odatda uning zimmasida.</param>
+/// <param name="CalledByName">Qo'ng'iroq qilgan xodim. <c>null</c> — qo'ng'iroq qilinmagan.</param>
 public sealed record AbsenceNoticeRowDto(
     long Id,
     long StudentId,
     string StudentName,
     string? StudentPhone,
+    string? StudentTelegram,
     long GroupId,
     string GroupName,
+    string? TeacherName,
+    string? AssistantName,
     long SessionId,
     DateTimeOffset SessionStart,
     string Body,
@@ -80,7 +106,15 @@ public sealed record AbsenceNoticeRowDto(
     bool ToTelegram,
     string DeliveryStatus,
     DateTimeOffset? DeliveredAt,
-    string? DeliveryError);
+    string? DeliveryError,
+    string? ReplyText,
+    DateTimeOffset? RepliedAt,
+    string? CalledByName,
+    DateTimeOffset? CalledAt,
+    string? CallNote);
+
+/// <param name="Note">Qo'ng'iroqda aniqlangan sabab yoki qisqa izoh.</param>
+public sealed record MarkCalledRequest(string? Note = null);
 
 /// <summary>Filtrga mos BUTUN to'plam bo'yicha yig'ma (sahifalashdan mustaqil).</summary>
 public sealed record AbsenceNoticeSummaryDto(
@@ -88,4 +122,6 @@ public sealed record AbsenceNoticeSummaryDto(
     int Delivered,
     int Pending,
     int Failed,
-    int WithoutTelegram);
+    int WithoutTelegram,
+    int Replied,
+    int AwaitingReply);

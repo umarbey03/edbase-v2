@@ -218,12 +218,13 @@ const sentQuery = useQuery({
   enabled: computed(() => visibleSessionIds.value.length > 0),
 })
 
-const sentKeys = computed(
-  () => new Set((sentQuery.data.value ?? []).map((t) => keyOf(t.studentId, t.sessionId))),
+/** Kalit → yuborilgan xabarning javob holati. */
+const sentMap = computed(
+  () => new Map((sentQuery.data.value ?? []).map((t) => [keyOf(t.studentId, t.sessionId), t])),
 )
 
-function alreadySent(studentId: number, sessionId: number): boolean {
-  return sentKeys.value.has(keyOf(studentId, sessionId))
+function sentStatus(studentId: number, sessionId: number) {
+  return sentMap.value.get(keyOf(studentId, sessionId)) ?? null
 }
 
 function onSent(): void {
@@ -541,15 +542,24 @@ function telHref(student: AbsenteeStudentDto): string | null {
                 </BaseBadge>
 
                 <!--
-                ★ "XABAR YUBORILGAN" BELGISI: kurator bir odamga ikki
-                marta yozmasin. Belgi bo'lmasa, ro'yxatga qayta kirganda
-                hammasini qaytadan yuborardi.
+                ★ UCH XIL HOLAT, UCH XIL ISH:
+                  • sabab keldi   → BOG'LANISH SHART EMAS (yashil);
+                  • xabar ketgan, javob yo'q → QO'NG'IROQ QILISH KERAK;
+                  • belgisiz      → hali xabar ham yuborilmagan.
+                Bu belgi bo'lmasa kurator hammasini birma-bir
+                qo'ng'iroq qilardi va vaqtining yarmi bekorga ketardi.
               -->
                 <BaseBadge
-                  v-if="alreadySent(student.studentId, student.sessionId)"
-                  tone="accent"
+                  v-if="sentStatus(student.studentId, student.sessionId)?.replied === true"
+                  tone="success"
                 >
-                  Xabar yuborilgan
+                  Sabab keldi
+                </BaseBadge>
+                <BaseBadge
+                  v-else-if="sentStatus(student.studentId, student.sessionId) !== null"
+                  tone="warning"
+                >
+                  Xabar ketdi · javob yo‘q
                 </BaseBadge>
 
                 <!--
@@ -584,6 +594,18 @@ function telHref(student: AbsenteeStudentDto): string | null {
                     :size="14"
                   />
                 </span>
+
+                <!--
+                  ★ SABAB MATNI TO'LIQ QATORDA: bu — kuratorning
+                  qo'ng'iroq qilish yoki qilmaslik qarori. Faqat
+                  nishonda (tooltipda) qolsa, ro'yxatni ko'zdan
+                  kechirayotgan xodim uni umuman ko'rmasdi.
+                -->
+                <p
+                  v-if="sentStatus(student.studentId, student.sessionId)?.replyText"
+                  class="basis-full rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200"
+                  v-text="`Sababi: ${sentStatus(student.studentId, student.sessionId)?.replyText}`"
+                />
               </li>
             </ul>
           </BaseCard>

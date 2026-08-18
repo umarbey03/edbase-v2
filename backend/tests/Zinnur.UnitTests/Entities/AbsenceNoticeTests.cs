@@ -93,6 +93,125 @@ public class AbsenceNoticeTests
         act.Should().Throw<DomainException>();
     }
 
+    // ============================================================ o'quvchi javobi
+
+    [Fact]
+    public void Reply_StoresTextAndTime()
+    {
+        var notice = Notice();
+        var ok = notice.Reply("  Kasal bo'lib qoldim  ", Moment);
+
+        ok.Should().BeTrue();
+        notice.ReplyText.Should().Be("Kasal bo'lib qoldim");
+        notice.RepliedAt.Should().Be(Moment);
+        notice.HasReply.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reply_BeforeAnswer_HasReplyIsFalse()
+    {
+        Notice().HasReply.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// ★ FAQAT BIR MARTA: o'quvchining keyingi tasodifiy xabari
+    /// ("rahmat", "salom") aniq yozilgan sababni O'CHIRIB YUBORMASLIGI
+    /// kerak — kurator noto'g'ri ma'lumot ko'rardi.
+    /// </summary>
+    [Fact]
+    public void Reply_Twice_KeepsFirstAnswer()
+    {
+        var notice = Notice();
+        notice.Reply("Kasal edim", Moment);
+
+        var second = notice.Reply("rahmat", Moment.AddHours(1));
+
+        second.Should().BeFalse();
+        notice.ReplyText.Should().Be("Kasal edim");
+        notice.RepliedAt.Should().Be(Moment);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Reply_WithEmptyText_IsIgnored(string? text)
+    {
+        var notice = Notice();
+
+        notice.Reply(text, Moment).Should().BeFalse();
+        notice.HasReply.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Reply_TruncatesTooLongText()
+    {
+        var notice = Notice();
+        notice.Reply(new string('a', 2_000), Moment);
+
+        notice.ReplyText.Should().HaveLength(AbsenceNotice.MaxReplyLength);
+    }
+
+    // ============================================================ qo'ng'iroq
+
+    [Fact]
+    public void MarkCalled_StoresActorAndTime()
+    {
+        var notice = Notice();
+        notice.MarkCalled(actorId: 9, "Onasi javob berdi", Moment);
+
+        notice.CalledById.Should().Be(9);
+        notice.CalledAt.Should().Be(Moment);
+        notice.CallNote.Should().Be("Onasi javob berdi");
+        notice.WasCalled.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// ★ TAKROR RUXSAT ETILADI (javobdan FARQLI): birinchi qo'ng'iroqda
+    /// o'quvchi ko'tarmasligi mumkin va kurator qayta urinishini yozib
+    /// qo'yishi kerak.
+    /// </summary>
+    [Fact]
+    public void MarkCalled_Twice_KeepsLatest()
+    {
+        var notice = Notice();
+        notice.MarkCalled(9, "Ko'tarmadi", Moment);
+        notice.MarkCalled(11, "Gaplashdim", Moment.AddHours(2));
+
+        notice.CalledById.Should().Be(11);
+        notice.CalledAt.Should().Be(Moment.AddHours(2));
+        notice.CallNote.Should().Be("Gaplashdim");
+    }
+
+    [Fact]
+    public void MarkCalled_WithEmptyNote_StoresNull()
+    {
+        var notice = Notice();
+        notice.MarkCalled(9, "   ", Moment);
+
+        notice.CallNote.Should().BeNull();
+        notice.WasCalled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkCalled_WithoutActor_Throws()
+    {
+        var act = () => Notice().MarkCalled(0, null, Moment);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    /// <summary>Qo'ng'iroq va javob BIR-BIRIDAN mustaqil.</summary>
+    [Fact]
+    public void MarkCalled_DoesNotAffectReply()
+    {
+        var notice = Notice();
+        notice.MarkCalled(9, "Gaplashdim", Moment);
+
+        notice.HasReply.Should().BeFalse();
+        notice.ReplyText.Should().BeNull();
+    }
+
     // ============================================================ o'rin egallovchilar
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zinnur.Application.Absentees.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
@@ -47,6 +48,7 @@ public sealed class TelegramUpdateHandler(
     ITelegramUpdateLog updateLog,
     INotificationOutbox outbox,
     ITeacherAvailabilityService availability,
+    IAbsenceNoticeService absenceNotices,
     ITelegramCallbackAcknowledger callbackAcknowledger,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
@@ -157,6 +159,24 @@ public sealed class TelegramUpdateHandler(
             //   tegishli, "yordam" javobi UMUMAN berilmaydi.
             if (await availability.HandleFreeTextAsync(sender.Id, text, ct).ConfigureAwait(false))
                 return TelegramUpdateOutcome.AvailabilityTextHandled;
+
+            // ★ DARSGA KELMAGANLIK SABABI (2026-08-18): o'quvchiga
+            //   "sababini shu yerga yozing" deb xabar ketgan bo'lsa,
+            //   uning keyingi matni AYNAN shu savolga javob. "Yordam"
+            //   javobi berilsa, o'quvchi yozgan sabab yo'qolardi va
+            //   kurator uni ko'rmasdi.
+            //
+            //   TARTIB MUHIM: ustoz oqimi BIRINCHI tekshiriladi —
+            //   rollar har xil (ustoz/o'quvchi), ya'ni to'qnashuv yo'q,
+            //   lekin tartib aniq bo'lgani ma'qul.
+            if (await absenceNotices.TryCaptureReplyAsync(sender.Id, text, ct).ConfigureAwait(false))
+            {
+                await ReplyAsync(updateId, chat.Id, recipientUserId: null,
+                    TelegramTemplates.AbsenceReplySaved,
+                    TelegramTemplates.AbsenceReplySavedText(), ct).ConfigureAwait(false);
+
+                return TelegramUpdateOutcome.AbsenceReplyHandled;
+            }
 
             await ReplyAsync(updateId, chat.Id, recipientUserId: null,
                 TelegramTemplates.Help, TelegramTemplates.HelpText(), ct).ConfigureAwait(false);

@@ -4,6 +4,7 @@ export {
   fetchAbsenceNotices,
   fetchAbsenceNoticeSummary,
   fetchSentNoticeTargets,
+  markNoticeCalled,
   sendAbsenceNotices,
 } from './api/absence-notice-api'
 
