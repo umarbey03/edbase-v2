@@ -30,8 +30,8 @@ export {
 } from './api/user-api'
 export type { UserListParams } from './api/user-api'
 export { fetchUserProfile, unlinkTelegram } from './api/user-profile-api'
-export { homeRouteFor, navItemsForRole } from './model/navigation'
-export type { NavItem } from './model/navigation'
+export { homeRouteFor, navItemsForRole, navSectionsForRole } from './model/navigation'
+export type { NavItem, NavSection } from './model/navigation'
 export {
   attendanceTone,
   percentLabel,

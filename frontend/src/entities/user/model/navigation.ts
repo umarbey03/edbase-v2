@@ -19,6 +19,32 @@ export interface NavItem {
 }
 
 /**
+ * ════════════════════════════════════════════════════════════════════════
+ * MENYU BO'LIMI — YIG'ILADIGAN GURUH (2026-08-18)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Loyiha egasi: *"chap tarafdagi panellarni bo'limlar bo'yicha ajratishimiz
+ * kerak — o'quv bo'limiga tegishlilari 'O'quv bo'limi' deb yozilgan drop
+ * down ichida bo'lsin, moliya va admin bo'limlari ham shunday"*.
+ *
+ * ★ NEGA KERAK BO'LDI: admin menyusi 16 bandga yetdi. Yassi ro'yxatda
+ * ko'z kerakli bandni har safar boshidan qidiradi va "moliya qayerda
+ * edi?" degan savol har kuni takrorlanadi. Bo'limlarga bo'lingach, yopiq
+ * bo'lim umuman shovqin bermaydi.
+ *
+ * ★ `label` BO'SH BO'LSA — SARLAVHASIZ, YASSI chiziladi. Ustoz va
+ * o'quvchida atigi 5-6 band bor; ularni bo'limga o'rash foyda bermay,
+ * ortiqcha bir bosish qo'shardi.
+ */
+export interface NavSection {
+  key: string
+  /** Bo'sh bo'lsa — sarlavhasiz, ochib-yopilmaydigan yassi ro'yxat. */
+  label: string
+  icon: IconName | null
+  items: NavItem[]
+}
+
+/**
  * O'QUVCHI — pastki 5 tab (Telegram Mini App karkasi).
  *
  * ★ TARTIB, NOM va IKONKA eski ilovadan (`student.html`, `<nav class="tabbar">`)
@@ -190,12 +216,110 @@ const ADMIN_NAV: NavItem[] = [
   { routeName: 'manage-settings', label: 'Tizim sozlamalari', icon: 'sliders' },
 ]
 
+/* ════════════════════════════════════════════════════════════════════════
+   BO'LIMLAR (2026-08-18)
+
+   ★ BANDLAR QAYTA YOZILMAYDI, mavjud massivlardan AJRATIB olinadi
+   (`pick`): shu tufayli band nomi yoki ikonkasi yuqorida o'zgarsa, bu
+   yerda o'z-o'zidan yangilanadi va ikki manba paydo bo'lmaydi.
+
+   ★ "Boshqaruv paneli" BO'LIMDAN TASHQARIDA, eng tepada: u kirish
+   nuqtasi — uni ochib-yopiladigan guruh ichiga yashirish har kuni bir
+   ortiqcha bosish demakdir.
+   ════════════════════════════════════════════════════════════════════════ */
+
+const DASHBOARD_ITEM: NavItem = {
+  routeName: 'manage-dashboard',
+  label: 'Boshqaruv paneli',
+  icon: 'grid',
+}
+
+/** Marshrut nomlari bo'yicha bandlarni AYNI tartibda ajratib oladi. */
+function pick(source: NavItem[], routeNames: string[]): NavItem[] {
+  return routeNames
+    .map((name) => source.find((item) => item.routeName === name))
+    .filter((item): item is NavItem => item !== undefined)
+}
+
+/**
+ * O'quv bo'limining bandlari — Academic'da BUTUN menyu, Admin'da esa
+ * moliya/tizim bandlaridan ajratilgan qism.
+ */
+const ACADEMIC_SECTION_ROUTES = [
+  'manage-groups',
+  'manage-users',
+  'manage-teacher-availability',
+  'manage-absentees',
+  'manage-attrition',
+  'manage-penalties',
+  'manage-sessions',
+  'manage-assignments',
+  'manage-tests',
+  'manage-recordings',
+  'manage-courses',
+  'manage-broadcasts',
+  'manage-academic-settings',
+]
+
+function academicSection(source: NavItem[]): NavSection {
+  return {
+    key: 'academic',
+    label: 'O‘quv bo‘limi',
+    icon: 'graduation',
+    items: pick(source, ACADEMIC_SECTION_ROUTES),
+  }
+}
+
+/** Sarlavhasiz yassi bo'lim — kam bandli rollar uchun. */
+function flat(items: NavItem[]): NavSection[] {
+  return [{ key: 'main', label: '', icon: null, items }]
+}
+
+const SECTIONS_BY_ROLE: Record<UserRoleName, NavSection[]> = {
+  Student: flat(STUDENT_NAV),
+  Teacher: flat(TEACHER_NAV),
+  Assistant: flat(ASSISTANT_NAV),
+
+  Academic: [
+    { key: 'home', label: '', icon: null, items: [DASHBOARD_ITEM] },
+    academicSection(MANAGE_NAV),
+  ],
+
+  Admin: [
+    { key: 'home', label: '', icon: null, items: [DASHBOARD_ITEM] },
+    academicSection(ADMIN_NAV),
+    {
+      /*
+        ★ MOLIYA — FAQAT ADMINDA: `/api/v1/payments/*`, `/api/v1/finance/*`
+        va `/api/v1/payroll/*` serverda `[Authorize(Roles = "Admin")]`.
+        Jarima esa YUQORIDA, o'quv bo'limida qoladi — u oylikka ta'sir
+        qilsa ham, uni o'quv bo'limi kiritadi va ko'radi.
+      */
+      key: 'finance',
+      label: 'Moliya',
+      icon: 'wallet',
+      items: pick(ADMIN_NAV, ['manage-payments', 'manage-finance', 'manage-payroll']),
+    },
+    {
+      key: 'admin',
+      label: 'Administrator',
+      icon: 'sliders',
+      items: pick(ADMIN_NAV, ['manage-settings']),
+    },
+  ],
+}
+
+/**
+ * ★ YASSI RO'YXAT BO'LIMLARDAN CHIQARILADI, alohida saqlanmaydi: global
+ * qidiruv va marshrut tekshiruvi shu ro'yxatga tayanadi. Ikki manba
+ * bo'lsa, yangi band biriga qo'shilib ikkinchisida yo'q bo'lardi.
+ */
 const NAV_BY_ROLE: Record<UserRoleName, NavItem[]> = {
-  Student: STUDENT_NAV,
-  Teacher: TEACHER_NAV,
-  Assistant: ASSISTANT_NAV,
-  Academic: MANAGE_NAV,
-  Admin: ADMIN_NAV,
+  Student: SECTIONS_BY_ROLE.Student.flatMap((s) => s.items),
+  Teacher: SECTIONS_BY_ROLE.Teacher.flatMap((s) => s.items),
+  Assistant: SECTIONS_BY_ROLE.Assistant.flatMap((s) => s.items),
+  Academic: SECTIONS_BY_ROLE.Academic.flatMap((s) => s.items),
+  Admin: SECTIONS_BY_ROLE.Admin.flatMap((s) => s.items),
 }
 
 /**
@@ -206,8 +330,16 @@ const HOME_BY_ROLE: Record<UserRoleName, string> = {
   Student: 'student-home',
   Teacher: 'teacher-home',
   Assistant: 'teacher-home',
-  Academic: 'manage-groups',
-  Admin: 'manage-groups',
+
+  /*
+    ★ BOSHQARUV PANELI — YANGI BOSH SAHIFA (2026-08-18, loyiha egasi:
+    *"default holatida biror bir dashboard qil"*). Ilgari xodim kirgan
+    zahoti "Guruhlar" ro'yxatiga tushardi — bu ish ro'yxati, manzara
+    emas: "bugun nima diqqat talab qiladi?" degan savolga javob
+    bermasdi va xodim uni panellar bo'ylab o'zi yig'ib olardi.
+  */
+  Academic: 'manage-dashboard',
+  Admin: 'manage-dashboard',
 }
 
 /** Rol noma'lum bo'lsa (backend yangi rol qo'shsa) — eng kam huquqli ko'rinish. */
@@ -218,6 +350,14 @@ const EMPTY_NAV: NavItem[] = []
 export function navItemsForRole(role: string | null): NavItem[] {
   if (role === null) return EMPTY_NAV
   return lookup(NAV_BY_ROLE, role, EMPTY_NAV)
+}
+
+const EMPTY_SECTIONS: NavSection[] = []
+
+/** Yon menyu uchun — bo'limlarga bo'lingan ko'rinish. */
+export function navSectionsForRole(role: string | null): NavSection[] {
+  if (role === null) return EMPTY_SECTIONS
+  return lookup(SECTIONS_BY_ROLE, role, EMPTY_SECTIONS)
 }
 
 export function homeRouteFor(role: string | null): string {

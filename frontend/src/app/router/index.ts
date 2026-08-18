@@ -234,6 +234,19 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Foydalanuvchilar', roles: MANAGERS },
       },
       {
+        /*
+          BOSHQARUV PANELI (2026-08-18) — o'quv bo'limi va adminning BOSH
+          sahifasi (loyiha egasi: *"default holatida biror bir dashboard
+          qil"*). Ilgari ular "Guruhlar" ro'yxatiga tushardi — u ish
+          ro'yxati, "bugun nima diqqat talab qiladi?" degan savolga
+          javob bermasdi.
+        */
+        path: 'boshqaruv/panel',
+        name: 'manage-dashboard',
+        component: () => import('@/pages/manage/ManageDashboardPage.vue'),
+        meta: { title: 'Boshqaruv paneli', roles: MANAGERS },
+      },
+      {
         path: 'boshqaruv/guruhlar',
         name: 'manage-groups',
         component: () => import('@/pages/manage/ManageGroupsPage.vue'),

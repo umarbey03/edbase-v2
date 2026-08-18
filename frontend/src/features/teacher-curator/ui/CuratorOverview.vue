@@ -65,8 +65,25 @@ const conversationsQuery = useQuery({
 
 const activeGroups = computed(() => groups.value.filter((group) => group.isActive))
 
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ * O'QUVCHILAR SONI — KURATOR GURUHI QO'SHILMAYDI (2026-08-18 da to'g'rilandi)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * 🔴 ILGARI IKKI MARTA SANARDI: kurator o'z guruhini VA unga bog'langan
+ * ustoz guruhlarini ko'radi (`GroupService.VisibleTo`). Kurator guruhining
+ * `memberCount` i esa AYNAN o'sha bog'langan guruhlar a'zolarini o'z
+ * ichiga oladi. Ya'ni oddiy `reduce` bilan qo'shilganda har o'quvchi ikki
+ * marta sanalardi: A(12) + B(10) + C(22) = 44, haqiqiy javob esa 22.
+ *
+ * ★ YECHIM — KURATOR GURUHINI TASHLAB YUBORISH: o'quvchilar aslida ustoz
+ * guruhlarida turadi, kurator guruhi ularning YIG'INDISI. Yig'indini ham,
+ * qismlarni ham qo'shish — aynan ikki marta sanash.
+ */
 const stats = computed(() => ({
-  students: activeGroups.value.reduce((sum, group) => sum + group.memberCount, 0),
+  students: activeGroups.value
+    .filter((group) => group.type !== 'Curator')
+    .reduce((sum, group) => sum + group.memberCount, 0),
   unexplained: absentees.rows.value.filter((row) => row.reason === null).length,
   waiting: (conversationsQuery.data.value ?? []).filter(
     (conversation) => waitingHours(conversation, now.value) !== null,

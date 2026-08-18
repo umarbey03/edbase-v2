@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
-import { navItemsForRole, roleLabel, roleTone, useAvatar } from '@/entities/user'
+import { navSectionsForRole, roleLabel, roleTone, useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { NotificationBell } from '@/features/notifications'
 import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
@@ -38,7 +39,64 @@ const avatarUrl = useAvatar(
   computed(() => auth.user?.avatarUpdatedAt ?? null),
 )
 
-const items = computed(() => navItemsForRole(auth.role))
+const route = useRoute()
+
+const sections = computed(() => navSectionsForRole(auth.role))
+
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ * OCHIQ BO'LIMLAR (2026-08-18)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * ★ JORIY SAHIFA TURGAN BO'LIM DOIM OCHIQ: xodim bosgan bandning
+ * yo'qolib qolishi ("men qayerdaman?") menyuni ishonchsiz qilardi.
+ * Shuning uchun ochiqlik `open` ro'yxatida SAQLANADI, lekin joriy
+ * marshrut har doim ustun turadi.
+ *
+ * ★ SAQLANADI (`localStorage`): xodim har sahifa almashganda moliya
+ * bo'limini qayta ochishi kerak bo'lsa, bo'limlarning butun foydasi
+ * yo'qolardi.
+ */
+const STORAGE_KEY = 'zn.nav.open'
+
+function readOpen(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const parsed: unknown = raw === null ? null : JSON.parse(raw)
+
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    // Buzuq qiymat — menyu baribir ishlashi kerak.
+    return []
+  }
+}
+
+const open = ref<string[]>(readOpen())
+
+watch(open, (value) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+  } catch {
+    // Xotira to'lgan yoki taqiqlangan — bu menyuni to'xtatmaydi.
+  }
+}, { deep: true })
+
+/** Shu bo'limda joriy sahifa bormi. */
+function holdsCurrent(sectionKey: string): boolean {
+  const section = sections.value.find((s) => s.key === sectionKey)
+
+  return section?.items.some((item) => item.routeName === route.name) ?? false
+}
+
+function isOpen(sectionKey: string): boolean {
+  return open.value.includes(sectionKey) || holdsCurrent(sectionKey)
+}
+
+function toggle(sectionKey: string): void {
+  open.value = open.value.includes(sectionKey)
+    ? open.value.filter((key) => key !== sectionKey)
+    : [...open.value, sectionKey]
+}
 
 /** Eski panellardagi logo osti yozuvi. */
 const PANEL_LABELS: Record<string, string> = {
@@ -143,26 +201,65 @@ const panelLabel = computed(() =>
         `hover:bg-brand-600!` — faol elementning o'zi ustiga kelganda ham
         indigo qoladi (aks holda `hover:bg-ink-800` uni oqartirib yuborardi).
       -->
-      <RouterLink
-        v-for="item in items"
-        :key="item.routeName"
-        :to="{ name: item.routeName }"
-        class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
-        :class="{ 'justify-center px-0': props.collapsed }"
-        active-class="bg-brand-500! font-semibold text-on-brand! shadow-xs hover:bg-brand-600! hover:text-on-brand!"
-        :title="props.collapsed ? item.label : undefined"
-        @click="emit('navigate')"
+      <template
+        v-for="section in sections"
+        :key="section.key"
       >
-        <AppIcon
-          :name="item.icon"
-          :size="17"
-        />
-        <span
-          v-if="!props.collapsed"
-          class="truncate"
-          v-text="item.label"
-        />
-      </RouterLink>
+        <!--
+          ═══════════ BO'LIM SARLAVHASI ═══════════
+          ★ YIG'ILGAN REJIMDA KO'RSATILMAYDI: 56px lik ustunda sarlavha
+          matni sig'maydi va faqat ikonkalar qatorini uzardi. U yerda
+          bandlar YASSI chiziladi — bo'lim ochiq-yopiqligi ma'nosini
+          yo'qotadi.
+        -->
+        <button
+          v-if="section.label.length > 0 && !props.collapsed"
+          type="button"
+          class="mb-0.5 mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 transition-colors hover:bg-ink-800 hover:text-slate-300"
+          :aria-expanded="isOpen(section.key)"
+          @click="toggle(section.key)"
+        >
+          <AppIcon
+            v-if="section.icon !== null"
+            :name="section.icon"
+            :size="15"
+          />
+          <span
+            class="truncate"
+            v-text="section.label"
+          />
+          <AppIcon
+            name="chevron-down"
+            :size="14"
+            class="ml-auto shrink-0 transition-transform"
+            :class="isOpen(section.key) ? 'rotate-180' : ''"
+          />
+        </button>
+
+        <RouterLink
+          v-for="item in section.items"
+          v-show="section.label.length === 0 || props.collapsed || isOpen(section.key)"
+          :key="item.routeName"
+          :to="{ name: item.routeName }"
+          class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-xl py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+          :class="props.collapsed
+            ? 'justify-center px-0'
+            : (section.label.length > 0 ? 'pl-6 pr-3' : 'px-3')"
+          active-class="bg-brand-500! font-semibold text-on-brand! shadow-xs hover:bg-brand-600! hover:text-on-brand!"
+          :title="props.collapsed ? item.label : undefined"
+          @click="emit('navigate')"
+        >
+          <AppIcon
+            :name="item.icon"
+            :size="17"
+          />
+          <span
+            v-if="!props.collapsed"
+            class="truncate"
+            v-text="item.label"
+          />
+        </RouterLink>
+      </template>
     </nav>
 
     <!-- Foydalanuvchi bloki (eski `.userbox`) -->
