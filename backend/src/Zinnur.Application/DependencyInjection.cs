@@ -21,6 +21,7 @@ using Zinnur.Application.Payroll.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Search.Services;
 using Zinnur.Application.SessionReviews.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.StudentNotes.Services;
@@ -86,6 +87,9 @@ public static class DependencyInjection
         // audit izi AYNI `DbContext` kuzatuvchisida to'planib, BITTA
         // `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi.
         services.AddScoped<IAttendanceService, AttendanceService>();
+
+        // Navbardagi global qidiruv (2026-08-18) — FAQAT O'QIYDI.
+        services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
         // Kunlik "kirmaganlar" xaritasi (2026-08-18) — FAQAT O'QIYDI,
         // davomatni yuqoridagi servis yozadi.

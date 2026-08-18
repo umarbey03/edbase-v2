@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { fetchGroups, GROUP_SEARCH_MIN, groupDisplayName } from '@/entities/group'
 import {
@@ -346,6 +347,46 @@ function openProfile(user: UserDetailsDto): void {
   profileUserId.value = user.id
   profileName.value = user.fullName ?? ''
   profileOpen.value = true
+}
+
+/* ---------------------------------------------- profil havolasi (2026-08-18)
+
+   ★ NIMA UCHUN QO'SHILDI: profil ALOHIDA SAHIFA emas, shu ro'yxat
+   ustidan ochiladigan panel. Ya'ni unga havola berib bo'lmasdi — global
+   qidiruv natijasi ham, xabardagi havola ham profilni ocha olmasdi.
+   `?profil=<id>` parametri buni hal qiladi: manzil o'qiladi va panel
+   ochiladi.
+
+   ★ ISM PARAMETRDA YO'Q: u faqat panel sarlavhasining BOSHLANG'ICH
+   matni; panelning o'zi to'liq ma'lumotni baribir yuklaydi. Ismni URL'ga
+   qo'yish esa uni eskirgan holda saqlab qolardi.                       */
+
+const route = useRoute()
+const router = useRouter()
+
+watchEffect(() => {
+  const raw = route.query.profil
+
+  if (typeof raw !== 'string') return
+
+  const id = Number(raw)
+
+  if (!Number.isInteger(id) || id <= 0) return
+
+  profileUserId.value = id
+  profileName.value = ''
+  profileOpen.value = true
+})
+
+/** Panel yopilganda parametr ham olib tashlanadi — orqaga qaytish uni qayta ochmasin. */
+function closeProfile(): void {
+  profileOpen.value = false
+
+  if (route.query.profil === undefined) return
+
+  const { profil: _profil, ...rest } = route.query
+
+  void router.replace({ query: rest })
 }
 
 /* ----------------------------------------------------- bloklash/tiklash --- */
@@ -1024,7 +1065,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
       :open="profileOpen"
       :user-id="profileUserId"
       :fallback-name="profileName"
-      @close="profileOpen = false"
+      @close="closeProfile"
       @changed="refresh"
     />
   </div>

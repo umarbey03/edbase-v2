@@ -18,12 +18,15 @@ export function fetchAbsentees(
     // Maydonlar OSHKOR sanaladi (`fetchUsers` naqshi) — interfeys
     // `Record<string, QueryValue>` ga majburan tiplanmasin.
     query: {
-      date: params.date,
+      from: params.from,
+      to: params.to,
       groupId: params.groupId,
       teacherId: params.teacherId,
       includePartial: params.includePartial,
       minStreak: params.minStreak,
       search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
     },
     signal: options?.signal,
   })

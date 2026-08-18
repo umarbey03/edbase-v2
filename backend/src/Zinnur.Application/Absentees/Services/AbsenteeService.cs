@@ -39,10 +39,19 @@ public sealed class AbsenteeService(
         // ★ STANDART — KECHA (bugun emas): loyiha egasi aynan *"bir kun
         //   avval darsga kirmagan"* larni so'radi, va bugungi darslarning
         //   ko'pi hali o'tmagan bo'ladi.
-        var date = query.Date ?? LocalWallClock.LocalDate(clock.GetUtcNow(), zone).AddDays(-1);
+        var to = query.To ?? LocalWallClock.LocalDate(clock.GetUtcNow(), zone).AddDays(-1);
+        var from = query.From ?? to;
 
-        var dayStart = LocalWallClock.StartOfDayUtc(date, zone);
-        var dayEnd = LocalWallClock.StartOfDayUtc(date.AddDays(1), zone);
+        if (from > to)
+            throw Invalid("from", "Davr boshi oxiridan keyin bo'lmasligi kerak.");
+
+        var page = Math.Max(query.Page, 1);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
+
+        // Yarim ochiq oraliq: chap chegara KIRADI, o'ng chegara `to + 1
+        // kun` (KIRMAYDI) — loyihadagi barcha sana oraliqlari bilan AYNI.
+        var dayStart = LocalWallClock.StartOfDayUtc(from, zone);
+        var dayEnd = LocalWallClock.StartOfDayUtc(to.AddDays(1), zone);
 
         // ---------------------------------------------------------- o'sha kungi darslar
         // ★ FAQAT YAKUNLANGAN DARS: hali boshlanmagan yoki davom
@@ -73,7 +82,7 @@ public sealed class AbsenteeService(
             .ToListAsync(ct);
 
         if (sessionRows.Count == 0)
-            return new AbsenteeReportDto(date, 0, 0, 0, []);
+            return new AbsenteeReportDto(from, to, 0, 0, 0, 0, page, pageSize, []);
 
         var sessionIds = sessionRows.ConvertAll(s => s.Id);
 
@@ -107,7 +116,7 @@ public sealed class AbsenteeService(
             .ToListAsync(ct);
 
         if (rows.Count == 0)
-            return new AbsenteeReportDto(date, sessionRows.Count, 0, 0, []);
+            return new AbsenteeReportDto(from, to, sessionRows.Count, 0, 0, 0, page, pageSize, []);
 
         var studentIds = rows.Select(r => r.StudentId).Distinct().ToList();
         var groupIds = sessionRows.ConvertAll(s => s.GroupId).Distinct().ToList();
@@ -131,28 +140,42 @@ public sealed class AbsenteeService(
                 var head = sessionById[g.First().SessionId];
 
                 var students = g
-                    .Select(r =>
+                    // ★ HAR O'QUVCHIGA BITTA QATOR: davr bir kundan uzun
+                    //   bo'lsa, bitta o'quvchi bir necha darsni qoldirgan
+                    //   bo'lishi mumkin. Har biri alohida qator bo'lsa,
+                    //   ro'yxat takrorlarga to'lib, "nechta odamga
+                    //   qo'ng'iroq qilaman?" degan savolga javob bermay
+                    //   qolardi.
+                    .GroupBy(r => r.StudentId)
+                    .Select(byStudent =>
                     {
-                        var session = sessionById[r.SessionId];
-                        streaks.TryGetValue((r.StudentId, session.GroupId), out var streak);
-                        recent.TryGetValue(r.StudentId, out var missed);
+                        // Davrdagi ENG SO'NGGI qoldirilgan dars.
+                        var last = byStudent
+                            .OrderByDescending(r => sessionById[r.SessionId].ScheduledStart)
+                            .First();
+
+                        var session = sessionById[last.SessionId];
+                        streaks.TryGetValue((last.StudentId, session.GroupId), out var streak);
+                        recent.TryGetValue(last.StudentId, out var missed);
 
                         return new AbsenteeStudentDto(
-                            r.StudentId,
-                            r.StudentName,
-                            r.Phone,
-                            r.TelegramLinked,
-                            r.SessionId,
+                            last.StudentId,
+                            last.StudentName,
+                            last.Phone,
+                            last.TelegramLinked,
+                            last.SessionId,
                             session.ScheduledStart,
-                            r.Status.ToString(),
+                            last.Status.ToString(),
                             streak,
-                            missed);
+                            missed,
+                            byStudent.Count());
                     })
                     .Where(s => s.ConsecutiveMisses >= query.MinStreak)
                     // ★ ENG XAVFLISI TEPADA: kurator ro'yxatni yuqoridan
                     //   pastga qo'ng'iroq qiladi va vaqti tugasa,
                     //   qolganlari eng kam xavflilari bo'lishi kerak.
                     .OrderByDescending(s => s.ConsecutiveMisses)
+                    .ThenByDescending(s => s.MissedInRange)
                     .ThenBy(s => s.StudentName, StringComparer.Ordinal)
                     .ToList();
 
@@ -170,19 +193,31 @@ public sealed class AbsenteeService(
             .ThenBy(g => g.GroupName, StringComparer.Ordinal)
             .ToList();
 
+        // ★ YIG'MA SAHIFALASHDAN OLDIN hisoblanadi: kartalardagi raqamlar
+        //   BUTUN davrni ko'rsatishi kerak, joriy sahifani emas
+        //   (loyihadagi barcha yig'malar bilan AYNI qoida).
         var all = groups.SelectMany(g => g.Students).ToList();
 
         return new AbsenteeReportDto(
-            date,
+            from,
+            to,
             sessionRows.Count,
-            // ★ NOYOB O'QUVCHI: bir kunda ikki guruhda darsi bo'lgan
-            //   o'quvchi ikki marta sanalsa, "kecha 14 kishi kelmadi"
-            //   raqami haqiqatdan katta chiqardi.
+            // ★ NOYOB O'QUVCHI: ikki guruhda darsi bo'lgan o'quvchi ikki
+            //   marta sanalsa, "kecha 14 kishi kelmadi" raqami
+            //   haqiqatdan katta chiqardi.
             all.Select(s => s.StudentId).Distinct().Count(),
             all.Where(s => s.ConsecutiveMisses >= RiskStreak)
                 .Select(s => s.StudentId).Distinct().Count(),
-            groups);
+            groups.Count,
+            page,
+            pageSize,
+            groups.Skip((page - 1) * pageSize).Take(pageSize).ToList());
     }
+
+    private static ValidationException Invalid(string field, string message) =>
+        new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
+
+    private const int MaxPageSize = 100;
 
     // ================================================================= yordamchi
 

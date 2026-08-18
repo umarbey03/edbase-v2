@@ -6,6 +6,7 @@ import { useAuthStore } from '@/features/auth/model/auth.store'
 import { NotificationBell, useNotificationHub } from '@/features/notifications'
 import { ProfileEditDialog } from '@/features/profile-edit'
 import { AppIcon } from '@/shared/ui'
+import { GlobalSearchBar } from '@/widgets/global-search'
 
 import AppSidebar from './AppSidebar.vue'
 
@@ -283,6 +284,11 @@ async function handleLogout(): Promise<void> {
           v-text="pageTitle"
         />
         <!--
+          Telefonda qidiruv — ikonka holida (matnli tugmaga joy yo'q).
+          Komponentning o'zi <sm ekranda yorliqni yashiradi.
+        -->
+        <GlobalSearchBar />
+        <!--
           R35/R36 — qo'ng'iroqcha TELEFON/PLANSHET sarlavhasida.
 
           🔴 NEGA YON MENYUDAGISI YETARLI EMAS: telefonda yon menyu
@@ -319,6 +325,28 @@ async function handleLogout(): Promise<void> {
         mazmuni 8-10 ustunli jadval, tor konteyner ularni gorizontal skrollga
         majburlardi — keng monitor afzalligi yo'qolardi.
       -->
+      <!--
+        ═════════════ DESKTOP YUQORI PANEL (2026-08-18) ═════════════
+        Loyiha egasi: global qidiruv *"platformani yuqori qismidagi
+        navbarda turishi kerak"*.
+
+        ★ FAQAT ≥1024px: kichik ekranda mobil sarlavha allaqachon bor va
+        u yerda ham qidiruv tugmasi turadi — ikkita panel bir vaqtda
+        chiqmaydi (`lg:hidden` / `hidden lg:flex` juftligi, `AppSidebar`
+        dagi qo'ng'iroqcha bilan AYNI naqsh).
+
+        ★ ATAYLAB YUPQA VA FAQAT QIDIRUV: sahifa sarlavhasi har sahifada
+        `PageHeader` da bor, uni bu yerda takrorlash ekranning eng
+        qimmatli tepa qismini ikki marta yeyardi.
+      -->
+      <header
+        class="sticky top-0 z-30 hidden shrink-0 items-center border-b border-line bg-ink-900/95 px-8 py-2.5 backdrop-blur lg:flex"
+      >
+        <div class="mx-auto w-full max-w-[96rem]">
+          <GlobalSearchBar class="w-full max-w-sm" />
+        </div>
+      </header>
+
       <main class="mx-auto w-full min-w-0 max-w-[96rem] flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-6.5">
         <RouterView v-slot="{ Component }">
           <component :is="Component" />

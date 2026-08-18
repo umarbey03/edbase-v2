@@ -3726,8 +3726,10 @@ export interface FreeTeacherResultDto {
    ============================================================================ */
 
 export interface AbsenteeParams {
-  /** Mahalliy sana `YYYY-MM-DD`. Bo'sh — KECHA. */
-  date?: string
+  /** Davr boshi `YYYY-MM-DD` (KIRADI). Bo'sh — `to` bilan bir xil. */
+  from?: string
+  /** Davr oxiri `YYYY-MM-DD` (KIRADI). Bo'sh — KECHA. */
+  to?: string
   groupId?: number
   teacherId?: number
   /** Darsdan erta chiqib ketganlar ham kirsinmi. */
@@ -3735,6 +3737,9 @@ export interface AbsenteeParams {
   /** Faqat shu sondan ko'p KETMA-KET dars qoldirganlar. */
   minStreak?: number
   search?: string
+  /** GURUHLAR sahifasi (o'quvchilar emas). */
+  page?: number
+  pageSize?: number
 }
 
 export interface AbsenteeStudentDto {
@@ -3753,6 +3758,8 @@ export interface AbsenteeStudentDto {
    */
   consecutiveMisses: number
   missedInLast30Days: number
+  /** Tanlangan DAVRDA shu guruhda nechta darsni qoldirgan. */
+  missedInRange: number
 }
 
 export interface AbsenteeGroupDto {
@@ -3766,11 +3773,65 @@ export interface AbsenteeGroupDto {
 }
 
 export interface AbsenteeReportDto {
-  date: string
+  from: string
+  to: string
   sessionCount: number
   /** Noyob o'quvchilar — bir kunda ikki darsi bo'lgani ikki marta sanalmaydi. */
   totalAbsent: number
   /** Ketma-ket 3 va undan ko'p dars qoldirganlar. */
   riskCount: number
+  /** Jami guruhlar — sahifalashdan MUSTAQIL. */
+  totalGroups: number
+  page: number
+  pageSize: number
+  /** Faqat joriy sahifadagi guruhlar. */
   groups: AbsenteeGroupDto[]
+}
+
+/* ============================================================================
+   GLOBAL QIDIRUV (2026-08-18)
+
+   Loyiha egasi: *"platformani yuqori qismidagi navbarda turishi kerak va bu
+   qismdan platformadagi barcha ma'lumotlarni qidirish imkoni bo'lishi
+   kerak"*.
+
+   ★ BITTA SO'ROV, KO'P TUR: har bo'lim uchun alohida so'rov yuborilsa, har
+   bosilgan harfda 5 ta HTTP so'rov ketardi va ular TARTIBSIZ qaytib
+   natijalar sakrab turardi.
+   ============================================================================ */
+
+/** Backend qaytaradigan tur kalitlari. */
+export type SearchHitType = 'users' | 'groups' | 'courses' | 'tests' | 'assignments'
+
+export interface SearchHitDto {
+  type: string
+  id: number
+  title: string
+  /** Ikkinchi qator: telefon, ustoz nomi, guruh nomi. */
+  subtitle: string | null
+  /** O'ng chekkadagi qisqa belgi: rol, holat, a'zolar soni. */
+  meta: string | null
+  /** Moslik og'irligi — katta bo'lsa yuqori turadi. */
+  score: number
+}
+
+export interface SearchGroupDto {
+  type: string
+  label: string
+  items: SearchHitDto[]
+  /** Limitdan OLDINGI jami mos natijalar. */
+  total: number
+  /**
+   * Shu tur yiqilgan bo'lsa — sababi. Qolgan turlar baribir
+   * ko'rsatiladi (yassi ro'yxatda bitta nosozlik butun qidiruvni
+   * o'chirib qo'yardi).
+   */
+  error: string | null
+}
+
+export interface GlobalSearchResultDto {
+  query: string
+  /** Barcha turlar bo'ylab eng mos natija — Enter bosilganda shu ochiladi. */
+  topHit: SearchHitDto | null
+  groups: SearchGroupDto[]
 }

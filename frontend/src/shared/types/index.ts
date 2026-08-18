@@ -61,6 +61,7 @@ export type {
   FreeTeacherDto,
   FreeTeacherParams,
   FreeTeacherResultDto,
+  GlobalSearchResultDto,
   GradeSubmissionRequest,
   /* ===== "Xabarlar" paneli ===== */
   GroupBroadcastDto,
@@ -175,6 +176,9 @@ export type {
   SessionReviewScoreDto,
   SessionReviewVerdictName,
   SessionStatusName,
+  SearchGroupDto,
+  SearchHitDto,
+  SearchHitType,
   SessionTypeName,
   SetExemptRequest,
   SettingConstraintsDto,
