@@ -7,7 +7,7 @@ import { toUserMessage } from '@/shared/api'
 import { formatMoney } from '@/shared/lib/money'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { PenaltyCategoryDto } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseButton, DataStatus } from '@/shared/ui'
 
 import PenaltyCategoryDialog from './PenaltyCategoryDialog.vue'
 
@@ -20,15 +20,18 @@ import PenaltyCategoryDialog from './PenaltyCategoryDialog.vue'
  * mumkin bo'lsin. Ilgari ikkita tarif "Sozlamalar" sahifasidagi qattiq
  * kalitlar edi — endi ular shu jadvaldagi TIZIM tariflari.
  *
- * ★ NEGA "SOZLAMALAR" SAHIFASIDA EMAS, SHU YERDA: tarif — jarimaning
- * ajralmas qismi. Operator "nega bu jarima 75 000?" degan savolga javobni
- * boshqa sahifaga o'tmasdan, qo'shni tabdan topadi.
+ * ★ JOYI — "Sozlamalar" sahifasining "Jarimalar" bo'limi (loyiha egasi,
+ * 2026-08-18: *"tariflarni edit qilish qo'shish o'chirish imkoni bo'lishi
+ * kerak. va bu sozlamalar qismida bo'lishi kerak"*). Ilgari u "Jarimalar"
+ * panelining uchinchi tabida edi — lekin tarif KUNDALIK ish emas, u
+ * bir marta sozlanadigan QOIDA, ya'ni sozlamalar sahifasiga tegishli.
  *
- * ★ TAHRIRLASH FAQAT ADMINDA (server ham 403 qaytaradi). O'quv bo'limi
- * ro'yxatni KO'RADI — jarima kiritishda qaysi tarif borligini bilishi kerak.
+ * ★ RUXSAT: o'quv bo'limi va admin (server ham AYNI). Alohida `canManage`
+ * proplari YO'Q — sahifaning o'zi marshrut darajasida shu ikki rolga
+ * cheklangan, ya'ni bu yerga kelgan foydalanuvchi allaqachon boshqara
+ * oladi. Prop bo'lsa, u "har doim true" bo'lib yotgan soxta shart
+ * bo'lardi.
  */
-const props = defineProps<{ canManage: boolean }>()
-
 const queryClient = useQueryClient()
 const confirm = useConfirm()
 
@@ -97,14 +100,17 @@ async function askDelete(row: PenaltyCategoryDto): Promise<void> {
 </script>
 
 <template>
-  <BaseCard
-    title="Jarima tariflari"
-    subtitle="Tarif tanlanganda jarima summasi avtomatik hisoblanadi."
-    flush
-  >
-    <template #actions>
+  <div>
+    <p class="mb-4 text-xs text-slate-400">
+      Jarima yozilayotganda shu ro‘yxatdan tarif tanlanadi va summa AVTOMATIK
+      hisoblanadi — operator raqamni o‘zi yozmaydi. “Avtomatik” nishonli ikki
+      tarifni dastur o‘zi ishlatadi: darsning kech boshlanishi va umuman
+      o‘tilmagan dars. Ularni o‘chirib bo‘lmaydi, lekin summasini
+      <span class="font-semibold">0</span> qilsangiz o‘sha jarima yozilmaydi.
+    </p>
+
+    <div class="mb-4 flex justify-end">
       <BaseButton
-        v-if="props.canManage"
         size="sm"
         @click="openCreate"
       >
@@ -116,11 +122,11 @@ async function askDelete(row: PenaltyCategoryDto): Promise<void> {
         </template>
         Tarif qo‘shish
       </BaseButton>
-    </template>
+    </div>
 
     <p
       v-if="actionError !== null"
-      class="mx-4 mt-3 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
+      class="mb-3 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
       role="alert"
       v-text="actionError"
     />
@@ -146,10 +152,7 @@ async function askDelete(row: PenaltyCategoryDto): Promise<void> {
               <th>Nomi</th>
               <th>Summa</th>
               <th>Ishlatilgan</th>
-              <th
-                v-if="props.canManage"
-                class="w-32"
-              />
+              <th class="w-32" />
             </tr>
           </thead>
           <tbody>
@@ -199,7 +202,7 @@ async function askDelete(row: PenaltyCategoryDto): Promise<void> {
                 class="tabular-nums text-slate-400"
                 v-text="row.usageCount > 0 ? `${row.usageCount} ta` : '—'"
               />
-              <td v-if="props.canManage">
+              <td>
                 <div class="flex gap-2">
                   <BaseButton
                     size="sm"
@@ -230,5 +233,5 @@ async function askDelete(row: PenaltyCategoryDto): Promise<void> {
       :category="editing"
       @close="dialogOpen = false"
     />
-  </BaseCard>
+  </div>
 </template>

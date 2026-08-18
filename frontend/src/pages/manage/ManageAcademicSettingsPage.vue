@@ -5,6 +5,7 @@ import { AnalysisCriteriaPanel } from '@/features/analysis-criteria-manage'
 import { GroupCategoryPanel } from '@/features/group-category-manage'
 import { HolidayPanel } from '@/features/holiday-manage'
 import { MessageTemplatePanel } from '@/features/message-template-manage'
+import { PenaltyCategoriesPanel } from '@/features/penalty-manage'
 import { AppIcon, PageHeader } from '@/shared/ui'
 import type { IconName } from '@/shared/ui'
 
@@ -80,6 +81,22 @@ const SECTIONS: SettingsSection[] = [
     label: 'Bayramlar',
     icon: 'calendar',
     hint: 'Darslar avtomatik bekor qilinadigan kunlar',
+  },
+  {
+    /*
+      JARIMA TARIFLARI (2026-08-18) — loyiha egasi: *"tariflarni edit
+      qilish qo'shish o'chirish imkoni bo'lishi kerak. va bu sozlamalar
+      qismida bo'lishi kerak"*. Ilgari "Jarimalar" panelining uchinchi
+      tabi edi.
+
+      ★ NEGA "Tizim sozlamalari" (Admin) EMAS, SHU SAHIFA: tarif —
+      INFRATUZILMA emas, o'quv jarayoni qoidasi (ustoz darsni qanday
+      o'tishi kerakligi), va uni kundalik ishda o'quv bo'limi biladi.
+    */
+    key: 'penalties',
+    label: 'Jarimalar',
+    icon: 'wallet',
+    hint: 'Jarima turlari va tariflari',
   },
 ]
 
@@ -195,6 +212,7 @@ function activeSection(): SettingsSection {
         <GroupCategoryPanel v-if="active === 'categories'" />
         <MessageTemplatePanel v-if="active === 'templates'" />
         <HolidayPanel v-if="active === 'holidays'" />
+        <PenaltyCategoriesPanel v-if="active === 'penalties'" />
       </div>
     </div>
   </div>

@@ -11,10 +11,12 @@ namespace Zinnur.WebApi.Controllers;
 /// <summary>
 /// USTOZ/KURATOR JARIMALARI (2026-08-18).
 ///
-/// ★ IKKI XIL RUXSAT: ko'rish va qo'lda kiritish — o'quv bo'limi va
-/// admin; TASDIQLASH/BEKOR QILISH esa FAQAT admin (u pulga aylanadi).
-/// Qoida servis qatlamida ham takrorlanadi — atribut chetlab o'tilsa
-/// ham himoya qoladi (loyihadagi AYNI naqsh).
+/// ★ RUXSAT: ko'rish va qo'lda kiritish — o'quv bo'limi va admin.
+/// TASDIQLASH/BEKOR QILISH esa JARIMA TURIGA bog'liq — tizim yozganini
+/// o'quv bo'limi ham, qo'lda yozilganini faqat admin ko'rib chiqadi.
+/// Shu sababli bu ikki amalda ROL ATRIBUTI YO'Q: qaror uchun jarimaning
+/// o'zi kerak, ya'ni tekshiruv faqat servisda bajarilishi mumkin
+/// (<see cref="IPenaltyService.ApproveAsync"/> izohi).
 ///
 /// Controller YUPQA. Haqiqiy qoida <see cref="IPenaltyService"/> ICHIDA.
 /// </summary>
@@ -59,7 +61,10 @@ public sealed class PenaltiesController(IPenaltyService penalties) : ControllerB
         [FromBody] CreateManualPenaltyRequest request, CancellationToken ct) =>
         Ok(await penalties.CreateManualAsync(request, CurrentUserId, ct));
 
-    /// <summary>Tasdiqlash — oylikka manfiy tuzatma yaratiladi (FAQAT admin).</summary>
+    /// <summary>
+    /// Tasdiqlash — oylikka manfiy tuzatma yaratiladi. Tizim yozgan
+    /// jarimani o'quv bo'limi ham, qo'lda yozilganini faqat admin.
+    /// </summary>
     [HttpPost("{id:long}/approve")]
     [ProducesResponseType<PenaltyRowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -67,7 +72,10 @@ public sealed class PenaltiesController(IPenaltyService penalties) : ControllerB
     public async Task<ActionResult<PenaltyRowDto>> Approve(long id, CancellationToken ct) =>
         Ok(await penalties.ApproveAsync(id, CurrentUserId, ct));
 
-    /// <summary>Bekor qilish (uzrli sabab yoki xato yozuv) — FAQAT admin.</summary>
+    /// <summary>
+    /// Bekor qilish (uzrli sabab yoki xato yozuv) — tasdiqlash bilan
+    /// AYNI ruxsat qoidasi.
+    /// </summary>
     [HttpPost("{id:long}/cancel")]
     [ProducesResponseType<PenaltyRowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

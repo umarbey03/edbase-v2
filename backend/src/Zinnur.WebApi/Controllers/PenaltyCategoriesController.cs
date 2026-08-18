@@ -8,13 +8,13 @@ using Zinnur.Application.Penalties.Services;
 namespace Zinnur.WebApi.Controllers;
 
 /// <summary>
-/// JARIMA TARIFLARI KATALOGI (2026-08-18) — "sozlamalar" qismining
-/// jarimaga tegishli bo'lagi.
+/// JARIMA TARIFLARI KATALOGI (2026-08-18) — "Sozlamalar" sahifasining
+/// "Jarimalar" bo'limi.
 ///
-/// ★ RUXSAT NOMUTANOSIB: ro'yxatni o'quv bo'limi ham ko'radi (jarima
-/// kiritishda tanlash uchun), TAHRIRLASHNI esa faqat admin. Qoida
-/// servis qatlamida ham takrorlanadi — atribut chetlab o'tilsa ham
-/// himoya qoladi (loyihadagi AYNI naqsh).
+/// ★ RUXSAT: o'quv bo'limi va admin — ham ko'radi, ham boshqaradi.
+/// Sabab <see cref="IPenaltyCategoryService"/> izohida. Qoida servis
+/// qatlamida ham takrorlanadi — atribut chetlab o'tilsa ham himoya
+/// qoladi (loyihadagi AYNI naqsh).
 ///
 /// Controller YUPQA. Haqiqiy qoida <see cref="IPenaltyCategoryService"/> ICHIDA.
 /// </summary>
@@ -32,7 +32,6 @@ public sealed class PenaltyCategoriesController(IPenaltyCategoryService categori
         Ok(await categories.ListAsync(activeOnly, CurrentUserId, ct));
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType<PenaltyCategoryDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -41,7 +40,6 @@ public sealed class PenaltyCategoriesController(IPenaltyCategoryService categori
         Ok(await categories.CreateAsync(request, CurrentUserId, ct));
 
     [HttpPut("{id:long}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType<PenaltyCategoryDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -51,7 +49,6 @@ public sealed class PenaltyCategoriesController(IPenaltyCategoryService categori
 
     /// <summary>Ishlatilgan tarif o'chirilmaydi — ARXIVLANADI.</summary>
     [HttpDelete("{id:long}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(long id, CancellationToken ct)

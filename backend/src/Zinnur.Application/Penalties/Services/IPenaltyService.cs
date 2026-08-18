@@ -41,7 +41,13 @@ public interface IPenaltyService
     Task<PenaltyRowDto> CreateManualAsync(
         CreateManualPenaltyRequest request, long actorId, CancellationToken ct = default);
 
-    /// <summary>Tasdiqlash — oylikka manfiy tuzatma yaratiladi.</summary>
+    /// <summary>
+    /// Tasdiqlash — oylikka manfiy tuzatma yaratiladi.
+    ///
+    /// ★ RUXSAT JARIMA TURIGA BOG'LIQ: tizim yozgan jarimani o'quv bo'limi
+    /// ham tasdiqlaydi, QO'LDA yozilganini esa faqat administrator (aks
+    /// holda bitta odam ham yozib, ham pulga aylantirardi).
+    /// </summary>
     Task<PenaltyRowDto> ApproveAsync(long id, long actorId, CancellationToken ct = default);
 
     Task<PenaltyRowDto> CancelAsync(

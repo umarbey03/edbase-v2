@@ -182,10 +182,21 @@ public sealed class PenaltyCategoryService(
             throw new ForbiddenException("Jarima tariflarini faqat o'quv bo'limi va administrator ko'radi.");
     }
 
+    /// <summary>
+    /// Tariflarni O'QUV BO'LIMI HAM boshqaradi (loyiha egasi qarori,
+    /// 2026-08-18) — katalog "Sozlamalar" sahifasining bo'limi, va u
+    /// sahifa allaqachon o'quv bo'limiga ochiq.
+    ///
+    /// ★ NEGA JARIMANI TASDIQLASHDAN FARQLI: tarif — QOIDA, jarima esa
+    /// AYNI ODAMDAN ushlab qolinadigan PUL. Tarifni o'zgartirish hech
+    /// kimning oyligiga darhol tegmaydi (yozilgan jarimalarda summa
+    /// muzlatilgan), shuning uchun bu yerda "kim yozgan bo'lsa, u
+    /// tasdiqlamasin" cheklovi kerak emas.
+    /// </summary>
     private async Task EnsureCanManageAsync(long actorId, CancellationToken ct)
     {
-        if (await RoleOfAsync(actorId, ct) is not UserRole.Admin)
-            throw new ForbiddenException("Jarima tariflarini faqat administrator o'zgartiradi.");
+        if (await RoleOfAsync(actorId, ct) is not (UserRole.Admin or UserRole.Academic))
+            throw new ForbiddenException("Jarima tariflarini o'quv bo'limi va administrator o'zgartiradi.");
     }
 
     private async Task<UserRole> RoleOfAsync(long actorId, CancellationToken ct)

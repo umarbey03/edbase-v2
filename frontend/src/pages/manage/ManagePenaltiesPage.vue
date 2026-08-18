@@ -19,11 +19,7 @@ import {
   staffRoleLabel,
 } from '@/entities/penalty'
 import { useAuthStore } from '@/features/auth/model/auth.store'
-import {
-  ManualPenaltyDialog,
-  PenaltyCategoriesPanel,
-  PenaltyReportDrawer,
-} from '@/features/penalty-manage'
+import { ManualPenaltyDialog, PenaltyReportDrawer } from '@/features/penalty-manage'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { useDebounced } from '@/shared/lib/debounce'
@@ -49,25 +45,33 @@ import {
  * uchinchisi — qo'lda kiritilgan.
  *
  * ★ IKKI BOSQICHLI OQIM: jarima "Kutilmoqda" bo'lib tug'iladi va oylikka
- * TEGMAYDI. Faqat ADMIN tasdiqlagach oylikka manfiy tuzatma yaratiladi.
- * Shuning uchun tasdiqlash/bekor qilish tugmalari o'quv bo'limiga
- * KO'RSATILMAYDI (server ham 403 qaytaradi — ikki qatlamli himoya).
+ * TEGMAYDI. Faqat tasdiqlangach oylikka manfiy tuzatma yaratiladi.
  *
  * ★ "KUTILMOQDA" SUMMASI ALOHIDA KARTADA: u hali PUL EMAS. Tasdiqlangan
  * summa bilan bitta raqamga qo'shilsa, "qancha ushlandi" degan savolga
  * noto'g'ri javob berardi.
+ *
+ * ★ TARIFLAR BU YERDA EMAS: ular "Sozlamalar → Jarimalar" bo'limida
+ * (loyiha egasi, 2026-08-18). Tarif kundalik ish emas, bir marta
+ * sozlanadigan qoida.
  */
 const auth = useAuthStore()
 const queryClient = useQueryClient()
 const confirm = useConfirm()
 
-/** Tasdiqlash/bekor qilish — FAQAT admin (server bilan AYNI qoida). */
-const canReview = computed(() => auth.role === 'Admin')
+/**
+ * KIM TASDIQLAY OLADI — server bilan AYNI qoida (2026-08-18):
+ *   • TIZIM yozgan jarima (kechikish, o'tilmagan dars) — o'quv bo'limi ham;
+ *   • QO'LDA yozilgan — faqat admin, chunki uni o'quv bo'limining O'ZI
+ *     kiritadi va bitta odam ham yozib, ham pulga aylantira olmasin.
+ */
+function canReview(row: PenaltyRowDto): boolean {
+  return auth.role === 'Admin' || row.kind !== 'Manual'
+}
 
 const SECTIONS = [
   { key: 'list', label: 'Jarimalar', icon: 'clipboard' },
   { key: 'user', label: 'Xodimlar kesimi', icon: 'users' },
-  { key: 'categories', label: 'Tariflar', icon: 'sliders' },
 ] as const
 
 const activeTab = ref<(typeof SECTIONS)[number]['key']>('list')
@@ -347,11 +351,7 @@ function proofTitle(row: PenaltyRowDto): string {
     </div>
 
     <!-- ═════════════════════ FILTRLAR ═════════════════════ -->
-    <!-- Tariflar tabida filtr ma'nosiz — u sozlamalar jadvali. -->
-    <div
-      v-if="activeTab !== 'categories'"
-      class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-    >
+    <div class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <div>
         <input
           v-model="period"
@@ -462,7 +462,7 @@ function proofTitle(row: PenaltyRowDto): string {
 
     <!-- ═════════════════════ YIG'MA ═════════════════════ -->
     <div
-      v-if="summary !== null && activeTab !== 'categories'"
+      v-if="summary !== null"
       class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4"
     >
       <div class="rounded-xl border border-line border-l-[3px] border-l-amber-500 bg-ink-900 p-3.5">
@@ -541,10 +541,12 @@ function proofTitle(row: PenaltyRowDto): string {
                 <th>Summa</th>
                 <th>Holat</th>
                 <th>Qachon</th>
-                <th
-                  v-if="canReview"
-                  class="w-40"
-                />
+                <!--
+                  Ustun DOIM chiziladi: sahifaning o'ziga o'quv bo'limi
+                  va admin kiradi, ikkalasi ham HECH BO'LMAGANDA tizim
+                  yozgan jarimani ko'rib chiqa oladi.
+                -->
+                <th class="w-40" />
               </tr>
             </thead>
             <tbody>
@@ -625,9 +627,9 @@ function proofTitle(row: PenaltyRowDto): string {
                   class="tabular-nums text-slate-400"
                   v-text="formatDateTimeNumeric(row.occurredAt)"
                 />
-                <td v-if="canReview">
+                <td>
                   <div
-                    v-if="row.status === 'Pending'"
+                    v-if="row.status === 'Pending' && canReview(row)"
                     class="flex gap-2"
                   >
                     <BaseButton
@@ -647,6 +649,15 @@ function proofTitle(row: PenaltyRowDto): string {
                       Bekor
                     </BaseButton>
                   </div>
+                  <!--
+                    ★ SABABI AYTILADI, jimgina bo'sh katak QOLDIRILMAYDI:
+                    o'quv bo'limi xodimi o'zi kiritgan jarima yonida
+                    tugma yo'qligini ko'rib "nosozlik" deb o'ylardi.
+                  -->
+                  <span
+                    v-else-if="row.status === 'Pending'"
+                    class="text-xs text-dim"
+                  >Admin tasdiqlaydi</span>
                   <span
                     v-else
                     class="text-xs text-dim"
@@ -671,7 +682,7 @@ function proofTitle(row: PenaltyRowDto): string {
 
     <!-- ═════════════════════ 2. XODIMLAR KESIMI ═════════════════════ -->
     <BaseCard
-      v-else-if="activeTab === 'user'"
+      v-else
       title="Xodimlar kesimi"
       :subtitle="`Davr: ${filters.period !== undefined ? periodLabel(filters.period) : 'barcha'}`"
       flush
@@ -741,12 +752,6 @@ function proofTitle(row: PenaltyRowDto): string {
         </div>
       </DataStatus>
     </BaseCard>
-
-    <!-- ═════════════════════ 3. TARIFLAR (sozlamalar) ═════════════════════ -->
-    <PenaltyCategoriesPanel
-      v-else
-      :can-manage="canReview"
-    />
 
     <ManualPenaltyDialog
       :open="manualOpen"

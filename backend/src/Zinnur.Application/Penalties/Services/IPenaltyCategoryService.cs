@@ -5,11 +5,14 @@ namespace Zinnur.Application.Penalties.Services;
 /// <summary>
 /// JARIMA TARIFLARI KATALOGI (2026-08-18).
 ///
-/// ★ RUXSAT NOMUTANOSIB — ATAYLAB: ro'yxatni o'quv bo'limi ham ko'radi
-/// (jarima kiritishda tanlash uchun), lekin TARIFNI FAQAT ADMIN
-/// o'zgartiradi. Sabab <c>IPenaltyService</c> dagi bilan AYNI: tarif
-/// — pul qoidasi, va uni o'zgartirish barcha kelajakdagi jarimalarga
-/// ta'sir qiladi.
+/// ★ RUXSAT — O'QUV BO'LIMI VA ADMIN (loyiha egasi qarori, 2026-08-18):
+/// katalog "Sozlamalar" sahifasining bo'limi bo'lib turadi va o'sha
+/// sahifa allaqachon o'quv bo'limiga ochiq.
+///
+/// ★ NEGA JARIMANI TASDIQLASHDAN KO'RA KENGROQ: tarif — QOIDA, jarima
+/// esa aniq odamdan ushlab qolinadigan PUL. Tarif o'zgarishi yozilgan
+/// jarimalarga TEGMAYDI (summa yaratilganda muzlatilgan), shuning uchun
+/// bu yerda "yozgan odam tasdiqlamasin" cheklovi kerak emas.
 /// </summary>
 public interface IPenaltyCategoryService
 {

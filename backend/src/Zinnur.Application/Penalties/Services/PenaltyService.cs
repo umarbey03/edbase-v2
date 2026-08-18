@@ -251,11 +251,11 @@ public sealed class PenaltyService(
     public async Task<PenaltyRowDto> ApproveAsync(
         long id, long actorId, CancellationToken ct = default)
     {
-        await EnsureCanManageAsync(actorId, ct);
-
         var penalty = await db.Penalties.AsTracking()
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new NotFoundException(nameof(Penalty), id);
+
+        await EnsureCanReviewAsync(penalty, actorId, ct);
 
         var now = clock.GetUtcNow();
         penalty.Approve(actorId, now);
@@ -297,11 +297,12 @@ public sealed class PenaltyService(
         long id, CancelPenaltyRequest request, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        await EnsureCanManageAsync(actorId, ct);
 
         var penalty = await db.Penalties.AsTracking()
             .FirstOrDefaultAsync(p => p.Id == id, ct)
             ?? throw new NotFoundException(nameof(Penalty), id);
+
+        await EnsureCanReviewAsync(penalty, actorId, ct);
 
         penalty.Cancel(actorId, request.Reason, clock.GetUtcNow());
         await db.SaveChangesAsync(ct);
@@ -530,17 +531,38 @@ public sealed class PenaltyService(
     }
 
     /// <summary>
-    /// 🔴 TASDIQLASH/BEKOR QILISH — FAQAT ADMIN: bu amal PULGA aylanadi
-    /// (oylikdan ushlab qolinadi). O'quv bo'limi jarimani ko'radi va
-    /// qo'lda kirita oladi, lekin oylikka ta'sir qiladigan qarorni
-    /// administrator qabul qiladi.
+    /// ════════════════════════════════════════════════════════════════
+    /// KIM TASDIQLAY OLADI (loyiha egasi qarori, 2026-08-18)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// • TIZIM YOZGAN jarima (kechikish, o'tilmagan dars) — o'quv bo'limi
+    ///   HAM tasdiqlaydi. Sabab: bu jarimalarni HECH KIM yozmagan, ularni
+    ///   dastur o'zi aniqlagan. Ustoz kechikkanmi yoki yo'qmi — buni
+    ///   kundalik ish oqimida aynan o'quv bo'limi biladi, va har kuni
+    ///   administratorni kutish jarimalarni "kutilmoqda" holatida
+    ///   uyib qo'yardi.
+    ///
+    /// • QO'LDA yozilgan jarima — FAQAT ADMIN. Sabab: uni o'quv bo'limi
+    ///   xodimining O'ZI kiritadi. Tasdiqlashga ham ruxsat berilsa, bitta
+    ///   odam ham jarima yozib, ham uni pulga aylantirib yuborardi —
+    ///   ya'ni oylikdan ushlab qolish nazoratsiz qolardi.
+    ///
+    /// ★ BEKOR QILISH HAM AYNI QOIDA BO'YICHA: tasdiqlay oladigan odam
+    ///   bekor ham qila olishi SHART. Aks holda noto'g'ri aniqlangan
+    ///   kechikishni faqat tasdiqlash mumkin bo'lib, rad etib bo'lmasdi.
     /// </summary>
-    private async Task EnsureCanManageAsync(long actorId, CancellationToken ct)
+    private async Task EnsureCanReviewAsync(Penalty penalty, long actorId, CancellationToken ct)
     {
         var role = await RoleOfAsync(actorId, ct);
 
-        if (role is not UserRole.Admin)
-            throw new ForbiddenException("Jarimani tasdiqlash yoki bekor qilishni faqat administrator bajaradi.");
+        if (role is UserRole.Admin) return;
+
+        if (role is UserRole.Academic && penalty.Kind is not PenaltyKind.Manual) return;
+
+        throw new ForbiddenException(
+            role is UserRole.Academic
+                ? "Qo'lda yozilgan jarimani faqat administrator tasdiqlaydi."
+                : "Jarimani tasdiqlash yoki bekor qilishni o'quv bo'limi va administrator bajaradi.");
     }
 
     private async Task<UserRole> RoleOfAsync(long actorId, CancellationToken ct)
