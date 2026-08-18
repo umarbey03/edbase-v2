@@ -490,12 +490,14 @@ public sealed class GroupService(
         // bo'lardi. Ko'chirishdagi AYNI qoida (2026-08-15) endi muzlatish
         // va chiqarishga ham yoyildi.
         var reason = RequireReason(request.Reason, nameof(request.Reason), "Muzlatish sababini kiriting.");
+        await EnsureReasonUsableAsync(request.ReasonId, ct);
 
         member.Status = MemberStatus.Paused;
         SetPausedUntil(member, request.PausedUntil);
 
         await RecordMembershipEventAsync(
-            member, group, MembershipEventKind.Paused, reason, movedToGroupId: null, actorId, ct);
+            member, group, MembershipEventKind.Paused, reason, movedToGroupId: null, actorId, ct,
+            request.ReasonId);
 
         await db.SaveChangesAsync(ct);
         return await GetMemberDtoAsync(member.Id, ct);
@@ -542,6 +544,7 @@ public sealed class GroupService(
         // sabab yuborilsa, xodim "nega hech nima bo'lmadi?" degan holatga
         // tushmasin, aniq xato olsin.
         var reason = RequireReason(request.Reason, nameof(request.Reason), "Chiqarish sababini kiriting.");
+        await EnsureReasonUsableAsync(request.ReasonId, ct);
 
         // YUMSHOQ o'chirish: yozuv qoladi. Davomat, to'lov va hisobotlar
         // a'zolikka ishora qiladi — qator o'chirilsa ular yetim qolardi.
@@ -558,7 +561,8 @@ public sealed class GroupService(
             SetPausedUntil(member, null);
 
             await RecordMembershipEventAsync(
-                member, group, MembershipEventKind.Stopped, reason, movedToGroupId: null, actorId, ct);
+                member, group, MembershipEventKind.Stopped, reason, movedToGroupId: null, actorId, ct,
+                request.ReasonId);
 
             await db.SaveChangesAsync(ct);
         }
@@ -583,6 +587,7 @@ public sealed class GroupService(
         // chiqarish va muzlatish ham sabab talab qiladi, shuning uchun
         // tekshiruv umumiy `RequireReason` yordamchisiga ko'chirildi.
         var reason = RequireReason(request.Reason, nameof(request.Reason), "Ko'chirish sababini kiriting.");
+        await EnsureReasonUsableAsync(request.ReasonId, ct);
 
         var (member, group) = await LoadMemberForManageAsync(id, studentId, actorId, ct);
 
@@ -613,7 +618,8 @@ public sealed class GroupService(
         //   `Moved` hodisasi manba guruh MA'LUMOTI bilan yoziladi (ustoz
         //   surati ham manba ustozi) — to'kilish hisoboti aynan shuni sanaydi.
         await RecordMembershipEventAsync(
-            member, group, MembershipEventKind.Moved, reason, target.Id, actorId, ct);
+            member, group, MembershipEventKind.Moved, reason, target.Id, actorId, ct,
+            request.ReasonId);
 
         if (arrived is null)
         {
@@ -913,7 +919,8 @@ public sealed class GroupService(
         string? reason,
         long? movedToGroupId,
         long actorId,
-        CancellationToken ct)
+        CancellationToken ct,
+        long? reasonId = null)
     {
         var lessons = await CountCompletedLessonsAsync(member.StudentId, ct);
 
@@ -928,7 +935,29 @@ public sealed class GroupService(
             movedToGroupId,
             actorId,
             lessons,
-            clock.GetUtcNow()));
+            clock.GetUtcNow(),
+            reasonId));
+    }
+
+    /// <summary>
+    /// Sabab tasnifi haqiqatan mavjud va FAOL ekanini tekshiradi (2026-08-18).
+    ///
+    /// ★ NEGA KERAK: bo'lmagan yoki arxivlangan tasnif yozilsa, hisobotdagi
+    /// foizlar jimgina "Belgilanmagan" ga qo'shilib ketardi va buni hech
+    /// kim sezmasdi.
+    /// </summary>
+    private async Task EnsureReasonUsableAsync(long? reasonId, CancellationToken ct)
+    {
+        if (reasonId is not { } id) return;
+
+        var reason = await db.AttritionReasons.AsNoTracking()
+            .Where(r => r.Id == id)
+            .Select(r => new { r.Label, r.IsActive })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException(nameof(AttritionReason), id);
+
+        if (!reason.IsActive)
+            throw new ConflictException($"\"{reason.Label}\" sababi arxivlangan.");
     }
 
     /// <summary>

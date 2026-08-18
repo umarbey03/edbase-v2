@@ -3,10 +3,15 @@ import type {
   AttritionByGroupDto,
   AttritionByTeacherDto,
   AttritionListParams,
+  AttritionReasonDto,
+  AttritionReasonsDto,
+  AttritionReturnedDto,
   AttritionRowDto,
+  AttritionStudentSummaryDto,
   AttritionSummaryDto,
   GroupAttritionDetailDto,
   PagedResult,
+  SaveAttritionReasonRequest,
 } from '@/shared/types'
 
 const BASE = '/api/v1/attrition'
@@ -95,4 +100,81 @@ export function fetchAttritionGroupDetail(
     query: toQuery(rest),
     signal: options?.signal,
   })
+}
+
+/* ══════════════════════════════════════════════════════════ o'quvchi kesimi
+
+   O'quv bo'limi so'rovi (2026-08-18): "nechta o'quvchini yo'qotdik va
+   nechtasini qaytara oldik". Yuqoridagilar HODISALARNI sanaydi — bular
+   O'QUVCHILARNI.                                                        */
+
+export function fetchAttritionStudents(
+  params: AttritionListParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<AttritionStudentSummaryDto> {
+  const { page: _page, pageSize: _pageSize, sort: _sort, desc: _desc, ...rest } = params
+
+  return http.get<AttritionStudentSummaryDto>(`${BASE}/students`, {
+    query: toQuery(rest),
+    signal: options?.signal,
+  })
+}
+
+/** To'kilib, keyin qayta faol bo'lganlar. */
+export function fetchAttritionReturned(
+  params: AttritionListParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<AttritionReturnedDto[]> {
+  const { page: _page, pageSize: _pageSize, sort: _sort, desc: _desc, ...rest } = params
+
+  return http.get<AttritionReturnedDto[]>(`${BASE}/returned`, {
+    query: toQuery(rest),
+    signal: options?.signal,
+  })
+}
+
+/** Sabablar foizda. */
+export function fetchAttritionReasons(
+  params: AttritionListParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<AttritionReasonsDto> {
+  const { page: _page, pageSize: _pageSize, sort: _sort, desc: _desc, ...rest } = params
+
+  return http.get<AttritionReasonsDto>(`${BASE}/reasons`, {
+    query: toQuery(rest),
+    signal: options?.signal,
+  })
+}
+
+/* ══════════════════════════════════════════════ sabablar katalogi (sozlamalar) */
+
+const REASONS = '/api/v1/attrition-reasons'
+
+/** @param activeOnly Chiqarish/muzlatish oynasi uchun `true`. */
+export function fetchAttritionReasonCatalogue(
+  activeOnly = false,
+  options?: { signal?: AbortSignal },
+): Promise<AttritionReasonDto[]> {
+  return http.get<AttritionReasonDto[]>(REASONS, {
+    query: { activeOnly },
+    signal: options?.signal,
+  })
+}
+
+export function createAttritionReason(
+  body: SaveAttritionReasonRequest,
+): Promise<AttritionReasonDto> {
+  return http.post<AttritionReasonDto>(REASONS, body)
+}
+
+export function updateAttritionReason(
+  id: number,
+  body: SaveAttritionReasonRequest,
+): Promise<AttritionReasonDto> {
+  return http.put<AttritionReasonDto>(`${REASONS}/${id}`, body)
+}
+
+/** Ishlatilgan sabab o'chirilmaydi — ARXIVLANADI (server hal qiladi). */
+export function deleteAttritionReason(id: number): Promise<void> {
+  return http.delete<void>(`${REASONS}/${id}`)
 }

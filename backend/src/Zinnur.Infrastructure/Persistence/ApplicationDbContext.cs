@@ -233,6 +233,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<GroupMembershipEvent> GroupMembershipEvents => Set<GroupMembershipEvent>();
 
+    public DbSet<AttritionReason> AttritionReasons => Set<AttritionReason>();
+
     public DbSet<Penalty> Penalties => Set<Penalty>();
 
     public DbSet<PenaltyCategory> PenaltyCategories => Set<PenaltyCategory>();

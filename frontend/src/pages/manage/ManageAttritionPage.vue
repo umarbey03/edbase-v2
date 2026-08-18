@@ -10,6 +10,9 @@ import {
   fetchAttrition,
   fetchAttritionByGroup,
   fetchAttritionByTeacher,
+  fetchAttritionReasons,
+  fetchAttritionReturned,
+  fetchAttritionStudents,
   fetchAttritionSummary,
   trialLabel,
   trialTone,
@@ -44,11 +47,29 @@ import { AppIcon, BaseBadge, BaseCard, DataStatus, PageHeader, PaginationBar } f
  *
  * ★ STANDART KESIM — OXIRGI 30 KUN (bugun emas): to'kilish kundalik
  * hodisa emas, bir kunlik oynada panel deyarli doim bo'sh ko'rinardi.
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ * ★★ IKKI XIL SANOQ — ATAYLAB (o'quv bo'limi so'rovi, 2026-08-18)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Dilrabo (o'quv bo'limi): *"umumiy 10 ta o'quvchi to'kildi, undan 6 tasi
+ * qanchadir muddatda davom ettiradi, 4 tasi aniq o'qimidi"*.
+ *
+ * Uning "10 ta o'quvchi"si — ODAM, panelning eski raqamlari esa HODISA
+ * edi (bitta o'quvchi ikki marta muzlatilsa — ikkita hodisa). Shuning
+ * uchun endi IKKALASI ham bor va ular ARALASHTIRILMAYDI:
+ *   • yuqoridagi qator — O'QUVCHILAR (markaz nuqtai nazari: nechta
+ *     odamni yo'qotdik va nechtasini qaytardik);
+ *   • pastdagi qator — HODISALAR (guruh nuqtai nazari: shu guruhdan
+ *     nechta ketish bo'ldi).
+ * Bittasi ikkinchisining o'rnini bosa olmaydi.
  */
 const { isDesktop } = useBreakpoint()
 
 const SECTIONS = [
   { key: 'list', label: 'Hodisalar', icon: 'clipboard' },
+  { key: 'returned', label: 'Qaytganlar', icon: 'user-check' },
+  { key: 'reasons', label: 'Sabablar', icon: 'chart' },
   { key: 'teacher', label: 'Ustozlar kesimi', icon: 'graduation' },
   { key: 'group', label: 'Guruhlar kesimi', icon: 'grid' },
 ] as const
@@ -162,6 +183,39 @@ const byGroupQuery = useQuery({
   queryFn: ({ signal }) => fetchAttritionByGroup(filters.value, { signal }),
   enabled: computed(() => enabled.value && activeTab.value === 'group'),
 })
+
+/**
+ * O'quvchi kesimi — TABDAN QAT'I NAZAR yuklanadi (yig'ma kabi): kartalar
+ * sahifaning tepasida doim turadi.
+ */
+const studentsQuery = useQuery({
+  queryKey: ['attrition', 'students', filters],
+  queryFn: ({ signal }) => fetchAttritionStudents(filters.value, { signal }),
+  enabled,
+})
+
+const returnedQuery = useQuery({
+  queryKey: ['attrition', 'returned', filters],
+  queryFn: ({ signal }) => fetchAttritionReturned(filters.value, { signal }),
+  enabled: computed(() => enabled.value && activeTab.value === 'returned'),
+})
+
+const reasonsQuery = useQuery({
+  queryKey: ['attrition', 'reasons', filters],
+  queryFn: ({ signal }) => fetchAttritionReasons(filters.value, { signal }),
+  enabled: computed(() => enabled.value && activeTab.value === 'reasons'),
+})
+
+const students = computed(() => studentsQuery.data.value ?? null)
+const returnedRows = computed(() => returnedQuery.data.value ?? [])
+const reasons = computed(() => reasonsQuery.data.value ?? null)
+
+const returnedError = computed(() =>
+  returnedQuery.error.value !== null ? toUserMessage(returnedQuery.error.value) : null,
+)
+const reasonsError = computed(() =>
+  reasonsQuery.error.value !== null ? toUserMessage(reasonsQuery.error.value) : null,
+)
 
 const rows = computed<AttritionRowDto[]>(() => listQuery.data.value?.items ?? [])
 const total = computed(() => listQuery.data.value?.total ?? 0)
@@ -383,7 +437,88 @@ watch(activeTab, () => {
       </select>
     </div>
 
-    <!-- ═════════════════════ YIG'MA ═════════════════════ -->
+    <!--
+      ══════════════ O'QUVCHILAR (odam bo'yicha) ══════════════
+      O'quv bo'limi savoli: "nechta o'quvchini yo'qotdik va nechtasini
+      qaytara oldik". Pastdagi qator esa HODISALARNI sanaydi — ikkalasi
+      har xil savolga javob beradi (sabab skript izohida).
+    -->
+    <div
+      v-if="students !== null && students.studentsLost > 0"
+      class="mb-4 rounded-2xl border border-line bg-ink-900 p-4"
+    >
+      <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-sm font-bold text-slate-100">
+          O‘quvchilar bo‘yicha
+        </h2>
+        <p class="text-[11px] text-dim">
+          Har o‘quvchi bir marta sanaladi. Ko‘chirish kirmaydi — o‘quvchi markazda qoladi.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <div class="rounded-xl border border-line bg-ink-800 p-3.5">
+          <p
+            class="text-2xl font-bold tabular-nums text-slate-100"
+            v-text="students.studentsLost"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Umumiy to‘kilgan
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-line border-l-[3px] border-l-emerald-500 bg-ink-800 p-3.5">
+          <p
+            class="text-2xl font-bold tabular-nums text-emerald-400"
+            v-text="students.returned"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Qayta jalb qilingan
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-line border-l-[3px] border-l-amber-500 bg-ink-800 p-3.5">
+          <p
+            class="text-2xl font-bold tabular-nums text-amber-400"
+            v-text="students.paused"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Tanaffusda — qaytishi mumkin
+          </p>
+        </div>
+
+        <div class="rounded-xl border border-line border-l-[3px] border-l-rose-500 bg-ink-800 p-3.5">
+          <p
+            class="text-2xl font-bold tabular-nums text-rose-400"
+            v-text="students.gone"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Qaytmagan
+          </p>
+        </div>
+      </div>
+
+      <!--
+        ★ ULUSH ALOHIDA VA YO'G'ON: "qancha o'quvchini qayta jalb
+        qilolishimizni ko'rsatib turardi" — bu panelning bitta eng
+        muhim raqami, kartalar orasida yo'qolib ketmasin.
+      -->
+      <div class="mt-3 flex items-center gap-3 rounded-xl border border-line bg-ink-800 px-4 py-3">
+        <span class="text-xs text-slate-400">Qayta jalb qilish</span>
+        <div class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-ink-900">
+          <div
+            class="h-full rounded-full bg-emerald-500 transition-[width]"
+            :style="{ width: `${Math.min(students.returnRate, 100)}%` }"
+          />
+        </div>
+        <span
+          class="shrink-0 text-base font-bold tabular-nums text-emerald-400"
+          v-text="`${students.returnRate}%`"
+        />
+      </div>
+    </div>
+
+    <!-- ═════════════════════ YIG'MA (hodisalar) ═════════════════════ -->
     <div
       v-if="summary !== null"
       class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6"
@@ -515,10 +650,20 @@ watch(activeTab, () => {
             </p>
 
             <p
-              v-if="row.reason !== null"
+              v-if="row.reason !== null || row.reasonLabel !== null"
               class="mt-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs text-slate-300"
-              v-text="row.reason"
-            />
+            >
+              <span
+                v-if="row.reasonLabel !== null"
+                class="font-semibold text-slate-200"
+                v-text="row.reasonLabel"
+              />
+              <span
+                v-if="row.reason !== null"
+                :class="row.reasonLabel !== null ? 'mt-0.5 block' : ''"
+                v-text="row.reason"
+              />
+            </p>
           </li>
         </ul>
 
@@ -647,14 +792,26 @@ watch(activeTab, () => {
                   </BaseBadge>
                 </td>
                 <td class="max-w-56">
+                  <!--
+                    ★ TASNIF TEPADA, ERKIN MATN PASTDA: foiz hisoboti
+                    AYNAN tasnif bo'yicha yig'iladi, matn esa shu
+                    holatning tafsiloti.
+                  -->
+                  <BaseBadge
+                    v-if="row.reasonLabel !== null"
+                    tone="neutral"
+                  >
+                    {{ row.reasonLabel }}
+                  </BaseBadge>
                   <span
                     v-if="row.reason !== null"
                     class="block truncate text-slate-300"
+                    :class="row.reasonLabel !== null ? 'mt-1 text-xs' : ''"
                     :title="row.reason"
                     v-text="row.reason"
                   />
                   <span
-                    v-else
+                    v-else-if="row.reasonLabel === null"
                     class="text-dim"
                   >—</span>
                 </td>
@@ -679,7 +836,193 @@ watch(activeTab, () => {
       </BaseCard>
     </DataStatus>
 
-    <!-- ═════════════════════ 2. USTOZLAR KESIMI ═════════════════════ -->
+    <!-- ═════════════════════ 2. QAYTGANLAR ═════════════════════ -->
+    <BaseCard
+      v-else-if="activeTab === 'returned'"
+      title="To‘kilib, keyin qaytganlar"
+      subtitle="Ketgan sanadan KEYINGI birinchi qaytish olinadi. Qaytish sanasi davr filtridan tashqarida ham bo‘lishi mumkin."
+      flush
+    >
+      <DataStatus
+        :pending="returnedQuery.isPending.value"
+        :error="returnedError"
+        :empty="returnedRows.length === 0"
+        :retrying="returnedQuery.isFetching.value"
+        :skeleton-rows="3"
+        empty-icon="user-check"
+        empty-title="Qaytgan o‘quvchi yo‘q"
+        empty-text="Bu davrda to‘kilganlardan hech kim qaytmagan."
+        @retry="returnedQuery.refetch()"
+      >
+        <div class="scroll-x-safe scrollbar-slim">
+          <table class="zn-table">
+            <thead>
+              <tr>
+                <th class="w-10">
+                  #
+                </th>
+                <th>O‘quvchi</th>
+                <th>Qayerdan ketgan</th>
+                <th>Sabab</th>
+                <th>Qayerga qaytgan</th>
+                <th>Tanaffus</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(row, index) in returnedRows"
+                :key="`${row.studentId}-${row.leftAt}`"
+              >
+                <td
+                  class="tabular-nums text-dim"
+                  v-text="index + 1"
+                />
+                <td class="font-medium text-slate-100">
+                  {{ row.studentName }}
+                  <span
+                    class="mt-0.5 block text-xs font-normal"
+                    :class="row.lessonsCompleted < TRIAL_LESSON_COUNT ? 'text-amber-400' : 'text-dim'"
+                    v-text="`${row.lessonsCompleted} dars o‘tagan`"
+                  />
+                </td>
+                <td>
+                  <span
+                    class="block text-slate-300"
+                    v-text="row.leftGroupName"
+                  />
+                  <span class="mt-0.5 flex items-center gap-1.5">
+                    <BaseBadge :tone="eventKindTone(row.leftKind)">
+                      {{ eventKindLabel(row.leftKind) }}
+                    </BaseBadge>
+                    <span
+                      class="text-xs text-dim"
+                      v-text="formatDateTimeNumeric(row.leftAt)"
+                    />
+                  </span>
+                </td>
+                <td class="max-w-48">
+                  <span
+                    v-if="row.leftReason !== null"
+                    class="block truncate text-xs text-slate-400"
+                    :title="row.leftReason"
+                    v-text="row.leftReason"
+                  />
+                  <span
+                    v-else
+                    class="text-dim"
+                  >—</span>
+                </td>
+                <td>
+                  <span
+                    class="block text-slate-300"
+                    v-text="row.returnedGroupName"
+                  />
+                  <span class="mt-0.5 flex items-center gap-1.5">
+                    <!--
+                      ★ "O'SHA GURUH" / "YANGI GURUH" — Dilrabo aynan
+                      YANGI guruhda qaytganlarni so'radi, shuning uchun
+                      ikkisi bir qarashda farqlanishi kerak.
+                    -->
+                    <BaseBadge :tone="row.sameGroup ? 'neutral' : 'success'">
+                      {{ row.sameGroup ? 'O‘sha guruh' : 'Yangi guruh' }}
+                    </BaseBadge>
+                    <span
+                      class="text-xs text-dim"
+                      v-text="formatDateTimeNumeric(row.returnedAt)"
+                    />
+                  </span>
+                </td>
+                <td
+                  class="whitespace-nowrap tabular-nums"
+                  :class="row.daysAway > 30 ? 'font-semibold text-amber-400' : 'text-slate-400'"
+                  v-text="`${row.daysAway} kun`"
+                />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </DataStatus>
+    </BaseCard>
+
+    <!-- ═════════════════════ 3. SABABLAR (foizda) ═════════════════════ -->
+    <BaseCard
+      v-else-if="activeTab === 'reasons'"
+      title="To‘kilish sabablari"
+      subtitle="Chiqarish va muzlatish hodisalari bo‘yicha. Ko‘chirish kirmaydi — o‘quvchi markazda qoladi."
+      flush
+    >
+      <DataStatus
+        :pending="reasonsQuery.isPending.value"
+        :error="reasonsError"
+        :empty="reasons === null || reasons.rows.length === 0"
+        :retrying="reasonsQuery.isFetching.value"
+        :skeleton-rows="4"
+        empty-icon="chart"
+        empty-title="Ma’lumot yo‘q"
+        empty-text="Bu davrda to‘kilish qayd etilmagan."
+        @retry="reasonsQuery.refetch()"
+      >
+        <div
+          v-if="reasons !== null"
+          class="p-4"
+        >
+          <!--
+            ★ ANIQLIK KO'RSATKICHI YASHIRILMAYDI: sababi tanlanmagan
+            yozuvlar ko'p bo'lsa, foizlar chala manzara beradi. Buni
+            aytmasak, hisobotga haqiqatdan ortiq ishonilardi.
+          -->
+          <div
+            class="mb-4 rounded-xl border px-4 py-3 text-xs"
+            :class="
+              reasons.classifiedShare >= 80
+                ? 'border-line bg-ink-800 text-slate-400'
+                : 'border-amber-500/25 bg-amber-500/10 text-amber-200'
+            "
+          >
+            <span class="font-semibold">{{ reasons.total }}</span> ta to‘kilishdan
+            <span class="font-semibold">{{ reasons.classifiedShare }}%</span> ida sabab tanlangan.
+            <template v-if="reasons.classifiedShare < 80">
+              Foizlar to‘liq manzara berishi uchun chiqarish/muzlatish oynasida
+              sababni ro‘yxatdan tanlash kerak.
+            </template>
+          </div>
+
+          <ol class="space-y-2.5">
+            <li
+              v-for="row in reasons.rows"
+              :key="row.reasonId ?? 'none'"
+            >
+              <div class="mb-1 flex items-baseline justify-between gap-3">
+                <span
+                  class="min-w-0 truncate text-sm"
+                  :class="row.classified ? 'text-slate-200' : 'italic text-dim'"
+                  v-text="row.label"
+                />
+                <span class="shrink-0 text-sm tabular-nums">
+                  <span
+                    class="font-bold text-slate-100"
+                    v-text="`${row.share}%`"
+                  />
+                  <span
+                    class="ml-1.5 text-xs text-dim"
+                    v-text="`(${row.count} ta)`"
+                  />
+                </span>
+              </div>
+              <div class="h-2.5 overflow-hidden rounded-full bg-ink-800">
+                <div
+                  class="h-full rounded-full transition-[width]"
+                  :class="row.classified ? 'bg-brand-500' : 'bg-slate-600'"
+                  :style="{ width: `${Math.min(row.share, 100)}%` }"
+                />
+              </div>
+            </li>
+          </ol>
+        </div>
+      </DataStatus>
+    </BaseCard>
+
+    <!-- ═════════════════════ 4. USTOZLAR KESIMI ═════════════════════ -->
     <BaseCard
       v-else-if="activeTab === 'teacher'"
       title="Ustozlar kesimi"

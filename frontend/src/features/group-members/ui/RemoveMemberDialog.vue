@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
 import { removeMember } from '@/entities/group'
+import { AttritionReasonSelect } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
 import type { GroupMemberDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
@@ -27,6 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; saved: [] }>()
 
 const reason = ref('')
+const reasonId = ref<number | null>(null)
 const errorMessage = ref<string | null>(null)
 
 const reasonMissing = computed(() => reason.value.trim().length === 0)
@@ -35,6 +37,7 @@ watch(
   () => [props.open, props.member],
   () => {
     reason.value = ''
+    reasonId.value = null
     errorMessage.value = null
   },
   { immediate: true },
@@ -42,7 +45,10 @@ watch(
 
 const removeMutation = useMutation({
   mutationFn: (studentId: number) =>
-    removeMember(props.groupId, studentId, { reason: reason.value.trim() }),
+    removeMember(props.groupId, studentId, {
+      reason: reason.value.trim(),
+      reasonId: reasonId.value ?? undefined,
+    }),
   onSuccess: () => {
     emit('saved')
     emit('close')
@@ -59,7 +65,7 @@ function handleSubmit(): void {
   errorMessage.value = null
 
   if (reasonMissing.value) {
-    errorMessage.value = 'Chiqarish sababini kiriting.'
+    errorMessage.value = 'Chiqarish izohini kiriting.'
     return
   }
 
@@ -79,11 +85,16 @@ function handleSubmit(): void {
       <li>• Qaytarish uchun o‘quvchini guruhga qaytadan qo‘shish kerak bo‘ladi.</li>
     </ul>
 
-    <div class="mt-3">
+    <div class="mt-3 space-y-3">
+      <AttritionReasonSelect
+        v-model="reasonId"
+        :open="props.open"
+      />
+
       <BaseField
-        label="Sabab"
-        hint="Masalan: boshqa markazga o‘tdi, to‘lov imkoni bo‘lmadi, vaqti to‘g‘ri kelmadi."
-        :error="reasonMissing && reason.length > 0 ? 'Sabab bo‘sh bo‘lishi mumkin emas.' : null"
+        label="Izoh"
+        hint="Shu holatning tafsiloti — masalan “otasi boshqa shaharga ishga ko‘chdi”."
+        :error="reasonMissing && reason.length > 0 ? 'Izoh bo‘sh bo‘lishi mumkin emas.' : null"
       >
         <textarea
           v-model="reason"

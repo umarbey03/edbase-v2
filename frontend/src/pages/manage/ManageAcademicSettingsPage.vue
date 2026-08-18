@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 
 import { AnalysisCriteriaPanel } from '@/features/analysis-criteria-manage'
+import { AttritionReasonsPanel } from '@/features/attrition'
 import { GroupCategoryPanel } from '@/features/group-category-manage'
 import { HolidayPanel } from '@/features/holiday-manage'
 import { MessageTemplatePanel } from '@/features/message-template-manage'
@@ -97,6 +98,17 @@ const SECTIONS: SettingsSection[] = [
     label: 'Jarimalar',
     icon: 'wallet',
     hint: 'Jarima turlari va tariflari',
+  },
+  {
+    /*
+      TO'KILISH SABABLARI (2026-08-18) — o'quv bo'limi (Dilrabo)
+      so'ragan FOIZ hisobotining asosi. Erkin matn bo'yicha foiz
+      hisoblab bo'lmaydi, shuning uchun sabab shu ro'yxatdan tanlanadi.
+    */
+    key: 'attrition-reasons',
+    label: 'To‘kilish sabablari',
+    icon: 'user-x',
+    hint: 'Chiqarish/muzlatishda tanlanadigan tasniflar',
   },
 ]
 
@@ -213,6 +225,7 @@ function activeSection(): SettingsSection {
         <MessageTemplatePanel v-if="active === 'templates'" />
         <HolidayPanel v-if="active === 'holidays'" />
         <PenaltyCategoriesPanel v-if="active === 'penalties'" />
+        <AttritionReasonsPanel v-if="active === 'attrition-reasons'" />
       </div>
     </div>
   </div>

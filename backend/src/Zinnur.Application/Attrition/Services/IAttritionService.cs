@@ -24,6 +24,34 @@ public interface IAttritionService
     Task<AttritionSummaryDto> GetSummaryAsync(
         AttritionListQuery query, long actorId, CancellationToken ct = default);
 
+    /* ═══════════════════════════════════════════════════════════════════
+       O'QUVCHI KESIMI (2026-08-18) — o'quv bo'limi so'rovi bo'yicha.
+
+       ★ YUQORIDAGI `GetSummaryAsync` HODISALARNI sanaydi (guruh nuqtai
+       nazari: "shu guruhdan nechta ketish bo'ldi"). Quyidagilar esa
+       O'QUVCHILARNI sanaydi (markaz nuqtai nazari: "nechta odamni
+       yo'qotdik va nechtasini qaytardik"). Ikkalasi ham kerak —
+       bittasi ikkinchisining o'rnini bosa olmaydi.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /// <summary>
+    /// Yo'qotilgan O'QUVCHILAR va ularning hozirgi holati: qaytgan /
+    /// muzlatishda / butunlay ketgan + qayta jalb qilish ulushi.
+    /// </summary>
+    Task<AttritionStudentSummaryDto> GetStudentSummaryAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// To'kilib, keyin QAYTA faol bo'lganlar ro'yxati — qaysi guruhdan
+    /// ketib, qaysi guruhda va necha kundan keyin qaytgani.
+    /// </summary>
+    Task<IReadOnlyList<AttritionReturnedDto>> GetReturnedAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default);
+
+    /// <summary>To'kilish sabablari FOIZ bilan.</summary>
+    Task<AttritionReasonsDto> GetReasonsAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default);
+
     /// <summary>Ustoz kesimi — "kimning guruhida ko'p to'kiladi".</summary>
     Task<IReadOnlyList<AttritionByTeacherDto>> GetByTeacherAsync(
         AttritionListQuery query, long actorId, CancellationToken ct = default);

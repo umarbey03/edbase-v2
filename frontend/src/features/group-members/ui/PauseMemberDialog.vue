@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
 import { pauseMember } from '@/entities/group'
+import { AttritionReasonSelect } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
 import type { GroupMemberDto } from '@/shared/types'
 import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
@@ -25,6 +26,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const pausedUntil = ref('')
 const reason = ref('')
+const reasonId = ref<number | null>(null)
 const errorMessage = ref<string | null>(null)
 
 /** Sabab MAJBURIY (2026-08-17) — "to'kilishlar" paneli uni ko'rsatadi. */
@@ -35,6 +37,7 @@ watch(
   () => {
     pausedUntil.value = props.member?.pausedUntil ?? ''
     reason.value = ''
+    reasonId.value = null
     errorMessage.value = null
   },
   { immediate: true },
@@ -47,6 +50,7 @@ const pauseMutation = useMutation({
       // 400 berardi, shuning uchun ataylab `null`.
       pausedUntil: pausedUntil.value.length > 0 ? pausedUntil.value : null,
       reason: reason.value.trim(),
+      reasonId: reasonId.value ?? undefined,
     }),
   onSuccess: () => {
     emit('saved')
@@ -100,11 +104,16 @@ function handleSubmit(): void {
       ★ SABAB — MAJBURIY (loyiha egasi, 2026-08-17): "to'kilishlar" paneli
       muzlatishni ham ko'rsatadi va sababsiz qator u yerda ma'nosiz bo'lardi.
     -->
-    <div class="mt-3">
+    <div class="mt-3 space-y-3">
+      <AttritionReasonSelect
+        v-model="reasonId"
+        :open="props.open"
+      />
+
       <BaseField
-        label="Sabab"
-        hint="Masalan: uzoq muddatli kasallik, ta'til, imtihon davri."
-        :error="reasonMissing && reason.length > 0 ? 'Sabab bo‘sh bo‘lishi mumkin emas.' : null"
+        label="Izoh"
+        hint="Shu holatning tafsiloti — masalan “imtihon davri, sentabrda qaytadi”."
+        :error="reasonMissing && reason.length > 0 ? 'Izoh bo‘sh bo‘lishi mumkin emas.' : null"
       >
         <textarea
           v-model="reason"

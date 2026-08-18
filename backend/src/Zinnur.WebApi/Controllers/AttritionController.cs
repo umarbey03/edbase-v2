@@ -49,6 +49,35 @@ public sealed class AttritionController(IAttritionService attrition) : Controlle
         [FromQuery] AttritionListQuery query, CancellationToken ct) =>
         Ok(await attrition.GetByGroupAsync(query, CurrentUserId, ct));
 
+    /* ═══════════════════════════════════════════════════════════════════
+       O'QUVCHI KESIMI (2026-08-18) — o'quv bo'limi so'rovi bo'yicha.
+       Yuqoridagilar HODISALARNI sanaydi, quyidagilar O'QUVCHILARNI.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /// <summary>
+    /// Yo'qotilgan o'quvchilar: qaytgan / muzlatishda / butunlay ketgan
+    /// + qayta jalb qilish ulushi.
+    /// </summary>
+    [HttpGet("students")]
+    [ProducesResponseType<AttritionStudentSummaryDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<AttritionStudentSummaryDto>> Students(
+        [FromQuery] AttritionListQuery query, CancellationToken ct) =>
+        Ok(await attrition.GetStudentSummaryAsync(query, CurrentUserId, ct));
+
+    /// <summary>To'kilib, keyin qayta faol bo'lganlar ro'yxati.</summary>
+    [HttpGet("returned")]
+    [ProducesResponseType<IReadOnlyList<AttritionReturnedDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AttritionReturnedDto>>> Returned(
+        [FromQuery] AttritionListQuery query, CancellationToken ct) =>
+        Ok(await attrition.GetReturnedAsync(query, CurrentUserId, ct));
+
+    /// <summary>To'kilish sabablari foiz bilan.</summary>
+    [HttpGet("reasons")]
+    [ProducesResponseType<AttritionReasonsDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<AttritionReasonsDto>> Reasons(
+        [FromQuery] AttritionListQuery query, CancellationToken ct) =>
+        Ok(await attrition.GetReasonsAsync(query, CurrentUserId, ct));
+
     /// <summary>
     /// Bitta guruhning tafsiloti: ustoz, boshlangan sana, kursda qayerga
     /// kelgani va shu guruhdagi to'kilish yig'masi. O'quvchilar ro'yxati

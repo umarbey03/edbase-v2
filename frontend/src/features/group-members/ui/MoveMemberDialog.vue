@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
 import { fetchGroups, groupDisplayName, moveMember } from '@/entities/group'
+import { AttritionReasonSelect } from '@/features/attrition'
 import { toUserMessage } from '@/shared/api'
 import type { GroupDto, GroupMemberDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
@@ -35,6 +36,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const targetGroupId = ref<number | null>(null)
 const targetSearch = ref('')
 const reason = ref('')
+const reasonId = ref<number | null>(null)
 const errorMessage = ref<string | null>(null)
 
 watch(
@@ -43,6 +45,7 @@ watch(
     targetGroupId.value = null
     targetSearch.value = ''
     reason.value = ''
+    reasonId.value = null
     errorMessage.value = null
   },
   { immediate: true },
@@ -79,6 +82,7 @@ const moveMutation = useMutation({
     moveMember(props.groupId, input.studentId, {
       targetGroupId: input.targetGroupId,
       reason: input.reason,
+      reasonId: reasonId.value ?? undefined,
     }),
   onSuccess: () => {
     emit('saved')
@@ -171,11 +175,16 @@ function handleSubmit(): void {
       </ul>
     </BaseField>
 
-    <div class="mt-3">
+    <div class="mt-3 space-y-3">
+      <AttritionReasonSelect
+        v-model="reasonId"
+        :open="props.open"
+      />
+
       <BaseField
-        label="Sabab"
+        label="Izoh"
         hint="Majburiy — nega bu o‘quvchi ko‘chirilyapti (masalan: darajasi mos kelmadi)."
-        :error="reasonMissing && reason.length > 0 ? 'Sabab bo‘sh bo‘lishi mumkin emas.' : null"
+        :error="reasonMissing && reason.length > 0 ? 'Izoh bo‘sh bo‘lishi mumkin emas.' : null"
       >
         <textarea
           v-model="reason"

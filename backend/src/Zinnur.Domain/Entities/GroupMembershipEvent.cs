@@ -68,13 +68,30 @@ public class GroupMembershipEvent : BaseEntity
     public MembershipEventKind Kind { get; set; }
 
     /// <summary>
-    /// Sabab. <see cref="MembershipEventKind.Stopped"/>,
+    /// Sabab matni. <see cref="MembershipEventKind.Stopped"/>,
     /// <see cref="MembershipEventKind.Paused"/> va
     /// <see cref="MembershipEventKind.Moved"/> uchun MAJBURIY (loyiha egasi,
     /// 2026-08-17) — tekshiruv servis qatlamida, chunki qo'shilish/qaytish
     /// hodisalarida sabab TALAB QILINMAYDI.
+    ///
+    /// ★ <see cref="ReasonId"/> BILAN BIRGA ISHLAYDI (2026-08-18): ro'yxatdan
+    /// tanlangan sabab — TASNIF (hisobotda foiz shu bo'yicha), bu matn esa
+    /// AYNI HOLATNING tafsiloti ("otasi ishga ko'chdi"). Ikkalasi bir-birini
+    /// almashtirmaydi.
     /// </summary>
     public string? Reason { get; set; }
+
+    /// <summary>
+    /// Tanlangan sabab tasnifi (<see cref="AttritionReason"/>).
+    ///
+    /// ★ NEGA IXTIYORIY: katalogdan OLDIN yozilgan hodisalarda bo'sh, va
+    /// API to'g'ridan chaqirilganda ham majburiy emas. Hisobotda bunday
+    /// yozuvlar "Belgilanmagan" ulushiga tushadi — ya'ni ma'lumot
+    /// yo'qolmaydi, faqat aniqligi ko'rinib turadi.
+    /// </summary>
+    public long? ReasonId { get; set; }
+
+    public AttritionReason? ReasonRef { get; set; }
 
     /// <summary>Faqat <see cref="MembershipEventKind.Moved"/> da — qaysi guruhga.</summary>
     public long? MovedToGroupId { get; set; }
@@ -117,7 +134,8 @@ public class GroupMembershipEvent : BaseEntity
         long? movedToGroupId,
         long actorId,
         int lessonsCompleted,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        long? reasonId = null)
     {
         if (studentId <= 0) throw new DomainException("O'quvchi ko'rsatilmagan.");
         if (groupId <= 0) throw new DomainException("Guruh ko'rsatilmagan.");
@@ -138,6 +156,10 @@ public class GroupMembershipEvent : BaseEntity
             TeacherId = teacherId,
             Kind = kind,
             Reason = string.IsNullOrEmpty(trimmed) ? null : trimmed,
+
+            // Tasnif FAQAT sabab talab qiladigan hodisalarda ma'noli —
+            // "guruhga qo'shildi" da to'kilish sababi bo'lishi mumkin emas.
+            ReasonId = RequiresReason(kind) ? reasonId : null,
             MovedToGroupId = kind == MembershipEventKind.Moved ? movedToGroupId : null,
             ActorId = actorId,
             LessonsCompleted = Math.Max(0, lessonsCompleted),

@@ -116,6 +116,7 @@ public static class DependencyInjection
         // To'kilishlar hisoboti (2026-08-17) — a'zolik hodisalari jurnalini
         // FAQAT O'QIYDI; jurnalga `GroupService` yozadi.
         services.AddScoped<IAttritionService, AttritionService>();
+        services.AddScoped<IAttritionReasonService, AttritionReasonService>();
 
         /* ===== R21b · GURUH KATEGORIYALARI LUG'ATI =====
 

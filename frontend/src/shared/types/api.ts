@@ -1187,6 +1187,11 @@ export interface PauseMemberRequest {
   pausedUntil?: string | null
   /** MAJBURIY (2026-08-17) — bo'sh yuborilsa server 400 qaytaradi. */
   reason: string
+  /**
+   * Sabab TASNIFI katalogdan (2026-08-18) — "To'kilishlar → Sabablar"
+   * foizlari shu bo'yicha. `reason` matni esa tafsilot bo'lib qoladi.
+   */
+  reasonId?: number
 }
 
 /**
@@ -1195,12 +1200,16 @@ export interface PauseMemberRequest {
  */
 export interface RemoveMemberRequest {
   reason: string
+  /** Sabab tasnifi katalogdan — `PauseMemberRequest` dagi AYNI ma'no. */
+  reasonId?: number
 }
 
 export interface MoveMemberRequest {
   targetGroupId: number
   /** MAJBURIY — bo'sh yuborilsa server 409 qaytaradi. */
   reason: string
+  /** Sabab tasnifi katalogdan — `PauseMemberRequest` dagi AYNI ma'no. */
+  reasonId?: number
 }
 
 /**
@@ -3191,6 +3200,8 @@ export interface AttritionRowDto {
   teacherName: string | null
   kind: string
   reason: string | null
+  /** Tanlangan sabab tasnifi (2026-08-18). Tasnifsiz yozuvda `null`. */
+  reasonLabel: string | null
   movedToGroupId: number | null
   movedToGroupName: string | null
   actorName: string
@@ -3208,6 +3219,76 @@ export interface AttritionSummaryDto {
   trialLosses: number
   activeLosses: number
   averageLessonsBeforeLeaving: number
+}
+
+/* ============================================================================
+   O'QUVCHI KESIMI (2026-08-18) — o'quv bo'limi so'rovi.
+
+   ★ Yuqoridagi `AttritionSummaryDto` HODISALARNI sanaydi (bitta o'quvchi
+   ikki marta muzlatilsa — ikkita hodisa). Quyidagilar O'QUVCHILARNI
+   sanaydi: "nechta odamni yo'qotdik va nechtasini qaytardik".
+   ============================================================================ */
+
+export interface AttritionStudentSummaryDto {
+  /** Davrda chiqarilgan yoki muzlatilgan NOYOB o'quvchilar. */
+  studentsLost: number
+  /** Shundan hozir qaytadan faol bo'lganlari. */
+  returned: number
+  /** Hozir muzlatishda turganlari — qaytishi mumkin. */
+  paused: number
+  /** Qaytmaganlari — hech qayerda faol emas. */
+  gone: number
+  /** Qayta jalb qilish ulushi (%). */
+  returnRate: number
+}
+
+export interface AttritionReturnedDto {
+  studentId: number
+  studentName: string
+  leftGroupId: number
+  leftGroupName: string
+  leftAt: string
+  leftKind: string
+  leftReason: string | null
+  lessonsCompleted: number
+  returnedGroupId: number
+  returnedGroupName: string
+  returnedAt: string
+  /** O'sha guruhning O'ZIGA qaytganmi (yangi guruh emas). */
+  sameGroup: boolean
+  daysAway: number
+}
+
+export interface AttritionReasonShareDto {
+  reasonId: number | null
+  label: string
+  count: number
+  /** Ulush (%) — qatorlar yig'indisi ≈ 100. */
+  share: number
+  /** Katalogdan tanlangan tasnifmi (aks holda "Belgilanmagan"). */
+  classified: boolean
+}
+
+export interface AttritionReasonsDto {
+  total: number
+  /** Sababi TANLANGAN yozuvlar ulushi (%) — foizlarga ishonch darajasi. */
+  classifiedShare: number
+  rows: AttritionReasonShareDto[]
+}
+
+/* ===== Sabablar katalogi (sozlamalar) ===== */
+
+export interface AttritionReasonDto {
+  id: number
+  label: string
+  isActive: boolean
+  /** Nechta hodisada ishlatilgan — o'chirishdan oldin ogohlantirish uchun. */
+  usageCount: number
+}
+
+export interface SaveAttritionReasonRequest {
+  label: string
+  isActive?: boolean
 }
 
 /**

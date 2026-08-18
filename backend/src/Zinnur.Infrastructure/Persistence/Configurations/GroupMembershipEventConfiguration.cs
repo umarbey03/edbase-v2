@@ -20,6 +20,13 @@ public sealed class GroupMembershipEventConfiguration : IEntityTypeConfiguration
         builder.Property(e => e.Kind).HasConversion<int>();
         builder.Property(e => e.Reason).HasMaxLength(GroupMembershipEvent.MaxReasonLength);
 
+        // Sabab tasnifi (2026-08-18). `Restrict` — katalog qatori
+        // o'chirilmaydi (arxivlanadi), bu esa bazadagi kafolat.
+        builder.HasOne(e => e.ReasonRef)
+            .WithMany()
+            .HasForeignKey(e => e.ReasonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Hisoblanuvchi property — ustun EMAS (chegara o'zgarsa tarix qayta
         // baholanishi kerak, sabab entity izohida).
         builder.Ignore(e => e.IsTrial);

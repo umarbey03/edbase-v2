@@ -277,6 +277,9 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<GroupMembershipEvent> GroupMembershipEvents { get; }
 
+    /// <summary>To'kilish sabablari katalogi — hisobotdagi foizlar shu bo'yicha.</summary>
+    DbSet<AttritionReason> AttritionReasons { get; }
+
     /// <summary>Ustoz/kurator jarimalari (2026-08-18) — oylikka FAQAT tasdiqlangach tushadi.</summary>
     DbSet<Penalty> Penalties { get; }
 

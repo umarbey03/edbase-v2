@@ -332,7 +332,15 @@ public sealed record AddMemberRequest(long StudentId);
 /// Muzlatish sababi — MAJBURIY (loyiha egasi, 2026-08-17). "To'kilishlar"
 /// paneli muzlatishni ham ko'rsatadi; sababsiz qator u yerda ma'nosiz.
 /// </param>
-public sealed record PauseMemberRequest(DateOnly? PausedUntil = null, string? Reason = null);
+/// <param name="ReasonId">
+/// Sabab TASNIFI katalogdan (<c>AttritionReason</c>, 2026-08-18) — hisobotdagi
+/// foizlar shu bo'yicha hisoblanadi. <paramref name="Reason"/> matni esa AYNI
+/// holatning tafsiloti bo'lib qoladi; biri ikkinchisini almashtirmaydi.
+/// </param>
+public sealed record PauseMemberRequest(
+    DateOnly? PausedUntil = null,
+    string? Reason = null,
+    long? ReasonId = null);
 
 /// <summary>
 /// Guruhdan chiqarish (2026-08-17 dan tanaga ega).
@@ -342,7 +350,8 @@ public sealed record PauseMemberRequest(DateOnly? PausedUntil = null, string? Re
 /// yo'q edi. Endi sabab majburiy — u a'zolik qatoriga ham, o'chmaydigan
 /// hodisa jurnaliga ham yoziladi.
 /// </summary>
-public sealed record RemoveMemberRequest(string? Reason = null);
+/// <param name="ReasonId">Sabab tasnifi katalogdan — <c>PauseMemberRequest</c> dagi AYNI ma'no.</param>
+public sealed record RemoveMemberRequest(string? Reason = null, long? ReasonId = null);
 
 /// <param name="TargetGroupId">Qaysi guruhga ko'chiriladi.</param>
 /// <param name="Reason">
@@ -350,7 +359,8 @@ public sealed record RemoveMemberRequest(string? Reason = null);
 /// guruhga olib o'tishda sabab kiritilishi shart"*). Bo'sh bo'lsa 409
 /// (`GroupService.MoveMemberAsync`).
 /// </param>
-public sealed record MoveMemberRequest(long TargetGroupId, string Reason);
+/// <param name="ReasonId">Sabab tasnifi katalogdan — <c>PauseMemberRequest</c> dagi AYNI ma'no.</param>
+public sealed record MoveMemberRequest(long TargetGroupId, string Reason, long? ReasonId = null);
 
 /// <summary>Ko'chirish natijasi — ikki tomon ham qaytadi (UI ikkalasini yangilaydi).</summary>
 /// <param name="Left">Eski guruhdagi yozuv (holati <c>Moved</c>).</param>

@@ -1,9 +1,16 @@
 export {
+  createAttritionReason,
+  deleteAttritionReason,
   fetchAttrition,
   fetchAttritionByGroup,
   fetchAttritionByTeacher,
   fetchAttritionGroupDetail,
+  fetchAttritionReasonCatalogue,
+  fetchAttritionReasons,
+  fetchAttritionReturned,
+  fetchAttritionStudents,
   fetchAttritionSummary,
+  updateAttritionReason,
 } from './api/attrition-api'
 
 export {

@@ -53,6 +53,7 @@ public sealed class AttritionService(
                     : db.Users.Where(u => u.Id == e.TeacherId).Select(u => u.FullName).FirstOrDefault(),
                 e.Kind,
                 e.Reason,
+                ReasonLabel = e.ReasonRef == null ? null : e.ReasonRef.Label,
                 e.MovedToGroupId,
                 MovedToGroupName = e.MovedToGroupId == null
                     ? null
@@ -76,6 +77,7 @@ public sealed class AttritionService(
             x.TeacherName,
             x.Kind.ToString(),
             x.Reason,
+            x.ReasonLabel,
             x.MovedToGroupId,
             x.MovedToGroupName,
             x.ActorName,
@@ -127,6 +129,217 @@ public sealed class AttritionService(
             AverageLessonsBeforeLeaving: stoppedOnly.Count == 0
                 ? 0
                 : Math.Round(stoppedOnly.Average(x => x.LessonsCompleted), 1));
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  O'QUVCHI KESIMI — "QAYTA JALB QILISH" (2026-08-18)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Yo'qotilgan o'quvchilar — HODISA emas, O'QUVCHI bo'yicha.
+    ///
+    /// ★ FAQAT `Stopped` VA `Paused`: `Moved` — guruh almashtirish, o'quvchi
+    ///   markazda qoladi (sabab DTO izohida).
+    /// </summary>
+    private IQueryable<GroupMembershipEvent> LossEvents(AttritionListQuery query) =>
+        Filter(query).Where(e => e.Kind == MembershipEventKind.Stopped
+                              || e.Kind == MembershipEventKind.Paused);
+
+    /// <summary>
+    /// ★★ YIG'MA VA RO'YXAT — BITTA HISOBDAN (2026-08-18).
+    ///
+    /// Ilgari kartadagi "qaytganlar" HOZIRGI a'zolik holatidan, ro'yxat
+    /// esa QAYTISH HODISASIDAN hisoblanardi. Ikkalasi har xil raqam
+    /// berardi ("4 ta qaytdi" deb yozib, ro'yxatda 1 tasini ko'rsatardi)
+    /// — bunday panel butun ishonchni yo'qotadi. Endi ikkalasi ham SHU
+    /// metodni chaqiradi.
+    ///
+    /// ★ HAR O'QUVCHIGA BITTA QATOR: eng SO'NGGI ketish olinadi. Bitta
+    /// o'quvchi bir necha marta ketib-qaytgan bo'lsa, uni bir necha marta
+    /// sanash "nechta odamni qaytardik" savoliga noto'g'ri javob berardi.
+    /// </summary>
+    private async Task<(int Lost, List<AttritionReturnedDto> Returned, HashSet<long> StillPaused)>
+        BuildReturnAsync(AttritionListQuery query, CancellationToken ct)
+    {
+        var losses = await LossEvents(query)
+            .Select(e => new
+            {
+                e.StudentId,
+                StudentName = e.Student!.FullName,
+                e.GroupId,
+                GroupName = e.Group!.Name,
+                e.OccurredAt,
+                e.Kind,
+                e.Reason,
+                e.LessonsCompleted,
+            })
+            .ToListAsync(ct);
+
+        if (losses.Count == 0) return (0, [], []);
+
+        // Har o'quvchining ENG SO'NGGI ketishi.
+        var lastLoss = losses
+            .GroupBy(x => x.StudentId)
+            .Select(g => g.OrderByDescending(x => x.OccurredAt).First())
+            .ToList();
+
+        var studentIds = lastLoss.ConvertAll(x => x.StudentId);
+
+        // ★ QAYTISH HODISALARI DAVR FILTRIDAN TASHQARIDA izlanadi:
+        //   o'quvchi iyulda ketib, sentabrda qaytishi mumkin. Filtr bu
+        //   yerga ham qo'llansa, aynan qidirilayotgan qaytishlar
+        //   ko'rinmay qolardi.
+        var returns = await db.GroupMembershipEvents.AsNoTracking()
+            .Where(e => studentIds.Contains(e.StudentId)
+                && (e.Kind == MembershipEventKind.Joined || e.Kind == MembershipEventKind.Resumed))
+            .Select(e => new
+            {
+                e.StudentId,
+                e.GroupId,
+                GroupName = e.Group!.Name,
+                e.OccurredAt,
+            })
+            .ToListAsync(ct);
+
+        var returnsByStudent = returns
+            .GroupBy(x => x.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(x => x.OccurredAt).ToList());
+
+        var rows = new List<AttritionReturnedDto>();
+        var returnedIds = new HashSet<long>();
+
+        foreach (var loss in lastLoss)
+        {
+            if (!returnsByStudent.TryGetValue(loss.StudentId, out var candidates)) continue;
+
+            // Ketishdan KEYINGI birinchi qaytish.
+            var back = candidates.FirstOrDefault(r => r.OccurredAt > loss.OccurredAt);
+
+            if (back is null) continue;
+
+            returnedIds.Add(loss.StudentId);
+
+            rows.Add(new AttritionReturnedDto(
+                loss.StudentId,
+                loss.StudentName,
+                loss.GroupId,
+                loss.GroupName,
+                loss.OccurredAt,
+                loss.Kind.ToString(),
+                loss.Reason,
+                loss.LessonsCompleted,
+                back.GroupId,
+                back.GroupName,
+                back.OccurredAt,
+                SameGroup: back.GroupId == loss.GroupId,
+                DaysAway: Math.Max(0, (int)(back.OccurredAt - loss.OccurredAt).TotalDays)));
+        }
+
+        // Qaytmaganlardan qaysilari hozir MUZLATISHDA — ular "butunlay
+        // ketgan" emas, hali qaytishi mumkin (Dilrabo: *"qanchadir
+        // muddatda davom ettiradi"*).
+        var pendingIds = studentIds.Where(id => !returnedIds.Contains(id)).ToList();
+
+        var stillPaused = pendingIds.Count == 0
+            ? []
+            : (await db.GroupMembers.AsNoTracking()
+                .Where(m => pendingIds.Contains(m.StudentId) && m.Status == MemberStatus.Paused)
+                .Select(m => m.StudentId)
+                .Distinct()
+                .ToListAsync(ct))
+                .ToHashSet();
+
+        return (studentIds.Count, rows, stillPaused);
+    }
+
+    /// <inheritdoc />
+    public async Task<AttritionStudentSummaryDto> GetStudentSummaryAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await EnsureCanViewAsync(actorId, ct);
+
+        var (lost, returned, stillPaused) = await BuildReturnAsync(query, ct);
+
+        if (lost == 0) return new AttritionStudentSummaryDto(0, 0, 0, 0, 0);
+
+        return new AttritionStudentSummaryDto(
+            StudentsLost: lost,
+            Returned: returned.Count,
+            Paused: stillPaused.Count,
+            Gone: lost - returned.Count - stillPaused.Count,
+            ReturnRate: Math.Round(returned.Count * 100.0 / lost, 1));
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AttritionReturnedDto>> GetReturnedAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await EnsureCanViewAsync(actorId, ct);
+
+        var (_, returned, _) = await BuildReturnAsync(query, ct);
+
+        return returned
+            // Eng yaqinda qaytgani tepada — panel ochilganda yangilik
+            // birinchi ko'rinadi.
+            .OrderByDescending(x => x.ReturnedAt)
+            .ThenBy(x => x.StudentName, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<AttritionReasonsDto> GetReasonsAsync(
+        AttritionListQuery query, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await EnsureCanViewAsync(actorId, ct);
+
+        var flat = await LossEvents(query)
+            .Select(e => new
+            {
+                e.ReasonId,
+                Label = e.ReasonRef == null ? null : e.ReasonRef.Label,
+            })
+            .ToListAsync(ct);
+
+        if (flat.Count == 0) return new AttritionReasonsDto(0, 0, []);
+
+        var total = flat.Count;
+        var classified = flat.Count(x => x.ReasonId is not null);
+
+        var rows = flat
+            .Where(x => x.ReasonId is not null)
+            .GroupBy(x => new { x.ReasonId, x.Label })
+            .Select(g => new AttritionReasonShareDto(
+                g.Key.ReasonId,
+                g.Key.Label ?? "—",
+                g.Count(),
+                Math.Round(g.Count() * 100.0 / total, 1),
+                Classified: true))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.Ordinal)
+            .ToList();
+
+        // ★ "BELGILANMAGAN" YASHIRILMAYDI VA OXIRIDA TURADI: u ham
+        //   ulushning bir qismi. Chiqarib tashlansa, qolgan foizlar
+        //   100% ga yig'ilib, aslida yarim ma'lumot ekani ko'rinmasdi.
+        var unclassified = total - classified;
+
+        if (unclassified > 0)
+        {
+            rows.Add(new AttritionReasonShareDto(
+                null,
+                "Belgilanmagan",
+                unclassified,
+                Math.Round(unclassified * 100.0 / total, 1),
+                Classified: false));
+        }
+
+        return new AttritionReasonsDto(
+            total,
+            Math.Round(classified * 100.0 / total, 1),
+            rows);
     }
 
     /// <inheritdoc />
