@@ -24,17 +24,19 @@ export interface NavItem {
  * ════════════════════════════════════════════════════════════════════════
  *
  * Loyiha egasi: *"chap tarafdagi panellarni bo'limlar bo'yicha ajratishimiz
- * kerak — o'quv bo'limiga tegishlilari 'O'quv bo'limi' deb yozilgan drop
- * down ichida bo'lsin, moliya va admin bo'limlari ham shunday"*.
+ * kerak — moliya, admin bo'limlari drop down ichida bo'lsin"*.
  *
- * ★ NEGA KERAK BO'LDI: admin menyusi 16 bandga yetdi. Yassi ro'yxatda
- * ko'z kerakli bandni har safar boshidan qidiradi va "moliya qayerda
- * edi?" degan savol har kuni takrorlanadi. Bo'limlarga bo'lingach, yopiq
- * bo'lim umuman shovqin bermaydi.
+ * ★ NEGA KERAK BO'LDI: admin menyusi 16 bandga yetdi va "moliya qayerda
+ * edi?" degan savol har kuni takrorlanardi.
  *
- * ★ `label` BO'SH BO'LSA — SARLAVHASIZ, YASSI chiziladi. Ustoz va
- * o'quvchida atigi 5-6 band bor; ularni bo'limga o'rash foyda bermay,
- * ortiqcha bir bosish qo'shardi.
+ * ★ FAQAT MOLIYA VA ADMINISTRATOR AJRATILGAN (loyiha egasi aniqlashtirdi,
+ * 2026-08-18): o'quv bo'limi bandlari — menyuning ASOSIY qismi, ular
+ * sarlavhasiz va yassi turadi. Sarlavha faqat haqiqatan BOSHQA
+ * mas'uliyat doirasidagi va faqat adminda ko'rinadigan ikki bo'limda
+ * ma'noli; kundalik ish bandlarini sarlavha ostiga olish ularni
+ * "ixtiyoriy qism"dek ko'rsatardi.
+ *
+ * ★ `label` BO'SH BO'LSA — SARLAVHASIZ, YASSI chiziladi.
  */
 export interface NavSection {
   key: string
@@ -241,12 +243,6 @@ const ADMIN_NAV: NavItem[] = [
    ortiqcha bosish demakdir.
    ════════════════════════════════════════════════════════════════════════ */
 
-const DASHBOARD_ITEM: NavItem = {
-  routeName: 'manage-dashboard',
-  label: 'Boshqaruv paneli',
-  icon: 'grid',
-}
-
 /** Marshrut nomlari bo'yicha bandlarni AYNI tartibda ajratib oladi. */
 function pick(source: NavItem[], routeNames: string[]): NavItem[] {
   return routeNames
@@ -277,12 +273,17 @@ const ACADEMIC_SECTION_ROUTES = [
 function academicSection(source: NavItem[]): NavSection {
   return {
     key: 'academic',
-    label: 'O‘quv bo‘limi',
-    icon: 'graduation',
 
-    // ★ OCHIB-YOPILMAYDI (loyiha egasi, 2026-08-18): bu — kundalik ish
-    //   bandlari, ular doim ko'rinib tursin. Sarlavha esa qoladi —
-    //   bo'limlar ko'z bilan ajralib turishi kerak.
+    /*
+      ★ SARLAVHASIZ (loyiha egasi, 2026-08-18: *"o'quv bo'limi deb
+        yozilgani kerak emas"*): bu bandlar menyuning ASOSIY qismi va
+        ular boshqa hech nima bilan chalkashmaydi. Sarlavha faqat
+        "Moliya" va "Administrator" da qoladi — o'sha ikkitasi
+        haqiqatan AJRATILISHI kerak, chunki ular boshqa mas'uliyat
+        doirasi va faqat adminda ko'rinadi.
+    */
+    label: '',
+    icon: null,
     collapsible: false,
     items: pick(source, ACADEMIC_SECTION_ROUTES),
   }
@@ -299,12 +300,10 @@ const SECTIONS_BY_ROLE: Record<UserRoleName, NavSection[]> = {
   Assistant: flat(ASSISTANT_NAV),
 
   Academic: [
-    { key: 'home', label: '', icon: null, collapsible: false, items: [DASHBOARD_ITEM] },
     academicSection(MANAGE_NAV),
   ],
 
   Admin: [
-    { key: 'home', label: '', icon: null, collapsible: false, items: [DASHBOARD_ITEM] },
     academicSection(ADMIN_NAV),
     {
       /*
@@ -354,14 +353,16 @@ const HOME_BY_ROLE: Record<UserRoleName, string> = {
   Assistant: 'teacher-home',
 
   /*
-    ★ BOSHQARUV PANELI — YANGI BOSH SAHIFA (2026-08-18, loyiha egasi:
-    *"default holatida biror bir dashboard qil"*). Ilgari xodim kirgan
-    zahoti "Guruhlar" ro'yxatiga tushardi — bu ish ro'yxati, manzara
-    emas: "bugun nima diqqat talab qiladi?" degan savolga javob
-    bermasdi va xodim uni panellar bo'ylab o'zi yig'ib olardi.
+    ⚠️ BOSHQARUV PANELI OLIB TASHLANDI (loyiha egasi, 2026-08-18:
+    *"boshqaruv paneli ham kerak emas"*) — bosh sahifa yana "Guruhlar".
+
+    Sahifaning O'ZI (`manage-dashboard`) o'chirilmadi: marshrut joyida
+    turibdi va manzil bo'yicha ochiladi, faqat menyuda ko'rinmaydi.
+    Uni butunlay o'chirish oson, lekin qaytarish qiyinroq — shuning
+    uchun avval faqat ko'rinishdan olib tashlandi.
   */
-  Academic: 'manage-dashboard',
-  Admin: 'manage-dashboard',
+  Academic: 'manage-groups',
+  Admin: 'manage-groups',
 }
 
 /** Rol noma'lum bo'lsa (backend yangi rol qo'shsa) — eng kam huquqli ko'rinish. */
