@@ -233,6 +233,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<GroupMembershipEvent> GroupMembershipEvents => Set<GroupMembershipEvent>();
 
+    public DbSet<Penalty> Penalties => Set<Penalty>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

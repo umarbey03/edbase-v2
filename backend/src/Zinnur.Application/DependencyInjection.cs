@@ -15,6 +15,7 @@ using Zinnur.Application.Messaging.Services;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Profile.Services;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Penalties.Services;
 using Zinnur.Application.Payroll.Services;
 using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Recordings.Services;
@@ -192,6 +193,9 @@ public static class DependencyInjection
         // dependency) va ikkinchi so'rovda allaqachon yopilgan kontekst bilan
         // pul yozishga urinilardi.
         services.AddScoped<IPaymentService, PaymentService>();
+
+        // Jarimalar (2026-08-18) — tasdiqlangach oylikka manfiy tuzatma yaratadi.
+        services.AddScoped<IPenaltyService, PenaltyService>();
 
         // Bosqichma-bosqich hisoblash (2026-08-16) — `IPaymentService` dan
         // ATAYLAB ALOHIDA interfeys (izoh: `LessonAccrualService` sinfi

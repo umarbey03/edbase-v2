@@ -9,6 +9,7 @@ using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Penalties.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Telegram;
@@ -33,6 +34,7 @@ public sealed class LiveSessionService(
     IAutoRecordingScheduler autoRecording,
     INotificationOutbox outbox,
     IPresenceService presence,
+    IPenaltyService penalties,
     ILogger<LiveSessionService> logger,
     TimeProvider clock) : ILiveSessionService
 {
@@ -355,6 +357,14 @@ public sealed class LiveSessionService(
         //    tashqi xizmatga UMUMAN borilmaydi — faqat qator qo'shiladi.
         // ═══════════════════════════════════════════════════════════════
         await EnqueueSessionStartedAsync(session, ct);
+
+        // ★ KECHIKISH JARIMASI (2026-08-18) — AYNI nuqtada, chunki
+        //   "necha daqiqa kech boshlandi" aynan shu yerda aniq. Jarima
+        //   `Pending` bo'lib tug'iladi va oylikka TEGMAYDI: uni
+        //   administrator ko'rib chiqadi (sabab `PenaltyStatus` izohida).
+        //   `SaveChanges` quyida — darsning `Live` holati bilan BITTA
+        //   tranzaksiyada.
+        await penalties.DetectLateStartAsync(session, ct);
 
         await db.SaveChangesAsync(ct);
 

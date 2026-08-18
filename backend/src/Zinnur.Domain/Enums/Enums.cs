@@ -325,6 +325,47 @@ public enum CoverageRequestStatus
 }
 
 // ============================================================================
+// JARIMA (2026-08-18)
+// ============================================================================
+
+/// <summary>
+/// Jarima NEGA yozilgani (<see cref="Zinnur.Domain.Entities.Penalty"/>).
+/// Tartib MUHIM — yangi qiymat FAQAT oxiriga.
+/// </summary>
+public enum PenaltyKind
+{
+    /// <summary>Dars rejadagi vaqtdan kech boshlangan (avtomatik).</summary>
+    LateStart = 0,
+
+    /// <summary>Dars vaqti o'tgan, lekin umuman boshlanmagan (avtomatik).</summary>
+    MissedLesson = 1,
+
+    /// <summary>O'quv bo'limi qo'lda kiritgan.</summary>
+    Manual = 2,
+}
+
+/// <summary>
+/// Jarimaning holati.
+///
+/// ★ IKKI BOSQICH ATAYLAB (loyiha egasi qarori, 2026-08-18): avtomatik
+/// aniqlangan jarima DARHOL oylikdan ushlanmaydi. Avval
+/// <see cref="Pending"/> bo'lib turadi va administrator ko'rib chiqadi —
+/// sabab uzrli bo'lishi mumkin (internet uzilgan, texnik nosozlik).
+/// Faqat <see cref="Approved"/> bo'lgach oylikka manfiy tuzatma yoziladi.
+/// </summary>
+public enum PenaltyStatus
+{
+    /// <summary>Aniqlangan, lekin hali tasdiqlanmagan — oylikka TA'SIR QILMAYDI.</summary>
+    Pending = 0,
+
+    /// <summary>Tasdiqlangan — oylikdan ushlab qolinadi.</summary>
+    Approved = 1,
+
+    /// <summary>Bekor qilingan (uzrli sabab yoki xato yozuv).</summary>
+    Cancelled = 2,
+}
+
+// ============================================================================
 // A'ZOLIK TARIXI / TO'KILISHLAR (2026-08-17)
 // ============================================================================
 

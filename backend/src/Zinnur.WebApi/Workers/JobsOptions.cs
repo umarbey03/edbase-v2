@@ -107,6 +107,12 @@ internal sealed class JobsOptions
     public TeacherMorningCheckinSettings TeacherMorningCheckin =>
         new(Interval: TimeSpan.FromMinutes(TeacherMorningCheckinIntervalMinutes));
 
+    /// <summary>Jarima skaneri oralig'i (daqiqa).</summary>
+    public int PenaltyScanIntervalMinutes { get; private init; } = 30;
+
+    public PenaltyScanSettings PenaltyScan =>
+        new(Interval: TimeSpan.FromMinutes(PenaltyScanIntervalMinutes));
+
     public ChatRetentionSettings ChatRetention => new(
         Interval: TimeSpan.FromMinutes(ChatRetentionIntervalMinutes),
         BatchSize: ChatRetentionBatchSize,
@@ -162,6 +168,10 @@ internal sealed class JobsOptions
             // ★ PASTKI CHEGARA 5 DAQIQA: tozalash — kunlik hodisa. Har
             // daqiqada yurish hech nima yutmasdi, lekin har yurish
             // kesimni qidirish uchun bazaga borardi.
+            PenaltyScanIntervalMinutes = Number(
+                configuration, $"{SectionName}:PenaltyScan:IntervalMinutes",
+                defaults.PenaltyScanIntervalMinutes, 5, 1440),
+
             ChatRetentionIntervalMinutes = Number(
                 configuration, $"{SectionName}:ChatRetention:IntervalMinutes",
                 defaults.ChatRetentionIntervalMinutes, 5, 1440),

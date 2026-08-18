@@ -3,6 +3,7 @@ using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Media;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Penalties.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.TeacherAvailability.Services;
@@ -93,6 +94,16 @@ internal static class JobsSetup
                 sp.GetRequiredService<TimeProvider>(),
                 options.TeacherMorningCheckin));
         }
+
+        // ★ JARIMA SKANERI (2026-08-18) — SHARTSIZ ro'yxatdan o'tadi,
+        //   `ChatRetentionJob` bilan AYNI sabab: yoqish/o'chirish qarori
+        //   MUHIT bayrog'ida emas, PANELDAGI tarif sozlamasida
+        //   (`penalty.missed_lesson` = 0 bo'lsa servis darhol chiqadi).
+        //   Muhit bayrog'i qo'yilsa, panelda tarif turgan bo'lsa-yu
+        //   jarima hech qachon yozilmasligi mumkin edi — jimgina yolg'on.
+        services.AddScoped<IScheduledJob>(sp => new PenaltyScanJob(
+            sp.GetRequiredService<IPenaltyService>(),
+            options.PenaltyScan));
 
         // ================================================================
         // 🔴 CHAT TARIXINI TOZALASH — SHARTSIZ RO'YXATDAN O'TADI.

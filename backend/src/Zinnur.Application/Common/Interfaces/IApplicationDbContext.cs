@@ -277,6 +277,9 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<GroupMembershipEvent> GroupMembershipEvents { get; }
 
+    /// <summary>Ustoz/kurator jarimalari (2026-08-18) — oylikka FAQAT tasdiqlangach tushadi.</summary>
+    DbSet<Penalty> Penalties { get; }
+
     /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
