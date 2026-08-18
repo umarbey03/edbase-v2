@@ -69,6 +69,10 @@ public static class DependencyInjection
         // "Foydalanuvchilar" paneli kartalari (2026-08-18) — faqat o'qiydi.
         services.AddScoped<IStudentStatsService, StudentStatsService>();
 
+        // "Nechta darsni o'tagan" qoidasining YAGONA manbai — `GroupService`
+        // va `StudentStatsService` ikkalasi ham shundan foydalanadi.
+        services.AddScoped<IStudiedLessonCounter, StudiedLessonCounter>();
+
         // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
         // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).
         services.AddScoped<IAuthStateCache, AuthStateCache>();

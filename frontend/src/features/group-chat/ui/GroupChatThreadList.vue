@@ -10,6 +10,7 @@ import {
   threadSubtitle,
 } from '@/entities/group-chat'
 import { fetchGroupCategories } from '@/entities/group-category'
+import { LiveIndicator, useLiveGroups } from '@/entities/session'
 import { toUserMessage } from '@/shared/api'
 import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
 import type { GroupChatThreadDto, GroupTypeName } from '@/shared/types'
@@ -103,6 +104,12 @@ const emit = defineEmits<{ open: [GroupChatThreadDto] }>()
   turidagi guruhning alohida chati yo'q va server bunday so'rovga 400
   qaytaradi (u ro'yxatda hech qachon ko'rinmagan).
 */
+/**
+ * Hozir jonli darsi bor guruhlar (2026-08-18) — qator rangi va
+ * "Jonli" nishoni shunga qarab chiziladi.
+ */
+const liveGroups = useLiveGroups()
+
 const typeFilter = ref<'' | Exclude<GroupTypeName, 'Curator'>>('')
 const categoryFilter = ref('')
 
@@ -293,9 +300,11 @@ function threadTime(thread: GroupChatThreadDto): string {
             :class="
               threadKey(thread.groupId, thread.channel) === props.selectedKey
                 ? 'border-brand-500/70 bg-brand-500/15'
-                : thread.unreadCount > 0
-                  ? 'border-brand-500/40'
-                  : 'border-line'
+                : liveGroups.isLive(thread.groupId)
+                  ? 'border-rose-500/45 bg-rose-500/[0.06]'
+                  : thread.unreadCount > 0
+                    ? 'border-brand-500/40'
+                    : 'border-line'
             "
             :aria-current="
               threadKey(thread.groupId, thread.channel) === props.selectedKey ? 'true' : undefined
@@ -316,6 +325,13 @@ function threadTime(thread: GroupChatThreadDto): string {
                   class="min-w-0 flex-1 truncate text-[15px] font-bold text-slate-100"
                   v-text="`👥 ${thread.groupName}`"
                 />
+                <!--
+                  ★ JONLI NISHONI (2026-08-18) — Telegram'ning jonli efir
+                  ko'rsatkichi kabi: pulsatsiyalanuvchi nuqta + matn.
+                  VAQTDAN OLDIN turadi, chunki "hozir nima bo'layotgani"
+                  "oxirgi xabar qachon kelgani" dan muhimroq.
+                -->
+                <LiveIndicator v-if="liveGroups.isLive(thread.groupId)" />
                 <span
                   v-if="threadTime(thread).length > 0"
                   class="shrink-0 text-[11px] tabular-nums text-dim"

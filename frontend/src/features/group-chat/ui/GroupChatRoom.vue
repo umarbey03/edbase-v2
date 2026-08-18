@@ -2,6 +2,7 @@
 import { computed, ref, toRef, watch } from 'vue'
 
 import { channelLabel, channelTone, GROUP_CHAT_BODY_MAX } from '@/entities/group-chat'
+import { LiveIndicator, useLiveGroups } from '@/entities/session'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { formatFileSize } from '@/shared/lib/text'
 import type { GroupChatChannelName } from '@/shared/types'
@@ -98,6 +99,9 @@ const scroller = ref<HTMLElement | null>(null)
   funksiyaga (`canTrim`) o'ralib beriladi: u chaqirilgan PAYTDA o'qiladi.
 */
 const isAtBottomRef = ref(true)
+
+/** Shu guruhda hozir jonli dars ketyaptimi (sarlavhadagi nishon uchun). */
+const liveGroups = useLiveGroups()
 
 const room = useGroupChatRoom({
   groupId: toRef(props, 'groupId'),
@@ -327,6 +331,13 @@ watch(
       >
         {{ channelLabel(shownChannel) }}
       </BaseBadge>
+
+      <!--
+        ★ JONLI DARS KETYAPTI (2026-08-18): chat ochiq turganda ham
+        "hozir efirda" ekani ko'rinib tursin — Telegram'ning jonli
+        efir ko'rsatkichi kabi.
+      -->
+      <LiveIndicator v-if="liveGroups.isLive(props.groupId)" />
       <span
         v-if="title.length > 0"
         class="min-w-0 truncate text-xs text-slate-400"

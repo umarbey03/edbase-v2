@@ -6,6 +6,7 @@ using Zinnur.Application.Common.Models;
 using Zinnur.Application.Groups.Dtos;
 using Zinnur.Application.Scheduling.Dtos;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Students.Services;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -27,6 +28,7 @@ public sealed class GroupService(
     IApplicationDbContext db,
     IScheduleService schedule,
     IScheduleTimeZoneProvider timeZone,
+    IStudiedLessonCounter studiedLessons,
     TimeProvider clock) : IGroupService
 {
     // ================================================================= o'qish
@@ -930,34 +932,19 @@ public sealed class GroupService(
     }
 
     /// <summary>
-    /// O'quvchi MARKAZDA jami nechta YAKUNLANGAN darsni o'tagan — "probniy"
-    /// hisobining asosi (chegara <c>GroupMembershipEvent.TrialLessonCount</c>).
+    /// O'quvchi nechta darsni HAQIQATAN o'tagan — "probniy" hisobining
+    /// asosi (chegara <c>GroupMembershipEvent.TrialLessonCount</c>).
     ///
-    /// ★ HISOB O'QUVCHIGA NISBATAN, GURUHGA EMAS. Loyiha egasi ta'rifi
-    /// *"8 darsdan to'kilmasdan o'qib ketgan o'quvchilar aktiv hisoblanadi"*
-    /// — ya'ni muhimi O'QUVCHI nechta dars ko'rgani.
-    ///
-    /// 🔴 SHUNING UCHUN BARCHA A'ZOLIKLAR BO'YICHA SANALADI: agar faqat
-    /// HOZIRGI guruh hisoblanganda, guruhdan guruhga KO'CHIRISH o'quvchining
-    /// "tajribasi"ni nolga qaytarardi (ko'chirishda yangi a'zolikning
-    /// `JoinedAt` i bugunga o'rnatiladi). Natijada 40 dars o'qib, ko'chirilib,
-    /// ikki kundan keyin ketgan o'quvchi "sinovdan o'tmagan" bo'lib
-    /// ko'rinardi — bu hisobotning ma'nosini butunlay buzardi.
-    ///
-    /// Har a'zolik uchun o'sha a'zolikka QO'SHILGANDAN KEYINGI yakunlangan
-    /// darslar sanaladi (rejalashtirilgan yoki bekor qilingani emas), va
-    /// natija barcha a'zoliklar bo'yicha yig'iladi — bitta korrelyatsiyalangan
-    /// `EXISTS` so'rovi bilan.
+    /// ⚠️ 2026-08-18 DA QOIDA O'ZGARDI: ilgari bu yerda "a'zolikka
+    /// qo'shilgandan keyingi yakunlangan darslar" sanalardi va u
+    /// <c>GroupMember.JoinedAt</c> ga tayanardi — o'quvchi guruhga qayta
+    /// qo'shilganda yoki ko'chirilganda esa u sana BUGUNGA tushib,
+    /// tajribasi jimgina nolga qaytardi. Endi manba — DAVOMAT
+    /// (<see cref="IStudiedLessonCounter"/>), qoidaning o'zi esa o'sha
+    /// portning izohida BITTA joyda tushuntirilgan.
     /// </summary>
     private Task<int> CountCompletedLessonsAsync(long studentId, CancellationToken ct) =>
-        db.LiveSessions.AsNoTracking()
-            .CountAsync(
-                s => s.Status == SessionStatus.Ended
-                    && db.GroupMembers.Any(m =>
-                        m.StudentId == studentId
-                        && m.GroupId == s.GroupId
-                        && s.ScheduledStart >= m.JoinedAt),
-                ct);
+        studiedLessons.CountAsync(studentId, ct);
 
     private void SetPausedUntil(GroupMember member, DateOnly? value) =>
         db.GroupMembers

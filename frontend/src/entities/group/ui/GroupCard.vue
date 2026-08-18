@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LiveIndicator } from '@/entities/session'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import type { GroupDto } from '@/shared/types'
 import { AppIcon, BaseBadge } from '@/shared/ui'
@@ -8,21 +9,42 @@ import { groupDisplayName, groupScheduleSummary, groupTypeLabel, groupTypeTone }
 /**
  * Guruh kartochkasi. Telefonda jadval o'rniga AYNAN shu ishlatiladi —
  * gorizontal skroll bilan "hal qilingan" jadval o'qilmaydi.
+ *
+ * ★ JONLI HOLAT (2026-08-18, loyiha egasi: *"dars boshlangan guruhlarda
+ * card rangi o'zgarsin"*): `live` bo'lsa chegara va fon `rose` ohangiga
+ * o'tadi va sarlavha yonida pulsatsiyalanuvchi nishon chiqadi.
+ *
+ * 🔴 RANG YOLG'IZ O'ZI MA'NO TASHIMAYDI: nishon MATN bilan birga keladi
+ * ("Jonli") — rangni ajrata olmaydigan foydalanuvchi ham holatni
+ * biladi (WCAG 1.4.1, `BaseBadge` dagi AYNI qoida).
  */
-const props = defineProps<{ group: GroupDto }>()
+const props = withDefaults(
+  defineProps<{
+    group: GroupDto
+    /** Guruhda HOZIR jonli dars ketyaptimi (`useLiveGroups`). */
+    live?: boolean
+  }>(),
+  { live: false },
+)
 
 const emit = defineEmits<{ open: [groupId: number] }>()
 </script>
 
 <template>
   <article
-    class="flex flex-col rounded-xl border border-line bg-ink-900 p-3.5 text-left transition-colors hover:border-line-strong sm:p-4"
+    class="flex flex-col rounded-xl border p-3.5 text-left transition-colors sm:p-4"
+    :class="
+      props.live
+        ? 'border-rose-500/45 bg-rose-500/[0.06] hover:border-rose-500/70'
+        : 'border-line bg-ink-900 hover:border-line-strong'
+    "
   >
     <div class="flex items-start justify-between gap-2">
       <h3
         class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100"
         v-text="groupDisplayName(props.group)"
       />
+      <LiveIndicator v-if="props.live" />
       <BaseBadge :tone="groupTypeTone(props.group.type)">
         {{ groupTypeLabel(props.group.type) }}
       </BaseBadge>

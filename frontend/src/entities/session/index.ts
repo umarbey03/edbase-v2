@@ -20,3 +20,6 @@ export {
   START_LEAD_MINUTES,
 } from './model/types'
 export type { LiveSession, SessionStartState, SessionTiming, StatusTone } from './model/types'
+export { default as LiveIndicator } from './ui/LiveIndicator.vue'
+export { useLiveGroups } from './model/useLiveGroups'
+export type { LiveGroups } from './model/useLiveGroups'

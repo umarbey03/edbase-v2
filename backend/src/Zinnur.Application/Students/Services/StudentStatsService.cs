@@ -8,7 +8,9 @@ using Zinnur.Domain.Enums;
 namespace Zinnur.Application.Students.Services;
 
 /// <inheritdoc cref="IStudentStatsService"/>
-public sealed class StudentStatsService(IApplicationDbContext db) : IStudentStatsService
+public sealed class StudentStatsService(
+    IApplicationDbContext db,
+    IStudiedLessonCounter studiedLessons) : IStudentStatsService
 {
     /// <inheritdoc />
     public async Task<StudentStatsDto> GetAsync(long actorId, CancellationToken ct = default)
@@ -48,30 +50,18 @@ public sealed class StudentStatsService(IApplicationDbContext db) : IStudentStat
                         : MemberStatus.Stopped);
 
         // Faol o'quvchilarni "probniy" va "aktiv" ga ajratish uchun har
-        // biri nechta YAKUNLANGAN darsni o'tagani kerak — `GroupService.
-        // CountCompletedLessonsAsync` bilan AYNI qoida, lekin bu yerda
-        // hamma o'quvchi uchun BITTA so'rovda.
+        // biri nechta darsni HAQIQATAN o'tagani kerak.
+        //
+        // ★ QOIDA `IStudiedLessonCounter` DA — `GroupService` (a'zolik
+        //   hodisasini yozayotganda) AYNI portdan foydalanadi. Ikki
+        //   nusxada yozilsa, bu karta bilan to'kilishlar hisoboti bir-biriga
+        //   mos kelmay qolardi.
         var activeIds = statusByStudent
             .Where(pair => pair.Value == MemberStatus.Active)
             .Select(pair => pair.Key)
             .ToList();
 
-        var lessonsByStudent = activeIds.Count == 0
-            ? new Dictionary<long, int>()
-            : await db.GroupMembers
-                .AsNoTracking()
-                .Where(m => activeIds.Contains(m.StudentId) && m.Group!.Type != GroupType.Curator)
-                .Select(m => new
-                {
-                    m.StudentId,
-                    Lessons = db.LiveSessions.Count(
-                        s => s.GroupId == m.GroupId
-                            && s.Status == SessionStatus.Ended
-                            && s.ScheduledStart >= m.JoinedAt),
-                })
-                .GroupBy(x => x.StudentId)
-                .Select(g => new { StudentId = g.Key, Total = g.Sum(x => x.Lessons) })
-                .ToDictionaryAsync(x => x.StudentId, x => x.Total, ct);
+        var lessonsByStudent = await studiedLessons.CountManyAsync(activeIds, ct);
 
         var active = 0;
         var trial = 0;

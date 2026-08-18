@@ -19,6 +19,7 @@ import GroupCard from '@/entities/group/ui/GroupCard.vue'
   va konflikt xavfi yo'q (yuqoridagi `entities/group` bilan farqi shu).
 */
 import { fetchGroupCategories, groupCategoryLabel } from '@/entities/group-category'
+import { useLiveGroups } from '@/entities/session'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { toUserMessage } from '@/shared/api'
 import { formatClock } from '@/shared/lib/datetime'
@@ -80,6 +81,13 @@ const auth = useAuthStore()
   qoladi: 7 ustun + amal tugmasi u yerda siqilib ketardi.
 */
 const { isDesktop } = useBreakpoint()
+
+/**
+ * Hozir jonli darsi bor guruhlar — kartochka/qator rangi shunga qarab
+ * o'zgaradi (2026-08-18). Kesh `['live-sessions']` bo'yicha bo'linadi,
+ * ya'ni qo'shimcha so'rov emas.
+ */
+const liveGroups = useLiveGroups()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
@@ -343,6 +351,7 @@ function openGroup(groupId: number): void {
           v-for="group in groups"
           :key="group.id"
           :group="group"
+          :live="liveGroups.isLive(group.id)"
           @open="openGroup"
         />
       </div>
@@ -388,9 +397,11 @@ function openGroup(groupId: number): void {
                 sabab: sahifalash bor, ya'ni 2-sahifada raqam 1 dan emas,
                 `(page-1) * PAGE_SIZE + 1` dan davom etishi kerak.
               -->
+              <!-- Jonli dars ketayotgan guruh qatori ajralib turadi. -->
               <tr
                 v-for="(group, index) in groups"
                 :key="group.id"
+                :class="liveGroups.isLive(group.id) ? 'bg-rose-500/[0.07]' : ''"
               >
                 <td
                   class="tabular-nums text-dim"

@@ -4,9 +4,13 @@ using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
+using Zinnur.Application.Notifications;
+using Zinnur.Application.Notifications.Dtos;
+using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Telegram;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -26,6 +30,7 @@ public sealed class LiveSessionService(
     IScheduleTimeZoneProvider timeZone,
     IScheduleService schedule,
     IAutoRecordingScheduler autoRecording,
+    INotificationOutbox outbox,
     TimeProvider clock) : ILiveSessionService
 {
     /// <summary>
@@ -317,6 +322,25 @@ public sealed class LiveSessionService(
         //   holati yuzaga kelardi.
         // ═══════════════════════════════════════════════════════════════
         await autoRecording.EnqueueAsync(session, ct);
+
+        // ═══════════════════════════════════════════════════════════════
+        // TELEGRAM XABARI O'QUVCHILARGA (2026-08-18)
+        //
+        // ★ NIMA UCHUN SHU YERDA: darsning `Live` ga o'tadigan YAGONA
+        //   nuqtasi shu (yuqoridagi izoh) — xabar ham AYNAN shu qarordan
+        //   tug'ilishi kerak.
+        //
+        // ★ NAVBATGA YOZILADI, YUBORILMAYDI: `INotificationOutbox`
+        //   shartnomasi — qatorlar quyidagi `SaveChanges` bilan darsning
+        //   `Live` holati bilan BITTA tranzaksiyada saqlanadi. Telegram'ga
+        //   `OutboxWorker` keyin boradi. Aks holda "xabar ketdi, lekin
+        //   dars boshlanmadi" holati yuzaga kelardi (eski tizimning xatosi,
+        //   `MessageOutbox` izohida batafsil).
+        //
+        // 🔴 XABAR YUBORISH DARSNI BOSHLASHNI TO'XTATA OLMAYDI: bu yerda
+        //    tashqi xizmatga UMUMAN borilmaydi — faqat qator qo'shiladi.
+        // ═══════════════════════════════════════════════════════════════
+        await EnqueueSessionStartedAsync(session, ct);
 
         await db.SaveChangesAsync(ct);
 
@@ -625,6 +649,63 @@ public sealed class LiveSessionService(
                     m.StudentId == user.Id &&
                     m.Status == MemberStatus.Active)),
         };
+
+    /// <summary>
+    /// "Darsingiz boshlandi" xabarini guruh o'quvchilariga NAVBATGA qo'yadi.
+    ///
+    /// ★ KURATOR GURUHI HISOBGA OLINADI: unda o'quvchilar to'g'ridan-to'g'ri
+    /// a'zo BO'LMAYDI — ular bog'langan ustoz guruhlaridan keladi
+    /// (<c>Group.CuratorGroupId</c>). Shu sababli ikki shoxli shart —
+    /// `GetStatsAsync` dagi a'zo sanog'i bilan AYNI naqsh.
+    ///
+    /// ★ FAQAT TELEGRAM'I ULANGANLAR: `RecipientAddress` — `chat_id`.
+    /// Ulanmagan o'quvchiga navbat qatori yozish ma'nosiz bo'lardi
+    /// (u hech qachon yetkazilmasdi va navbatda "Failed" bo'lib qolardi).
+    ///
+    /// ★ TAKRORGA QARSHI KALIT `session + student`: ustoz "Boshlash" ni
+    /// ikki marta bossa (brauzer qotib qolgani uchun), ikkinchi urinishda
+    /// `LiveSession.Start` idempotent ishlaydi va bu yerdagi kalit ham
+    /// ikkinchi xabarni TO'SADI — o'quvchi bitta xabar oladi.
+    /// </summary>
+    private async Task EnqueueSessionStartedAsync(LiveSession session, CancellationToken ct)
+    {
+        var recipients = await db.GroupMembers
+            .AsNoTracking()
+            .Where(m => m.Status == MemberStatus.Active
+                && (m.GroupId == session.GroupId
+                    || (m.Group!.CuratorGroupId == session.GroupId))
+                && m.Student!.IsActive
+                && m.Student.TelegramId != null)
+            .Select(m => new { m.StudentId, TelegramId = m.Student!.TelegramId!.Value })
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (recipients.Count == 0) return;
+
+        var groupName = session.Group?.Name
+            ?? await db.Groups.AsNoTracking()
+                .Where(g => g.Id == session.GroupId)
+                .Select(g => g.Name)
+                .FirstOrDefaultAsync(ct)
+            ?? string.Empty;
+
+        var body = TelegramTemplates.SessionStartedText(groupName, session.Title);
+
+        foreach (var recipient in recipients)
+        {
+            await outbox.EnqueueAsync(
+                new NotificationRequest
+                {
+                    Channel = NotificationChannel.Telegram,
+                    RecipientUserId = recipient.StudentId,
+                    RecipientAddress = recipient.TelegramId.ToString(CultureInfo.InvariantCulture),
+                    TemplateKey = TelegramTemplates.SessionStarted,
+                    Body = body,
+                    IdempotencyKey = $"session_started:{session.Id}:{recipient.StudentId}",
+                },
+                ct);
+        }
+    }
 
     private static LiveSessionDto Map(LiveSession s, bool isHost, string? hostName) => new(
         s.Id,

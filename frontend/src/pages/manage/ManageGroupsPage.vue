@@ -13,6 +13,7 @@ import {
   groupWeekdaysLabel,
 } from '@/entities/group'
 import { fetchGroupCategories, groupCategoryLabel } from '@/entities/group-category'
+import { LiveIndicator, useLiveGroups } from '@/entities/session'
 import { GroupEditDrawer } from '@/features/group-form'
 import { toUserMessage } from '@/shared/api'
 import { formatClock, formatDateNumeric } from '@/shared/lib/datetime'
@@ -41,6 +42,12 @@ const queryClient = useQueryClient()
   "md va lg haqidagi asosiy qaror" izohiga qarang.
 */
 const { isDesktop } = useBreakpoint()
+
+/**
+ * Hozir jonli darsi bor guruhlar (2026-08-18) — qator rangi va nishon
+ * shunga qarab. Kesh `['live-sessions']` bo'yicha bo'linadi.
+ */
+const liveGroups = useLiveGroups()
 
 const search = ref('')
 const debouncedSearch = useDebounced(search)
@@ -282,16 +289,19 @@ function openDetail(groupId: number): void {
           v-if="!isDesktop"
           class="divide-y divide-line"
         >
+          <!-- Jonli dars ketayotgan guruh ajralib turadi (2026-08-18). -->
           <li
             v-for="group in groups"
             :key="group.id"
             class="p-3.5"
+            :class="liveGroups.isLive(group.id) ? 'bg-rose-500/[0.07]' : ''"
           >
             <div class="flex items-start justify-between gap-2">
               <p
                 class="min-w-0 flex-1 truncate text-sm font-medium text-slate-100"
                 v-text="groupDisplayName(group)"
               />
+              <LiveIndicator v-if="liveGroups.isLive(group.id)" />
               <BaseBadge :tone="groupTypeTone(group.type)">
                 {{ groupTypeLabel(group.type) }}
               </BaseBadge>
@@ -380,15 +390,21 @@ function openDetail(groupId: number): void {
               <tr
                 v-for="(group, index) in groups"
                 :key="group.id"
+                :class="liveGroups.isLive(group.id) ? 'bg-rose-500/[0.07]' : ''"
               >
                 <td
                   class="tabular-nums text-dim"
                   v-text="(page - 1) * PAGE_SIZE + index + 1"
                 />
-                <td
-                  class="font-medium text-slate-100"
-                  v-text="groupDisplayName(group)"
-                />
+                <td class="font-medium text-slate-100">
+                  <span class="inline-flex items-center gap-2">
+                    {{ groupDisplayName(group) }}
+                    <LiveIndicator
+                      v-if="liveGroups.isLive(group.id)"
+                      dot-only
+                    />
+                  </span>
+                </td>
                 <td>
                   <BaseBadge :tone="groupTypeTone(group.type)">
                     {{ groupTypeLabel(group.type) }}

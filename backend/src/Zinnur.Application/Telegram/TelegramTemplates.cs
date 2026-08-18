@@ -153,6 +153,17 @@ public static class TelegramTemplates
     /// <summary>O'quv bo'limiga: o'rinbosar topildi.</summary>
     public const string SubstituteFound = "substitute_found";
 
+    /// <summary>
+    /// O'quvchiga: guruhingizda dars BOSHLANDI (2026-08-18).
+    ///
+    /// ★ TUGMASI BOR (<see cref="TelegramMarkup.OpenApp"/>): bu xabarning
+    /// butun maqsadi — o'quvchini DARHOL darsga kiritish. `SubmissionGraded`
+    /// da tugma ATAYLAB yo'q edi (u vazifa sahifasiga emas, bosh sahifaga
+    /// olib borardi), bu yerda esa bosh sahifaning O'ZI to'g'ri joy: jonli
+    /// dars kartochkasi eng tepada turadi.
+    /// </summary>
+    public const string SessionStarted = "session_started";
+
     /* ===== /2026-08-17 ===== */
 
     // ---------------------------------------------------------------- tugmalar
@@ -182,6 +193,9 @@ public static class TelegramTemplates
 
         AvailabilityAsk or AvailabilitySessions or AvailabilityDays or SubstituteOfferAsk =>
             TelegramMarkup.InlineButtons,
+
+        // Dars boshlandi — «🚀 Ilovani ochish» (sabab kalit izohida).
+        SessionStarted => TelegramMarkup.OpenApp,
 
         _ => TelegramMarkup.None,
     };
@@ -508,6 +522,32 @@ public static class TelegramTemplates
         + $"<b>{NotificationText.Parameter(groupName, 100)}</b> darsini o'tib beradi.";
 
     /* ===== /2026-08-17 ===== */
+
+    /* ===== 2026-08-18 · JONLI DARS BOSHLANDI ===== */
+
+    /// <summary>
+    /// «Darsingiz boshlandi» xabari.
+    ///
+    /// ★ SARLAVHA IXTIYORIY: ko'p darslarda u bo'sh va o'shanda guruh
+    /// nomining O'ZI yetarli. Bo'sh sarlavha uchun alohida qator
+    /// chizilsa, xabar "yarim to'ldirilgan" ko'rinardi.
+    /// </summary>
+    /// <param name="groupName">Guruh nomi.</param>
+    /// <param name="title">Dars sarlavhasi (bo'lmasligi mumkin).</param>
+    public static string SessionStartedText(string groupName, string? title)
+    {
+        var group = NotificationText.Parameter(groupName, 100);
+        var lesson = NotificationText.Parameter(title, 150);
+
+        var text = "🔴 <b>Dars boshlandi</b>\n\n"
+            + $"👥 {group}";
+
+        if (lesson.Length > 0) text += $"\n📚 {lesson}";
+
+        return text + "\n\nDarsga qo'shilish uchun quyidagi tugmani bosing.";
+    }
+
+    /* ===== /2026-08-18 ===== */
 }
 
 /// <summary>
