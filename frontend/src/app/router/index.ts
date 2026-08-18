@@ -274,6 +274,22 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          DARSGA KIRMAGANLAR (2026-08-18) — o'quv bo'limi so'rovi: *"bir
+          kun avval darsga kirmagan o'quvchilarni bittada ko'ra olishimiz
+          uchun"*. Mavjud davomat ekrani BITTA DARS kesimida ishlaydi;
+          bu esa bir kunning barcha guruhlarini bitta ro'yxatga yig'adi.
+
+          ★ `STAFF_AND_MANAGERS`: qo'ng'iroqlarni amalda guruh kuratori
+          qiladi, ya'ni ro'yxat unga ham ochiq bo'lishi kerak (server
+          ham o'quvchidan boshqa hammaga ruxsat beradi).
+        */
+        path: 'boshqaruv/kelmaganlar',
+        name: 'manage-absentees',
+        component: () => import('@/pages/manage/ManageAbsenteesPage.vue'),
+        meta: { title: 'Darsga kirmaganlar', roles: STAFF_AND_MANAGERS },
+      },
+      {
+        /*
           TO'KILISHLAR (2026-08-17) — o'quvchi qachon, qaysi guruhdan, qaysi
           ustozdan va nima sababdan ketgani/muzlatilgani/ko'chirilgani.
           Manba: o'chmaydigan `GroupMembershipEvent` jurnali.

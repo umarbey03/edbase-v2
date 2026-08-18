@@ -119,6 +119,14 @@ const MANAGE_NAV: NavItem[] = [
   */
   { routeName: 'manage-teacher-availability', label: 'Ustozlar holati', icon: 'user-check' },
   /*
+    "Darsga kirmaganlar" — v2 qo'shimchasi (2026-08-18, o'quv bo'limi
+    so'rovi). "Ustozlar holati" dan KEYIN, "To'kilishlar" dan OLDIN:
+    uchalasi ham nazorat oqimi, lekin tartib ertalabki ish ketma-ketligi
+    bo'yicha — avval "ustozlar keladimi?", keyin "o'quvchilar keldimi?",
+    keyin haftalik/oylik to'kilish tahlili.
+  */
+  { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
+  /*
     "To'kilishlar" — v2 qo'shimchasi (2026-08-17): o'quvchilarning guruhdan
     ketishi/muzlatilishi/ko'chirilishi hisoboti. "Ustozlar holati" dan
     KEYIN: ikkalasi ham kundalik nazorat, lekin to'kilish haftalik/oylik

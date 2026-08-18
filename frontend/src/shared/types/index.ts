@@ -1,4 +1,8 @@
 export type {
+  AbsenteeGroupDto,
+  AbsenteeParams,
+  AbsenteeReportDto,
+  AbsenteeStudentDto,
   AddMemberRequest,
   AnalysisCriterionDto,
   AnswerFormatsValue,

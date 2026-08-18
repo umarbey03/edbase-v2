@@ -3716,3 +3716,61 @@ export interface FreeTeacherResultDto {
   busyCount: number
   teachers: FreeTeacherDto[]
 }
+
+/* ============================================================================
+   DARSGA KIRMAGANLAR — KUNLIK XARITA (2026-08-18)
+
+   Loyiha egasi: *"bir kun avval darsga kirmagan o'quvchilarni bittada
+   ko'ra olishimiz uchun"*. Mavjud davomat ekrani BITTA DARS kesimida
+   ishlaydi — kurator esa ertalab "kecha kim kelmadi?" deb so'raydi.
+   ============================================================================ */
+
+export interface AbsenteeParams {
+  /** Mahalliy sana `YYYY-MM-DD`. Bo'sh — KECHA. */
+  date?: string
+  groupId?: number
+  teacherId?: number
+  /** Darsdan erta chiqib ketganlar ham kirsinmi. */
+  includePartial?: boolean
+  /** Faqat shu sondan ko'p KETMA-KET dars qoldirganlar. */
+  minStreak?: number
+  search?: string
+}
+
+export interface AbsenteeStudentDto {
+  studentId: number
+  studentName: string
+  /** Qo'ng'iroq qilish uchun. */
+  phone: string | null
+  telegramLinked: boolean
+  sessionId: number
+  sessionStart: string
+  /** `Absent` yoki `Partial`. */
+  status: string
+  /**
+   * Shu guruhda KETMA-KET nechta darsni qoldirgan. Bitta dars odatiy
+   * hol, ketma-ket uchtasi — "bu o'quvchi ketyapti" degan signal.
+   */
+  consecutiveMisses: number
+  missedInLast30Days: number
+}
+
+export interface AbsenteeGroupDto {
+  groupId: number
+  groupName: string
+  teacherName: string | null
+  assistantName: string | null
+  absentCount: number
+  activeMembers: number
+  students: AbsenteeStudentDto[]
+}
+
+export interface AbsenteeReportDto {
+  date: string
+  sessionCount: number
+  /** Noyob o'quvchilar — bir kunda ikki darsi bo'lgani ikki marta sanalmaydi. */
+  totalAbsent: number
+  /** Ketma-ket 3 va undan ko'p dars qoldirganlar. */
+  riskCount: number
+  groups: AbsenteeGroupDto[]
+}

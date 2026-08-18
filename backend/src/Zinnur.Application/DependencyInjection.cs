@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Absentees.Services;
 using Zinnur.Application.AnalysisCriteria.Services;
 using Zinnur.Application.Assignments.Services;
 using Zinnur.Application.Attrition.Services;
@@ -85,6 +86,10 @@ public static class DependencyInjection
         // audit izi AYNI `DbContext` kuzatuvchisida to'planib, BITTA
         // `SaveChanges` — ya'ni bitta tranzaksiya — bilan yoziladi.
         services.AddScoped<IAttendanceService, AttendanceService>();
+
+        // Kunlik "kirmaganlar" xaritasi (2026-08-18) — FAQAT O'QIYDI,
+        // davomatni yuqoridagi servis yozadi.
+        services.AddScoped<IAbsenteeService, AbsenteeService>();
 
         // R24 — DARS BAHOSI. Davomat servisidan ALOHIDA, lekin AYNI ruxsat
         // qoidasi bilan (sabab `ILessonGradeService` izohida). SCOPED:
