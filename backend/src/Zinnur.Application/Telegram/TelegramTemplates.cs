@@ -164,6 +164,15 @@ public static class TelegramTemplates
     /// </summary>
     public const string SessionStarted = "session_started";
 
+    /// <summary>
+    /// Darsga kelmagan o'quvchiga yuborilgan xabar (2026-08-18).
+    ///
+    /// ★ MATN SHU YERDA EMAS: uni o'quv bo'limi xodimi o'zi yozadi
+    /// (shablondan olib, o'rin egallovchilar bilan). Bu kalit faqat
+    /// navbatda guruhlash va tugma tanlash uchun.
+    /// </summary>
+    public const string AbsenceNotice = "absence_notice";
+
     /* ===== /2026-08-17 ===== */
 
     // ---------------------------------------------------------------- tugmalar
@@ -196,6 +205,11 @@ public static class TelegramTemplates
 
         // Dars boshlandi — «🚀 Ilovani ochish» (sabab kalit izohida).
         SessionStarted => TelegramMarkup.OpenApp,
+
+        // Kelmaganlik xabari — «Ilovani ochish» tugmasi bilan: o'quvchi
+        // dars yozuvini ko'rishi yoki jadvalni tekshirishi mumkin, ya'ni
+        // tugma haqiqiy keyingi qadamga olib boradi.
+        AbsenceNotice => TelegramMarkup.OpenApp,
 
         _ => TelegramMarkup.None,
     };

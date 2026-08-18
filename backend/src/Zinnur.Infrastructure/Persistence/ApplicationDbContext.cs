@@ -235,6 +235,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<AttritionReason> AttritionReasons => Set<AttritionReason>();
 
+    public DbSet<AbsenceNotice> AbsenceNotices => Set<AbsenceNotice>();
+
     public DbSet<Penalty> Penalties => Set<Penalty>();
 
     public DbSet<PenaltyCategory> PenaltyCategories => Set<PenaltyCategory>();

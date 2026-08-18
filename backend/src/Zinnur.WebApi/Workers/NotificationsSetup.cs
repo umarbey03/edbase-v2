@@ -29,6 +29,11 @@ internal static class NotificationsSetup
         // commit-then-send kafolati buzilardi.
         services.AddScoped<INotificationOutbox, OutboxWriter>();
         services.AddScoped<IOutboxStore, OutboxStore>();
+
+        // Navbat holatini KALIT bo'yicha o'qish (2026-08-18) — tor port,
+        // sabab `IOutboxStatusReader` izohida. Kelmaganlarga yuborilgan
+        // xabar haqiqatan yetkazildimi degan savolga javob beradi.
+        services.AddScoped<IOutboxStatusReader, OutboxStatusReader>();
         services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
 
         // Chegara SINGLETON va holati REDIS'da: ikki instance bitta

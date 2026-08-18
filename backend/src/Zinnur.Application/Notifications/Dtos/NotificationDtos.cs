@@ -146,3 +146,19 @@ public readonly record struct OutboxDispatchResult(int Delivered, int Rejected, 
     /// <summary>Umuman ish bo'ldimi — worker kutish oralig'ini shunga qarab tanlaydi.</summary>
     public bool IsEmpty => Delivered == 0 && Rejected == 0 && Postponed == 0;
 }
+
+/// <summary>
+/// Navbatdagi bitta xabarning yetkazilish holati (2026-08-18).
+///
+/// ★ `Status` — TELEGRAM QABUL QILDIMI degani, "o'quvchi o'qidi" EMAS.
+/// O'qilganlik belgisi Telegram Bot API'da umuman yo'q, shuning uchun
+/// UI ham bunday va'da bermaydi.
+/// </summary>
+/// <param name="Status">`Pending`, `Sent` yoki `Failed` nomi (matn).</param>
+/// <param name="AttemptCount">Nechta urinish bo'lgan (faqat xatolarda ortadi).</param>
+/// <param name="LastError">Oxirgi xato sababi — kuratorga ko'rsatiladi.</param>
+public sealed record OutboxStatusDto(
+    string Status,
+    DateTimeOffset? SentAt,
+    int AttemptCount,
+    string? LastError);

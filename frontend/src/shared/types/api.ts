@@ -3835,3 +3835,74 @@ export interface GlobalSearchResultDto {
   topHit: SearchHitDto | null
   groups: SearchGroupDto[]
 }
+
+/* ============================================================================
+   KELMAGANLARGA XABAR (2026-08-18)
+
+   Loyiha egasi: *"xabarlar qismida darsga kirmagan o'quvchilar uchun
+   yuborilgan xabarlar turishi kerak va u alohida tab bo'lishi kerak"*.
+
+   ★ GURUH EMAS, O'QUVCHI: mavjud `GroupBroadcastDto` bitta qatorda butun
+   guruhni ifodalaydi va "Doniyorga xabar bordimi?" degan savolga javob
+   bera olmaydi. Bu yerda HAR OLUVCHIGA alohida qator.
+   ============================================================================ */
+
+/** Yetkazilish holati. `Sent` — Telegram qabul qildi, "o'quvchi o'qidi" EMAS. */
+export type AbsenceDeliveryName = 'Pending' | 'Sent' | 'Failed' | 'NoTelegram'
+
+export interface AbsenceNoticeTarget {
+  studentId: number
+  sessionId: number
+}
+
+export interface SendAbsenceNoticeRequest {
+  targets: AbsenceNoticeTarget[]
+  /** O'rin egallovchilar: `{ism}` `{guruh}` `{sana}` `{vaqt}` `{ustoz}`. */
+  body: string
+  templateId?: number
+}
+
+export interface SendAbsenceNoticeResultDto {
+  sent: number
+  queued: number
+  /** Telegrami ulanmaganlar — ularga qo'ng'iroq qilish kerak. */
+  withoutTelegram: number
+  skipped: number
+}
+
+export interface AbsenceNoticeListParams {
+  from?: string
+  to?: string
+  groupId?: number
+  studentId?: number
+  delivery?: AbsenceDeliveryName
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface AbsenceNoticeRowDto {
+  id: number
+  studentId: number
+  studentName: string
+  studentPhone: string | null
+  groupId: number
+  groupName: string
+  sessionId: number
+  sessionStart: string
+  body: string
+  sentByName: string
+  sentAt: string
+  toTelegram: boolean
+  deliveryStatus: string
+  deliveredAt: string | null
+  deliveryError: string | null
+}
+
+export interface AbsenceNoticeSummaryDto {
+  total: number
+  delivered: number
+  pending: number
+  failed: number
+  withoutTelegram: number
+}

@@ -95,6 +95,9 @@ public static class DependencyInjection
         // davomatni yuqoridagi servis yozadi.
         services.AddScoped<IAbsenteeService, AbsenteeService>();
 
+        // Kelmaganlarga xabar (2026-08-18) — HAR OLUVCHIGA alohida yozuv.
+        services.AddScoped<IAbsenceNoticeService, AbsenceNoticeService>();
+
         // R24 — DARS BAHOSI. Davomat servisidan ALOHIDA, lekin AYNI ruxsat
         // qoidasi bilan (sabab `ILessonGradeService` izohida). SCOPED:
         // baho va uning audit izi AYNI `DbContext` kuzatuvchisida to'planib,
