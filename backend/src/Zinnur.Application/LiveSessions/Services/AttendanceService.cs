@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.LiveSessions.Dtos;
@@ -308,8 +309,12 @@ public sealed class AttendanceService(
         //   o'quvchilar turadi. Boshqacha bo'lsa ustoz ro'yxatda ko'rgan
         //   o'quvchiga baho qo'yardi, o'quvchi esa darsga umuman kira
         //   olmasdi.
+        // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi):
+        //   qoida `GroupMembershipScope` da. Ilgari faqat to'g'ridan-to'g'ri
+        //   a'zolik tekshirilardi va kurator darsining varag'i BO'SH
+        //   chiqardi — kurator hech kimning davomatini belgilay olmasdi.
         var members = await db.GroupMembers.AsNoTracking()
-            .Where(m => m.GroupId == session.GroupId && m.Status == MemberStatus.Active)
+            .Where(GroupMembershipScope.ActiveIn(session.GroupId))
             .Select(m => new MemberRow(m.StudentId, m.Student!.FullName))
             .ToListAsync(ct);
 

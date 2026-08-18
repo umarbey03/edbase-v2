@@ -38,9 +38,22 @@ export interface NavItem {
  */
 export interface NavSection {
   key: string
-  /** Bo'sh bo'lsa — sarlavhasiz, ochib-yopilmaydigan yassi ro'yxat. */
+  /** Bo'sh bo'lsa — sarlavhasiz, yassi ro'yxat. */
   label: string
   icon: IconName | null
+  /**
+   * Ochib-yopiladimi (loyiha egasi, 2026-08-18: *"o'quv bo'limi
+   * tablarini drop down qilish shart emas"*).
+   *
+   * ★ NEGA HAMMASI EMAS: o'quv bo'limi bandlari — KUNDALIK ish. Ular
+   * yopiq tursa, eng ko'p ishlatiladigan bandga har safar bitta
+   * ortiqcha bosish qo'shilardi. Moliya va tizim sozlamalari esa
+   * kamdan-kam ochiladi — ular yopiq turgani ma'qul.
+   *
+   * Sarlavha baribir ko'rinadi: bo'limlar KO'Z bilan ajralib turishi
+   * kerak, faqat yig'ilishi shart emas.
+   */
+  collapsible: boolean
   items: NavItem[]
 }
 
@@ -266,13 +279,18 @@ function academicSection(source: NavItem[]): NavSection {
     key: 'academic',
     label: 'O‘quv bo‘limi',
     icon: 'graduation',
+
+    // ★ OCHIB-YOPILMAYDI (loyiha egasi, 2026-08-18): bu — kundalik ish
+    //   bandlari, ular doim ko'rinib tursin. Sarlavha esa qoladi —
+    //   bo'limlar ko'z bilan ajralib turishi kerak.
+    collapsible: false,
     items: pick(source, ACADEMIC_SECTION_ROUTES),
   }
 }
 
 /** Sarlavhasiz yassi bo'lim — kam bandli rollar uchun. */
 function flat(items: NavItem[]): NavSection[] {
-  return [{ key: 'main', label: '', icon: null, items }]
+  return [{ key: 'main', label: '', icon: null, collapsible: false, items }]
 }
 
 const SECTIONS_BY_ROLE: Record<UserRoleName, NavSection[]> = {
@@ -281,12 +299,12 @@ const SECTIONS_BY_ROLE: Record<UserRoleName, NavSection[]> = {
   Assistant: flat(ASSISTANT_NAV),
 
   Academic: [
-    { key: 'home', label: '', icon: null, items: [DASHBOARD_ITEM] },
+    { key: 'home', label: '', icon: null, collapsible: false, items: [DASHBOARD_ITEM] },
     academicSection(MANAGE_NAV),
   ],
 
   Admin: [
-    { key: 'home', label: '', icon: null, items: [DASHBOARD_ITEM] },
+    { key: 'home', label: '', icon: null, collapsible: false, items: [DASHBOARD_ITEM] },
     academicSection(ADMIN_NAV),
     {
       /*
@@ -298,12 +316,16 @@ const SECTIONS_BY_ROLE: Record<UserRoleName, NavSection[]> = {
       key: 'finance',
       label: 'Moliya',
       icon: 'wallet',
+
+      // Kamdan-kam ochiladi — yopiq turgani ma'qul.
+      collapsible: true,
       items: pick(ADMIN_NAV, ['manage-payments', 'manage-finance', 'manage-payroll']),
     },
     {
       key: 'admin',
       label: 'Administrator',
       icon: 'sliders',
+      collapsible: true,
       items: pick(ADMIN_NAV, ['manage-settings']),
     },
   ],

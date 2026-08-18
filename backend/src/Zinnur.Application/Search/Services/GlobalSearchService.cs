@@ -174,7 +174,14 @@ public sealed class GlobalSearchService(IApplicationDbContext db) : IGlobalSearc
                 TeacherName = g.TeacherId == null
                     ? null
                     : db.Users.Where(u => u.Id == g.TeacherId).Select(u => u.FullName).FirstOrDefault(),
-                Members = db.GroupMembers.Count(m => m.GroupId == g.Id && m.Status == MemberStatus.Active),
+                // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18) — ikki
+                //   shox `GroupMembershipScope` dagi AYNI qoida (bu yerda
+                //   `g.Id` USTUN bo'lgani uchun qo'lda yozilgan). Ilgari
+                //   guruhlar ro'yxati "22 o'quvchi" der, qidiruv esa AYNI
+                //   guruh uchun "0 o'quvchi" derdi.
+                Members = db.GroupMembers.Count(m =>
+                    (m.GroupId == g.Id || m.Group!.CuratorGroupId == g.Id)
+                    && m.Status == MemberStatus.Active),
             })
             .ToListAsync(ct);
 

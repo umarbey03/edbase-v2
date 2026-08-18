@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.LiveSessions.Dtos;
@@ -199,7 +200,9 @@ public sealed class LessonGradeService(
         //   ikki varaqda ikki xil o'quvchilar ro'yxati bo'lsa, ustoz bir
         //   tabda ko'rgan o'quvchini ikkinchisida topa olmasdi.
         var members = await db.GroupMembers.AsNoTracking()
-            .Where(m => m.GroupId == session.GroupId && m.Status == MemberStatus.Active)
+            // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18) — qoida
+            //   `GroupMembershipScope` da, `AttendanceService` bilan AYNI.
+            .Where(GroupMembershipScope.ActiveIn(session.GroupId))
             .Select(m => new MemberRow(m.StudentId, m.Student!.FullName))
             .ToListAsync(ct);
 

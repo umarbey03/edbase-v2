@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Scope;
@@ -334,7 +335,10 @@ public sealed class LeaderboardService(
 
         // ---------------------------------------------------------- 1) a'zolar
         var members = await db.GroupMembers.AsNoTracking()
-            .Where(m => m.GroupId == groupId && m.Status == MemberStatus.Active)
+            // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18) — qoida
+            //   `GroupMembershipScope` da. Ilgari kurator guruhining
+            //   reytingi bo'sh chiqardi.
+            .Where(GroupMembershipScope.ActiveIn(groupId))
             .Select(m => new MemberRow(m.StudentId, m.Student!.FullName))
             .ToListAsync(ct);
 

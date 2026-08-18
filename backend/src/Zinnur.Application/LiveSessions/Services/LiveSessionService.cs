@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Zinnur.Application.Common;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
@@ -621,10 +622,16 @@ public sealed class LiveSessionService(
 
         if (IsHost(session, user)) return (session, user);
 
-        var isMember = await db.GroupMembers.AsNoTracking().AnyAsync(m =>
-            m.GroupId == session.GroupId &&
-            m.StudentId == userId &&
-            m.Status == MemberStatus.Active, ct);
+        // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi):
+        //   ilgari bu yerda faqat `m.GroupId == session.GroupId` edi,
+        //   `EnqueueSessionStartedAsync` esa kengaytirilgan qoidadan
+        //   foydalanardi. Natijada bog'langan ustoz guruhi o'quvchisi
+        //   "Darsingiz boshlandi" xabarini olar, lekin kirmoqchi
+        //   bo'lganda "ruxsatingiz yo'q" degan 403 olardi.
+        //   Qoida endi bitta joyda — `GroupMembershipScope`.
+        var isMember = await db.GroupMembers.AsNoTracking()
+            .Where(GroupMembershipScope.ActiveIn(session.GroupId))
+            .AnyAsync(m => m.StudentId == userId, ct);
 
         if (!isMember)
             throw new ForbiddenException("Bu darsga ruxsatingiz yo'q.");
@@ -668,8 +675,12 @@ public sealed class LiveSessionService(
             UserRole.Teacher or UserRole.Assistant =>
                 query.Where(s => s.Group!.TeacherId == user.Id || s.Group!.AssistantId == user.Id),
 
+            // ★ Ikki shox — `GroupMembershipScope` dagi AYNI qoida
+            //   (bu yerda `s.GroupId` USTUN bo'lgani uchun ifoda
+            //   qo'lda yozilgan, sabab o'sha sinf izohida). Bunsiz
+            //   o'quvchi kurator darsini jadvalida umuman ko'rmasdi.
             _ => query.Where(s => db.GroupMembers.Any(m =>
-                    m.GroupId == s.GroupId &&
+                    (m.GroupId == s.GroupId || m.Group!.CuratorGroupId == s.GroupId) &&
                     m.StudentId == user.Id &&
                     m.Status == MemberStatus.Active)),
         };

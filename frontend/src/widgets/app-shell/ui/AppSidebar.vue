@@ -212,12 +212,23 @@ const panelLabel = computed(() =>
           bandlar YASSI chiziladi — bo'lim ochiq-yopiqligi ma'nosini
           yo'qotadi.
         -->
-        <button
+        <!--
+          ★ OCHILADIGANI — TUGMA, OCHILMAYDIGANI — ODDIY SARLAVHA
+          (loyiha egasi, 2026-08-18: *"o'quv bo'limi tablarini drop down
+          qilish shart emas"*). Bosilmaydigan sarlavhani tugma qilib
+          qo'yish klaviatura bilan yuruvchi foydalanuvchini hech narsa
+          qilmaydigan elementga majburlardi.
+        -->
+        <component
+          :is="section.collapsible ? 'button' : 'p'"
           v-if="section.label.length > 0 && !props.collapsed"
-          type="button"
-          class="mb-0.5 mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 transition-colors hover:bg-ink-800 hover:text-slate-300"
-          :aria-expanded="isOpen(section.key)"
-          @click="toggle(section.key)"
+          :type="section.collapsible ? 'button' : undefined"
+          class="mb-0.5 mt-3 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500"
+          :class="section.collapsible
+            ? 'transition-colors hover:bg-ink-800 hover:text-slate-300'
+            : 'cursor-default'"
+          :aria-expanded="section.collapsible ? isOpen(section.key) : undefined"
+          @click="section.collapsible ? toggle(section.key) : undefined"
         >
           <AppIcon
             v-if="section.icon !== null"
@@ -229,16 +240,17 @@ const panelLabel = computed(() =>
             v-text="section.label"
           />
           <AppIcon
+            v-if="section.collapsible"
             name="chevron-down"
             :size="14"
             class="ml-auto shrink-0 transition-transform"
             :class="isOpen(section.key) ? 'rotate-180' : ''"
           />
-        </button>
+        </component>
 
         <RouterLink
           v-for="item in section.items"
-          v-show="section.label.length === 0 || props.collapsed || isOpen(section.key)"
+          v-show="!section.collapsible || props.collapsed || isOpen(section.key)"
           :key="item.routeName"
           :to="{ name: item.routeName }"
           class="mb-0.5 flex min-h-11 items-center gap-2.5 rounded-xl py-2.5 text-sm text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"

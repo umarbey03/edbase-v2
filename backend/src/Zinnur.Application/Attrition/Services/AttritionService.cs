@@ -472,8 +472,11 @@ public sealed class AttritionService(
                 AssistantName = g.AssistantId == null
                     ? null
                     : db.Users.Where(u => u.Id == g.AssistantId).Select(u => u.FullName).FirstOrDefault(),
-                ActiveMembers = db.GroupMembers.Count(
-                    m => m.GroupId == g.Id && m.Status == MemberStatus.Active),
+                // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18) — ikki shox
+                //   `GroupMembershipScope` dagi AYNI qoida.
+                ActiveMembers = db.GroupMembers.Count(m =>
+                    (m.GroupId == g.Id || m.Group!.CuratorGroupId == g.Id)
+                    && m.Status == MemberStatus.Active),
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException(nameof(Group), groupId);
