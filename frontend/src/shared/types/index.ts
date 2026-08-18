@@ -167,6 +167,7 @@ export type {
   SubmissionDto,
   SubmissionFeedbackFileDto,
   SubmissionFileDto,
+  StudentStatsDto,
   SubmissionOverviewDto,
   SubstituteOfferRowDto,
   TeacherAvailabilityDetailDto,

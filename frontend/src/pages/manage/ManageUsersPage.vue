@@ -6,6 +6,7 @@ import { fetchGroups, GROUP_SEARCH_MIN, groupDisplayName } from '@/entities/grou
 import {
   activateUser,
   deactivateUser,
+  fetchStudentStats,
   fetchUsers,
   ROLE_OPTIONS,
   roleLabel,
@@ -172,6 +173,20 @@ watch(pageSize, () => {
 watch(page, () => {
   selectedIds.value = new Set()
 })
+
+/**
+ * O'quvchilar manzarasi (kartalar).
+ *
+ * ⚠️ `queryKey` da FILTR YO'Q va bu ATAYLAB: kartalar jadval filtriga
+ * bog'liq emas (sabab `StudentStatsDto` izohida), shuning uchun filtr
+ * o'zgarganda qayta so'ralmaydi ham.
+ */
+const statsQuery = useQuery({
+  queryKey: ['users', 'student-stats'],
+  queryFn: ({ signal }) => fetchStudentStats({ signal }),
+})
+
+const stats = computed(() => statsQuery.data.value ?? null)
 
 const usersQuery = useQuery({
   queryKey: [
@@ -493,6 +508,106 @@ async function bulkSetActive(active: boolean): Promise<void> {
         </BaseButton>
       </template>
     </PageHeader>
+
+    <!--
+      ═════════════════════ O'QUVCHILAR MANZARASI ═════════════════════
+      ⚠️ PASTDAGI FILTRLARGA BOG'LIQ EMAS — har doim MARKAZ bo'yicha
+      (sabab: `StudentStatsDto` izohi). Shuning uchun sarlavhada ham
+      "Markaz bo'yicha" deb aytiladi, aks holda xodim raqamlarni
+      jadvaldagi filtr natijasi deb o'ylardi.
+    -->
+    <div
+      v-if="stats !== null"
+      class="mb-4"
+    >
+      <p class="mb-2 text-[11px] font-semibold uppercase tracking-[0.5px] text-slate-400">
+        Markaz bo‘yicha o‘quvchilar
+      </p>
+
+      <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+        <div
+          class="rounded-xl border border-line border-l-[3px] border-l-green-500 bg-ink-900 p-3.5"
+          title="Hozir o‘qiyotgan va 8 darsdan ko‘p o‘tagan o‘quvchilar"
+        >
+          <p
+            class="text-lg font-bold tabular-nums text-green-400"
+            v-text="stats.active"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Aktiv
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-line border-l-[3px] border-l-amber-500 bg-ink-900 p-3.5"
+          title="Hozir o‘qiyapti, lekin hali 8 darsni tugatmagan (sinov davri)"
+        >
+          <p
+            class="text-lg font-bold tabular-nums text-amber-400"
+            v-text="stats.trial"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Probniy
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-line bg-ink-900 p-3.5"
+          title="Vaqtincha muzlatilgan o‘quvchilar"
+        >
+          <p
+            class="text-lg font-bold tabular-nums"
+            :class="stats.paused > 0 ? 'text-amber-400' : 'text-slate-100'"
+            v-text="stats.paused"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Pauza
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-line bg-ink-900 p-3.5"
+          title="Guruhdan chiqarilgan va hozir hech qayerda faol bo‘lmagan o‘quvchilar"
+        >
+          <p
+            class="text-lg font-bold tabular-nums"
+            :class="stats.stopped > 0 ? 'text-rose-400' : 'text-slate-100'"
+            v-text="stats.stopped"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            To‘xtatgan
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-line border-l-[3px] border-l-rose-500 bg-ink-900 p-3.5"
+          title="8 darsdan ko‘p o‘tab, keyin ketgan o‘quvchilar — eng qimmat yo‘qotish. Hodisa jurnali 2026-08-17 dan yuritiladi, undan oldingi chiqishlar bunga kirmaydi."
+        >
+          <p
+            class="text-lg font-bold tabular-nums"
+            :class="stats.activeLosses > 0 ? 'text-rose-400' : 'text-slate-100'"
+            v-text="stats.activeLosses"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Aktiv to‘kilish
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-line bg-ink-900 p-3.5"
+          title="Hech qanday guruhga biriktirilmagan o‘quvchilar"
+        >
+          <p
+            class="text-lg font-bold tabular-nums"
+            :class="stats.withoutGroup > 0 ? 'text-slate-100' : 'text-dim'"
+            v-text="stats.withoutGroup"
+          />
+          <p class="mt-0.5 text-[11px] text-slate-400">
+            Guruhsiz
+          </p>
+        </div>
+      </div>
+    </div>
 
     <!-- Filtrlar: telefonda ustun, sm dan boshlab yonma-yon -->
     <div class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">

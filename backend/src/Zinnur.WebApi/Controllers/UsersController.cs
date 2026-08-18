@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.StudentNotes.Dtos;
 using Zinnur.Application.StudentNotes.Services;
+using Zinnur.Application.Students.Dtos;
+using Zinnur.Application.Students.Services;
 using Zinnur.Application.Users.Dtos;
 using Zinnur.Application.Users.Services;
 
@@ -47,12 +49,27 @@ namespace Zinnur.WebApi.Controllers;
 public sealed class UsersController(
     IUserService users,
     IUserProfileService profiles,
-    IStudentNoteService notes) : ControllerBase
+    IStudentNoteService notes,
+    IStudentStatsService studentStats) : ControllerBase
 {
     /// <summary>Foydalanuvchilarni BOSHQARISH huquqi bo'lgan rollar.</summary>
     private const string ManageRoles = "Academic,Admin";
 
     // ================================================================= boshqaruv
+
+    /// <summary>
+    /// O'quvchilar bo'yicha umumiy ko'rsatkichlar — panel tepasidagi
+    /// kartalar uchun (2026-08-18).
+    ///
+    /// ⚠️ JADVAL FILTRIGA BOG'LIQ EMAS: kartalar har doim MARKAZ bo'yicha
+    /// umumiy manzarani beradi — sabab <see cref="StudentStatsDto"/> izohida.
+    /// Shuning uchun bu endpoint hech qanday filtr parametrini olmaydi.
+    /// </summary>
+    [HttpGet("student-stats")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<StudentStatsDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<StudentStatsDto>> StudentStats(CancellationToken ct) =>
+        Ok(await studentStats.GetAsync(CurrentUserId, ct));
 
     /// <summary>
     /// Ro'yxat: qidiruv, rol/faollik/guruh/Telegram/telefon filtri, sahifalash.

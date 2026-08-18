@@ -66,6 +66,9 @@ public static class DependencyInjection
         // karta/tugma. SCOPED: `IApplicationDbContext` ga bog'liq.
         services.AddScoped<IStudentClassroomService, StudentClassroomService>();
 
+        // "Foydalanuvchilar" paneli kartalari (2026-08-18) — faqat o'qiydi.
+        services.AddScoped<IStudentStatsService, StudentStatsService>();
+
         // Sessiya holati keshi: har so'rovda kirish tokenidagi `ver` shu yerdan
         // olinadigan JORIY versiya bilan solishtiriladi (`OnTokenValidated`).
         services.AddScoped<IAuthStateCache, AuthStateCache>();

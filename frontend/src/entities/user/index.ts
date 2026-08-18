@@ -23,6 +23,7 @@ export {
   activateUser,
   createUser,
   deactivateUser,
+  fetchStudentStats,
   fetchUsers,
   updateUser,
   USER_SEARCH_MIN,

@@ -3,6 +3,7 @@ import type {
   CreateUserRequest,
   CreateUserResponse,
   PagedResult,
+  StudentStatsDto,
   UpdateUserRequest,
   UserDetailsDto,
   UserRoleName,
@@ -74,4 +75,14 @@ export function activateUser(id: number): Promise<void> {
 
 export function deactivateUser(id: number): Promise<void> {
   return http.post<void>(`${BASE}/${id}/deactivate`)
+}
+
+/**
+ * O'quvchilar bo'yicha umumiy ko'rsatkichlar — panel tepasidagi kartalar.
+ *
+ * ⚠️ FILTR PARAMETRI YO'Q va bu ATAYLAB: kartalar har doim MARKAZ bo'yicha
+ * umumiy manzarani beradi (sabab `StudentStatsDto` izohida).
+ */
+export function fetchStudentStats(options?: { signal?: AbortSignal }): Promise<StudentStatsDto> {
+  return http.get<StudentStatsDto>(`${BASE}/student-stats`, { signal: options?.signal })
 }

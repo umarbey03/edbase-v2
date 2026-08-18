@@ -3250,6 +3250,32 @@ export interface AttritionByGroupDto {
 
 /* ===== /TO'KILISHLAR ===== */
 
+/**
+ * "Foydalanuvchilar" paneli kartalari (2026-08-18) — o'quvchilar bo'yicha
+ * umumiy manzara.
+ *
+ * ⚠️ JADVAL FILTRIGA BOG'LIQ EMAS: har doim MARKAZ bo'yicha. Sabab: filtr
+ * `rol = Ustoz` ga qo'yilsa "probniy"/"pauza" ma'nosiz bo'lardi.
+ *
+ * Har o'quvchi BITTA marta sanaladi (a'zolik emas, odam).
+ */
+export interface StudentStatsDto {
+  /** Hozir o'qiyotgan, sinovdan O'TGAN (8+ dars). */
+  active: number
+  /** Hozir o'qiyotgan, hali 8 darsni tugatmagan — probniy/demo. */
+  trial: number
+  paused: number
+  /** Chiqarilgan va hozir hech qayerda faol emas. */
+  stopped: number
+  /**
+   * 8+ dars o'tab, KEYIN ketganlar. Manbasi — o'chmaydigan hodisa
+   * jurnali, ya'ni 2026-08-17 dan oldingi chiqishlar bunga kirmaydi.
+   */
+  activeLosses: number
+  /** Hech qanday guruhga biriktirilmagan. */
+  withoutGroup: number
+}
+
 /* ============================================================================
    OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi, FAQAT Admin ko'radi.
    ============================================================================ */
