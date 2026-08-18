@@ -168,9 +168,21 @@ public sealed class SessionReviewService(
             {
                 r.Verdict,
                 r.CreatedAt,
-                TeacherId = r.Session!.Type == SessionType.Assistant
-                    ? r.Session.Group!.AssistantId
-                    : r.Session.Group!.TeacherId,
+
+                // ★ AVVAL `HostId`, SO'NG guruh o'rindig'i (2026-08-18 da
+                //   to'g'rilandi) — `LiveSessionService.HostUserId` bilan
+                //   AYNI qoida va sabab ham o'sha yerda.
+                //
+                //   Bu yerda u AYNIQSA muhim: tahlil DARSNING QANDAY
+                //   O'TGANI haqida. O'rinbosar o'tgan darsni ASL ustozning
+                //   ko'rsatkichiga yozish — uni o'zi o'tmagan dars uchun
+                //   baholash degani. Ustoz keyin almashgan eski darslarda
+                //   ham `HostId` o'sha kuni darsni haqiqatda kim o'tganini
+                //   saqlaydi, `Group.TeacherId` esa BUGUNGI ustozni.
+                TeacherId = r.Session!.HostId
+                    ?? (r.Session.Type == SessionType.Assistant
+                        ? r.Session.Group!.AssistantId
+                        : r.Session.Group!.TeacherId),
             })
             .Where(x => x.TeacherId != null)
             .ToListAsync(ct)
@@ -233,9 +245,17 @@ public sealed class SessionReviewService(
             // bitta ifodada `(shart ? a : b) == teacherId` EF Core uchun
             // ko'proq chalkash SQL berardi, bu shakl esa `ResolveHostNameAsync`
             // dagi qoidaning to'g'ridan-to'g'ri tarjimasi.
+            //
+            // ★ `HostId` USTUN, o'rindiq esa ZAXIRA (2026-08-18) —
+            //   yig'ma ko'rinishdagi (`GetTeachersOverviewAsync`) AYNI
+            //   qoida. Zaxira shoxi ATAYLAB `HostId == null` bilan
+            //   qo'riqlangan: aks holda o'rinbosar o'tgan dars IKKALA
+            //   ustozning ro'yxatiga ham tushardi.
             .Where(r =>
-                (r.Session!.Type == SessionType.Assistant && r.Session.Group!.AssistantId == teacherId)
-                || (r.Session!.Type != SessionType.Assistant && r.Session.Group!.TeacherId == teacherId))
+                r.Session!.HostId == teacherId
+                || (r.Session.HostId == null
+                    && ((r.Session.Type == SessionType.Assistant && r.Session.Group!.AssistantId == teacherId)
+                        || (r.Session.Type != SessionType.Assistant && r.Session.Group!.TeacherId == teacherId))))
             .OrderByDescending(r => r.Session!.ScheduledStart)
             .ToListAsync(ct)
             .ConfigureAwait(false);
@@ -348,18 +368,25 @@ public sealed class SessionReviewService(
     }
 
     /// <summary>
-    /// Shu darsni olib borishi kutilayotgan xodimning ismi —
-    /// <c>LiveSessionService.ResolveHostNameAsync</c> BILAN AYNI qoida
-    /// (Type'ga qarab guruhning ustozi yoki kuratori). Ikkalasi mustaqil
-    /// nusxa: bu servis <c>LiveSessionService</c>ga bog'lanmaydi (sabab —
+    /// Shu darsni olib boradigan xodimning ismi —
+    /// <c>LiveSessionService.HostUserId</c> BILAN AYNI qoida (avval
+    /// <c>HostId</c>, u bo'sh bo'lsa <c>Type</c>ga qarab guruhning ustozi
+    /// yoki kuratori). Ikkalasi mustaqil nusxa: bu servis
+    /// <c>LiveSessionService</c>ga bog'lanmaydi (sabab —
     /// <c>ISessionReviewService</c> izohidagi "nega ILiveSessionService
     /// qayta ishlatilmaydi").
+    ///
+    /// ⚠️ NUSXA BO'LGANI UCHUN BIRGA O'ZGARADI: 2026-08-18 da o'sha
+    /// yerdagi qoida `HostId` ga o'tdi va bu yer ham ATAYLAB shu bilan
+    /// birga yangilandi — aks holda tahlil oynasi va "Jonli darslar"
+    /// paneli bitta dars uchun ikki xil ism ko'rsatardi.
     /// </summary>
     private async Task<string?> ResolveHostNameAsync(LiveSession session, CancellationToken ct)
     {
-        var hostUserId = session.Type == SessionType.Assistant
-            ? session.Group?.AssistantId
-            : session.Group?.TeacherId;
+        var hostUserId = session.HostId
+            ?? (session.Type == SessionType.Assistant
+                ? session.Group?.AssistantId
+                : session.Group?.TeacherId);
 
         if (hostUserId is null) return null;
 

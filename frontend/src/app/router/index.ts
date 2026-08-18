@@ -315,8 +315,15 @@ const routes: RouteRecordRaw[] = [
       {
         /*
           JARIMALAR (2026-08-18) — ustoz/kurator uchun. O'quv bo'limi
-          ko'radi va qo'lda kirita oladi; TASDIQLASH esa faqat adminda
-          (server 403 bilan qo'riqlaydi, UI tugmani ham yashiradi).
+          ko'radi va qo'lda kirita oladi.
+
+          ★ TASDIQLASH/BEKOR QILISH — JARIMA TURIGA bog'liq (izoh
+          `PenaltyService.EnsureCanReviewAsync` da): TIZIM yozganini
+          (kechikish, o'tilmagan dars) o'quv bo'limi ham ko'rib chiqadi,
+          QO'LDA yozilganini esa faqat administrator — aks holda bitta
+          odam ham jarima yozib, ham uni pulga aylantirardi. Server 403
+          bilan qo'riqlaydi, UI esa tugmani `canReview` bilan yashiradi.
+
           Shu sababli marshrut `MANAGERS` — admin-only EMAS.
         */
         path: 'boshqaruv/jarimalar',

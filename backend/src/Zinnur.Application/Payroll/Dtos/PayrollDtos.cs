@@ -95,6 +95,23 @@ public sealed record PayrollSessionRowDto(
     decimal PremiumMultiplierApplied);
 
 /// <summary>Qo'lda qo'shilgan bonus/ushlab qolish (ishorasi bilan) — audit iz bilan.</summary>
+/// <param name="FromPenalty">
+/// Bu tuzatma JARIMA tasdiqlanganda avtomatik tug'ilganmi (2026-08-18).
+///
+/// 🔴 NIMA UCHUN DTO'DA: bunday tuzatmani O'CHIRIB BO'LMAYDI —
+/// <c>Penalties.PayrollAdjustmentId</c> unga <c>Restrict</c> bilan havola
+/// qiladi (moliyaviy iz saqlanishi kerak). Bayroqsiz oylik paneli har
+/// qatorda "o'chirish" tugmasini ko'rsatardi va bosilganda foydalanuvchi
+/// tushunarsiz "Serverda kutilmagan xato" olardi.
+///
+/// ★ IKKI QATLAM: UI tugmani yashiradi, servis esa baribir tekshiradi
+/// (<c>PayrollService.DeleteAdjustmentAsync</c>) — API to'g'ridan
+/// chaqirilsa ham javob 409 va tushunarli matn bo'lsin.
+///
+/// ★ JARIMANI BEKOR QILISH — TO'G'RI YO'L: ushlanmani olib tashlash uchun
+/// "Jarimalar" panelidan foydalaniladi; u yerda hodisa ham, sabab ham
+/// ko'rinadi (<c>Penalty</c> izohi).
+/// </param>
 public sealed record PayrollAdjustmentDto(
     long Id,
     long UserId,
@@ -103,7 +120,8 @@ public sealed record PayrollAdjustmentDto(
     string Reason,
     long CreatedById,
     string? CreatedByName,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool FromPenalty);
 
 public sealed record CreatePayrollAdjustmentRequest(
     long UserId,

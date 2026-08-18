@@ -191,9 +191,9 @@ const busyId = ref<number | null>(null)
 function refresh(): void {
   void queryClient.invalidateQueries({ queryKey: ['penalties'] })
 
-  // 🔴 OYLIK HAM ESKIRADI: tasdiqlangan jarima `PayrollAdjustment`
-  // yaratadi — ochiq "Oylik hisoblash" sahifasi eski summani
-  // ko'rsatib qolmasin.
+  // 🔴 OYLIK HAM ESKIRADI: tasdiqlash `PayrollAdjustment` YARATADI,
+  // tasdiqlanganni bekor qilish esa uni OLIB TASHLAYDI — ochiq "Oylik
+  // hisoblash" sahifasi eski summani ko'rsatib qolmasin.
   void queryClient.invalidateQueries({ queryKey: ['payroll'] })
 }
 
@@ -249,7 +249,15 @@ async function askCancel(row: PenaltyRowDto): Promise<void> {
     confirmLabel: 'Bekor qilish',
     tone: 'warning',
     details: [
-      'Jarima oylikka TUSHMAYDI.',
+      /*
+        ★ TASDIQLANGAN JARIMADA MATN BOSHQA: u allaqachon oylikka
+          manfiy tuzatma bo'lib tushgan va bekor qilish uni QAYTARIB
+          OLADI. "Oylikka tushmaydi" degan umumiy matn bu holatda
+          noto'g'ri bo'lardi — foydalanuvchi pul qaytishini bilmasdi.
+      */
+      row.status === 'Approved'
+        ? 'Oylikdagi ushlanma OLIB TASHLANADI.'
+        : 'Jarima oylikka TUSHMAYDI.',
       'Yozuv o‘chirilmaydi — holati “Bekor qilingan” bo‘ladi.',
     ],
   })
@@ -658,6 +666,28 @@ function proofTitle(row: PenaltyRowDto): string {
                     v-else-if="row.status === 'Pending'"
                     class="text-xs text-dim"
                   >Admin tasdiqlaydi</span>
+                  <!--
+                    ★ TASDIQLANGANNI BEKOR QILISH (2026-08-18): xato
+                    tasdiqni orqaga qaytarishning YAGONA yo'li shu tugma.
+                    Server bekor qilganda oylik tuzatmasini ham AYNI
+                    tranzaksiyada olib tashlaydi; oylik davri yopilgan
+                    bo'lsa 409 va tushunarli matn qaytaradi (u
+                    `actionError` da ko'rinadi).
+
+                    Oylik panelidagi tuzatma qatorida o'chirish tugmasi
+                    ATAYLAB yo'q va u foydalanuvchini AYNAN shu yerga
+                    yo'naltiradi — ushlanma jarima bilan birga, sababi
+                    bilan bekor qilinsin.
+                  -->
+                  <BaseButton
+                    v-else-if="row.status === 'Approved' && canReview(row)"
+                    size="sm"
+                    variant="secondary"
+                    :loading="busyId === row.id && cancelMutation.isPending.value"
+                    @click="askCancel(row)"
+                  >
+                    Bekor qilish
+                  </BaseButton>
                   <span
                     v-else
                     class="text-xs text-dim"

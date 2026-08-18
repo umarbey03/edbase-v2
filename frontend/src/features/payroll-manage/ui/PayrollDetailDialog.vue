@@ -272,6 +272,13 @@ async function askDeleteAdjustment(id: number, reason: string): Promise<void> {
               </p>
               <p class="text-[11px] text-dim">
                 {{ adjustment.createdByName ?? 'Admin' }} · {{ formatDateTime(adjustment.createdAt) }}
+                <!--
+                  ★ Qatordan "nega o'chirish tugmasi yo'q?" degan savol
+                    tug'ilmasin: manba va yechim shu yerda aytiladi.
+                -->
+                <template v-if="adjustment.fromPenalty">
+                  · Jarimadan — bekor qilish “Jarimalar” panelida
+                </template>
               </p>
             </div>
             <span
@@ -280,8 +287,15 @@ async function askDeleteAdjustment(id: number, reason: string): Promise<void> {
             >
               {{ adjustment.amount > 0 ? '+' : '' }}{{ formatMoney(adjustment.amount) }}
             </span>
+            <!--
+              ★ `fromPenalty` — TUGMA UMUMAN CHIZILMAYDI: server bunday
+                tuzatmani o'chirmaydi (jarima unga `Restrict` bilan havola
+                qiladi) va ilgari bosilganda "Serverda kutilmagan xato"
+                chiqardi. Qoida serverda ham bor — bu faqat birinchi
+                qatlam (`PayrollAdjustmentDto.fromPenalty` izohi).
+            -->
             <button
-              v-if="isDraft"
+              v-if="isDraft && !adjustment.fromPenalty"
               type="button"
               class="tap-target flex shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-ink-800 hover:text-rose-400"
               title="O‘chirish"

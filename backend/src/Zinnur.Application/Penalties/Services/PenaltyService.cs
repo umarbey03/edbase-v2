@@ -256,6 +256,7 @@ public sealed class PenaltyService(
             ?? throw new NotFoundException(nameof(Penalty), id);
 
         await EnsureCanReviewAsync(penalty, actorId, ct);
+        await EnsurePayrollPeriodOpenAsync(penalty, ct);
 
         var now = clock.GetUtcNow();
         penalty.Approve(actorId, now);
@@ -282,11 +283,18 @@ public sealed class PenaltyService(
         adjustment.Validate();
         db.PayrollAdjustments.Add(adjustment);
 
-        await db.SaveChangesAsync(ct);
+        // ★ HAVOLA NAVIGATSIYA ORQALI, `Id` ni QO'LDA KO'CHIRIB EMAS
+        //   (2026-08-18 da soddalashtirildi). Ilgari bu yerda IKKITA
+        //   `SaveChanges` bor edi — birinchisi tuzatmani yozib `Id` ni
+        //   olardi, ikkinchisi havolani. Oradagi uzilishda jarima
+        //   "tasdiqlangan, lekin havolasiz" bo'lib qolardi va uni bekor
+        //   qilish ushlanmani oylikda QOLDIRARDI (yangi bekor qilish
+        //   yo'li aynan shu havolaga tayanadi).
+        //
+        //   EF navigatsiyani ko'rib, `INSERT` dan keyin FK ni o'zi
+        //   to'ldiradi — bitta tranzaksiya, yarim holat yo'q.
+        penalty.PayrollAdjustment = adjustment;
 
-        // Havola ikkinchi saqlashda yoziladi: `adjustment.Id` faqat
-        // birinchi `SaveChanges` dan keyin ma'lum bo'ladi.
-        penalty.PayrollAdjustmentId = adjustment.Id;
         await db.SaveChangesAsync(ct);
 
         return await GetRowAsync(penalty.Id, ct);
@@ -303,6 +311,44 @@ public sealed class PenaltyService(
             ?? throw new NotFoundException(nameof(Penalty), id);
 
         await EnsureCanReviewAsync(penalty, actorId, ct);
+
+        // ═══════════════════════════════════════════════════════════════
+        // TASDIQLANGAN JARIMANI BEKOR QILISH — PULNI HAM QAYTARADI
+        // (2026-08-18 da qo'shildi)
+        //
+        // 🔴 ILGARI BU YO'L BERK EDI: `Penalty.Cancel` faqat `Pending`
+        //    holatda ishlardi, tasdiqlangandan tug'ilgan oylik tuzatmasini
+        //    esa oylik panelidan ham o'chirib bo'lmasdi (FK `Restrict`,
+        //    javob 500 edi). Ya'ni XATO TASDIQNI ORQAGA QAYTARISHNING
+        //    umuman yo'li yo'q edi va admin qo'lda "teskari" tuzatma
+        //    yozishga majbur bo'lardi — jarima esa "tasdiqlangan" bo'lib
+        //    qolaverardi, ikki panel ikki xil haqiqat ko'rsatardi.
+        //
+        // ★ DAVR OCHIQ BO'LISHI SHART — tasdiqlash bilan AYNI qoida
+        //   (`EnsurePayrollPeriodOpenAsync`): to'langan oylikdan pul
+        //   "qaytarib olish" hisobotni orqaga o'zgartirardi.
+        //
+        // ★ AYNI TRANZAKSIYA va TARTIB: havola AVVAL uziladi
+        //   (`PayrollAdjustmentId = null`), tuzatma esa o'chiriladi —
+        //   EF bog'liqlikni ko'rib `UPDATE`ni `DELETE`dan oldin yuboradi.
+        //   `Penalty.Cancel` ham AYNI invariantni majburlaydi (havola
+        //   turgan bo'lsa `DomainException`), ya'ni "bekor qilingan,
+        //   lekin oylikdan hamon ushlanadi" holati mumkin emas.
+        // ═══════════════════════════════════════════════════════════════
+        if (penalty.Status == PenaltyStatus.Approved)
+        {
+            await EnsurePayrollPeriodOpenAsync(penalty, ct);
+
+            if (penalty.PayrollAdjustmentId is { } adjustmentId)
+            {
+                var adjustment = await db.PayrollAdjustments.AsTracking()
+                    .FirstOrDefaultAsync(a => a.Id == adjustmentId, ct);
+
+                penalty.PayrollAdjustmentId = null;
+
+                if (adjustment is not null) db.PayrollAdjustments.Remove(adjustment);
+            }
+        }
 
         penalty.Cancel(actorId, request.Reason, clock.GetUtcNow());
         await db.SaveChangesAsync(ct);
@@ -563,6 +609,56 @@ public sealed class PenaltyService(
             role is UserRole.Academic
                 ? "Qo'lda yozilgan jarimani faqat administrator tasdiqlaydi."
                 : "Jarimani tasdiqlash yoki bekor qilishni o'quv bo'limi va administrator bajaradi.");
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// OYLIK DAVRI HALI OCHIQMI (2026-08-18 da qo'shildi)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 NIMA UCHUN KERAK: tasdiqlash <see cref="PayrollAdjustment"/>
+    /// yaratadi, ya'ni bu — OYLIKKA yozish amali. Oylik panelining o'z
+    /// qoidasi esa aniq: tasdiqlangan yoki to'langan davrga tuzatma
+    /// qo'shib/o'chirib bo'lmaydi (<c>PayrollService.EnsureDraftAsync</c>).
+    /// Bu yerda tekshiruv yo'q edi va jarima o'sha qulfni CHETLAB
+    /// o'tardi — ya'ni ikki panel bitta jadvalga ikki xil qoida bilan
+    /// yozardi.
+    ///
+    /// ★ HOLAT KUNDALIK, chekka emas: jarimaning davri HODISA sanasidan
+    /// olinadi (<c>PeriodOf</c>), bugungi kundan emas. O'tgan oyning
+    /// "kutilmoqda" jarimasi ro'yxatda turaveradi va uni keyingi oyda,
+    /// oylik allaqachon to'langandan keyin tasdiqlash — odatiy ish oqimi.
+    ///
+    /// ★ NEGA <c>PayrollService</c> CHAQIRILMAYDI: uning barcha ochiq
+    /// metodlari <c>EnsureAdminAsync</c> bilan boshlanadi, jarimani esa
+    /// o'quv bo'limi ham tasdiqlaydi (<see cref="EnsureCanReviewAsync"/>).
+    /// Chaqirilsa, Academic har safar 403 olardi. Shuning uchun o'qish
+    /// SHU YERDA, lekin AYNI jadval va AYNI shartdan.
+    ///
+    /// ★ YOZUV YO'Q = <c>Draft</c>: <c>PayrollApproval</c> qatori faqat
+    /// admin tasdiqlaganda yaratiladi (entity izohi) — shuning uchun
+    /// <c>null</c> "davr ochiq" degani.
+    ///
+    /// ★ IKKALA AMAL UCHUN HAM: tasdiqlash tuzatma QO'SHADI, bekor qilish
+    /// esa uni OLIB TASHLAYDI — ikkalasi ham yopiq davrni o'zgartirardi.
+    /// </summary>
+    private async Task EnsurePayrollPeriodOpenAsync(Penalty penalty, CancellationToken ct)
+    {
+        var status = await db.PayrollApprovals.AsNoTracking()
+            .Where(a => a.UserId == penalty.UserId && a.PeriodStart == penalty.PeriodStart)
+            .Select(a => (PayrollApprovalStatus?)a.Status)
+            .FirstOrDefaultAsync(ct);
+
+        if (status is null or PayrollApprovalStatus.Draft) return;
+
+        var period = BillingPeriod.FromDate(penalty.PeriodStart).ToString();
+        var state = status is PayrollApprovalStatus.Paid ? "to'langan" : "tasdiqlangan";
+
+        throw new ConflictException(
+            period + " davrining oyligi allaqachon " + state
+            + ". Bu jarimani o'zgartirib bo'lmaydi — amal o'sha davr oyligidagi "
+            + "ushlanmani qo'shar yoki olib tashlar edi. "
+            + "Oylik davrini administrator qayta ochgandan keyin urinib ko'ring.");
     }
 
     private async Task<UserRole> RoleOfAsync(long actorId, CancellationToken ct)

@@ -1,14 +1,18 @@
 namespace Zinnur.Application.LiveSessions.Dtos;
 
 /// <param name="HostName">
-/// Shu darsni olib borishi kerak bo'lgan xodimning ismi — <c>Type</c>ga
-/// qarab guruhning ustozi yoki kuratori (<c>Group.TeacherId</c>/
-/// <c>AssistantId</c>). <c>null</c> — guruhga hali xodim biriktirilmagan.
+/// Shu darsni olib boradigan xodimning ismi. <c>null</c> — guruhga hali
+/// xodim biriktirilmagan.
 ///
-/// ★ NEGA <c>HostId</c>DAN EMAS: <c>HostId</c> darsni HAQIQATDA boshlagan
-/// kishini bildiradi va u `Scheduled` holatdagi darsda hali <c>null</c>
-/// — o'quv bo'limining "Jonli darslar" ro'yxati esa hali boshlanmagan
-/// darslar uchun ham "kim olib boradi" savoliga javob berishi kerak.
+/// ★ MANBA: <c>LiveSession.HostId</c>, u bo'sh bo'lsa — <c>Type</c>ga
+/// qarab guruh o'rindig'i (<c>Group.TeacherId</c>/<c>AssistantId</c>).
+/// Qoida <c>LiveSessionService.HostUserId</c> da, sabab ham o'sha yerda.
+///
+/// 🔴 ILGARI FAQAT O'RINDIQ O'QILARDI (2026-08-18 da to'g'rilandi) —
+/// izohda "`HostId` `Scheduled` darsda hali `null`" deb yozilgan edi.
+/// Jadval generatori va o'rinbosar tizimi kiritilgach bu faraz yolg'onga
+/// aylandi: o'rinbosarli darsda bu ro'yxat ASL ustozni, "Ustozlar
+/// holati" paneli esa o'rinbosarni ko'rsatardi.
 /// </param>
 /// <param name="StudentCount">
 /// Guruhda jami nechta FAOL o'quvchi bor (2026-08-18). Kurator darsida

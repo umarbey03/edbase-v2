@@ -271,13 +271,53 @@ public class PenaltyTests
         act.Should().Throw<DomainException>();
     }
 
+    /// <summary>
+    /// TASDIQLANGAN JARIMA BEKOR QILINADI (2026-08-18) — lekin FAQAT
+    /// oylik tuzatmasi allaqachon olib tashlangan bo'lsa.
+    ///
+    /// ★ NEGA OCHILDI: ilgari bu yo'l berk edi va xato tasdiqni orqaga
+    /// qaytarishning UMUMAN yo'li yo'q edi — tuzatmani oylik panelidan
+    /// ham o'chirib bo'lmasdi (FK <c>Restrict</c>).
+    /// </summary>
     [Fact]
-    public void Cancel_AfterApprove_Throws()
+    public void Cancel_AfterApprove_WhenAdjustmentDetached_Succeeds()
     {
         var penalty = Penalty.ForMissedLesson(7, 42, MissedCategory(), Moment, Period);
         penalty.Approve(1, Moment);
 
+        // Servis tuzatmani AYNI tranzaksiyada o'chirib, havolani uzadi.
+        penalty.PayrollAdjustmentId = null;
+
+        penalty.Cancel(2, "Uzrli sabab", Moment);
+
+        penalty.Status.Should().Be(PenaltyStatus.Cancelled);
+        penalty.ReviewedById.Should().Be(2);
+    }
+
+    /// <summary>
+    /// 🔴 INVARIANT: oylik tuzatmasi turgan jarima bekor qilinmaydi —
+    /// aks holda "bekor qilingan, lekin oylikdan hamon ushlanadi" degan
+    /// yarim holat yuzaga kelardi.
+    /// </summary>
+    [Fact]
+    public void Cancel_WhilePayrollAdjustmentLinked_Throws()
+    {
+        var penalty = Penalty.ForMissedLesson(7, 42, MissedCategory(), Moment, Period);
+        penalty.Approve(1, Moment);
+        penalty.PayrollAdjustmentId = 555;
+
         var act = () => penalty.Cancel(1, "Xato", Moment);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Cancel_Twice_Throws()
+    {
+        var penalty = Penalty.ForMissedLesson(7, 42, MissedCategory(), Moment, Period);
+        penalty.Cancel(1, "Xato", Moment);
+
+        var act = () => penalty.Cancel(1, "Yana xato", Moment);
 
         act.Should().Throw<DomainException>();
     }

@@ -3635,6 +3635,16 @@ export interface PayrollAdjustmentDto {
   createdById: number
   createdByName: string | null
   createdAt: string
+  /**
+   * Tuzatma JARIMA tasdiqlanganda avtomatik tug'ilganmi (2026-08-18).
+   *
+   * 🔴 `true` bo'lsa O'CHIRISH TUGMASI KO'RSATILMAYDI: server bunday
+   * qatorni o'chirmaydi (`409`), chunki jarima unga havola qiladi —
+   * ilgari tugma bor edi va bosilganda "Serverda kutilmagan xato"
+   * chiqardi. Ushlanmani olib tashlash yo'li — "Jarimalar" panelida
+   * jarimaning o'zini bekor qilish.
+   */
+  fromPenalty: boolean
 }
 
 export interface CreatePayrollAdjustmentRequest {

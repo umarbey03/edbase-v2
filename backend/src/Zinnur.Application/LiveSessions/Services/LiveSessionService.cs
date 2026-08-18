@@ -86,12 +86,31 @@ public sealed class LiveSessionService(
     }
 
     /// <summary>
-    /// Shu darsni olib borishi KERAK bo'lgan xodimning User Id'si —
-    /// <c>Type</c>ga qarab guruhning ustozi yoki kuratori.
-    /// <c>HostName</c> izohidagi sabab bilan AYNI: bu <c>HostId</c> emas.
+    /// Shu darsni olib boradigan xodimning User Id'si.
+    ///
+    /// ★ AVVAL <see cref="LiveSession.HostId"/>, SO'NG guruh o'rindig'i
+    /// (2026-08-18 da to'g'rilandi). Ilgari bu yerda FAQAT o'rindiq
+    /// o'qilardi, sababi esa shunday yozilgan edi: *"`HostId` darsni
+    /// HAQIQATDA boshlagan kishini bildiradi va u `Scheduled` darsda hali
+    /// `null`"*. Bu faraz ENDI NOTO'G'RI:
+    ///   • dars jadval tuzilishidayoq host bilan tug'iladi
+    ///     (<c>ScheduleGenerator</c> -> <c>planned.ToEntity(groupId, group.HostId)</c>);
+    ///   • ustoz almashsa <c>ScheduleService.RetargetHostAsync</c> uni
+    ///     kelgusi darslarda qayta yozadi;
+    ///   • o'rinbosar tayinlanganda AYNAN shu maydon almashadi
+    ///     (<see cref="LiveSession.AssignSubstitute"/>) va oylik ham
+    ///     shunga qarab hisoblanadi (<c>LessonAccrualService</c>).
+    ///
+    /// 🔴 NIMA UCHUN MUHIM: o'rinbosarli darsda "Jonli darslar" paneli va
+    /// o'quvchi kalendari ASL ustozning ismini ko'rsatardi, "Ustozlar
+    /// holati" paneli esa o'rinbosarni — bitta dars haqida ikki xil javob.
+    ///
+    /// O'rindiq FALLBACK bo'lib qoladi: <c>HostId</c> bo'sh bo'lsa
+    /// (guruhga xodim biriktirilmagan yoki katalogdan oldingi eski yozuv),
+    /// avvalgidek <c>Type</c>ga qarab ustoz yoki kurator o'qiladi.
     /// </summary>
     private static long? HostUserId(LiveSession s) =>
-        s.Type == SessionType.Assistant ? s.Group?.AssistantId : s.Group?.TeacherId;
+        s.HostId ?? (s.Type == SessionType.Assistant ? s.Group?.AssistantId : s.Group?.TeacherId);
 
     /// <summary>
     /// Ro'yxat uchun ismlarni BITTA qo'shimcha so'rovda oladi — har qator
@@ -672,8 +691,19 @@ public sealed class LiveSessionService(
         {
             UserRole.Admin or UserRole.Academic => query,
 
+            // ★ `HostId` HAM TEKSHIRILADI (2026-08-18 da qo'shildi):
+            //   o'rinbosar ustoz guruhning na ustozi, na kuratori —
+            //   `AssignSubstitute` FAQAT `LiveSession.HostId` ni
+            //   almashtiradi. Bunsiz taklifni QABUL QILGAN ustoz darsni
+            //   "Darslarim", "Bosh sahifa" va darslar jadvalida umuman
+            //   ko'rmasdi, holbuki `LoadAndAuthorizeAsync` dagi `IsHost`
+            //   uni allaqachon o'tkazib yuborardi — ya'ni RO'YXAT va
+            //   RUXSAT bir-biriga zid javob berardi (dars faqat
+            //   to'g'ridan-to'g'ri manzil bilan ochilardi).
             UserRole.Teacher or UserRole.Assistant =>
-                query.Where(s => s.Group!.TeacherId == user.Id || s.Group!.AssistantId == user.Id),
+                query.Where(s => s.Group!.TeacherId == user.Id
+                    || s.Group!.AssistantId == user.Id
+                    || s.HostId == user.Id),
 
             // ★ Ikki shox — `GroupMembershipScope` dagi AYNI qoida
             //   (bu yerda `s.GroupId` USTUN bo'lgani uchun ifoda

@@ -142,8 +142,31 @@ public sealed class GroupBroadcastService(
         {
             var groupIds = groups.Select(g => g.Id).ToList();
 
+            // ═══════════════════════════════════════════════════════════
+            // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi)
+            //
+            // Qoida `GroupMembershipScope` da: kurator guruhida o'quvchilar
+            // TO'G'RIDAN-TO'G'RI a'zo BO'LMAYDI. Ilgari bu yerda faqat
+            // `m.GroupId` bor edi va kurator guruhi tanlanganda oluvchilar
+            // soni NOL chiqardi — yuqoridagi platforma chati shoxi esa
+            // "Telegram baribir ketadi" deb o'tkazib yuborardi, ya'ni
+            // xabar HECH KIMGA yetmasdi, tarixda esa "yuborildi" bo'lib
+            // qolardi (aynan `archived` tekshiruvi qochgan holat).
+            //
+            // ★ IFODA QO'LDA: `GroupMembershipScope.ActiveIn` bitta
+            //   `groupId` ni oladi, bu yerda esa ID'lar TO'PLAMI kerak.
+            //   `long?` ro'yxati — `CuratorGroupId` nullable ustun.
+            //
+            // ★ `Distinct()` MUHIM: bitta kurator guruhiga bir necha ustoz
+            //   guruhi bog'lanadi va ikkalasi ham tanlangan bo'lsa,
+            //   o'quvchi ikki marta chiqardi.
+            // ═══════════════════════════════════════════════════════════
+            var curatorGroupIds = groupIds.ConvertAll(id => (long?)id);
+
             var recipients = await db.GroupMembers.AsNoTracking()
-                .Where(m => groupIds.Contains(m.GroupId) && m.Status == MemberStatus.Active)
+                .Where(m => (groupIds.Contains(m.GroupId)
+                        || curatorGroupIds.Contains(m.Group!.CuratorGroupId))
+                    && m.Status == MemberStatus.Active)
                 .Select(m => m.StudentId)
                 .Distinct()
                 .ToListAsync(ct);

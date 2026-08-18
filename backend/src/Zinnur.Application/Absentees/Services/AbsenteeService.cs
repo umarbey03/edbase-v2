@@ -139,8 +139,35 @@ public sealed class AbsenteeService(
         //   Chegara `JoinedAt`/`LeftAt` orqali quyida, har dars uchun
         //   alohida tekshiriladi (bitta o'quvchi bir darsda a'zo, boshqa
         //   darsda a'zo bo'lmasligi mumkin).
+        // ═══════════════════════════════════════════════════════════════
+        // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi)
+        //
+        // Qoida `GroupMembershipScope` da: kurator guruhida o'quvchilar
+        // TO'G'RIDAN-TO'G'RI a'zo BO'LMAYDI, ular bog'langan ustoz
+        // guruhlaridan keladi. Ilgari bu yerda faqat `m.GroupId` bor edi
+        // va natijada KURATOR DARSI uchun a'zolar ro'yxati BO'SH chiqardi
+        // — ya'ni kurator darsiga hech kim kelmasa ham panel "0 kelmagan"
+        // derdi, o'sha darsning davomat varag'i esa (u allaqachon
+        // to'g'rilangan) to'la ro'yxat ko'rsatardi.
+        //
+        // ★ IFODA QO'LDA YOZILGAN, `GroupMembershipScope.ActiveIn` EMAS:
+        //   u bitta `groupId` ni qiymat sifatida oladi, bu yerda esa
+        //   ID'lar TO'PLAMI kerak (sinf izohidagi AYNI cheklov).
+        //
+        // ★ `long?` ro'yxati: `CuratorGroupId` — nullable ustun, shuning
+        //   uchun `Contains` turi mos kelsin va `.Value` bilan EF
+        //   tarjimasi murakkablashmasin. `NULL` hech qachon `IN (...)` ga
+        //   tushmaydi — oddiy guruhlarda ikkinchi shox tabiiy yolg'on.
+        //
+        // ⚠️ A'ZOLIK HOLATI BU YERDA FILTRLANMAYDI (`Active` sharti YO'Q)
+        //    — u ATAYLAB quyidagi tsiklda, DARS VAQTIGA nisbatan
+        //    tekshiriladi (`JoinedAt`/`LeftAt`/`Paused`).
+        // ═══════════════════════════════════════════════════════════════
+        var scopeGroupIds = groupIdsForSessions.ConvertAll(id => (long?)id);
+
         var members = db.GroupMembers.AsNoTracking()
-            .Where(m => groupIdsForSessions.Contains(m.GroupId)
+            .Where(m => (groupIdsForSessions.Contains(m.GroupId)
+                    || scopeGroupIds.Contains(m.Group!.CuratorGroupId))
                 && m.Student!.IsActive
                 && m.Student.Role == UserRole.Student);
 
@@ -157,6 +184,10 @@ public sealed class AbsenteeService(
             .Select(m => new
             {
                 m.GroupId,
+
+                // Qaysi kurator guruhiga bog'langan — a'zoni kurator
+                // darsining ro'yxatiga ham qo'shish uchun (quyida).
+                CuratorGroupId = m.Group!.CuratorGroupId,
                 m.StudentId,
                 StudentName = m.Student!.FullName,
                 m.Student.Phone,
@@ -176,9 +207,37 @@ public sealed class AbsenteeService(
         var attendanceByKey = attendance
             .ToDictionary(a => (a.SessionId, a.StudentId), a => a);
 
+        // ★ A'ZO IKKI KALIT OSTIDA turishi mumkin: o'z ustoz guruhi va —
+        //   bog'langan bo'lsa — kurator guruhi. Tsikl quyida darsning
+        //   `GroupId` si bo'yicha qidiradi, ya'ni kurator darsi endi o'z
+        //   ro'yxatini topadi (yuqoridagi so'rov izohi).
+        var sessionGroupIdSet = groupIdsForSessions.ToHashSet();
+
         var membersByGroup = memberRows
-            .GroupBy(m => m.GroupId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+            .SelectMany(m =>
+            {
+                var keys = new List<long>(capacity: 2);
+
+                if (sessionGroupIdSet.Contains(m.GroupId)) keys.Add(m.GroupId);
+
+                if (m.CuratorGroupId is { } curatorGroupId
+                    && sessionGroupIdSet.Contains(curatorGroupId))
+                {
+                    keys.Add(curatorGroupId);
+                }
+
+                return keys.Select(key => (Key: key, Member: m));
+            })
+            .GroupBy(x => x.Key)
+            .ToDictionary(
+                g => g.Key,
+
+                // ★ TAKRORSIZ: bitta o'quvchi AYNI kurator guruhiga
+                //   bog'langan IKKI ustoz guruhida a'zo bo'lsa, u shu
+                //   kalit ostida ikki marta chiqardi va `MissedInRange`
+                //   ("davrda nechta dars qoldirdi") ikki barobar
+                //   ko'rinardi.
+                g => g.Select(x => x.Member).DistinctBy(m => m.StudentId).ToList());
 
         var rows = new List<(long SessionId, long StudentId, string StudentName, string? Phone, bool TelegramLinked, AttendanceStatus Status)>();
 
@@ -413,24 +472,111 @@ public sealed class AbsenteeService(
         return result;
     }
 
-    /// <summary>Oxirgi 30 kunda jami nechta dars qoldirgan (barcha guruhlar bo'yicha).</summary>
+    /// <summary>
+    /// Oxirgi 30 kunda jami nechta dars qoldirgan (barcha guruhlar bo'yicha).
+    ///
+    /// ★ DARSLARDAN BOSHLANADI, davomatdan EMAS (2026-08-18 da
+    /// to'g'rilandi — asosiy so'rov va <see cref="BuildStreaksAsync"/>
+    /// bilan AYNI sabab). Ilgari bu yerda faqat <c>Attendances</c> jadvali
+    /// sanalardi, davomat qatori esa o'quvchi darsga KIRGANDA yaratiladi:
+    /// umuman kelmaydigan o'quvchida qator BO'LMAYDI. Natijada bitta
+    /// qatorda ziddiyat ko'rinardi — "davrda 3 ta dars qoldirgan", lekin
+    /// "oxirgi 30 kunda 0 marta".
+    ///
+    /// ★ KURATOR DARSI HAM SANALADI: o'quvchi kurator guruhiga a'zo
+    /// bo'lmaydi, lekin uning darsida qatnashishi kutiladi
+    /// (<c>GroupMembershipScope</c>) — shuning uchun a'zolikning
+    /// <c>CuratorGroupId</c> si ham dars manbai sifatida olinadi.
+    ///
+    /// ★ A'ZOLIK OYNASI VA UZRLI QOLDIRISH — asosiy tsikldagi AYNI
+    /// qoidalar: darsdan keyin qo'shilgan yoki oldin ketgan o'quvchi
+    /// sanalmaydi, muzlatilgan davr va uzrli qoldirish ham.
+    /// </summary>
     private async Task<Dictionary<long, int>> BuildRecentMissesAsync(
         List<long> studentIds, DateTimeOffset before, TimeZoneInfo zone, CancellationToken ct)
     {
         var from = LocalWallClock.StartOfDayUtc(
             LocalWallClock.LocalDate(before, zone).AddDays(-30), zone);
 
-        var flat = await db.Attendances.AsNoTracking()
-            .Where(a => studentIds.Contains(a.StudentId)
-                && a.Status == AttendanceStatus.Absent
-                && a.Session!.Status == SessionStatus.Ended
-                && a.Session.ScheduledStart >= from
-                && a.Session.ScheduledStart < before)
-            .GroupBy(a => a.StudentId)
-            .Select(g => new { StudentId = g.Key, Count = g.Count() })
+        var memberships = await db.GroupMembers.AsNoTracking()
+            .Where(m => studentIds.Contains(m.StudentId))
+            .Select(m => new
+            {
+                m.StudentId,
+                m.GroupId,
+                CuratorGroupId = m.Group!.CuratorGroupId,
+                m.JoinedAt,
+                m.LeftAt,
+                m.Status,
+            })
             .ToListAsync(ct);
 
-        return flat.ToDictionary(x => x.StudentId, x => x.Count);
+        if (memberships.Count == 0) return [];
+
+        // A'zolik -> shu a'zolik qaysi guruhlarning darslarini "kutadi":
+        // o'z guruhi va (bo'lsa) bog'langan kurator guruhi.
+        static long[] LessonGroupsOf(long groupId, long? curatorGroupId) =>
+            curatorGroupId is { } curatorId ? [groupId, curatorId] : [groupId];
+
+        var lessonGroupIds = memberships
+            .SelectMany(m => LessonGroupsOf(m.GroupId, m.CuratorGroupId))
+            .Distinct()
+            .ToList();
+
+        var lessons = await db.LiveSessions.AsNoTracking()
+            .Where(s => s.Status == SessionStatus.Ended
+                && s.ScheduledStart >= from
+                && s.ScheduledStart < before
+                && lessonGroupIds.Contains(s.GroupId))
+            .Select(s => new { s.Id, s.GroupId, s.ScheduledStart })
+            .ToListAsync(ct);
+
+        if (lessons.Count == 0) return [];
+
+        var lessonIds = lessons.ConvertAll(s => s.Id);
+
+        var seen = (await db.Attendances.AsNoTracking()
+                .Where(a => studentIds.Contains(a.StudentId) && lessonIds.Contains(a.SessionId))
+                .Select(a => new { a.SessionId, a.StudentId, a.Status, a.IsExcused })
+                .ToListAsync(ct))
+            .ToDictionary(a => (a.SessionId, a.StudentId), a => a);
+
+        var membershipsByLessonGroup = memberships
+            .SelectMany(m => LessonGroupsOf(m.GroupId, m.CuratorGroupId)
+                .Select(key => (Key: key, Membership: m)))
+            .GroupBy(x => x.Key)
+            .ToDictionary(
+                g => g.Key,
+
+                // Bitta o'quvchi AYNI kurator guruhiga bog'langan ikki
+                // ustoz guruhida a'zo bo'lsa, kurator darsi u uchun ikki
+                // marta sanalmasin.
+                g => g.Select(x => x.Membership).DistinctBy(m => m.StudentId).ToList());
+
+        var result = new Dictionary<long, int>();
+
+        foreach (var lesson in lessons)
+        {
+            if (!membershipsByLessonGroup.TryGetValue(lesson.GroupId, out var candidates)) continue;
+
+            foreach (var membership in candidates)
+            {
+                if (membership.JoinedAt > lesson.ScheduledStart) continue;
+                if (membership.LeftAt is { } leftAt && leftAt <= lesson.ScheduledStart) continue;
+                if (membership.Status == MemberStatus.Paused) continue;
+
+                seen.TryGetValue((lesson.Id, membership.StudentId), out var record);
+
+                if (record is { IsExcused: true }) continue;
+
+                // Qator YO'Q — kelmagan; kelgan dars sanalmaydi.
+                if (record is not null && record.Status != AttendanceStatus.Absent) continue;
+
+                result[membership.StudentId] = result.GetValueOrDefault(membership.StudentId) + 1;
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

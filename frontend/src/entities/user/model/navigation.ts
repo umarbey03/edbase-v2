@@ -82,11 +82,19 @@ const STUDENT_NAV: NavItem[] = [
   ★ "Chatlar" — eski `teacher.html` menyusidagi band (657-qator). U yerda
   AYNAN "Tekshirish" dan KEYIN turgan, shu nisbiy o'rni saqlandi. Mavjud
   bandlarning nomi ham, o'zaro tartibi ham TEGILMAGAN.
+
+  ★ "DARSGA KIRMAGANLAR" QO'SHILDI (2026-08-18). Marshrut allaqachon
+  `STAFF_AND_MANAGERS` edi va server ham o'quvchidan boshqa hammaga
+  ruxsat beradi (`AbsenteesController` izohi: *"qo'ng'iroqlarni amalda
+  kurator va ustoz qiladi"*), lekin band FAQAT o'quv bo'limi menyusida
+  turardi — ya'ni sahifa asosiy foydalanuvchisiga KO'RINMASDI va unga
+  faqat manzilni qo'lda yozib kirish mumkin edi.
 */
 const TEACHER_NAV: NavItem[] = [
   { routeName: 'teacher-home', label: 'Bosh sahifa', icon: 'graduation' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
+  { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
   { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
@@ -111,12 +119,26 @@ const TEACHER_NAV: NavItem[] = [
  * o'quvchi kuratorga alohida yozadi va u xabarlarni ustoz KO'RMAYDI. Ya'ni
  * kuratorda "barcha chatlarim bitta joyda" ekrani ustozdagidan kam kerak
  * emas. Server ham unga aynan shu kanal qatorlarini beradi.
+ *
+ * ★ "TEKSHIRISH" KURATORGA HAM BERILDI (2026-08-18). Sabab eski ilova
+ * emas, BUGUNGI model: `Group.AssignmentGraderRole` ning STANDART qiymati
+ * `Both` va `AssignmentsController.GradeRoles` da `Assistant` bor — ya'ni
+ * kurator standart holatda ham tekshiruvchi. Marshrut (`roles: STAFF`)
+ * ham unga ochiq edi; faqat menyu bandi yo'q edi va kurator vazifalarni
+ * har guruhga alohida kirib, "Vazifalar" tabidan qidirishga majbur
+ * bo'lardi. O'quv bo'limi guruhda "tekshiruvchi — kurator" deb belgilasa,
+ * bu bandsiz uning navbati umuman ko'rinmasdi.
+ *
+ * ★ "DARSGA KIRMAGANLAR" — sabab `TEACHER_NAV` dagi bilan AYNI; kuratorda
+ * u ayniqsa muhim, chunki qo'ng'iroqlarni AMALDA aynan kurator qiladi.
  */
 const ASSISTANT_NAV: NavItem[] = [
   { routeName: 'teacher-home', label: 'Bosh sahifa', icon: 'graduation' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
   { routeName: 'teacher-curator', label: 'Kuratorlik', icon: 'user-check' },
+  { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
+  { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
   { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
 ]

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Application.Common;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
@@ -608,19 +609,30 @@ public sealed class UserService(
     /// ★ Yozilish shakli MUHIM: avval a'zoliklar guruh va holat bo'yicha
     /// FILTRLANADI, so'ng foydalanuvchi Id'si o'sha to'plamda izlanadi
     /// (<c>IN (SELECT ...)</c> = yarim birlashma). Shu shaklda Postgres
-    /// <c>IX_GroupMembers_GroupId_Status</c> indeksini AYNAN prefiksidan
-    /// boshlab ishlatadi.
+    /// ODDIY guruh uchun <c>IX_GroupMembers_GroupId_Status</c> indeksini
+    /// AYNAN prefiksidan boshlab ishlatadi. Kurator shoxi (quyida)
+    /// <c>Groups</c> ga birikma qo'shadi — u faqat kurator guruhi
+    /// tanlanganda ma'noli va bu narx ATAYLAB qabul qilingan: noto'g'ri
+    /// (bo'sh) javob tez qaytishidan foyda yo'q.
     ///
     /// ★ Nima uchun faqat <c>Active</c>: sabab <c>UserListQuery.GroupId</c>
     /// izohida (chiqarilgan o'quvchi ro'yxatda ko'rinsa xodim uni hali
     /// o'qiyapti deb o'ylardi).
+    ///
+    /// ★ A'ZOLIK QOIDASI <see cref="GroupMembershipScope"/> DAN
+    /// (2026-08-18 da to'g'rilandi): ilgari bu yerda `m.GroupId == id`
+    /// qo'lda yozilgan edi va KURATOR guruhi tanlanganda ro'yxat BO'SH
+    /// chiqardi — o'sha paytda "Guruhlar" paneli, global qidiruv va
+    /// davomat varag'i o'sha guruh uchun to'la sanoqni ko'rsatib turardi.
+    /// Filtr guruh tanlash ro'yxatidan keladi va u kurator guruhlarini
+    /// ham ko'rsatadi, ya'ni bu holat kundalik.
     /// </summary>
     private IQueryable<User> ApplyGroupFilter(IQueryable<User> rows, long? groupId)
     {
         if (groupId is not { } id) return rows;
 
         var members = db.GroupMembers.AsNoTracking()
-            .Where(m => m.GroupId == id && m.Status == MemberStatus.Active)
+            .Where(GroupMembershipScope.ActiveIn(id))
             .Select(m => m.StudentId);
 
         return rows.Where(u => members.Contains(u.Id));

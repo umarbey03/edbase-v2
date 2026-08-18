@@ -256,6 +256,29 @@ public sealed class PayrollService(
 
         await EnsureDraftAsync(adjustment.UserId, adjustment.PeriodStart, ct);
 
+        // ═══════════════════════════════════════════════════════════════
+        // 🔴 JARIMADAN TUG'ILGAN TUZATMA BU YERDAN O'CHIRILMAYDI
+        //    (2026-08-18 da qo'shildi)
+        //
+        // `Penalties.PayrollAdjustmentId` bu qatorga `Restrict` bilan
+        // havola qiladi (jarima — moliyaviy iz, `PenaltyConfiguration`).
+        // Tekshiruvsiz `SaveChanges` FK xatosiga uchrardi va u global
+        // ushlagichda 500 "Serverda kutilmagan xato" bo'lib chiqardi:
+        // admin nima uchun o'chmaganini bilmasdi.
+        //
+        // ★ TO'G'RI YO'L — "Jarimalar" PANELI: u yerda jarimaning o'zi
+        //   bekor qilinadi (hodisa, sabab va kim bekor qilgani ko'rinib
+        //   turadi). Bu yerdan o'chirish esa jarimani "tasdiqlangan"
+        //   holatida qoldirib, ushlanmani jimgina yo'q qilardi — ikki
+        //   panel bir-biriga zid ma'lumot ko'rsatardi.
+        // ═══════════════════════════════════════════════════════════════
+        if (await db.Penalties.AsNoTracking().AnyAsync(p => p.PayrollAdjustmentId == id, ct))
+        {
+            throw new ConflictException(
+                "Bu tuzatma tasdiqlangan jarimadan kelib chiqqan va bu yerdan o'chirilmaydi. "
+                + "Ushlanmani bekor qilish uchun \"Jarimalar\" panelidan jarimaning o'zini bekor qiling.");
+        }
+
         db.PayrollAdjustments.Remove(adjustment);
         await SaveAsync(ct);
     }
@@ -461,11 +484,16 @@ public sealed class PayrollService(
             .ToDictionaryAsync(a => a.UserId, ct);
     }
 
-    private static IQueryable<PayrollAdjustmentDto> ProjectAdjustments(IQueryable<PayrollAdjustment> rows) =>
+    private IQueryable<PayrollAdjustmentDto> ProjectAdjustments(IQueryable<PayrollAdjustment> rows) =>
         rows.OrderByDescending(a => a.CreatedAt)
             .Select(a => new PayrollAdjustmentDto(
                 a.Id, a.UserId, a.PeriodStart, a.Amount, a.Reason, a.CreatedById,
-                a.CreatedBy == null ? null : a.CreatedBy.FullName, a.CreatedAt));
+                a.CreatedBy == null ? null : a.CreatedBy.FullName, a.CreatedAt,
+
+                // ★ Korrelyatsiyalangan `EXISTS` — AYNI `SELECT` ichida
+                //   (loyihadagi umumiy naqsh): qator boshiga alohida
+                //   so'rov N+1 bo'lardi. Sabab `FromPenalty` izohida.
+                db.Penalties.Any(p => p.PayrollAdjustmentId == a.Id)));
 
     private async Task ValidateRateAsync(TeacherRate rate, CancellationToken ct)
     {

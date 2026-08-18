@@ -245,10 +245,30 @@ public class Penalty : BaseEntity
         UpdatedAt = now;
     }
 
-    /// <summary>Bekor qilish (uzrli sabab yoki xato yozuv).</summary>
+    /// <summary>
+    /// Bekor qilish (uzrli sabab yoki xato yozuv).
+    ///
+    /// ★ TASDIQLANGAN JARIMA HAM BEKOR QILINADI (2026-08-18 da ochildi).
+    /// Ilgari bu yerda <c>EnsurePending()</c> turardi va natijada xato
+    /// tasdiqni ORQAGA QAYTARISHNING YO'LI UMUMAN YO'Q edi: jarima
+    /// "tasdiqlangan" bo'lib qolardi, undan tug'ilgan oylik tuzatmasini
+    /// esa oylik panelidan ham o'chirib bo'lmasdi (FK <c>Restrict</c>).
+    ///
+    /// 🔴 SHART: tasdiqlangan jarimada oylik tuzatmasi havolasi AVVAL
+    /// uzilgan bo'lishi kerak. Ya'ni "pulni qaytarish" qadamini
+    /// chaqiruvchi bajaradi (<c>PenaltyService.CancelAsync</c> tuzatmani
+    /// AYNI tranzaksiyada o'chiradi). Entity buni o'zi qila olmaydi —
+    /// unda bazaga kirish yo'q, lekin invariantni MAJBURLAY oladi:
+    /// aks holda "bekor qilingan, lekin oylikdan hamon ushlanadi"
+    /// degan yarim holat yuzaga kelardi.
+    /// </summary>
     public void Cancel(long reviewerId, string? reason, DateTimeOffset now)
     {
-        EnsurePending();
+        if (Status == PenaltyStatus.Cancelled)
+            throw new DomainException("Bu jarima allaqachon bekor qilingan.");
+
+        if (PayrollAdjustmentId is not null)
+            throw new DomainException("Avval jarimaning oylik tuzatmasi olib tashlanishi kerak.");
 
         Status = PenaltyStatus.Cancelled;
         ReviewedById = reviewerId;

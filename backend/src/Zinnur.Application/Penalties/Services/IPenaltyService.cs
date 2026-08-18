@@ -47,9 +47,22 @@ public interface IPenaltyService
     /// ★ RUXSAT JARIMA TURIGA BOG'LIQ: tizim yozgan jarimani o'quv bo'limi
     /// ham tasdiqlaydi, QO'LDA yozilganini esa faqat administrator (aks
     /// holda bitta odam ham yozib, ham pulga aylantirardi).
+    ///
+    /// ★ OYLIK DAVRI OCHIQ BO'LISHI SHART (2026-08-18): tasdiqlangan yoki
+    /// to'langan davrga tuzatma qo'shilmaydi — oylik panelidagi AYNI
+    /// qoida (<c>PayrollService.EnsureDraftAsync</c>).
     /// </summary>
     Task<PenaltyRowDto> ApproveAsync(long id, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Bekor qilish (uzrli sabab yoki xato yozuv). Ruxsat — tasdiqlash
+    /// bilan AYNI qoida.
+    ///
+    /// ★ TASDIQLANGAN JARIMA HAM BEKOR QILINADI (2026-08-18): undan
+    /// tug'ilgan oylik tuzatmasi AYNI tranzaksiyada olib tashlanadi.
+    /// Ilgari bu yo'l berk edi va xato tasdiqni orqaga qaytarib
+    /// bo'lmasdi. Bunda ham oylik davri OCHIQ bo'lishi shart.
+    /// </summary>
     Task<PenaltyRowDto> CancelAsync(
         long id, CancelPenaltyRequest request, long actorId, CancellationToken ct = default);
 

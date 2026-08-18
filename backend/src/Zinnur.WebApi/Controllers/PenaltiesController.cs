@@ -75,10 +75,15 @@ public sealed class PenaltiesController(IPenaltyService penalties) : ControllerB
     /// <summary>
     /// Bekor qilish (uzrli sabab yoki xato yozuv) — tasdiqlash bilan
     /// AYNI ruxsat qoidasi.
+    ///
+    /// ★ TASDIQLANGAN JARIMA HAM BEKOR QILINADI (2026-08-18): oylik
+    /// tuzatmasi AYNI tranzaksiyada olib tashlanadi. Oylik davri yopiq
+    /// bo'lsa — <c>409</c> (sabab <see cref="IPenaltyService.CancelAsync"/>).
     /// </summary>
     [HttpPost("{id:long}/cancel")]
     [ProducesResponseType<PenaltyRowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PenaltyRowDto>> Cancel(
         long id, [FromBody] CancelPenaltyRequest? request, CancellationToken ct) =>
         Ok(await penalties.CancelAsync(id, request ?? new CancelPenaltyRequest(), CurrentUserId, ct));
