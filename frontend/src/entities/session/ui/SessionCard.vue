@@ -7,6 +7,8 @@ import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 import type { LiveSession } from '../model/types'
 import {
   isJoinable,
+  lateStartLabel,
+  lateStartMinutes,
   sessionStatusLabel,
   sessionStatusTone,
   sessionTitle,
@@ -25,6 +27,9 @@ const statusTone = computed(() => sessionStatusTone(props.session.status))
 const timeRange = computed(
   () => `${formatDateTime(props.session.scheduledStart)} – ${formatTime(props.session.scheduledEnd)}`,
 )
+
+/** Kechikish (daqiqa) — kechikmagan bo'lsa `null` (sabab `lateStartMinutes` izohida). */
+const lateMinutes = computed(() => lateStartMinutes(props.session))
 </script>
 
 <template>
@@ -48,6 +53,24 @@ const timeRange = computed(
         >
           {{ sessionStatusLabel(props.session.status) }}
         </BaseBadge>
+
+        <!--
+          ★ KECHIKISH (2026-08-18) — loyiha egasi: jarima hisoblash va
+          ustozga ISBOTLASH uchun. Qizil va manfiy belgi bilan: bu
+          "yaxshi emas" degan holat va u ko'zga tashlanishi kerak.
+          `title` da aniq vaqtlar — bahsli holatda dalil shu yerda.
+        -->
+        <span
+          v-if="lateMinutes !== null"
+          class="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-500/12 px-2 py-0.5 text-[11px] font-semibold leading-tight text-rose-200"
+          :title="`Reja: ${formatTime(props.session.scheduledStart)} · Boshlandi: ${formatTime(props.session.actualStart!)}`"
+        >
+          <AppIcon
+            name="clock"
+            :size="11"
+          />
+          {{ lateStartLabel(lateMinutes) }}
+        </span>
       </div>
 
       <!--
@@ -70,6 +93,31 @@ const timeRange = computed(
             class="truncate"
             v-text="props.session.groupName"
           />
+          <!--
+            ★ GURUHDAGI JAMI O'QUVCHI (2026-08-18) — guruh nomi YONIDA,
+            chunki savol aynan shu guruh haqida.
+          -->
+          <span
+            class="shrink-0 tabular-nums text-dim"
+            :title="`Guruhda ${props.session.studentCount} ta faol o‘quvchi`"
+          >· {{ props.session.studentCount }}</span>
+        </span>
+
+        <!--
+          ★ HOZIR XONADA NECHTA (faqat jonli darsda). Manbasi presence
+          (Redis), davomat EMAS — ya'ni "ayni daqiqada nechta kishi
+          ulangan". Shuning uchun jonli nishon rangida.
+        -->
+        <span
+          v-if="props.session.onlineCount !== null"
+          class="inline-flex shrink-0 items-center gap-1.5 font-semibold text-rose-300"
+          :title="`Hozir xonada ${props.session.onlineCount} ta ishtirokchi (${props.session.studentCount} tadan)`"
+        >
+          <span
+            class="size-1.5 animate-ping-live rounded-full bg-rose-500"
+            aria-hidden="true"
+          />
+          {{ props.session.onlineCount }} / {{ props.session.studentCount }} xonada
         </span>
         <span
           v-if="props.session.hostName !== null"

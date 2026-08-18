@@ -10,6 +10,23 @@ namespace Zinnur.Application.LiveSessions.Dtos;
 /// — o'quv bo'limining "Jonli darslar" ro'yxati esa hali boshlanmagan
 /// darslar uchun ham "kim olib boradi" savoliga javob berishi kerak.
 /// </param>
+/// <param name="StudentCount">
+/// Guruhda jami nechta FAOL o'quvchi bor (2026-08-18). Kurator darsida
+/// a'zolar bog'langan ustoz guruhlaridan yig'iladi.
+/// </param>
+/// <param name="OnlineCount">
+/// HOZIR xonada nechta ishtirokchi turibdi.
+///
+/// ★ FAQAT JONLI DARSDA to'ldiriladi, qolganida <c>null</c> — "0 kishi"
+/// va "dars hali boshlanmagan, savolning o'zi ma'nosiz" IKKI BOSHQA
+/// holat va ularni bitta `0` bilan ko'rsatish chalkashlik berardi.
+///
+/// ⚠️ MANBASI BOSHQA: bu son bazadan emas, Redis'dagi PRESENCE
+/// jadvalidan keladi (<c>IPresenceService</c>) — ya'ni u dars xonasiga
+/// SignalR orqali ulanganlar soni. Davomat (<c>Attendance</c>) bilan
+/// ARALASHTIRILMAYDI: davomat butun dars bo'yicha yakuniy fakt, bu esa
+/// AYNI DAQIQADAGI holat.
+/// </param>
 public sealed record LiveSessionDto(
     long Id,
     long GroupId,
@@ -22,7 +39,9 @@ public sealed record LiveSessionDto(
     DateTimeOffset? ActualStart,
     DateTimeOffset? EndsAt,
     bool IsHost,
-    string? HostName);
+    string? HostName,
+    int StudentCount,
+    int? OnlineCount);
 
 /// <summary>
 /// KALENDAR uchun dars.

@@ -55,6 +55,53 @@ export function sessionTitle(session: LiveSession): string {
   return title !== undefined && title.length > 0 ? title : session.groupName
 }
 
+/**
+ * DARS KECHIKIB BOSHLANGANMI va necha daqiqaga (2026-08-18).
+ *
+ * Loyiha egasi: *"jonli dars kech boshlangan bo'lsa minus nechadir minut
+ * qilib ko'rsatsa ham zo'r bo'lardi (qizildami) — jarima hisoblashga va
+ * ustozlarga isbotlab berishga ham oson bo'lardi"*.
+ *
+ * ★ SERVER O'ZGARTIRILMADI: `scheduledStart` ham, `actualStart` ham
+ * javobda ALLAQACHON bor — kechikish ular ayirmasidan chiqadi. Buni
+ * serverga qo'shish AYNI ma'lumotni ikkinchi marta uzatish bo'lardi.
+ *
+ * ★ FAQAT MUSBAT QIYMAT: dars vaqtidan OLDIN boshlangan bo'lsa (ustoz
+ * 5 daqiqa oldin ochishi mumkin) `null` qaytadi — "erta boshlandi"
+ * jarima emas va uni ko'rsatishning ma'nosi yo'q.
+ *
+ * ★ 1 DAQIQALIK CHIDAM: soatlar bir necha soniyaga farq qilishi odatiy.
+ * Chegara bo'lmasa har dars "1 daqiqa kechikdi" bo'lib ko'rinardi va
+ * ko'rsatkich ishonchini yo'qotardi.
+ */
+const LATE_TOLERANCE_MINUTES = 1
+
+export function lateStartMinutes(session: {
+  scheduledStart: string
+  actualStart: string | null
+}): number | null {
+  if (session.actualStart === null) return null
+
+  const scheduled = new Date(session.scheduledStart).getTime()
+  const actual = new Date(session.actualStart).getTime()
+
+  if (Number.isNaN(scheduled) || Number.isNaN(actual)) return null
+
+  const minutes = Math.floor((actual - scheduled) / 60_000)
+
+  return minutes > LATE_TOLERANCE_MINUTES ? minutes : null
+}
+
+/** `-7 daq` ko'rinishi (soatdan oshsa `-1 soat 5 daq`). */
+export function lateStartLabel(minutes: number): string {
+  if (minutes < 60) return `−${minutes} daq`
+
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+
+  return rest === 0 ? `−${hours} soat` : `−${hours} soat ${rest} daq`
+}
+
 /** Darsga kirish mumkinmi: jonli, yoki boshlanishiga 15 daqiqadan kam qolgan. */
 const EARLY_JOIN_WINDOW_MS = 15 * 60 * 1000
 

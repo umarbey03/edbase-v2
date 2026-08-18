@@ -10,6 +10,8 @@ export {
 export type { SessionStatsParams } from './api/session-api'
 export {
   isJoinable,
+  lateStartLabel,
+  lateStartMinutes,
   sessionStartState,
   sessionStateBadge,
   sessionStatusLabel,

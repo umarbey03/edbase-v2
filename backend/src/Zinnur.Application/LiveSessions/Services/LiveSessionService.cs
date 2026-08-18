@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
@@ -31,6 +32,8 @@ public sealed class LiveSessionService(
     IScheduleService schedule,
     IAutoRecordingScheduler autoRecording,
     INotificationOutbox outbox,
+    IPresenceService presence,
+    ILogger<LiveSessionService> logger,
     TimeProvider clock) : ILiveSessionService
 {
     /// <summary>
@@ -63,8 +66,19 @@ public sealed class LiveSessionService(
 
         var hostNames = await ResolveHostNamesAsync(rows, ct);
 
+        // "Guruhda nechta o'quvchi bor" va "hozir nechta kishi xonada"
+        // (2026-08-18, loyiha egasi talabi). Ikkalasi ham PAKETDA olinadi
+        // — qator boshiga so'rov yuborilmaydi.
+        var studentCounts = await CountStudentsAsync(rows, ct);
+        var onlineCounts = await CountOnlineAsync(rows, ct);
+
         return rows
-            .Select(s => Map(s, IsHost(s, user), HostUserId(s) is { } hostId ? hostNames.GetValueOrDefault(hostId) : null))
+            .Select(s => Map(
+                s,
+                IsHost(s, user),
+                HostUserId(s) is { } hostId ? hostNames.GetValueOrDefault(hostId) : null,
+                studentCounts.GetValueOrDefault(s.GroupId),
+                onlineCounts.TryGetValue(s.Id, out var online) ? online : null))
             .ToList();
     }
 
@@ -707,7 +721,12 @@ public sealed class LiveSessionService(
         }
     }
 
-    private static LiveSessionDto Map(LiveSession s, bool isHost, string? hostName) => new(
+    private static LiveSessionDto Map(
+        LiveSession s,
+        bool isHost,
+        string? hostName,
+        int studentCount = 0,
+        int? onlineCount = null) => new(
         s.Id,
         s.GroupId,
         s.Group?.Name ?? string.Empty,
@@ -719,7 +738,74 @@ public sealed class LiveSessionService(
         s.ActualStart,
         s.EndsAt,
         isHost,
-        hostName);
+        hostName,
+
+        // ★ NOMLI ARGUMENT: yuqorida ketma-ket `bool`/`string?` turgan
+        //   joyda pozitsiyani almashtirib yuborish JIMGINA xato beradi
+        //   (`GroupService.Map` dagi AYNI ehtiyot chorasi).
+        StudentCount: studentCount,
+        OnlineCount: onlineCount);
+
+    /// <summary>
+    /// Guruhdagi FAOL o'quvchilar sonini darslar bo'yicha bir so'rovda
+    /// oladi (2026-08-18).
+    ///
+    /// ★ KURATOR GURUHI: a'zolar bevosita yo'q — ular bog'langan ustoz
+    /// guruhlaridan sanaladi (`GetStatsAsync` dagi AYNI shart).
+    /// </summary>
+    private async Task<Dictionary<long, int>> CountStudentsAsync(
+        List<LiveSession> sessions, CancellationToken ct)
+    {
+        if (sessions.Count == 0) return [];
+
+        var groupIds = sessions.Select(s => s.GroupId).Distinct().ToList();
+
+        var rows = await db.Groups
+            .AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id))
+            .Select(g => new
+            {
+                g.Id,
+                Count = db.GroupMembers.Count(m => m.Status == MemberStatus.Active
+                    && (m.GroupId == g.Id
+                        || (g.Type == GroupType.Curator && m.Group!.CuratorGroupId == g.Id))),
+            })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(x => x.Id, x => x.Count);
+    }
+
+    /// <summary>
+    /// HOZIR xonada turganlar soni — FAQAT jonli darslar uchun.
+    ///
+    /// ★ NIMA UCHUN FAQAT JONLI: har son bitta Redis chaqiruvi
+    /// (<c>HLEN</c>). Rejalashtirilgan 100 ta dars uchun ham so'ralsa,
+    /// ro'yxat 100 ta keraksiz chaqiruvga aylanardi — jonli darslar esa
+    /// odatda 0–3 ta.
+    ///
+    /// ⚠️ XATO YUTILADI: Redis ishlamay qolsa ro'yxat OCHILISHDA DAVOM
+    /// ETADI, faqat "hozir nechta" ustuni bo'sh bo'ladi. Yordamchi
+    /// ko'rsatkich uchun butun sahifani yiqitish mumkin emas.
+    /// </summary>
+    private async Task<Dictionary<long, int>> CountOnlineAsync(
+        List<LiveSession> sessions, CancellationToken ct)
+    {
+        var result = new Dictionary<long, int>();
+
+        foreach (var session in sessions.Where(s => s.Status == SessionStatus.Live))
+        {
+            try
+            {
+                result[session.Id] = await presence.CountAsync(session.Id, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LiveSessionLog.PresenceUnavailable(logger, ex, session.Id);
+            }
+        }
+
+        return result;
+    }
 
     private async Task<string?> ResolveHostNameAsync(LiveSession s, CancellationToken ct)
     {
@@ -779,4 +865,19 @@ public sealed class LiveSessionService(
         AttendanceStatus? MyAttendance,
         DateTimeOffset ScheduledStart,
         DateTimeOffset ScheduledEnd);
+}
+
+/// <summary>Manba-generatsiyali log metodlari (CA1848).</summary>
+internal static partial class LiveSessionLog
+{
+    /// <summary>
+    /// Presence (Redis) javob bermadi — ro'yxat baribir ochiladi, faqat
+    /// "hozir nechta kishi" ustuni bo'sh qoladi (sabab `CountOnlineAsync`
+    /// izohida).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6500,
+        Level = LogLevel.Warning,
+        Message = "Xonadagilar sonini olib bo'lmadi (presence): dars={SessionId}")]
+    internal static partial void PresenceUnavailable(ILogger logger, Exception exception, long sessionId);
 }

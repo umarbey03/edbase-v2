@@ -162,6 +162,14 @@ export interface LiveSessionDto {
   isHost: boolean
   /** Shu darsni olib borishi kutilayotgan xodim (guruhning ustozi/kuratori). `null` — biriktirilmagan. */
   hostName: string | null
+  /** Guruhda jami nechta FAOL o'quvchi bor (2026-08-18). */
+  studentCount: number
+  /**
+   * HOZIR xonada nechta ishtirokchi turibdi. FAQAT jonli darsda son
+   * bo'ladi, qolganida `null` — "0 kishi" va "dars boshlanmagan" ikki
+   * boshqa holat (manbasi Redis presence, davomat EMAS).
+   */
+  onlineCount: number | null
 }
 
 /**
