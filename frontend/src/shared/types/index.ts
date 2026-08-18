@@ -54,6 +54,9 @@ export type {
   DirectMessageDto,
   DiscountKindName,
   FinanceSettingsDto,
+  FreeTeacherDto,
+  FreeTeacherParams,
+  FreeTeacherResultDto,
   GradeSubmissionRequest,
   /* ===== "Xabarlar" paneli ===== */
   GroupBroadcastDto,

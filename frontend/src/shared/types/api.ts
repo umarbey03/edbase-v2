@@ -3659,3 +3659,60 @@ export interface PayrollDetailDto {
 }
 
 /* ===== /OYLIK HISOBLASH ===== */
+
+/* ============================================================================
+   BO'SH USTOZLAR (2026-08-18)
+
+   Loyiha egasi: *"14:00 da bugunni belgilasam qaysi ustozlar bo'shligini
+   ko'rsatsin, ind qo'yib berayotganda birinchi shunga qarardim"*.
+
+   ★ "Jonli darslar" jadvali KIM DARS O'TAYAPTI ni ko'rsatadi, bu esa
+   TESKARISINI — kim dars o'tMAYAPTI.
+   ============================================================================ */
+
+export interface FreeTeacherParams {
+  /** Mahalliy sana `YYYY-MM-DD`. Bo'sh — bugun. */
+  date?: string
+  /** Mahalliy vaqt `HH:mm`. Bo'sh — 09:00. */
+  time?: string
+  /** Necha daqiqalik oyna tekshiriladi (5–720). */
+  durationMinutes?: number
+  includeAssistants?: boolean
+  /** `true` — faqat bo'shlar; `false` — bandlar ham sababi bilan. */
+  onlyFree?: boolean
+  search?: string
+}
+
+export interface FreeTeacherDto {
+  teacherId: number
+  teacherName: string
+  /** `Teacher` | `Assistant`. */
+  role: string
+  /** Shu oynada darsi ham, "o'tolmayman" javobi ham yo'q. */
+  isFree: boolean
+  busyGroupName: string | null
+  busyFrom: string | null
+  busyTo: string | null
+  /**
+   * Ustoz o'sha kunga "o'tolmayman" deb javob bergan bo'lsa — sababi.
+   * Bunday ustoz darsi bo'lmasa ham bo'sh deb sanalmaydi.
+   */
+  unavailableReason: string | null
+  /** O'sha kundagi jami darslari — yuklamani ko'rish uchun. */
+  lessonsThatDay: number
+  /** O'sha kundagi birinchi darsi (mahalliy `HH:mm:ss`). */
+  dayFirstLesson: string | null
+  /** O'sha kundagi oxirgi darsining tugashi (mahalliy `HH:mm:ss`). */
+  dayLastLessonEnd: string | null
+}
+
+export interface FreeTeacherResultDto {
+  date: string
+  time: string
+  durationMinutes: number
+  windowStart: string
+  windowEnd: string
+  freeCount: number
+  busyCount: number
+  teachers: FreeTeacherDto[]
+}

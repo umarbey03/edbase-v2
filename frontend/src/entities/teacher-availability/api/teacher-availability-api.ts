@@ -1,5 +1,7 @@
 import { http } from '@/shared/api'
 import type {
+  FreeTeacherParams,
+  FreeTeacherResultDto,
   PagedResult,
   TeacherAvailabilityDetailDto,
   TeacherAvailabilityListParams,
@@ -64,6 +66,27 @@ export function fetchTeacherAvailabilityDetail(
   options?: { signal?: AbortSignal },
 ): Promise<TeacherAvailabilityDetailDto> {
   return http.get<TeacherAvailabilityDetailDto>(`${BASE}/${checkinId}`, {
+    signal: options?.signal,
+  })
+}
+
+/**
+ * BO'SH USTOZLAR (2026-08-18) — berilgan kun va vaqtda darsi yo'q
+ * ustozlar. Individual o'quvchi biriktirishda birinchi qaraladi.
+ */
+export function fetchFreeTeachers(
+  params: FreeTeacherParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<FreeTeacherResultDto> {
+  return http.get<FreeTeacherResultDto>(`${BASE}/free`, {
+    query: {
+      date: params.date,
+      time: params.time,
+      durationMinutes: params.durationMinutes,
+      includeAssistants: params.includeAssistants,
+      onlyFree: params.onlyFree,
+      search: params.search,
+    },
     signal: options?.signal,
   })
 }

@@ -140,3 +140,66 @@ public sealed record SubstituteOfferRowDto(
     string Status,
     DateTimeOffset SentAt,
     DateTimeOffset? RespondedAt);
+
+/* ════════════════════════════════════════════════════════════════════════
+   BO'SH USTOZLAR (2026-08-18)
+
+   Loyiha egasi: *"14:00 da bugunni belgilasam qaysi ustozlar bo'shligini
+   ko'rsatsin, ind qo'yib berayotganda birinchi shunga qarardim"*.
+
+   ★ NEGA MAVJUD JADVALDAN TOPIB BO'LMAYDI: "Jonli darslar" paneli KIM
+   DARS O'TAYAPTI ni ko'rsatadi. Operatorga esa TESKARISI kerak — kim
+   dars o'tMAYAPTI. Bo'sh ustozni band darslar ro'yxatidan ayirib topish
+   ko'z bilan bajariladigan ish edi va xatoga juda moyil.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/// <param name="Date">Qaysi kun (mahalliy sana).</param>
+/// <param name="Time">Qaysi vaqtdan (mahalliy). Bo'sh — 09:00.</param>
+/// <param name="DurationMinutes">Necha daqiqalik oyna tekshiriladi.</param>
+/// <param name="IncludeAssistants">Kuratorlar ham ro'yxatga kirsinmi.</param>
+/// <param name="OnlyFree"><c>true</c> — faqat bo'shlar; <c>false</c> — bandlar ham (sababi bilan).</param>
+public sealed record FreeTeacherQuery(
+    DateOnly? Date = null,
+    TimeOnly? Time = null,
+    int DurationMinutes = 60,
+    bool IncludeAssistants = false,
+    bool OnlyFree = true,
+    string? Search = null);
+
+/// <summary>
+/// Bitta ustozning tanlangan oynadagi holati.
+/// </summary>
+/// <param name="IsFree">Shu oynada darsi ham, "o'tolmayman" javobi ham yo'q.</param>
+/// <param name="BusyGroupName">Band bo'lsa — qaysi guruh bilan.</param>
+/// <param name="BusyFrom">Band darsning boshlanishi.</param>
+/// <param name="BusyTo">Band darsning tugashi.</param>
+/// <param name="UnavailableReason">
+/// Ustoz o'sha kunga "o'tolmayman" deb javob bergan bo'lsa — sababi.
+/// Bunday ustoz darsi bo'lmasa ham BO'SH DEB SANALMAYDI.
+/// </param>
+/// <param name="LessonsThatDay">O'sha kundagi jami darslari — yuklamani ko'rish uchun.</param>
+/// <param name="DayFirstLesson">O'sha kundagi birinchi darsi (mahalliy vaqt).</param>
+/// <param name="DayLastLessonEnd">O'sha kundagi oxirgi darsining tugashi (mahalliy vaqt).</param>
+public sealed record FreeTeacherDto(
+    long TeacherId,
+    string TeacherName,
+    string Role,
+    bool IsFree,
+    string? BusyGroupName,
+    DateTimeOffset? BusyFrom,
+    DateTimeOffset? BusyTo,
+    string? UnavailableReason,
+    int LessonsThatDay,
+    TimeOnly? DayFirstLesson,
+    TimeOnly? DayLastLessonEnd);
+
+/// <param name="WindowStart">Tekshirilgan oynaning boshi (UTC) — UI aynan shuni ko'rsatadi.</param>
+public sealed record FreeTeacherResultDto(
+    DateOnly Date,
+    TimeOnly Time,
+    int DurationMinutes,
+    DateTimeOffset WindowStart,
+    DateTimeOffset WindowEnd,
+    int FreeCount,
+    int BusyCount,
+    IReadOnlyList<FreeTeacherDto> Teachers);

@@ -1,4 +1,5 @@
 export {
+  fetchFreeTeachers,
   fetchTeacherAvailability,
   fetchTeacherAvailabilityDetail,
   fetchTeacherAvailabilitySummary,

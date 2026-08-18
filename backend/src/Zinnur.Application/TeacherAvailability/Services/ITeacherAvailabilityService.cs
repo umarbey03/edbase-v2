@@ -55,6 +55,23 @@ public interface ITeacherAvailabilityService
     /// AYNI filtrga mos BUTUN to'plam bo'yicha yig'ma ko'rsatkichlar.
     /// Sahifalash e'tiborga OLINMAYDI (sabab <see cref="TeacherAvailabilitySummaryDto"/> izohida).
     /// </summary>
+    /// <summary>
+    /// BO'SH USTOZLAR: berilgan kun va vaqt oynasida darsi YO'Q ustozlar
+    /// (loyiha egasi, 2026-08-18 — individual o'quvchi biriktirishda
+    /// birinchi qaraladigan ro'yxat).
+    ///
+    /// ★ "O'TOLMAYMAN" DEGAN USTOZ BO'SH SANALMAYDI: kunlik so'rovga
+    /// rad javobi bergan ustozning jadvali bo'sh ko'rinishi mumkin,
+    /// lekin unga dars qo'yish xato bo'lardi.
+    /// </summary>
+    /// <remarks>
+    /// Ruxsat FAQAT controller atributida — shu moduldagi qolgan o'qish
+    /// metodlari bilan AYNI (ular ham <c>actorId</c> olmaydi). Bitta
+    /// metodni boshqacha qilish moduldagi qoidani chalkashtirardi.
+    /// </remarks>
+    Task<FreeTeacherResultDto> GetFreeTeachersAsync(
+        FreeTeacherQuery query, CancellationToken ct = default);
+
     Task<TeacherAvailabilitySummaryDto> GetSummaryAsync(
         TeacherAvailabilityListQuery query, CancellationToken ct = default);
 

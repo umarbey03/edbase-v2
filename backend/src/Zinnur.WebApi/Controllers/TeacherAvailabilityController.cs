@@ -41,6 +41,16 @@ public sealed class TeacherAvailabilityController(ITeacherAvailabilityService av
         [FromQuery] TeacherAvailabilityListQuery query, CancellationToken ct) =>
         Ok(await availability.GetSummaryAsync(query, ct));
 
+    /// <summary>
+    /// BO'SH USTOZLAR (2026-08-18): berilgan kun va vaqt oynasida darsi
+    /// yo'q ustozlar — individual o'quvchi biriktirishda ishlatiladi.
+    /// </summary>
+    [HttpGet("free")]
+    [ProducesResponseType<FreeTeacherResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<FreeTeacherResultDto>> Free(
+        [FromQuery] FreeTeacherQuery query, CancellationToken ct) =>
+        Ok(await availability.GetFreeTeachersAsync(query, ct));
+
     /// <summary>Bitta yozuvning to'liq tafsiloti — taklif tarixi bilan.</summary>
     [HttpGet("{checkinId:long}")]
     [ProducesResponseType<TeacherAvailabilityDetailDto>(StatusCodes.Status200OK)]

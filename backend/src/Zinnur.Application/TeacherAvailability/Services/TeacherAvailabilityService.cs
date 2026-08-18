@@ -1003,6 +1003,162 @@ public sealed class TeacherAvailabilityService(
             .ConvertTime(session.ScheduledStart, timeZoneProvider.TimeZone)
             .ToString("HH:mm", CultureInfo.InvariantCulture);
 
+    // ================================================================ bo'sh ustozlar
+
+    /// <inheritdoc />
+    public async Task<FreeTeacherResultDto> GetFreeTeachersAsync(
+        FreeTeacherQuery query, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var zone = timeZoneProvider.TimeZone;
+        var date = query.Date ?? LocalToday(clock.GetUtcNow());
+        var time = query.Time ?? new TimeOnly(9, 0);
+
+        // Oyna uzunligi cheklangan: 0 bo'lsa har qanday dars bilan
+        // kesishmasdi (bo'sh oraliq), 12 soatdan katta bo'lsa esa butun
+        // kun band bo'lib chiqib, ro'yxat ma'nosini yo'qotardi.
+        var duration = Math.Clamp(query.DurationMinutes, 5, 720);
+
+        var windowStart = LocalWallClock.ToUtc(date, time, zone);
+        var windowEnd = windowStart.AddMinutes(duration);
+
+        var dayStart = LocalWallClock.StartOfDayUtc(date, zone);
+        var dayEnd = LocalWallClock.StartOfDayUtc(date.AddDays(1), zone);
+
+        // ---------------------------------------------------------- xodimlar
+        var roles = query.IncludeAssistants
+            ? new[] { UserRole.Teacher, UserRole.Assistant }
+            : [UserRole.Teacher];
+
+        var staff = db.Users.AsNoTracking()
+            .Where(u => u.IsActive && roles.Contains(u.Role));
+
+        var term = NormalizeFreeSearch(query.Search);
+
+        if (term is not null)
+        {
+#pragma warning disable CA1304, CA1311
+            staff = staff.Where(u => EF.Functions.Like(u.FullName.ToLower(), term));
+#pragma warning restore CA1304, CA1311
+        }
+
+        var people = await staff
+            .OrderBy(u => u.FullName)
+            .Select(u => new { u.Id, u.FullName, u.Role })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        if (people.Count == 0)
+            return new FreeTeacherResultDto(date, time, duration, windowStart, windowEnd, 0, 0, []);
+
+        var ids = people.ConvertAll(p => p.Id);
+
+        // ---------------------------------------------------------- o'sha kundagi darslar
+        // ★ BUTUN KUN olinadi, faqat oyna emas: ro'yxatda "bugun 3 ta
+        //   darsi bor, birinchisi 08:00" kabi YUKLAMA ham ko'rsatiladi —
+        //   operator bo'sh ustozlar orasidan kimni tanlashni shunga
+        //   qarab hal qiladi.
+        var sessions = await db.LiveSessions.AsNoTracking()
+            .Where(s => s.HostId != null
+                && ids.Contains(s.HostId.Value)
+                && (s.Status == SessionStatus.Scheduled || s.Status == SessionStatus.Live)
+                && s.ScheduledStart < dayEnd
+                && s.ScheduledEnd > dayStart)
+            .Select(s => new
+            {
+                HostId = s.HostId!.Value,
+                s.ScheduledStart,
+                s.ScheduledEnd,
+                GroupName = s.Group == null ? null : s.Group.Name,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var byTeacher = sessions.GroupBy(s => s.HostId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(s => s.ScheduledStart).ToList());
+
+        // ---------------------------------------------------------- "o'tolmayman" javoblari
+        var declined = await db.TeacherDailyCheckins.AsNoTracking()
+            .Where(c => ids.Contains(c.TeacherId)
+                && c.CheckinDate == date
+                && c.Status == TeacherCheckinStatus.Declined)
+            .Select(c => new { c.TeacherId, c.DeclineReason })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var declinedById = declined
+            .GroupBy(x => x.TeacherId)
+            .ToDictionary(g => g.Key, g => g.First().DeclineReason);
+
+        // ---------------------------------------------------------- yig'ish
+        var rows = new List<FreeTeacherDto>(people.Count);
+
+        foreach (var person in people)
+        {
+            byTeacher.TryGetValue(person.Id, out var day);
+            day ??= [];
+
+            // ★ KESISHISH QOIDASI o'rinbosar qidiruvi bilan AYNI:
+            //   `start < windowEnd && end > windowStart`. Ikki joyda
+            //   boshqacha yozilsa, bir xil savolga ikki xil javob
+            //   chiqardi.
+            var clash = day.Find(s => s.ScheduledStart < windowEnd && s.ScheduledEnd > windowStart);
+
+            declinedById.TryGetValue(person.Id, out var declineReason);
+            var unavailable = declinedById.ContainsKey(person.Id);
+
+            var isFree = clash is null && !unavailable;
+
+            if (query.OnlyFree && !isFree) continue;
+
+            rows.Add(new FreeTeacherDto(
+                person.Id,
+                person.FullName,
+                person.Role.ToString(),
+                isFree,
+                clash?.GroupName,
+                clash?.ScheduledStart,
+                clash?.ScheduledEnd,
+                // Sabab bo'sh bo'lsa ham "o'tolmayman" fakti ko'rinsin.
+                unavailable ? declineReason ?? "Bugun dars o'ta olmasligini bildirgan" : null,
+                day.Count,
+                day.Count == 0 ? null : TimeOnly.FromDateTime(ToLocal(day[0].ScheduledStart, zone)),
+                day.Count == 0 ? null : TimeOnly.FromDateTime(ToLocal(day[^1].ScheduledEnd, zone))));
+        }
+
+        return new FreeTeacherResultDto(
+            date,
+            time,
+            duration,
+            windowStart,
+            windowEnd,
+            FreeCount: rows.Count(r => r.IsFree),
+            BusyCount: rows.Count(r => !r.IsFree),
+            // Bo'shlar tepada; ular ichida YUKLAMASI KAM bo'lgani
+            // birinchi — operator odatda eng bo'sh ustozni qidiradi.
+            Teachers: rows
+                .OrderByDescending(r => r.IsFree)
+                .ThenBy(r => r.LessonsThatDay)
+                .ThenBy(r => r.TeacherName, StringComparer.Ordinal)
+                .ToList());
+    }
+
+    private static DateTime ToLocal(DateTimeOffset instant, TimeZoneInfo zone) =>
+        TimeZoneInfo.ConvertTime(instant, zone).DateTime;
+
+    private static string? NormalizeFreeSearch(string? search)
+    {
+        var trimmed = search?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed)) return null;
+
+        return "%" + trimmed.ToLowerInvariant()
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
+    }
+
     private DateOnly LocalToday(DateTimeOffset nowUtc) =>
         LocalWallClock.LocalDate(nowUtc, timeZoneProvider.TimeZone);
 
