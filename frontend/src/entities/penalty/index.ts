@@ -2,9 +2,14 @@ export {
   approvePenalty,
   cancelPenalty,
   createManualPenalty,
+  createPenaltyCategory,
+  deletePenaltyCategory,
   fetchPenalties,
   fetchPenaltiesByUser,
+  fetchPenaltyCategories,
+  fetchPenaltyReport,
   fetchPenaltySummary,
+  updatePenaltyCategory,
 } from './api/penalty-api'
 
 export {

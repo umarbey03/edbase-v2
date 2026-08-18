@@ -25,7 +25,18 @@ public sealed class PenaltyConfiguration : IEntityTypeConfiguration<Penalty>
         // yoziladi: moliya ustunining turi konfiguratsiyada ko'rinib tursin.
         builder.Property(p => p.Amount).HasPrecision(18, 2);
 
+        // Miqdor kasrli bo'lishi mumkin (masalan 1.5 soat) — shuning
+        // uchun `int` emas.
+        builder.Property(p => p.Quantity).HasPrecision(18, 2);
+
         builder.Property(p => p.PeriodStart).HasColumnType("date");
+
+        // Kategoriya O'CHIRILMAYDI (arxivlanadi) — havola shu sababdan
+        // xavfsiz. `Restrict` esa tasodifiy o'chirishni bazada to'sadi.
+        builder.HasOne(p => p.Category)
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Barcha havolalar `Restrict` — jarima MOLIYAVIY iz. Xodim yoki
         // dars o'chirilsa ham yozuv qolishi kerak (`PayrollAdjustment`

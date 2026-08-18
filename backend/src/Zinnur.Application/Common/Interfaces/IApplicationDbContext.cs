@@ -280,6 +280,9 @@ public interface IApplicationDbContext
     /// <summary>Ustoz/kurator jarimalari (2026-08-18) — oylikka FAQAT tasdiqlangach tushadi.</summary>
     DbSet<Penalty> Penalties { get; }
 
+    /// <summary>Jarima tariflari katalogi — sozlamalardan boshqariladi.</summary>
+    DbSet<PenaltyCategory> PenaltyCategories { get; }
+
     /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);

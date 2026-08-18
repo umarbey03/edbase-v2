@@ -196,6 +196,7 @@ public static class DependencyInjection
 
         // Jarimalar (2026-08-18) — tasdiqlangach oylikka manfiy tuzatma yaratadi.
         services.AddScoped<IPenaltyService, PenaltyService>();
+        services.AddScoped<IPenaltyCategoryService, PenaltyCategoryService>();
 
         // Bosqichma-bosqich hisoblash (2026-08-16) — `IPaymentService` dan
         // ATAYLAB ALOHIDA interfeys (izoh: `LessonAccrualService` sinfi

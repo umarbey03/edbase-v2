@@ -1,12 +1,10 @@
-using System.Globalization;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.Penalties.Dtos;
 using Zinnur.Application.Scheduling.Services;
-using Zinnur.Application.Settings;
-using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -17,7 +15,6 @@ namespace Zinnur.Application.Penalties.Services;
 /// <inheritdoc cref="IPenaltyService"/>
 public sealed class PenaltyService(
     IApplicationDbContext db,
-    ISettingsResolver settings,
     IScheduleTimeZoneProvider timeZone,
     TimeProvider clock) : IPenaltyService
 {
@@ -54,38 +51,10 @@ public sealed class PenaltyService(
             .ThenByDescending(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new
-            {
-                p.Id,
-                p.UserId,
-                UserName = p.User!.FullName,
-                UserRole = p.User.Role,
-                p.SessionId,
-                GroupName = p.Session == null ? null : p.Session.Group!.Name,
-                SessionScheduledStart = p.Session == null ? (DateTimeOffset?)null : p.Session.ScheduledStart,
-                SessionActualStart = p.Session == null ? null : p.Session.ActualStart,
-                p.Kind,
-                p.Status,
-                p.LateMinutes,
-                p.Amount,
-                p.Reason,
-                p.OccurredAt,
-                p.PeriodStart,
-                CreatedByName = p.CreatedBy == null ? null : p.CreatedBy.FullName,
-                ReviewedByName = p.ReviewedBy == null ? null : p.ReviewedBy.FullName,
-                p.ReviewedAt,
-            })
+            .Select(Projection)
             .ToListAsync(ct);
 
-        // `enum.ToString()` XOTIRADA — so'rov ichida yozilsa SQL'ga
-        // tarjima qilishga majburlardi (loyihadagi AYNI qoida).
-        var mapped = items.ConvertAll(x => new PenaltyRowDto(
-            x.Id, x.UserId, x.UserName, x.UserRole.ToString(),
-            x.SessionId, x.GroupName, x.SessionScheduledStart, x.SessionActualStart,
-            x.Kind.ToString(), x.Status.ToString(), x.LateMinutes, x.Amount, x.Reason,
-            x.OccurredAt, x.PeriodStart, x.CreatedByName, x.ReviewedByName, x.ReviewedAt));
-
-        return new PagedResult<PenaltyRowDto>(mapped, page, pageSize, total);
+        return new PagedResult<PenaltyRowDto>(items.ConvertAll(ToDto), page, pageSize, total);
     }
 
     /// <inheritdoc />
@@ -153,6 +122,72 @@ public sealed class PenaltyService(
             .ToList();
     }
 
+    /// <inheritdoc />
+    public async Task<PenaltyReportDto> GetReportAsync(
+        string period, long actorId, CancellationToken ct = default)
+    {
+        await EnsureCanViewAsync(actorId, ct);
+
+        var billingPeriod = BillingPeriod.Parse(period);
+        var firstDay = billingPeriod.FirstDay();
+
+        // ★ FAQAT TASDIQLANGAN VA KUTILAYOTGAN: bekor qilingan jarima
+        //   pul EMAS — uni hisobotga qo'shsak, xodimga ko'rsatiladigan
+        //   "jami" oylikdagi ushlanmadan katta chiqib, bahsga sabab
+        //   bo'lardi.
+        var flat = await db.Penalties.AsNoTracking()
+            .Where(p => p.PeriodStart == firstDay && p.Status != PenaltyStatus.Cancelled)
+            .Select(p => new
+            {
+                p.UserId,
+                UserName = p.User!.FullName,
+                UserRole = p.User.Role,
+                Label = p.Category == null ? null : p.Category.Label,
+                p.Kind,
+                p.Amount,
+            })
+            .ToListAsync(ct);
+
+        var users = flat
+            .GroupBy(x => x.UserId)
+            .Select(g =>
+            {
+                var first = g.First();
+
+                var lines = g
+                    // Kategoriyasiz eski jarimalar tur nomi ostida
+                    // yig'iladi — hisobotda "nomsiz" qator qolmasin.
+                    .GroupBy(x => x.Label ?? KindLabel(x.Kind))
+                    .Select(l => new PenaltyReportLineDto(l.Key, l.Count(), l.Sum(x => x.Amount)))
+                    .OrderByDescending(l => l.Amount)
+                    .ThenBy(l => l.Label, StringComparer.Ordinal)
+                    .ToList();
+
+                return new PenaltyReportUserDto(
+                    g.Key,
+                    first.UserName,
+                    first.UserRole.ToString(),
+                    g.Sum(x => x.Amount),
+                    lines);
+            })
+            .OrderByDescending(u => u.Total)
+            .ThenBy(u => u.UserName, StringComparer.Ordinal)
+            .ToList();
+
+        return new PenaltyReportDto(
+            billingPeriod.ToString(),
+            users.Sum(u => u.Total),
+            users);
+    }
+
+    /// <summary>Kategoriyasiz jarima uchun o'qiladigan nom.</summary>
+    private static string KindLabel(PenaltyKind kind) => kind switch
+    {
+        PenaltyKind.LateStart => "Darsga kechikish",
+        PenaltyKind.MissedLesson => "Dars o'tilmadi",
+        _ => "Boshqa",
+    };
+
     // ================================================================= yozish
 
     /// <inheritdoc />
@@ -179,11 +214,27 @@ public sealed class PenaltyService(
         if (target.Role is not (UserRole.Teacher or UserRole.Assistant))
             throw new ConflictException("Jarima faqat ustoz yoki kuratorga yoziladi.");
 
+        PenaltyCategory? category = null;
+
+        if (request.CategoryId is { } categoryId)
+        {
+            category = await db.PenaltyCategories.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == categoryId, ct)
+                ?? throw new NotFoundException(nameof(PenaltyCategory), categoryId);
+
+            // Arxivlangan tarif YANGI jarimada tanlanmaydi (eski
+            // jarimalarda esa ko'rinib turaveradi).
+            if (!category.IsActive)
+                throw new ConflictException($"\"{category.Label}\" tarifi arxivlangan.");
+        }
+
         var now = clock.GetUtcNow();
         var occurredAt = request.OccurredAt ?? now;
 
         var penalty = Penalty.Manual(
             target.Id,
+            category,
+            request.Quantity,
             request.Amount,
             request.Reason,
             actorId,
@@ -271,8 +322,8 @@ public sealed class PenaltyService(
         var lateMinutes = (int)Math.Floor((actualStart - session.ScheduledStart).TotalMinutes);
         if (lateMinutes <= LateToleranceMinutes) return;
 
-        var perMinute = await MoneySettingAsync(SettingsRegistry.Keys.PenaltyLatePerMinute, ct);
-        if (perMinute <= 0) return;
+        var category = await SystemCategoryAsync(PenaltyCategory.LateStartKey, ct);
+        if (category is null) return;
 
         // Bu dars uchun kechikish jarimasi allaqachon bormi. Baza
         // darajasidagi unikal indeks ham bor — bu tekshiruv faqat
@@ -283,14 +334,14 @@ public sealed class PenaltyService(
         if (exists) return;
 
         db.Penalties.Add(Penalty.ForLateStart(
-            hostId, session.Id, lateMinutes, perMinute, actualStart, PeriodOf(actualStart)));
+            hostId, session.Id, lateMinutes, category, actualStart, PeriodOf(actualStart)));
     }
 
     /// <inheritdoc />
     public async Task<int> ScanMissedLessonsAsync(CancellationToken ct = default)
     {
-        var amount = await MoneySettingAsync(SettingsRegistry.Keys.PenaltyMissedLesson, ct);
-        if (amount <= 0) return 0;
+        var category = await SystemCategoryAsync(PenaltyCategory.MissedLessonKey, ct);
+        if (category is null) return 0;
 
         var now = clock.GetUtcNow();
 
@@ -314,7 +365,7 @@ public sealed class PenaltyService(
             db.Penalties.Add(Penalty.ForMissedLesson(
                 session.HostId!.Value,
                 session.Id,
-                amount,
+                category,
                 session.ScheduledStart,
                 PeriodOf(session.ScheduledStart)));
         }
@@ -336,7 +387,19 @@ public sealed class PenaltyService(
             rows = rows.Where(p => p.PeriodStart == period);
         }
 
+        if (query.OccurredOn is { } day)
+        {
+            // ★ YARIM OCHIQ ORALIQ mahalliy kun chegarasida: `OccurredAt`
+            //   UTC saqlanadi, foydalanuvchi esa Toshkent kunini
+            //   nazarda tutadi (loyihadagi AYNI qoida).
+            var from = LocalWallClock.StartOfDayUtc(day, timeZone.TimeZone);
+            var to = LocalWallClock.StartOfDayUtc(day.AddDays(1), timeZone.TimeZone);
+
+            rows = rows.Where(p => p.OccurredAt >= from && p.OccurredAt < to);
+        }
+
         if (query.UserId is { } userId) rows = rows.Where(p => p.UserId == userId);
+        if (query.CategoryId is { } categoryId) rows = rows.Where(p => p.CategoryId == categoryId);
         if (query.Kind is { } kind) rows = rows.Where(p => p.Kind == kind);
         if (query.Status is { } status) rows = rows.Where(p => p.Status == status);
 
@@ -347,7 +410,8 @@ public sealed class PenaltyService(
 #pragma warning disable CA1304, CA1311
             rows = rows.Where(p =>
                 EF.Functions.Like(p.User!.FullName.ToLower(), term)
-                || EF.Functions.Like(p.Reason.ToLower(), term));
+                || EF.Functions.Like(p.Reason.ToLower(), term)
+                || (p.Category != null && EF.Functions.Like(p.Category.Label.ToLower(), term)));
 #pragma warning restore CA1304, CA1311
         }
 
@@ -360,52 +424,101 @@ public sealed class PenaltyService(
     /// ★ RUXSAT QAYTA TEKSHIRILMAYDI: bu metod FAQAT tekshiruvdan
     /// allaqachon o'tgan amallardan chaqiriladi.
     /// </summary>
-    private async Task<PenaltyRowDto> GetRowAsync(long id, CancellationToken ct)
-    {
-        var row = await db.Penalties.AsNoTracking()
+    private async Task<PenaltyRowDto> GetRowAsync(long id, CancellationToken ct) =>
+        ToDto(await db.Penalties.AsNoTracking()
             .Where(p => p.Id == id)
-            .Select(p => new
-            {
-                p.Id,
-                p.UserId,
-                UserName = p.User!.FullName,
-                UserRole = p.User.Role,
-                p.SessionId,
-                GroupName = p.Session == null ? null : p.Session.Group!.Name,
-                SessionScheduledStart = p.Session == null ? (DateTimeOffset?)null : p.Session.ScheduledStart,
-                SessionActualStart = p.Session == null ? null : p.Session.ActualStart,
-                p.Kind,
-                p.Status,
-                p.LateMinutes,
-                p.Amount,
-                p.Reason,
-                p.OccurredAt,
-                p.PeriodStart,
-                CreatedByName = p.CreatedBy == null ? null : p.CreatedBy.FullName,
-                ReviewedByName = p.ReviewedBy == null ? null : p.ReviewedBy.FullName,
-                p.ReviewedAt,
-            })
-            .FirstAsync(ct);
+            .Select(Projection)
+            .FirstAsync(ct));
 
-        return new PenaltyRowDto(
-            row.Id, row.UserId, row.UserName, row.UserRole.ToString(),
-            row.SessionId, row.GroupName, row.SessionScheduledStart, row.SessionActualStart,
-            row.Kind.ToString(), row.Status.ToString(), row.LateMinutes, row.Amount, row.Reason,
-            row.OccurredAt, row.PeriodStart, row.CreatedByName, row.ReviewedByName, row.ReviewedAt);
-    }
+    /// <summary>
+    /// Oraliq shakl: enum'lar HALI matnga aylantirilmagan.
+    ///
+    /// ★ NEGA TO'G'RIDAN <see cref="PenaltyRowDto"/> GA EMAS:
+    /// <c>enum.ToString()</c> ni so'rov ichida yozsak EF uni SQL'ga
+    /// tarjima qilishga urinardi (loyihadagi AYNI qoida) — shuning
+    /// uchun matnga o'girish XOTIRADA, <see cref="ToDto"/> da.
+    /// </summary>
+    private sealed record Row(
+        long Id,
+        long UserId,
+        string UserName,
+        UserRole UserRole,
+        long? SessionId,
+        string? GroupName,
+        DateTimeOffset? SessionScheduledStart,
+        DateTimeOffset? SessionActualStart,
+        PenaltyKind Kind,
+        PenaltyStatus Status,
+        long? CategoryId,
+        string? CategoryLabel,
+        decimal? Quantity,
+        string? UnitLabel,
+        int? LateMinutes,
+        decimal Amount,
+        string Reason,
+        DateTimeOffset OccurredAt,
+        DateOnly PeriodStart,
+        string? CreatedByName,
+        DateTimeOffset CreatedAt,
+        string? ReviewedByName,
+        DateTimeOffset? ReviewedAt);
+
+    /// <summary>
+    /// Jadval va bitta yozuv AYNI proyeksiyadan o'qiydi — ustun
+    /// qo'shilganda ikki joyni yangilash unutilmasin.
+    /// </summary>
+    private static readonly Expression<Func<Penalty, Row>> Projection =
+        p => new Row(
+            p.Id,
+            p.UserId,
+            p.User!.FullName,
+            p.User.Role,
+            p.SessionId,
+            p.Session == null ? null : p.Session.Group!.Name,
+            p.Session == null ? (DateTimeOffset?)null : p.Session.ScheduledStart,
+            p.Session == null ? null : p.Session.ActualStart,
+            p.Kind,
+            p.Status,
+            p.CategoryId,
+            p.Category == null ? null : p.Category.Label,
+            p.Quantity,
+            p.Category == null ? null : p.Category.UnitLabel,
+            p.LateMinutes,
+            p.Amount,
+            p.Reason,
+            p.OccurredAt,
+            p.PeriodStart,
+            p.CreatedBy == null ? null : p.CreatedBy.FullName,
+            p.CreatedAt,
+            p.ReviewedBy == null ? null : p.ReviewedBy.FullName,
+            p.ReviewedAt);
+
+    private static PenaltyRowDto ToDto(Row r) => new(
+        r.Id, r.UserId, r.UserName, r.UserRole.ToString(),
+        r.SessionId, r.GroupName, r.SessionScheduledStart, r.SessionActualStart,
+        r.Kind.ToString(), r.Status.ToString(),
+        r.CategoryId, r.CategoryLabel, r.Quantity, r.UnitLabel,
+        r.LateMinutes, r.Amount, r.Reason, r.OccurredAt, r.PeriodStart,
+        r.CreatedByName, r.CreatedAt, r.ReviewedByName, r.ReviewedAt);
 
     /// <summary>Hodisa sanasidan oylik davrini (oyning 1-kuni) chiqaradi.</summary>
     private DateOnly PeriodOf(DateTimeOffset instant) =>
         BillingPeriod.FromDate(LocalWallClock.LocalDate(instant, timeZone.TimeZone)).FirstDay();
 
-    /// <summary>Pul sozlamasini o'qiydi; bo'sh yoki buzuq bo'lsa 0.</summary>
-    private async Task<decimal> MoneySettingAsync(string key, CancellationToken ct)
+    /// <summary>
+    /// Avtomatik jarima tarifini kalit bo'yicha topadi.
+    ///
+    /// ★ <c>null</c> QAYTISHI — XATO EMAS, O'CHIRGICH: tarif topilmasa
+    /// yoki summasi `0` bo'lsa, jarima shunchaki yozilmaydi. Shu tarzda
+    /// administrator summani `0` qilib avtomatik jarimani vaqtincha
+    /// to'xtata oladi (ilgari bu sozlamadagi `0` bilan qilinardi).
+    /// </summary>
+    private async Task<PenaltyCategory?> SystemCategoryAsync(string systemKey, CancellationToken ct)
     {
-        var raw = await settings.GetValueAsync(key, ct);
+        var category = await db.PenaltyCategories.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.SystemKey == systemKey, ct);
 
-        return decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : 0m;
+        return category is { Amount: > 0 } ? category : null;
     }
 
     private async Task EnsureCanViewAsync(long actorId, CancellationToken ct)

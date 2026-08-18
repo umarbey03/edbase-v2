@@ -43,6 +43,14 @@ public sealed class PenaltiesController(IPenaltyService penalties) : ControllerB
         [FromQuery] PenaltyListQuery query, CancellationToken ct) =>
         Ok(await penalties.GetByUserAsync(query, CurrentUserId, ct));
 
+    /// <summary>Oylik hisobot — xodim va tur kesimida, sahifalanmagan.</summary>
+    [HttpGet("report")]
+    [ProducesResponseType<PenaltyReportDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PenaltyReportDto>> Report(
+        [FromQuery] string period, CancellationToken ct) =>
+        Ok(await penalties.GetReportAsync(period, CurrentUserId, ct));
+
     [HttpPost]
     [ProducesResponseType<PenaltyRowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

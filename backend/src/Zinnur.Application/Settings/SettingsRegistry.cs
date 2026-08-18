@@ -144,41 +144,19 @@ public static class SettingsRegistry
             MaxLength = 200,
         },
 
-        /* ===== JARIMA TARIFLARI (2026-08-18) ===== */
-
-        new()
-        {
-            Key = "penalty.late_per_minute",
-            Group = SettingGroup.Finance,
-            DisplayName = "Kechikish jarimasi (daqiqasiga)",
-            Description =
-                "Dars rejadagi vaqtdan kech boshlangan bo'lsa, HAR KECHIKKAN "
-                + "DAQIQA uchun ushlab qolinadigan summa (so'm). `0` — kechikish "
-                + "uchun jarima yozilmaydi.\n\n"
-                + "Jarima AVTOMATIK hisoblanadi, lekin darhol ushlanmaydi: u "
-                + "\"kutilmoqda\" holatida turadi va faqat administrator "
-                + "tasdiqlagandan keyin oylikka tushadi.",
-            Kind = SettingValueKind.Money,
-            Source = SettingSource.Database,
-            ConfigurationKey = "Penalty:LatePerMinute",
-        },
-
-        new()
-        {
-            Key = "penalty.missed_lesson",
-            Group = SettingGroup.Finance,
-            DisplayName = "O'tilmagan dars jarimasi",
-            Description =
-                "Dars vaqti o'tib ketgan, lekin ustoz uni UMUMAN boshlamagan "
-                + "bo'lsa ushlab qolinadigan summa (so'm). `0` — jarima yozilmaydi.\n\n"
-                + "★ NIMA UCHUN QAT'IY SUMMA, daqiqasiga emas: bo'lmagan darsda "
-                + "\"necha daqiqa kech\" degan o'lchov mavjud emas — dars umuman "
-                + "boshlanmagan. Rejadagi davomiylikka ko'paytirilsa, 80 daqiqalik "
-                + "dars uchun jarima kechikishnikidan o'nlab barobar oshib ketardi.",
-            Kind = SettingValueKind.Money,
-            Source = SettingSource.Database,
-            ConfigurationKey = "Penalty:MissedLesson",
-        },
+        /* ═══════════════════════════════════════════════════════════════
+         * JARIMA TARIFLARI BU YERDA EMAS (2026-08-18 da ko'chirildi).
+         *
+         * Ilgari `penalty.late_per_minute` va `penalty.missed_lesson`
+         * shu registrda turardi. Endi ular — `PenaltyCategories`
+         * jadvalidagi TIZIM TARIFLARI va "Jarimalar → Tariflar"
+         * bo'limidan boshqariladi.
+         *
+         * ★ SABAB: loyiha egasi jarima turlarini O'ZI qo'sha olishini
+         *   so'radi. Kalit/qiymat sozlamasi bunga yaramaydi — har
+         *   tarifda to'rtta bog'liq maydon bor va ular RO'YXAT bo'lib
+         *   o'sadi (batafsil `PenaltyCategory` izohida).
+         * ═══════════════════════════════════════════════════════════ */
 
         // ================================================================ MOLIYA
 
@@ -983,9 +961,6 @@ public static class SettingsRegistry
     public static class Keys
     {
         public const string SupportContact = "general.support_contact";
-
-        public const string PenaltyLatePerMinute = "penalty.late_per_minute";
-        public const string PenaltyMissedLesson = "penalty.missed_lesson";
 
         public const string BlockThreshold = "finance.block_threshold";
         public const string BlockScope = "finance.block_scope";

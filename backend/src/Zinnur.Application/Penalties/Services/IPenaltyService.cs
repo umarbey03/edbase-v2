@@ -30,6 +30,14 @@ public interface IPenaltyService
     Task<IReadOnlyList<PenaltyByUserDto>> GetByUserAsync(
         PenaltyListQuery query, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// OYLIK HISOBOT: bir oyning jarimalari xodim → tur kesimida,
+    /// SAHIFALANMAGAN holda. Bekor qilinganlar kirmaydi.
+    /// </summary>
+    /// <param name="period">Davr <c>YYYY-MM</c>.</param>
+    Task<PenaltyReportDto> GetReportAsync(
+        string period, long actorId, CancellationToken ct = default);
+
     Task<PenaltyRowDto> CreateManualAsync(
         CreateManualPenaltyRequest request, long actorId, CancellationToken ct = default);
 

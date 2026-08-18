@@ -10,6 +10,7 @@ import {
   cancelPenalty,
   fetchPenalties,
   fetchPenaltiesByUser,
+  fetchPenaltyCategories,
   fetchPenaltySummary,
   penaltyKindLabel,
   penaltyKindTone,
@@ -18,7 +19,11 @@ import {
   staffRoleLabel,
 } from '@/entities/penalty'
 import { useAuthStore } from '@/features/auth/model/auth.store'
-import { ManualPenaltyDialog } from '@/features/penalty-manage'
+import {
+  ManualPenaltyDialog,
+  PenaltyCategoriesPanel,
+  PenaltyReportDrawer,
+} from '@/features/penalty-manage'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { useDebounced } from '@/shared/lib/debounce'
@@ -62,6 +67,7 @@ const canReview = computed(() => auth.role === 'Admin')
 const SECTIONS = [
   { key: 'list', label: 'Jarimalar', icon: 'clipboard' },
   { key: 'user', label: 'Xodimlar kesimi', icon: 'users' },
+  { key: 'categories', label: 'Tariflar', icon: 'sliders' },
 ] as const
 
 const activeTab = ref<(typeof SECTIONS)[number]['key']>('list')
@@ -69,10 +75,24 @@ const activeTab = ref<(typeof SECTIONS)[number]['key']>('list')
 /* ------------------------------------------------------------ filtrlar */
 
 const period = ref(currentPeriod())
+const occurredOn = ref('')
 const search = ref('')
 const debouncedSearch = useDebounced(search)
+const categoryFilter = ref<number | ''>('')
 const kindFilter = ref<'' | PenaltyKindName>('')
 const statusFilter = ref<'' | PenaltyStatusName>('')
+
+/**
+ * Tariflar ro'yxati — filtr uchun BARCHASI (arxivlangani ham): o'tgan
+ * oyning jarimasi arxivlangan tarif bo'yicha yozilgan bo'lishi mumkin
+ * va uni filtrlab ko'ra olmaslik mantiqsiz bo'lardi.
+ */
+const categoriesQuery = useQuery({
+  queryKey: ['penalty-categories', 'all'],
+  queryFn: ({ signal }) => fetchPenaltyCategories(false, { signal }),
+})
+
+const categories = computed(() => categoriesQuery.data.value ?? [])
 
 const page = ref(1)
 const pageSize = ref(20)
@@ -87,7 +107,9 @@ const effectiveSearch = computed(() => {
 
 const filters = computed(() => ({
   period: period.value.length > 0 && isValidPeriod(period.value) ? period.value : undefined,
+  occurredOn: occurredOn.value.length > 0 ? occurredOn.value : undefined,
   search: effectiveSearch.value,
+  categoryId: categoryFilter.value === '' ? undefined : categoryFilter.value,
   kind: kindFilter.value === '' ? undefined : kindFilter.value,
   status: statusFilter.value === '' ? undefined : statusFilter.value,
 }))
@@ -95,6 +117,8 @@ const filters = computed(() => ({
 const filtersActive = computed(
   () =>
     effectiveSearch.value !== undefined
+    || occurredOn.value !== ''
+    || categoryFilter.value !== ''
     || kindFilter.value !== ''
     || statusFilter.value !== ''
     || period.value !== currentPeriod(),
@@ -102,12 +126,14 @@ const filtersActive = computed(
 
 function resetFilters(): void {
   period.value = currentPeriod()
+  occurredOn.value = ''
   search.value = ''
+  categoryFilter.value = ''
   kindFilter.value = ''
   statusFilter.value = ''
 }
 
-watch([effectiveSearch, kindFilter, statusFilter, period], () => {
+watch([effectiveSearch, categoryFilter, kindFilter, statusFilter, period, occurredOn], () => {
   page.value = 1
 })
 
@@ -231,6 +257,26 @@ async function askCancel(row: PenaltyRowDto): Promise<void> {
 }
 
 const manualOpen = ref(false)
+const reportOpen = ref(false)
+
+/**
+ * Jarimaning turi — TARIF NOMI ustunroq.
+ *
+ * ★ NEGA TARIF NOMI ENUM YORLIG'IDAN USTUN: "Kech boshlagan" — tizim
+ * ichki tasnifi, "Darsga kechikish · 15 daqiqa" esa operator o'zi
+ * kiritgan tarif. Ikkinchisi savolga to'liqroq javob beradi; tarif
+ * yo'q bo'lgan eski yozuvlarda enum yorlig'i zaxira bo'lib qoladi.
+ */
+function typeLabel(row: PenaltyRowDto): string {
+  return row.categoryLabel ?? penaltyKindLabel(row.kind)
+}
+
+/** "15 daqiqa" — faqat songa qarab hisoblangan jarimada. */
+function quantityLabel(row: PenaltyRowDto): string | null {
+  if (row.quantity === null) return null
+
+  return `${row.quantity} ${row.unitLabel ?? 'dona'}`
+}
 
 /** Kechikish jarimasida dalil: reja va haqiqiy vaqt. */
 function proofTitle(row: PenaltyRowDto): string {
@@ -248,6 +294,19 @@ function proofTitle(row: PenaltyRowDto): string {
       subtitle="Ustoz va kuratorlar uchun. Kech boshlangan va o‘tilmagan darslar avtomatik aniqlanadi."
     >
       <template #actions>
+        <BaseButton
+          variant="secondary"
+          :disabled="filters.period === undefined"
+          @click="reportOpen = true"
+        >
+          <template #icon>
+            <AppIcon
+              name="clipboard"
+              :size="15"
+            />
+          </template>
+          Oylik hisobot
+        </BaseButton>
         <BaseButton @click="manualOpen = true">
           <template #icon>
             <AppIcon
@@ -288,7 +347,11 @@ function proofTitle(row: PenaltyRowDto): string {
     </div>
 
     <!-- ═════════════════════ FILTRLAR ═════════════════════ -->
-    <div class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+    <!-- Tariflar tabida filtr ma'nosiz — u sozlamalar jadvali. -->
+    <div
+      v-if="activeTab !== 'categories'"
+      class="mb-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+    >
       <div>
         <input
           v-model="period"
@@ -304,7 +367,19 @@ function proofTitle(row: PenaltyRowDto): string {
         </p>
       </div>
 
-      <div class="relative">
+      <!--
+        ★ ANIQ SANA — OYDAN MUSTAQIL: "shu oyning hammasi" va "aynan
+        12-avgust" ikki xil savol. Bahsda ko'pincha AYNAN kun so'raladi
+        ("o'sha kuni nima bo'ldi?").
+      -->
+      <input
+        v-model="occurredOn"
+        class="zn-input"
+        type="date"
+        aria-label="Aniq sana"
+      >
+
+      <div class="relative sm:col-span-2 lg:col-span-1">
         <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
           <AppIcon
             name="search"
@@ -314,17 +389,34 @@ function proofTitle(row: PenaltyRowDto): string {
         <input
           v-model="search"
           class="zn-input pl-9"
-          placeholder="Xodim yoki sabab bo‘yicha"
+          placeholder="Xodim, sabab yoki tarif"
         >
       </div>
 
       <select
-        v-model="kindFilter"
+        v-model="categoryFilter"
         class="zn-input"
-        aria-label="Jarima turi bo‘yicha filtr"
+        aria-label="Tarif bo‘yicha filtr"
       >
         <option value="">
-          Barcha turlar
+          Barcha tariflar
+        </option>
+        <option
+          v-for="option in categories"
+          :key="option.id"
+          :value="option.id"
+        >
+          {{ option.label }}
+        </option>
+      </select>
+
+      <select
+        v-model="kindFilter"
+        class="zn-input"
+        aria-label="Manba bo‘yicha filtr"
+      >
+        <option value="">
+          Barcha manbalar
         </option>
         <option
           v-for="option in PENALTY_KIND_OPTIONS"
@@ -370,7 +462,7 @@ function proofTitle(row: PenaltyRowDto): string {
 
     <!-- ═════════════════════ YIG'MA ═════════════════════ -->
     <div
-      v-if="summary !== null"
+      v-if="summary !== null && activeTab !== 'categories'"
       class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4"
     >
       <div class="rounded-xl border border-line border-l-[3px] border-l-amber-500 bg-ink-900 p-3.5">
@@ -472,9 +564,21 @@ function proofTitle(row: PenaltyRowDto): string {
                   />
                 </td>
                 <td class="max-w-56">
-                  <BaseBadge :tone="penaltyKindTone(row.kind)">
-                    {{ penaltyKindLabel(row.kind) }}
-                  </BaseBadge>
+                  <span class="flex flex-wrap items-center gap-1">
+                    <BaseBadge :tone="penaltyKindTone(row.kind)">
+                      {{ typeLabel(row) }}
+                    </BaseBadge>
+                    <!--
+                      ★ MIQDOR TARIF YONIDA: "Darsga kechikish · 15 daqiqa"
+                      summaning QAYERDAN chiqqanini bir qarashda ko'rsatadi
+                      — ustozga isbotlashda aynan shu so'raladi.
+                    -->
+                    <span
+                      v-if="quantityLabel(row) !== null"
+                      class="text-xs text-slate-400"
+                      v-text="`· ${quantityLabel(row)}`"
+                    />
+                  </span>
                   <span
                     class="mt-1 block truncate text-xs text-slate-400"
                     :title="row.reason"
@@ -567,7 +671,7 @@ function proofTitle(row: PenaltyRowDto): string {
 
     <!-- ═════════════════════ 2. XODIMLAR KESIMI ═════════════════════ -->
     <BaseCard
-      v-else
+      v-else-if="activeTab === 'user'"
       title="Xodimlar kesimi"
       :subtitle="`Davr: ${filters.period !== undefined ? periodLabel(filters.period) : 'barcha'}`"
       flush
@@ -638,10 +742,22 @@ function proofTitle(row: PenaltyRowDto): string {
       </DataStatus>
     </BaseCard>
 
+    <!-- ═════════════════════ 3. TARIFLAR (sozlamalar) ═════════════════════ -->
+    <PenaltyCategoriesPanel
+      v-else
+      :can-manage="canReview"
+    />
+
     <ManualPenaltyDialog
       :open="manualOpen"
       @close="manualOpen = false"
       @saved="refresh"
+    />
+
+    <PenaltyReportDrawer
+      :open="reportOpen"
+      :period="filters.period ?? ''"
+      @close="reportOpen = false"
     />
   </div>
 </template>

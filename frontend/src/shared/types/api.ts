@@ -3274,7 +3274,11 @@ export type PenaltyStatusName = 'Pending' | 'Approved' | 'Cancelled'
 export interface PenaltyListParams {
   /** Oylik davri `YYYY-MM`. Bo'sh — barcha davrlar. */
   period?: string
+  /** ANIQ SANA `YYYY-MM-DD` (mahalliy) — `period` dan MUSTAQIL. */
+  occurredOn?: string
   userId?: number
+  /** Jarima turi (tariflar katalogidan). */
+  categoryId?: number
   kind?: PenaltyKindName
   status?: PenaltyStatusName
   search?: string
@@ -3296,6 +3300,13 @@ export interface PenaltyRowDto {
   sessionActualStart: string | null
   kind: string
   status: string
+  categoryId: number | null
+  /** Tarif nomi. Kategoriyasiz jarimada `null`. */
+  categoryLabel: string | null
+  /** Songa qarab hisoblangan bo'lsa — necha birlik. */
+  quantity: number | null
+  /** Birlik nomi ("daqiqa") — `quantity` bilan birga ko'rsatiladi. */
+  unitLabel: string | null
   /** Faqat kechikish jarimasida. */
   lateMinutes: number | null
   amount: number
@@ -3304,8 +3315,33 @@ export interface PenaltyRowDto {
   /** Oylik davri — oyning 1-kuni. */
   periodStart: string
   createdByName: string | null
+  createdAt: string
   reviewedByName: string | null
   reviewedAt: string | null
+}
+
+/* ===== Oylik hisobot ===== */
+
+export interface PenaltyReportLineDto {
+  label: string
+  /** Necha marta — `1` bo'lsa UI yashiradi. */
+  count: number
+  amount: number
+}
+
+export interface PenaltyReportUserDto {
+  userId: number
+  userName: string
+  userRole: string
+  total: number
+  lines: PenaltyReportLineDto[]
+}
+
+export interface PenaltyReportDto {
+  /** Davr `YYYY-MM`. */
+  period: string
+  total: number
+  users: PenaltyReportUserDto[]
 }
 
 export interface PenaltySummaryDto {
@@ -3331,15 +3367,44 @@ export interface PenaltyByUserDto {
 
 export interface CreateManualPenaltyRequest {
   userId: number
-  /** Musbat summa (so'm) — ushlab qolinadi. */
-  amount: number
   reason: string
+  /** Tarif katalogidan. Berilsa summa TARIFDAN hisoblanadi. */
+  categoryId?: number
+  /** Songa qarab hisoblanadigan tarifda majburiy. */
+  quantity?: number
+  /** Kategoriyasiz jarimada — musbat summa (so'm). */
+  amount?: number
   occurredAt?: string
 }
 
 export interface CancelPenaltyRequest {
   /** Bekor qilish sababi — jarima matniga qo'shiladi. */
   reason?: string
+}
+
+/* ===== Tariflar katalogi (sozlamalar) ===== */
+
+export interface PenaltyCategoryDto {
+  id: number
+  label: string
+  /** `perUnit` bo'lsa — BIR BIRLIK uchun tarif. */
+  amount: number
+  perUnit: boolean
+  unitLabel: string | null
+  isActive: boolean
+  /** Tizim tarifi — o'chirilmaydi, faqat summasi tahrirlanadi. */
+  isSystem: boolean
+  systemKey: string | null
+  /** Nechta jarimada ishlatilgan — o'chirishdan oldin ogohlantirish uchun. */
+  usageCount: number
+}
+
+export interface SavePenaltyCategoryRequest {
+  label: string
+  amount: number
+  perUnit?: boolean
+  unitLabel?: string | null
+  isActive?: boolean
 }
 
 /* ===== /JARIMALAR ===== */

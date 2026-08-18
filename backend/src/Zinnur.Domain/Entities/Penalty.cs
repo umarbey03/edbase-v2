@@ -51,6 +51,30 @@ public class Penalty : BaseEntity
 
     public PenaltyKind Kind { get; set; }
 
+    /// <summary>
+    /// Qaysi tarif bo'yicha yozilgan (<see cref="PenaltyCategory"/>).
+    ///
+    /// ★ NEGA IXTIYORIY: kategoriyalar tizimidan OLDIN yozilgan jarimalarda
+    /// bo'sh, va qo'lda kiritishda administrator kategoriyasiz, erkin
+    /// summa bilan ham jarima yoza oladi (masalan takrorlanmaydigan
+    /// bir martalik holat).
+    /// </summary>
+    public long? CategoryId { get; set; }
+
+    public PenaltyCategory? Category { get; set; }
+
+    /// <summary>
+    /// Songa qarab hisoblanadigan kategoriyada — necha birlik
+    /// (masalan 15 daqiqa). Qat'iy summali kategoriyada <c>null</c>.
+    ///
+    /// ★ <see cref="LateMinutes"/> DAN FARQI: u — kechikish jarimasining
+    /// TIPLANGAN isboti (butun daqiqa, hisobotda jamlanadi); bu esa
+    /// HAR QANDAY birlik uchun umumiy maydon. Kechikishda ikkalasi ham
+    /// to'ldiriladi — jadvalda "(15 daqiqa)" deb ko'rsatish uchun
+    /// kategoriyaning birlik nomi bilan birga aynan shu maydon o'qiladi.
+    /// </summary>
+    public decimal? Quantity { get; set; }
+
     public PenaltyStatus Status { get; set; } = PenaltyStatus.Pending;
 
     /// <summary>
@@ -93,20 +117,26 @@ public class Penalty : BaseEntity
     // ---------------------------------------------------------------- xatti-harakat
 
     /// <summary>
-    /// Kechikish jarimasi. Summa = kechikkan daqiqa × tarif.
+    /// Kechikish jarimasi. Summa = kechikkan daqiqa × kategoriya tarifi.
     /// </summary>
+    /// <param name="category">
+    /// <see cref="PenaltyCategory.LateStartKey"/> tizim kategoriyasi —
+    /// tarif AYNAN shundan olinadi (sozlamadan emas).
+    /// </param>
     public static Penalty ForLateStart(
         long userId,
         long sessionId,
         int lateMinutes,
-        decimal perMinute,
+        PenaltyCategory category,
         DateTimeOffset occurredAt,
         DateOnly periodStart)
     {
+        ArgumentNullException.ThrowIfNull(category);
+
         if (lateMinutes <= 0)
             throw new DomainException("Kechikish daqiqasi musbat bo'lishi kerak.");
 
-        if (perMinute <= 0)
+        if (category.Amount <= 0)
             throw new DomainException("Kechikish tarifi belgilanmagan.");
 
         return new Penalty
@@ -114,23 +144,27 @@ public class Penalty : BaseEntity
             UserId = userId,
             SessionId = sessionId,
             Kind = PenaltyKind.LateStart,
+            CategoryId = category.Id,
             LateMinutes = lateMinutes,
-            Amount = lateMinutes * perMinute,
+            Quantity = lateMinutes,
+            Amount = category.ComputeAmount(lateMinutes),
             Reason = $"Dars {lateMinutes} daqiqa kech boshlandi.",
             OccurredAt = occurredAt,
             PeriodStart = periodStart,
         };
     }
 
-    /// <summary>O'tilmagan dars — QAT'IY summa (sabab sozlama izohida).</summary>
+    /// <summary>O'tilmagan dars — QAT'IY summa (sabab kategoriya izohida).</summary>
     public static Penalty ForMissedLesson(
         long userId,
         long sessionId,
-        decimal amount,
+        PenaltyCategory category,
         DateTimeOffset occurredAt,
         DateOnly periodStart)
     {
-        if (amount <= 0)
+        ArgumentNullException.ThrowIfNull(category);
+
+        if (category.Amount <= 0)
             throw new DomainException("O'tilmagan dars jarimasi belgilanmagan.");
 
         return new Penalty
@@ -138,23 +172,47 @@ public class Penalty : BaseEntity
             UserId = userId,
             SessionId = sessionId,
             Kind = PenaltyKind.MissedLesson,
-            Amount = amount,
+            CategoryId = category.Id,
+            Amount = category.ComputeAmount(null),
             Reason = "Dars vaqti o'tdi, lekin dars boshlanmadi.",
             OccurredAt = occurredAt,
             PeriodStart = periodStart,
         };
     }
 
-    /// <summary>Qo'lda kiritilgan jarima.</summary>
+    /// <summary>
+    /// Qo'lda kiritilgan jarima.
+    ///
+    /// ★ SUMMA IKKI YO'L BILAN: kategoriya berilsa — TARIFDAN hisoblanadi
+    /// (operator raqamni o'zi yozmaydi, ya'ni bir xil qoidabuzarlik bir
+    /// xil pul); kategoriya bo'lmasa — <paramref name="amount"/> to'g'ridan
+    /// olinadi (takrorlanmaydigan bir martalik holatlar uchun).
+    /// </summary>
     public static Penalty Manual(
         long userId,
-        decimal amount,
+        PenaltyCategory? category,
+        decimal? quantity,
+        decimal? amount,
         string? reason,
         long createdById,
         DateTimeOffset occurredAt,
         DateOnly periodStart)
     {
-        if (amount <= 0)
+        decimal finalAmount;
+
+        if (category is not null)
+        {
+            if (category.Amount <= 0)
+                throw new DomainException($"\"{category.Label}\" kategoriyasining tarifi belgilanmagan.");
+
+            finalAmount = category.ComputeAmount(quantity);
+        }
+        else
+        {
+            finalAmount = amount ?? 0m;
+        }
+
+        if (finalAmount <= 0)
             throw new DomainException("Jarima summasi musbat bo'lishi kerak.");
 
         var trimmed = (reason ?? string.Empty).Trim();
@@ -166,7 +224,9 @@ public class Penalty : BaseEntity
         {
             UserId = userId,
             Kind = PenaltyKind.Manual,
-            Amount = amount,
+            CategoryId = category?.Id,
+            Quantity = category is { PerUnit: true } ? quantity : null,
+            Amount = finalAmount,
             Reason = trimmed.Length > MaxReasonLength ? trimmed[..MaxReasonLength] : trimmed,
             CreatedById = createdById,
             OccurredAt = occurredAt,
