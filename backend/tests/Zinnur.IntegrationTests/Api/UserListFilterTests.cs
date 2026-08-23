@@ -50,8 +50,9 @@ public sealed class UserListFilterTests(ZinnurApiFactory factory)
 
         using var admin = await WorldBuilder.AdminClientAsync(factory);
 
-        var remove = await admin.DeleteAsync(new Uri(
-            $"/api/v1/groups/{world.GroupId}/members/{world.Student.Id}", UriKind.Relative));
+        // 🔴 Chiqarish SABABI majburiy (2026-08-17) — `DELETE` ning tanasi bor.
+        var remove = await WorldBuilder.RemoveMemberAsync(
+            admin, world.GroupId, world.Student.Id);
 
         remove.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(remove));
 

@@ -544,9 +544,66 @@ public sealed class LiveSessionService(
             Identity: user.Id.ToString(CultureInfo.InvariantCulture),
             DisplayName: user.FullName,
             CanPublish: true,
-            IsHost: host));
+            IsHost: host,
+            Ttl: JoinTokenTtl(session, clock.GetUtcNow())));
 
         return new LiveKitJoinDto(liveKit.ServerUrl, token, session.RoomName, host, session.EndsAt);
+    }
+
+    // ---------------------------------------------------------------- token muddati
+
+    /// <summary>Token dars tugagach qancha yashaydi.</summary>
+    /// <remarks>
+    /// Ulanish uzilib qayta tiklanishi, sahifa yangilanishi va soatlar
+    /// farqi uchun zaxira. `DEPLOY_UBUNTU.md` Ilova A, 4-risk tavsiyasi:
+    /// "dars davomiyligi + 30 daqiqa".
+    /// </remarks>
+    private static readonly TimeSpan JoinTokenGrace = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Eng qisqa muddat — dars tugashiga oz qolganda ham token ISHLASHI kerak.
+    /// Usiz "darsning oxirgi daqiqasida ulana olmadim" holati paydo bo'lardi.
+    /// </summary>
+    private static readonly TimeSpan MinJoinTokenTtl = TimeSpan.FromMinutes(15);
+
+    /// <summary>Yuqori chegara — buzuq jadval qiymati tokenni cheksiz qilib qo'ymasin.</summary>
+    private static readonly TimeSpan MaxJoinTokenTtl = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 TOKEN MUDDATI DARSGA BOG'LANADI (2026-08-22)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Ilgari har token 6 SOAT yashardi (<c>LiveKitTokenService.DefaultTtl</c>)
+    /// va hech bir chaqiruvchi buni o'zgartirmasdi. Oqibati
+    /// (`DEPLOY_UBUNTU.md` Ilova A, 4-risk):
+    ///
+    ///   guruhdan CHIQARILGAN yoki QARZI uchun bloklangan o'quvchi allaqachon
+    ///   olingan tokeni bilan xonaga 6 soat davomida QAYTA KIRA OLARDI.
+    ///
+    /// Bu darvozaning O'ZI teshik emas edi — yuqoridagi tekshiruvlar YANGI
+    /// token berishni to'g'ri rad etadi. Lekin klient LiveKit'ga
+    /// TO'G'RIDAN-TO'G'RI ulanadi (shu metod izohida yozilgan sabab), ya'ni
+    /// eski token bizning API'ni umuman chetlab o'tardi.
+    ///
+    /// ★ ENDI: token darsning tugash vaqtidan 30 daqiqa keyin o'ladi.
+    ///   Jonli darsda <c>EndsAt</c> uzaytirishlarni ham hisobga oladi
+    ///   (<c>ExtendedMin</c>), ya'ni ustoz darsni uzaytirsa token ham
+    ///   birga uzayadi — lekin faqat KEYINGI so'rovda, chunki muddat token
+    ///   berilayotgan paytda hisoblanadi. Bu yetarli: uzaytirish darsning
+    ///   O'RTASIDA bo'ladi va ishtirokchilar allaqachon xonada.
+    ///
+    /// ⚠️ Hali boshlanmagan dars (<c>EndsAt</c> — <c>null</c>, ustoz
+    ///    oldinroq kirmoqchi) uchun REJADAGI tugash vaqti ishlatiladi.
+    /// </summary>
+    private static TimeSpan JoinTokenTtl(LiveSession session, DateTimeOffset now)
+    {
+        var endsAt = session.EndsAt ?? session.ScheduledEnd;
+        var ttl = endsAt - now + JoinTokenGrace;
+
+        if (ttl < MinJoinTokenTtl) return MinJoinTokenTtl;
+
+        return ttl > MaxJoinTokenTtl ? MaxJoinTokenTtl : ttl;
     }
 
     public async Task<IReadOnlyList<ChatMessageDto>> GetRecentMessagesAsync(

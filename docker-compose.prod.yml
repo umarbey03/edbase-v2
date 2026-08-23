@@ -117,14 +117,91 @@ services:
       # `.env` da SERVER_PUBLIC_IP ni to'ldiring va quyidagi qatorni yoqing:
       #   NODE_IP: ${SERVER_PUBLIC_IP:-}
 
+    # ------------------------------------------------------------------
+    # NISBIY USTUNLIK — kvotadan MUSTAQIL ikkinchi qatlam
+    # ------------------------------------------------------------------
+    # DIQQAT: `cpu_shares` `deploy:` blokining ICHIDA EMAS — u xizmatning
+    # O'ZIDA turadi. TEKSHIRILDI (Compose v5.2.0 / Docker 29.6.1): kalit
+    # qabul qilinadi, HostConfig.CpuShares ga o'tadi va `deploy.resources`
+    # bilan TO'QNASHMAYDI — ikkalasi birga qo'llanadi.
+    #
+    # FARQI PRINSIPIAL: `cpus:` — kvota, ya'ni "shundan oshma" (bo'sh
+    # mashinada ham to'xtatadi). `cpu_shares` — "yadro yetishmay qolganda
+    # kim birinchi olsin" (bo'sh mashinada UMUMAN sezilmaydi). Shuning
+    # uchun shares media server uchun xavfsiz, kvota esa xavfli.
+    #
+    # NEGA AYNAN LiveKit'ga ustunlik: docs/YUKLAMA_TESTI.md cheklovchi omil
+    # API protsessori ekanini ko'rsatdi. Ya'ni yadro uchun raqobat bo'lsa —
+    # u API bilan bo'ladi. API sekinlashsa chat p95 o'nlab millisekundga
+    # ko'tariladi (foydalanuvchi sezmaydi); LiveKit sekinlashsa ovoz
+    # uziladi (darhol sezadi).
+    #
+    # 1024 — Docker'ning standarti. O'LCHANDI: `cpu_shares: 1024` va
+    # umuman yozilmagan konteyner bir xil `cpu.weight=100` beradi. Shuning
+    # uchun 2048 faqat shu yerda yoziladi — qolgan xizmatlarga 1024 yozish
+    # HECH NARSA o'zgartirmaydi (shuning uchun ular tegilmadi).
+    #
+    # ⚠️ 2048 = "aniq 2 barobar" EMAS: cgroup v2 shares'ni `cpu.weight` ga
+    # chiziqsiz o'giradi (o'lchandi: 512->59, 1024->100, 2048->174) va
+    # koeffitsient runtime versiyasiga bog'liq. Serverda tekshiring:
+    #   docker exec $(docker compose ps -q livekit) cat /sys/fs/cgroup/cpu.weight
+    cpu_shares: ${LIVEKIT_CPU_SHARES:-2048}
+
     deploy:
       resources:
         limits:
-          # SFU media'ni qayta kodlamaydi, faqat uzatadi — CPU asosan tarmoqqa
-          # ketadi. 8 vCPU serverda 200 foydalanuvchi uchun 4 yadro yetarli,
-          # qolgani api/postgres uchun qoladi.
-          cpus: "${LIVEKIT_CPUS:-1.5}"
-          memory: ${LIVEKIT_MEM:-768M}
+          # 🔴 BU YERDA ODDIY QOIDA ISHLAMAYDI (2026-08-22 auditi).
+          #
+          # ILGARI NIMA NOTO'G'RI EDI: qiymat `1.5` turardi, izohi esa
+          # "4 yadro yetarli" deb yozilgandi va DEPLOY_UBUNTU.md 6.1 esa
+          # 6.0 talab qiladi — uch joyda uch xil raqam. Hech kim buni
+          # sezmasdi, chunki LIVEKIT_CPUS `.env.example` da umuman yo'q edi.
+          #
+          # OQIBATI: `cpus:` CFS *kvota* mexanizmini yoqadi (cgroup v2:
+          # `cpu.max = <kvota> 100000`). Har 100 ms davrida ajratilgan vaqt
+          # tugasa, jarayon davr OXIRIGACHA to'liq to'xtatiladi. Media
+          # oqimida bu o'nlab millisekundlik jimlik — foydalanuvchi buni
+          # "ovoz uzildi" deb ESHITADI, logda esa hech qanday xato yo'q.
+          # DEPLOY_UBUNTU.md 6.1 aynan shundan ogohlantiradi.
+          #
+          # NEGA 6.0 (va nega limit umuman qoldirildi):
+          #   * 8 vCPU serverda 6.0 — bu "shift", ish rejimi emas.
+          #     Throttling bo'lishi uchun LiveKit bitta 100 ms davrida butun
+          #     mashinaning 75% dan ko'pini yeyishi kerak. SFU transkodlash
+          #     qilmagani uchun bu deyarli imkonsiz.
+          #   * Limit BUTUNLAY olib tashlanmadi, chunki `network_mode: host`
+          #     bilan LiveKit portlari to'g'ridan-to'g'ri internetda turadi
+          #     (7882/UDP, 50000-60000/UDP). Nosoz klient yoki kelajakda
+          #     yoqiladigan egress/recording (DEPLOY_UBUNTU.md 6.5 bo'yicha
+          #     HAR BIR yozuv 1-2 vCPU!) butun serverni yeb qo'yishi mumkin.
+          #     6.0 — aynan shu holatga qo'yilgan to'siq, kundalik ish uchun
+          #     emas.
+          #
+          # ★ KVOTANI BUTUNLAY O'CHIRISH KERAK BO'LSA: `.env` da
+          #   `LIVEKIT_CPUS=0`. TEKSHIRILDI: `0` da compose `cpus` ni
+          #   umuman yubormaydi, konteyner `cpu.max = max` bilan ko'tariladi
+          #   (throttling FIZIKAN imkonsiz), xotira limiti esa joyida qoladi.
+          #   Bo'sh qoldirish BU EMAS — `${...:-6.0}` bo'sh qiymatda
+          #   standartni qaytaradi.
+          #   Qachon: `throttled_usec` haqiqatan o'sayotgani o'lchanganda —
+          #     cat /sys/fs/cgroup/system.slice/docker-$(docker compose ps -q livekit).scope/cpu.stat
+          cpus: "${LIVEKIT_CPUS:-6.0}"
+          # 768M dan 2G ga. LiveKit tejamkor (SFU media'ni bufer qilmaydi,
+          # uzatadi), shuning uchun 768M 200 kishilik darsda ISHLASHI mumkin
+          # edi — lekin zaxirasiz. Zaxirasiz ishlash media serverda qimmat:
+          # OOM (exit 137) bo'lsa xona butunlay yopiladi va ishtirokchilar
+          # qayta ulanguncha dars to'xtaydi. 2G — DEPLOY_UBUNTU.md 6.1
+          # qiymati; 16 GB serverda bu 1.25 GB qo'shimcha xarajat, ya'ni
+          # bu yerda tejash mantiqsiz.
+          memory: ${LIVEKIT_MEM:-2G}
+        reservations:
+          # Bu LIMIT EMAS, HIMOYA (cgroup v2: `memory.low`). Host xotirasi
+          # siqilganda kernel avval SHU chegaradan yuqorida turgan
+          # konteynerlardan xotira tortib oladi. LiveKit'ning ishchi to'plami
+          # swap'ga itarilsa media oqimi uziladi — 512M aynan shuni oldini
+          # oladi. TEKSHIRILDI: Compose bu kalitni HostConfig.MemoryReservation
+          # ga o'tkazadi va konteyner ichida `memory.low` bo'lib ko'rinadi.
+          memory: ${LIVEKIT_MEM_RESERVATION:-512M}
 
   # ==========================================================================
   # POSTGRES — tashqariga CHIQARILMAYDI
@@ -142,21 +219,175 @@ services:
     ports: !override
       - "127.0.0.1:5440:5432"
 
+    # --------------------------------------------------------------------------
+    # POSTGRES RESURSLARI — 2026-08-22 auditi (T1: O'LCHANGAN OOM)
+    # --------------------------------------------------------------------------
+    # ILGARI NIMA NOTO'G'RI EDI
+    #   Konteyner limiti `POSTGRES_MEM:-1G` edi, konteyner ICHIDA esa
+    #   shared_buffers=2GB + maintenance_work_mem=512MB + work_mem=16MB x
+    #   max_connections=100 turardi. Ya'ni postgres o'zi rejalashtirgan xotira
+    #   konteyner chegarasidan 3 barobardan KO'P katta edi. Yuqoridagi
+    #   "16 GB RAM li serverda ~25% shared_buffers" degan eski izoh ikki marta
+    #   xato edi: (a) 2GB — 16 GB ning 12.5% i, 25% i emas; (b) muhimi ham bu
+    #   emas — postgres HOST RAM'ini emas, o'ziga berilgan cgroup limitini
+    #   yashaydi. DEPLOY_UBUNTU.md 6.2 shuni ochiq yozadi: shared_buffers —
+    #   "KONTEYNERGA berilgan xotiraning ~25% i. Host RAM'dan emas!"
+    #
+    # OQIBATI QANDAY BO'LARDI (va nega hech kim sezmasdi)
+    #   Ishga tushishda YIQILMAYDI. shared_buffers — mmap qilingan umumiy
+    #   xotira; cgroup unga sahifalar BIRINCHI MARTA TEGILGANDA haq yozadi.
+    #   Bo'sh baza bir necha MB ga tegadi, shuning uchun `up -d`, `pg_isready`
+    #   healthcheck'i va smoke test — hammasi YASHIL. Muammo faqat haqiqiy yuk
+    #   ostida chiqadi: bufer to'ladi, backend'lar sort/hash uchun xotira oladi,
+    #   memory.max oshib ketadi. cgroup v2 OOM-killer eng katta RSS li jarayonni
+    #   oladi — bu odatda postmaster emas, oddiy BACKEND. Postgres buni "server
+    #   jarayoni qulab tushdi" deb qabul qiladi, BARCHA ulanishlarni uzadi
+    #   ("terminating connection because of crash of another server process") va
+    #   crash recovery bilan qayta ko'tariladi. Natija: dars o'rtasida API'da
+    #   ommaviy connection reset, `restart: unless-stopped` hammasini qaytaradi,
+    #   healthcheck yana yashil bo'ladi — hodisa hech qayerda iz qoldirmaydi va
+    #   faqat "ba'zan dars muzlaydi" degan shikoyat bo'lib keladi.
+    #
+    # NEGA AYNAN SHU QIYMATLAR
+    #
+    # 1) memory 3G / cpus 2.0 / reservation 1G — DEPLOY_UBUNTU.md 6.1 jadvali.
+    #    16 GB serverda barcha limitlar yig'indisi ~9.25 GB; qolgan ~6 GB
+    #    ATAYIN bo'sh — u Linux page cache'i va postgres tezligi asosan shunga
+    #    bog'liq. `reservations.memory` — YUMSHOQ chegara: host xotira
+    #    bosimida yadro avval o'z rezervidan YUQORIDA turgan konteynerlardan
+    #    tortib oladi, postgres esa ~1 GB gacha tegilmaydi. Compose V2 buni
+    #    haqiqatan qo'llaydi — o'lchandi: HostConfig.MemoryReservation=
+    #    1073741824, Memory=3221225472, NanoCpus=2000000000.
+    #
+    # 2) shared_buffers=768MB — 3 GB x 0.25. Formula endi KONTEYNER limitiga
+    #    bog'langan, host RAM'iga emas. POSTGRES_MEM ni pasaytirsangiz
+    #    POSTGRES_SHARED_BUFFERS ni ham pasaytirish SHART — shuning uchun
+    #    ikkalasi ham .env o'zgaruvchisi qilindi va .env.example da MOS
+    #    TO'PLAMLAR jadvali berildi. Bittasini yolg'iz o'zgartirish — aynan shu
+    #    bug'ni qaytadan yaratish.
+    #
+    # 3) work_mem=8MB (16MB EMAS) — bu eng ko'p adashtiradigan parametr, chunki
+    #    u ulanishga emas, REJADAGI HAR BIR NODE ga beriladi. Bitta so'rovda
+    #    hash join + 2 sort = 3 ta ajratma. Bundan tashqari PG13 dan beri
+    #    hash tabiatli node'lar (Hash Join, HashAggregate) work_mem x
+    #    hash_mem_multiplier oladi, standarti 2 (postgres:17-alpine da
+    #    o'lchandi) — ya'ni bitta hash node 8MB da 16MB, 16MB da esa 32MB
+    #    yeydi. Doc 6.2 dagi "max_connections x work_mem x node_soni" formulasi
+    #    bu ko'paytuvchini hisobga olmaydi, ya'ni haqiqiy xavf yozilganidan
+    #    KATTA. 3 GB konteynerdagi real byudjet:
+    #      shared_buffers                                   768 MB
+    #      wal_buffers (avto: shared_buffers/32, cap 16MB)    16 MB
+    #      backend private (katalog/plan kesh, ~50-100 ulanish) ~450-700 MB
+    #      work_mem cho'qqisi (~25 faol so'rov x 2 node x 8MB)  ~400-600 MB
+    #      autovacuum (3 worker; kichik jadvallarda cap'ga yetmaydi) ~150 MB
+    #      parallel worker'lar (max_parallel_workers=8, o'lchandi) ~100-190 MB
+    #      -----------------------------------------------------------------
+    #      JAMI ~1.9-2.0 GB  =>  3 GB da ~1 GB zaxira.
+    #    Xuddi shu byudjet work_mem=16MB da ~2.6-2.7 GB beradi — zaxira ~0.4 GB
+    #    ga tushadi va bitta CREATE INDEX (256MB) yoki dars vaqtidagi ommaviy
+    #    import uni yeb qo'yadi. 16MB dan HECH QANDAY o'lchangan foyda yo'q:
+    #    ZIN-NUR so'rovlari kichik va indeksli (davomat upsert, chat, guruh
+    #    ro'yxati) — ular 8MB ga sig'adi; 8MB ga sig'magan sort 16MB ga ham
+    #    sig'maydi, baribir diskka to'kiladi. To'g'ri yechim — global oshirish
+    #    emas, aniq og'ir hisobot uchun `SET LOCAL work_mem = '64MB'`.
+    #
+    # 4) maintenance_work_mem=256MB (512MB EMAS) — bu ham global emas, HAR BIR
+    #    autovacuum worker'i uchun: autovacuum_work_mem=-1 (o'lchandi) demak u
+    #    maintenance_work_mem ga tenglashadi, autovacuum_max_workers=3
+    #    (o'lchandi). Ya'ni 512MB da faqat autovacuum shipi 3 x 512 = 1.5 GB
+    #    edi — 1 GB konteynerda bitta shu qatorning o'zi limitni bosib o'tadi.
+    #    256MB da shipi 768MB, real iste'moli esa undan ancha past: PG17 vacuum
+    #    TidStore'ni bosqichma-bosqich o'stiradi va bu loyihaning jadvallari
+    #    kichik (DEPLOY_UBUNTU.md 8.3: "1000 foydalanuvchi ham DB uchun katta
+    #    yuk emas — yozuvlar juda kichik").
+    #
+    # 5) max_connections=100 — O'ZGARMAYDI, doc 6.2 bilan allaqachon mos.
+    #    Har ulanish ~5-10 MB private xotira, ya'ni shipning O'ZI 0.5-1 GB
+    #    majburiyat — hujjat uni aynan shu sababdan ko'tarishni rad etadi.
+    #    POSTGRES_MAX_POOL_SIZE=50 => bitta api nusxasi <=50 ulanish, qolgan
+    #    ~50 tasi migratsiya, psql, backup va 2-nusxa uchun zaxira.
+    #    ⚠️ QATTIQ QOIDA: POSTGRES_MAX_CONNECTIONS > POSTGRES_MAX_POOL_SIZE x
+    #    (api nusxalar soni) + 10. Buzilsa — "FATAL: sorry, too many clients
+    #    already" (DEPLOY_UBUNTU.md 10-bo'lim).
+    #
+    # 6) effective_cache_size=6GB — O'ZGARMAYDI. U XOTIRA AJRATMAYDI, faqat
+    #    planner'ga OS page cache bahosini aytadi va index scan tomonga
+    #    og'diradi — bu loyihaning kichik, indeksli so'rovlari uchun aynan
+    #    kerakli og'ish. Halol eslatma: cgroup v2 da konteynerning o'z page
+    #    cache'i ham memory.max ichida hisoblanadi, shuning uchun 6 GB tom
+    #    ma'noda emas, ATAYLAB optimistik ko'rsatkich (page cache qaytarib
+    #    olinadigan xotira — u OOM sabab bo'lmaydi).
+    #
+    # 7) NEGA POSTGRES'GA QATTIQ CPU KVOTASI XAVFSIZ (livekit'dan farqli).
+    #    6.1 dagi ogohlantirish CFS throttling haqida va u FAQAT media
+    #    serverga tegishli: u yerda 100 ms davrdagi pauza eshitiladigan uzilish
+    #    beradi. Postgres — so'rov/javob yuki: throttling so'rovni navbatga
+    #    qo'yadi, ya'ni kechikish beradi, buzilish emas. Shuning uchun hujjat
+    #    postgres'ga aniq 2.0 beradi. 1.5 kam bo'lgani dars BOSHIDA bilinadi
+    #    (8.2, 5-qator: birinchi 30 soniyada ~200 davomat upsert + chat +
+    #    jadval so'rovlari bir vaqtda keladi, ustiga checkpoint va autovacuum).
+    #    Throttle bo'lgan DB kechikishni API oqimlariga qaytaradi va yuklama
+    #    testidagi cheklovchi omilni — API CPU'sini — battar yomonlashtiradi.
+    #    CPU limitlari yig'indisi 11 > 8 vCPU bo'lishi ATAYLAB: `cpus` — shift
+    #    (ceiling), rezerv emas (6.1).
+    #
+    # 8) max_wal_size / min_wal_size QAYTARILDI. `docker compose config` bilan
+    #    TASDIQLANDI: prod overlay'idagi `command:` bazaviy docker-compose.yml
+    #    dagi `command:` ni birlashtirmaydi, BUTUNLAY almashtiradi. Shu sababli
+    #    bazaviy faylda ataylab qo'yilgan max_wal_size=2GB va min_wal_size=256MB
+    #    prod'da JIMGINA yo'qolgan va postgres standartlari (1024MB / 80MB —
+    #    postgres:17-alpine da o'lchandi) ishlagan. Oqibati bazaviy fayl izohida
+    #    aynan yozilgan: dars boshida 200 ta Attendance yozuvi bir vaqtda
+    #    kelganda tez-tez CHECKPOINT bo'ladi — I/O "tishlari", ya'ni dars
+    #    boshidagi sekinlik. checkpoint_completion_target ni yozish SHART EMAS:
+    #    PG17 da uning standarti allaqachon 0.9 (o'lchandi).
+    #
+    # --------------------------------------------------------------------------
+    # T1 DOIRASIDAN TASHQARI, LEKIN SHU BLOKDA TOPILDI (qaror boshqa agentniki):
+    #   * log_min_duration_statement: prod'da 1000, DEPLOY_UBUNTU.md 6.2 da
+    #     500ms. Xotira/CPU ga aloqasi yo'q, shuning uchun o'zgartirilmadi.
+    #   * random_page_cost (doc: 1.1) va effective_io_concurrency (doc: 200)
+    #     prod command'ida umuman yo'q; postgres 17 standartlari 4 va 1
+    #     (o'lchandi), ya'ni planner NVMe emas, HDD deb hisoblaydi. Doc 6.2
+    #     bularni `infra/postgres/postgresql.conf` ga havola qiladi — u fayl
+    #     hozir MAVJUD EMAS (infra/postgres bo'sh va initdb papkasi sifatida
+    #     mount qilingan). Alohida vazifa sifatida ko'tarilsin.
+    # --------------------------------------------------------------------------
     command:
       - postgres
-      # 16 GB RAM li serverda ~25% shared_buffers (standart tavsiya)
+      # Postgres o'z keshi — KONTEYNER limitining ~25% i (3 GB x 0.25),
+      # host RAM'ining emas (eski izoh aynan shu yerda adashgan edi).
       - -c
-      - shared_buffers=2GB
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-768MB}
+      # Xotira AJRATMAYDI — planner'ga OS page cache bahosi.
       - -c
-      - effective_cache_size=6GB
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-6GB}
+      # Rejadagi HAR BIR sort/hash node uchun (ulanishga emas!).
       - -c
-      - work_mem=16MB
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      # HAR BIR autovacuum worker'i uchun ham shu qiymat ishlatiladi.
       - -c
-      - maintenance_work_mem=512MB
-      # max_connections: api pool (30) x replika soni + zaxira.
-      # Kattaroq qilish foydasiz — har ulanish ~10 MB RAM oladi.
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-256MB}
+      # max_connections: api pool (POSTGRES_MAX_POOL_SIZE=50) x nusxalar soni
+      # + zaxira. Kattaroq qilish foydasiz — har ulanish ~5-10 MB RAM oladi.
+      # ⚠️ POSTGRES_MEM tushirilsa BU HAM tushirilishi shart (.env.example dagi
+      # "MOS TO'PLAMLAR" jadvali).
       - -c
-      - max_connections=100
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      # 🔴 JIMGINA YO'QOLGAN EDI — 8-band. Bazaviy faylda bor edi, lekin prod
+      # `command:` ro'yxatni ALMASHTIRGANI uchun prod'da postgres standarti
+      # (1024MB) ishlagan => dars boshida checkpoint "to'lqini".
+      - -c
+      - max_wal_size=${POSTGRES_MAX_WAL_SIZE:-2GB}
+      # Xuddi shu sababdan yo'qolgan (postgres standarti 80MB edi).
+      - -c
+      # ⚠️ 2026-08-23: bu YAGONA qattiq yozilgan postgres sozlamasi edi —
+      #    qolgan hammasi `${VAR:-standart}` bo'lgani holda. Ya'ni 4 GB lik
+      #    serverga tushayotgan operator uni pasaytira olmasdi va darvoza
+      #    buni sezmasdi (u faqat `.env.example` dagi o'zgaruvchilarni
+      #    solishtiradi). Qabul qilingan qoida: HAR BIR resurs sozlamasi
+      #    o'zgaruvchi bo'ladi.
+      - min_wal_size=${POSTGRES_MIN_WAL_SIZE:-256MB}
       # Sekin so'rovlarni logga yozamiz (1 sekunddan uzun)
       - -c
       - log_min_duration_statement=1000
@@ -164,8 +395,21 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${POSTGRES_CPUS:-1.5}"
-          memory: ${POSTGRES_MEM:-1G}
+          # 1.5 -> 2.0 (DEPLOY_UBUNTU.md 6.1). Sabab yuqoridagi 7-bandda.
+          cpus: "${POSTGRES_CPUS:-2.0}"
+          # 1G -> 3G (DEPLOY_UBUNTU.md 6.1). 1G da ichkaridagi
+          # shared_buffers=2GB ning O'ZI ham sig'masdi — yuqoridagi
+          # "O'LCHANGAN OOM" bo'limiga qarang.
+          memory: ${POSTGRES_MEM:-3G}
+        reservations:
+          # YANGI: 6.1 jadvalidagi `mem_reservation` ustuni (1g). Bu SHIFT EMAS,
+          # YUMSHOQ chegara (cgroup v2 `memory.low`): host xotira bosimida yadro
+          # avval o'z rezervidan YUQORIDA turgan konteynerlardan tortib oladi.
+          # ⚠️ Rezerv limitdan KATTA bo'lsa konteyner UMUMAN ko'tarilmaydi
+          # ("Minimum memory limit can not be less than memory reservation
+          # limit") — shuning uchun u qattiq yozilmay, o'zgaruvchi qilindi:
+          # POSTGRES_MEM ni tushirgan operator buni ham tushira olsin.
+          memory: ${POSTGRES_MEM_RESERVATION:-1G}
 
   # ==========================================================================
   # REDIS — tashqariga CHIQARILMAYDI
@@ -180,12 +424,70 @@ services:
     ports: !override
       - "127.0.0.1:6390:6379"
 
+    # --------------------------------------------------------------------------
+    # REDIS RESURSLARI — 2026-08-22 auditi
+    # --------------------------------------------------------------------------
+    # ILGARI NIMA NOTO'G'RI EDI (ikkita alohida nosozlik)
+    #
+    #   (a) HIMOYA MEXANIZMI KONTEYNERDAN KATTA EDI. `--maxmemory 1gb` turardi,
+    #       konteyner limiti esa `REDIS_MEM:-384M`. Ya'ni Redis o'zining
+    #       "to'ldim" chegarasiga YETIB BORA OLMASDI: 384 MB da cgroup uni
+    #       ancha oldin o'ldirardi. `noeviction` ataylab tanlangan edi —
+    #       xotira tugasa yozuvni RAD ETSIN va xato KO'RINSIN. Limit noto'g'ri
+    #       bo'lgani uchun bu himoya umuman ishga tushmasdi: xato o'rniga
+    #       OOM kill bo'lardi.
+    #       OQIBATI: Redis o'lsa SignalR backplane va presence bilan birga
+    #       o'ladi — 200 kishilik darsda chat to'xtaydi, ishtirokchilar
+    #       ro'yxati bo'shaydi va davomat manbai yo'qoladi. `restart:
+    #       unless-stopped` uni qaytaradi, healthcheck (`redis-cli ping`) yana
+    #       PONG beradi — ya'ni hodisa hech qanday iz qoldirmaydi.
+    #
+    #   (b) RDB SNAPSHOT PROD'DA JIMGINA YOQILIB QOLGAN EDI. Bazaviy
+    #       docker-compose.yml da `--save ""` ATAYLAB yozilgan (izohi o'sha
+    #       yerda: RDB `fork()` qiladi va fork paytida Redis bir necha yuz
+    #       millisekundga QOTADI — backplane qotsa 200 odamning chati va
+    #       presence'i "muzlaydi"). Lekin prod overlay'idagi `command:`
+    #       ro'yxatni BIRLASHTIRMAYDI, BUTUNLAY ALMASHTIRADI — xuddi
+    #       postgres'dagi max_wal_size kabi. O'LCHANDI (redis:7-alpine, shu
+    #       prod command bilan): `CONFIG GET save` ->
+    #       "3600 1 300 100 60 10000", ya'ni prod'da standart RDB nuqtalari
+    #       ISHLAGAN va dev'da ataylab qochilgan fork pauzasi prod'da qaytib
+    #       kelgan.
+    #
+    # NEGA AYNAN SHU QIYMATLAR
+    #   * memory 1G / cpus 0.5 / reservation 256M — DEPLOY_UBUNTU.md 6.1
+    #     jadvali. Redis bu yerda faqat presence, backplane va rate-limit
+    #     hisoblagichlarini saqlaydi (real ehtiyoj ~20 MB), shuning uchun 1 GB
+    #     — keng zaxira, ish rejimi emas.
+    #   * maxmemory 768mb — 6.1/6.3 qiymati va u endi konteyner limitidan
+    #     KICHIK. Tartib muhim: 768mb < 1G => xotira o'sib ketsa avval Redis
+    #     o'zining OCHIQ xatosini beradi ("OOM command not allowed"), keyin
+    #     ham to'xtamasa cgroup aralashadi. Ilgari bu tartib teskari edi.
+    #   * `noeviction` O'ZGARMAYDI — 6.3 dagi `volatile-lru` tavsiyasidan
+    #     ataylab qat'iyroq: presence kalitlari TTL bilan yashaydi, ya'ni
+    #     volatile-lru ularni ham o'chira olardi.
+    # --------------------------------------------------------------------------
     command:
       - redis-server
       - --appendonly
       - "yes"
+      # Standart bilan bir xil (o'lchandi: `CONFIG GET appendfsync` ->
+      # everysec), lekin bazaviy fayldagidek ATAYLAB ochiq yoziladi: bu
+      # `command:` almashtirilishi sababli bazaviy qiymatlar meros
+      # QOLMAYDI, ya'ni bu yerda yozilmagan har bir narsa — redis standarti.
+      - --appendfsync
+      - everysec
+      # 🔴 JIMGINA YO'QOLGAN EDI (yuqoridagi (b) bandi). RDB snapshot'ni
+      # O'CHIRADI: bo'sh `--save` = birorta ham avtomatik nuqta yo'q.
+      # Buni olib tashlamang — fork() pauzasi 200 kishilik darsda chat va
+      # presence'ni bir necha yuz millisekundga muzlatadi. Bardoshlilikni
+      # AOF beradi (yuqoridagi appendonly).
+      - --save
+      - ""
+      # 1gb -> 768mb: endi konteyner limitidan (1G) KICHIK, ya'ni quyidagi
+      # `noeviction` himoyasi haqiqatan ishga tusha oladi.
       - --maxmemory
-      - 1gb
+      - ${REDIS_MAXMEMORY:-768mb}
       # KRITIK: `allkeys-lru` QILMANG. Bu Redis uch vazifani bajaradi —
       # kesh, SignalR backplane va PRESENCE (davomat manbai). allkeys-lru da
       # xotira to'lganda presence kalitlari JIMGINA o'chiriladi va davomat
@@ -196,8 +498,16 @@ services:
     deploy:
       resources:
         limits:
+          # O'ZGARMAYDI — 0.5 allaqachon DEPLOY_UBUNTU.md 6.1 qiymati.
           cpus: "${REDIS_CPUS:-0.5}"
-          memory: ${REDIS_MEM:-384M}
+          # 384M -> 1G (6.1). ⚠️ Bu qiymatni tushirsangiz REDIS_MAXMEMORY ni
+          # ham tushiring — u DOIM konteyner limitidan kichik bo'lishi shart,
+          # aks holda yuqoridagi (a) bug'i qaytadi.
+          memory: ${REDIS_MEM:-1G}
+        reservations:
+          # YANGI: 6.1 jadvalidagi `mem_reservation` (256m). `memory.low` —
+          # host siqilganda presence va backplane swap'ga itarilmasin.
+          memory: ${REDIS_MEM_RESERVATION:-256M}
 
   # ==========================================================================
   # MINIO — PROD'DA ISHLAMAYDI
@@ -249,6 +559,33 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
 
+      # ---- SINOV KALITLARI: DEV STANDARTLARI SHU YERDA O'LADI ------------
+      #
+      # 🔴 NIMA UCHUN BU BLOK BOR (2026-08-22 auditi). Bazaviy faylda bu
+      # ikki kalitning standarti `:-true` edi va u yerdagi izoh "prod bu
+      # kalitni bilmaydi" deb da'vo qilardi. Bu XATO edi — overlay
+      # `environment` ni BIRLASHTIRADI (yuqoridagi Storage bloki aynan shu
+      # sababdan mavjud), ya'ni ikkalasi ham prod konfiguratsiyasiga
+      # `"true"` bo'lib tushardi:
+      #
+      #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+      #     config | grep -E 'Seed__Demo|Dev__QuickLogin'
+      #
+      # Bazaviy fayl endi `:-false` beradi, lekin bu blok ATAYLAB qoladi:
+      # kimdir standartni yana o'zgartirsa yoki serverdagi `.env` da eski
+      # `SEED_DEMO=true` qatori qolib ketsa, prod baribir himoyalangan
+      # bo'lishi kerak. "Bir joyda tuzatdim" degan ishonch — aynan shu
+      # bug'ning manbai edi.
+      #
+      # ★ ESHIK OCHIQ QOLADI, LEKIN ATAYLAB OCHILADI: yangi serverda
+      #   namunaviy ma'lumotni KO'RISH kerak bo'lsa, `.env` ga
+      #   `SEED_DEMO=true` yozish yetarli (loyiha egasining talabi —
+      #   `DemoDataSeeder` da muhit darvozasi shuning uchun yo'q).
+      #   `!reset null` qo'yilmagani ham shu sababdan: u bu yo'lni
+      #   BUTUNLAY yopib qo'yardi.
+      Seed__Demo: ${SEED_DEMO:-false}
+      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-false}
+
       # ---- OBYEKT OMBORI: DEV MinIO QIYMATLARI SHU YERDA O'LADI ----------
       #
       # ⚠️ BU BLOK MAJBURIY. Compose overlay'lari `environment` ni
@@ -283,14 +620,71 @@ services:
       # Server GC: ko'p yadroli serverda o'tkazuvchanlikni sezilarli oshiradi.
       # Konteynerda default Workstation GC bo'lib qolishi mumkin.
       DOTNET_gcServer: "1"
-      # Konteyner xotira chegarasini GC hisobga olsin
-      DOTNET_GCHeapHardLimitPercent: "75"
+      # ⚠️ `DOTNET_GCHeapHardLimitPercent` BU YERDA ATAYLAB YO'Q (2026-08-22).
+      #
+      # ILGARI NIMA NOTO'G'RI EDI: `"75"` turardi, izohi "konteyner xotira
+      # chegarasini GC hisobga olsin" deb yozilgandi. Bu qator AMALDA HECH
+      # NARSA QILMASDI.
+      #
+      # SABAB: .NET GC sozlamalari MUHIT O'ZGARUVCHISI orqali berilganda
+      # ONALTILIK (hex) o'qiladi (`runtimeconfig.json` orqali esa o'nlik).
+      # "75" = 0x75 = 117 o'nlikda; 100 dan katta bo'lgani uchun runtime uni
+      # butunlay E'TIBORSIZ qoldiradi.
+      #
+      # O'LCHANDI (net9.0, 3G limitli konteyner,
+      # GC.GetGCMemoryInfo().TotalAvailableMemoryBytes):
+      #     yozilmagan -> 2304 MiB (limitning 75%)
+      #     "75"       -> 2304 MiB  <-- yozilmagan bilan BIR XIL = no-op
+      #     "32"       -> 1536 MiB  (0x32 = 50%)
+      #     "50"       -> 2458 MiB  (0x50 = 80%)
+      #     "4B"       -> 2304 MiB  (0x4B = 75%)
+      #
+      # OQIBATI: natija to'g'ri chiqardi, lekin TASODIFAN — standart ham
+      # 75%. Yomoni shundaki, qator O'QIGAN ODAMNI ALDARDI ("chegara qat'iy
+      # qo'yilgan" degan soxta ishonch). Undan ham yomoni: kimdir uni
+      # "sozlamoqchi" bo'lib `60` yozsa, 0x60 = 96% bo'lardi — GC konteyner
+      # limitining deyarli hammasini heap uchun olib, OOM kill (exit 137)
+      # ni O'ZI keltirib chiqarardi.
+      #
+      # QAROR: qator olib tashlandi. .NET cgroup limitini o'zi o'qiydi va
+      # standart chegarasi ~75% — bu bizga kerakli qiymatning AYNAN o'zi
+      # (yuqoridagi o'lchov shuni tasdiqlaydi). Aniq yozish zarur bo'lsa
+      # yagona to'g'ri imlo — `"4B"`, lekin DEPLOY_UBUNTU.md 6.4 to'g'ri
+      # maslahat beradi: "o'lchamasdan o'zgartirmang".
 
     deploy:
       resources:
         limits:
-          cpus: "${API_CPUS:-1.5}"
-          memory: ${API_MEM:-1G}
+          # 1.5 dan 2.0 ga (DEPLOY_UBUNTU.md 6.1/6.4).
+          # docs/YUKLAMA_TESTI.md aniq ko'rsatdi: BIRINCHI to'yinadigan
+          # narsa aynan API protsessori (1500 klientda 10 yadro, 100%);
+          # baza ham, Redis ham emas. Ya'ni bu raqam — tizimning haqiqiy
+          # shifti.
+          # NEGA 1.5 KAM EDI: 200 klientda BARQAROR sarf ~0.35 yadro, lekin
+          # dars boshlanishi barqaror rejim emas — 200 kishi 10-15 sekund
+          # ichida ulanadi (JoinSession + to'liq ro'yxat + presence
+          # broadcast). Aynan o'sha cho'qqida 1.5 kvotasi urib, ulanishlar
+          # navbatga tizilardi va "dars boshida sekin" degan shikoyat
+          # kelardi — grafiklarda esa o'rtacha sarf past ko'rinardi.
+          cpus: "${API_CPUS:-2.0}"
+          # 1G dan 3G ga (DEPLOY_UBUNTU.md 6.1/6.4).
+          # NEGA 1G XAVFLI EDI: .NET GC konteyner cgroup limitini o'zi
+          # o'qiydi va heap chegarasini shuning ~75% iga qo'yadi — 1G da bu
+          # atigi ~750 MB. Yuklama testida o'lchangan sarf ~390 MiB (1500
+          # klientda ham), ya'ni oraliq ikki barobardan kam. Server GC esa
+          # HAR YADROGA alohida heap ochadi va fon ishlari (chat paketlash,
+          # Channel<T> navbati, fayl yuklash buferlari) cho'qqida o'sha
+          # oraliqni yeb qo'yishi mumkin.
+          # OQIBATI: OOM kill (exit 137) — bu BARCHA SignalR ulanishlarining
+          # bir vaqtda uzilishi, ya'ni dars o'rtasida hamma xonadan tushib
+          # qoladi. Restart 10-20 sekund, lekin dars buzilib bo'lgan bo'ladi.
+          # 3G da GC chegarasi ~2.25 GB bo'ladi (o'lchandi: 2304 MiB).
+          memory: ${API_MEM:-3G}
+        reservations:
+          # `memory.low` — host siqilganda API ishchi to'plami swap'ga
+          # itarilmasin. GC pauzasi paytida swap'dan o'qish latency'ni
+          # sakratadi va bu p99 da darhol ko'rinadi.
+          memory: ${API_MEM_RESERVATION:-512M}
 
   # ==========================================================================
   # WEB (nginx + statik fayllar)
@@ -308,5 +702,21 @@ services:
     deploy:
       resources:
         limits:
+          # O'ZGARMAYDI — 0.5 allaqachon DEPLOY_UBUNTU.md 6.1/6.6 qiymati.
+          # Bu konteyner faqat tayyor statik fayllarni beradi (TLS ham, API
+          # proxy ham HOST nginx'da). Bu yerda CFS kvotasi xavfsiz: nginx
+          # uchun bir necha ms throttling ko'rinmaydi — LiveKit'dan farqli
+          # o'laroq, statik faylda "uzilish" degan tushuncha yo'q.
           cpus: "${WEB_CPUS:-0.5}"
-          memory: ${WEB_MEM:-192M}
+          # 192M dan 256M ga (DEPLOY_UBUNTU.md 6.1/6.6).
+          # 192M ishlashi mumkin edi, lekin zaxirasiz. Farq atigi 64 MB —
+          # 16 GB serverda 0.4%. Bunday joyda tejashning yutug'i NOL, xavfi
+          # esa aniq: nginx OOM bo'lsa foydalanuvchi oq sahifa ko'radi va
+          # "sayt umuman ochilmayapti" deydi — API sog'-salomat ishlab
+          # turgan bo'lsa ham. Nosozlikni topish esa qiyin, chunki hamma
+          # birinchi navbatda API va bazaga qaraydi.
+          memory: ${WEB_MEM:-256M}
+        reservations:
+          # nginx + ochiq fayl buferlari uchun eng kichik xavfsiz qiymat
+          # (DEPLOY_UBUNTU.md 6.1).
+          memory: ${WEB_MEM_RESERVATION:-64M}

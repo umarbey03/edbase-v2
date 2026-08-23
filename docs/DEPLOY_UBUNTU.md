@@ -1037,17 +1037,96 @@ tutadi).
 > Shuning uchun LiveKit'ga yo umuman limit qo'ymang, yoki juda keng qo'ying
 > (6.0), va o'rniga **nisbiy ustunlik** ishlating:
 > ```yaml
-> # docker-compose.yml (boshqa agent fayli)
+> # docker-compose.prod.yml — DIQQAT: `cpu_shares` `deploy:` blokining ICHIDA
+> # EMAS, xizmatning O'ZIDA turadi (deploy ichiga yozilsa schema xatosi).
 > livekit:
->   cpu_shares: 2048      # boshqalardan 2x ustunlik
-> postgres:
->   cpu_shares: 1024
+>   cpu_shares: ${LIVEKIT_CPU_SHARES:-2048}
 > ```
+>
+> ⚠️ **Ikkita aniqlik (2026-08-22 da o'lchandi, Compose v5.2.0 / Docker
+> 29.6.1, cgroup v2):**
+> 1. **Boshqa xizmatlarga `cpu_shares: 1024` yozish shart emas** — u
+>    Docker'ning standarti: `1024` yozilgan va umuman yozilmagan konteyner
+>    bir xil `cpu.weight=100` beradi. Shuning uchun faqat LiveKit'ga
+>    yoziladi.
+> 2. **2048 "aniq 2 barobar" emas.** cgroup v2 shares'ni `cpu.weight` ga
+>    chiziqsiz o'giradi: 512 → 59, 1024 → 100, 2048 → 174 (ya'ni ~1.7x), va
+>    koeffitsient runtime versiyasiga bog'liq. Serverda o'zingiz ko'ring:
+>    `docker exec $(docker compose ps -q livekit) cat /sys/fs/cgroup/cpu.weight`
+>
+> `cpu_shares` `deploy.resources` bilan **to'qnashmaydi** — ikkalasi birga
+> qo'llanadi (`HostConfig.CpuShares` + `NanoCpus`).
+>
 > Throttling bo'layotganini tekshirish:
 > ```bash
 > cat /sys/fs/cgroup/system.slice/docker-$(docker compose ps -q livekit).scope/cpu.stat
 > #   throttled_usec o'sib borsa — limit juda tor
 > ```
+> **Kvotani butunlay o'chirish** kerak bo'lsa qo'llab-quvvatlanadigan yagona
+> yo'l — `.env` da `LIVEKIT_CPUS=0`: compose `cpus` ni rendered
+> konfiguratsiyaga umuman yubormaydi va konteyner `cpu.max = max` bilan
+> ko'tariladi (xotira limiti joyida qoladi). O'zgaruvchini **bo'sh
+> qoldirish bu emas** — bo'sh qiymat standart `6.0` ni qaytaradi.
+
+---
+
+#### 🔒 Bu jadval endi CI bilan MAJBURLANADI (2026-08-22 auditi)
+
+Bu jadval uzoq vaqt **faqat hujjatda** yashagan edi. Audit natijasi:
+`docker-compose.prod.yml` dagi standartlar unga zid edi —
+`livekit` 1.5 CPU / 768M (jadvalda 6.0 / 2g), `api` 1.5 / 1G (jadvalda
+2.0 / 3g), `postgres` konteyneri 1G, ichkarisida esa `shared_buffers=2GB`.
+Buning ustiga bu o'zgaruvchilarning **birortasi ham `.env.example` da yo'q
+edi**, ya'ni operator ularni o'zgartirish mumkinligini ham bilmasdi.
+
+**Nega hech kim sezmadi:** nomuvofiqlik faqat **yuk ostida** chiqadi.
+Postgres ishga tushishda yiqilmaydi (`shared_buffers` — mmap qilingan
+xotira, cgroup unga sahifa birinchi marta tegilganda haq yozadi), ya'ni
+`up -d`, `pg_isready` healthcheck'i va smoke test — hammasi **yashil**.
+Portlash haqiqiy dars paytida bo'ladi va o'zini yashiradi: OOM-killer
+odatda `postmaster` ni emas, bitta **backend** ni oladi, postgres esa
+barcha ulanishlarni uzib crash recovery bilan qaytadi.
+
+Shuning uchun endi darvoza bor:
+
+```bash
+./infra/scripts/check-resource-limits.sh -v
+```
+
+U **uchta manbani** solishtiradi va farq bo'lsa CI ni qizil qiladi:
+
+| Manba | Roli |
+|---|---|
+| `docs/DEPLOY_UBUNTU.md` 6.1 / 6.2 jadvallari | **haqiqat manbasi** |
+| `docker-compose.prod.yml` dagi `${VAR:-standart}` | qo'llanadigan standart |
+| `.env.example` dagi qiymatlar | operator ko'radigan hujjat |
+
+Ustiga mantiqiy invariantlarni ham tekshiradi: `mem_reservation ≤ mem_limit`,
+`redis maxmemory < redis konteyner limiti`, `shared_buffers ≤ konteyner
+limitining 30% i`, `max_connections > pool + 10`, xotira limitlari yig'indisi
+≤ 12 GB, `DOTNET_GCHeapHardLimitPercent` qaytib kelmagani, hamda prod
+`command:` bloklarida `max_wal_size` / `min_wal_size` va redis `--save`
+saqlanib turgani (bular bir marta **jimgina yo'qolgan** edi — pastdagi
+eslatmaga qarang).
+
+> 🔴 **Qiymatni o'zgartirish tartibi:** avval **shu jadvalni** (sabab bilan)
+> yangilang, keyin `docker-compose.prod.yml` va `.env.example` ni.
+> Teskari tartib CI'ni qizil qiladi — ataylab.
+
+> ⚠️ **`command:` MEROS QOLMAYDI.** Compose overlay'i `command:` ro'yxatini
+> **birlashtirmaydi, butunlay almashtiradi**. Ya'ni bazaviy
+> `docker-compose.yml` da ataylab qo'yilgan har bir bayroq prod'da
+> **jimgina yo'qoladi**. Audit ikkita shunday yo'qolishni topdi:
+> `postgres` da `max_wal_size` / `min_wal_size` (prod postgres standarti
+> 1GB/80MB bilan ishlagan → dars boshida checkpoint "to'lqini") va `redis`
+> da `--save ""` (prod'da standart RDB nuqtalari yoqilgan → `fork()`
+> pauzasi, ya'ni backplane va presence bir necha yuz millisekundga
+> muzlashi). Ikkalasi ham qaytarildi va CI ular yana yo'qolmasligini
+> tekshiradi.
+
+**Operator uchun:** har bir o'zgaruvchining ma'nosi, kichikroq serverga
+tushirish uchun **mos to'plamlar jadvali** va deploy'dan keyingi tekshiruv
+buyruqlari — `.env.example` ning **10-bo'limida**.
 
 ### 6.2. PostgreSQL
 
@@ -1294,6 +1373,47 @@ ls -l .env      # -rw------- bo'lishi kerak
 > 🔴 **`devkey` ni prod'da ishlatmang.** SPEC 8-bo'limidagi `devkey` —
 > LiveKit misollarida keng tarqalgan qiymat. Uni qoldirsangiz, kimdir
 > secret'ni topsa, **istalgan xonaga host huquqi bilan kira oladi**.
+
+---
+
+### 7.1.0. 🔴 ILOVA NAMUNA SIRLARI BILAN KO'TARILMAYDI (2026-08-22)
+
+`ASPNETCORE_ENVIRONMENT=Production` bo'lganda `ProductionSecretsGuard`
+ishga tushishda quyidagilarni tekshiradi va **birortasi namuna qiymatda
+qolsa ilovani to'xtatadi** (port ochilgunga va migratsiya qo'llangunga
+qadar):
+
+| Kalit | Nima rad etiladi |
+|---|---|
+| `Jwt:Secret` | ichida `dev_only` yoki `change_me` bo'lsa |
+| `LiveKit:ApiSecret` | ayni marker |
+| `LiveKit:ApiKey` | aynan `devkey` |
+| `Storage:AccessKey` / `Storage:SecretKey` | ayni marker |
+| `Storage:ServiceUrl` | ichida `minio` bo'lsa (prod'da R2 bo'lishi kerak) |
+| `Cors:AllowedOrigins` | `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` |
+
+⚠️ **`POSTGRES_PASSWORD` bu ro'yxatda YO'Q** — uni darvoza tekshira
+olmaydi (sabab kod izohida). Uning tasodifiyligi yuqoridagi `openssl
+rand` qadamining o'ziga kiritilgan; **namuna parolni prod `.env` ga
+ko'chirmang**. Xavf darajasi pastroq: prod'da Postgres tashqariga
+umuman chiqarilmaydi (`docker-compose.prod.yml` da unga `ports` yo'q).
+
+**Nima uchun marker bo'yicha, ro'yxat bo'yicha emas:** `.env.example`
+dagi har bir dev standarti ataylab `dev_only_...` yoki `..._change_me`
+ko'rinishida yozilgan. Aniq qiymatlar ro'yxati eskirardi — yangi dev
+standarti qo'shilganda kimdir uni darvozaga qo'shishni unutardi.
+
+Xato xabari **hamma muammoni birdaniga** sanab beradi, ya'ni sirlarni
+bittalab tuzatib qayta-qayta deploy qilish shart emas:
+
+```bash
+# Deploydan keyin ilova ko'tarilmasa — sabab shu yerda ochiq yoziladi:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs api | head -40
+```
+
+⚠️ Bu tekshiruvni **o'chirish yo'li yo'q** — u ataylab shunday. Namuna
+sir bilan ishlab turgan tizim hech qanday belgi bermasdi: xato ham,
+ogohlantirish ham chiqmasdi.
 
 `Cors__AllowedOrigins__0` prod'da `https://app.domen.uz` bo'lishi kerak —
 SPEC'dagi `http://localhost:5173` faqat dev uchun.
@@ -2165,17 +2285,25 @@ uchun xavfli yoki yetishmayotgan** joylar. SPEC majburiy shartnoma bo'lgani
 uchun bu yerda faqat **qayd etilgan** — o'zgartirish SPEC egasining qaroriga
 bog'liq.
 
+> **2026-08-22 auditi.** 1, 3, 4 va 9-risklar yopildi (jadvalda ✅ bilan
+> belgilangan). 3 va 9 endi **hujjatdagi maslahat emas, majburlanadigan
+> qoida**: `ProductionSecretsGuard` ishga tushishda tekshiradi va namuna
+> qiymat topilsa ilovani **umuman ko'tarmaydi**.
+>
+> Qolgan risklar (2, 5, 6, 7, 8, 10, 11, 12) — hamon ochiq va ular asosan
+> **sozlama yoki sig'im qarori**, kod emas.
+
 | # | Risk | Nima bo'ladi | Tavsiya |
 |---|---|---|---|
-| **1** | **`LiveKit__Url` bitta o'zgaruvchi** — ham serverning ichki manzili, ham klientga qaytariladigan `ServerUrl` | Prod'da `ws://livekit:7880` klientga qaytsa — brauzer mixed content sababli **bloklaydi** | Ikkita o'zgaruvchi: `LiveKit__PublicUrl` (`wss://livekit.domen.uz`) va `LiveKit__ApiUrl` (ichki) |
+| **1** | ~~**`LiveKit__Url` bitta o'zgaruvchi**~~ | ~~Prod'da `ws://livekit:7880` klientga qaytsa — brauzer mixed content sababli **bloklaydi**~~ | ✅ **HAL QILINGAN.** Manzillar ajratilgan: `LiveKit__Url` (ichki, konteyner tarmog'i) va `LiveKit__PublicUrl` (brauzerga). Kod `LiveKitOptions.EffectivePublicUrl` orqali klientga DOIM ikkinchisini beradi; `PublicUrl` bo'sh bo'lsa dev qulayligi uchun birinchisiga tushadi |
 | **2** | **LiveKit bridge tarmoqda ICE nomzodlarini noto'g'ri e'lon qiladi** | Xona ochiladi, ishtirokchilar ko'rinadi, **media umuman ulanmaydi** | `network_mode: host` yoki `use_external_ip: true` (9.3) |
-| **3** | **`LIVEKIT_KEYS=devkey: …`** | `devkey` — LiveKit misollaridagi ommaviy qiymat. Secret sizib chiqsa, kimdir **istalgan xonaga host huquqi bilan** kiradi | Prod'da tasodifiy API key nomi (7.1) |
-| **4** | **LiveKit token TTL 6 soat** (SPEC 4-bo'lim) | Guruhdan chiqarilgan o'quvchi **6 soat davomida** xonaga kira oladi | TTL'ni dars davomiyligi + 30 daq qilish; xona tugaganda LiveKit API orqali yopish |
+| **3** | **`LIVEKIT_KEYS=devkey: …`** | `devkey` — LiveKit misollaridagi ommaviy qiymat. Secret sizib chiqsa, kimdir **istalgan xonaga host huquqi bilan** kiradi | ✅ **MAJBURLANADI (2026-08-22).** `ProductionSecretsGuard` `Production` da `devkey` ni ko'rsa ilovani ISHGA TUSHIRMAYDI. Kalit nomini 7.1 bo'yicha yarating |
+| **4** | ~~**LiveKit token TTL 6 soat**~~ (SPEC 4-bo'lim) | ~~Guruhdan chiqarilgan o'quvchi **6 soat davomida** xonaga kira oladi~~ | ✅ **HAL QILINGAN (2026-08-22).** Muddat endi darsga bog'langan: `LiveSessionService.JoinTokenTtl` = dars tugashi + 30 daqiqa (eng kami 15 daq, eng ko'pi 6 soat). Zaxira qiymat ham 6 → 2 soatga tushirildi. ⚠️ Tavsiyaning ikkinchi yarmi — **xona tugaganda LiveKit API orqali yopish** — hali BAJARILMAGAN |
 | **5** | **Recording uchun `egress` xizmati yo'q** | `Group.RecordEnabled` / `LiveSession.RecordingUrl` domenda bor, lekin SPEC 8-bo'limida yozib oluvchi xizmat yo'q. Recording — **transkodlash**, bitta yozuv ~1-2 vCPU | Alohida `egress` xizmati + saqlash joyi + sig'im rejasi. 8 vCPU serverda 200 foydalanuvchi bilan bir vaqtda **ko'pi bilan 2-3 yozuv** |
 | **6** | **TURN yo'q** | 7881 TCP fallback ko'p holatni qoplaydi, lekin faqat 443'ga ruxsat beradigan qattiq korporativ proxy ortidan ulanib bo'lmaydi | LiveKit'ning ichki TURN'ini yoqish. **Lekin 443 nginx tomonidan band** — TURN/TLS uchun alohida IP yoki 5349 port kerak |
 | **7** | **Redis bitta instance, uch vazifada** (kesh + presence + SignalR backplane) | `maxmemory` bosimi yoki `allkeys-lru` presence'ni **jimgina** o'chiradi → davomat buziladi | `volatile-lru` yoki `noeviction` (6.3); kelajakda ajratish |
 | **8** | **Connection string'da pool sozlamasi yo'q** | Npgsql default `Maximum Pool Size=100`; ikkinchi `api` replikasi qo'shilsa `too many clients` | `Maximum Pool Size=40` (6.2) |
-| **9** | **`Cors__AllowedOrigins__0=http://localhost:5173`** | Prod'da qolib ketsa — frontend API'ga ulanolmaydi (yoki xavfsizlik teshigi) | `.env` da `https://app.domen.uz` (7.1) |
+| **9** | **`Cors__AllowedOrigins__0=http://localhost:5173`** | Prod'da qolib ketsa — frontend API'ga ulanolmaydi (yoki xavfsizlik teshigi) | ✅ **MAJBURLANADI (2026-08-22).** `ProductionSecretsGuard` `Production` da `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` ni ko'rsa ilova ko'tarilmaydi. `.env` da `https://app.domen.uz` (7.1) |
 | **10** | **UDP mux — bitta port, bitta soket** | 200 foydalanuvchida yaxshi ishlaydi (SPEC to'g'ri aytgan), lekin ~500 dan keyin bitta soketning o'qish sikli bitta CPU yadrosiga tayanadi | 500+ ga chiqishda port diapazoni yoki ikkinchi node |
 | **11** | **`web` va `api` alohida host portlarida** (5173 / 5080) | Ikki xil origin → CORS va cookie murakkabligi; `0.0.0.0` ga bog'lansa Docker UFW'ni chetlab o'tadi (3.3) | Host nginx orqali **bitta origin** (`app.domen.uz`), portlar `127.0.0.1` da |
 | **12** | **Migratsiyalarni kim qo'llashi aytilmagan** | Bir necha replikada avtomatik migratsiya deadlock beradi | Deploy quvurida aniq qadam (7.2) |

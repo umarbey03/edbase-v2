@@ -92,6 +92,59 @@ internal static class WorldBuilder
         return student;
     }
 
+    // ================================================== a'zolikni yopish (sabab bilan)
+
+    /*
+      🔴 NIMA UCHUN BU IKKI YORDAMCHI BOR (2026-08-22).
+
+      2026-08-17 dan CHIQARISH va MUZLATISH uchun SABAB MAJBURIY bo'ldi
+      (loyiha egasi: "to'kilishlar" paneli sababsiz qatorni ko'rsata
+      olmaydi). Chiqarishda esa BUNDAN TASHQARI FE'L HAM O'ZGARDI:
+
+        • `DELETE /groups/{id}/members/{studentId}`  ← ENDI YO'Q
+          `POST   /groups/{id}/members/{studentId}/remove`  ← shu
+
+          Sabab `GroupsController.RemoveMember` izohida: amal endi so'rov
+          TANASINI talab qiladi, `DELETE` tanasini esa ko'p klient va
+          proksi tashlab yuboradi.
+
+        • `POST .../pause` da `reason` bo'lmasa — 400.
+
+      Testlar bu o'zgarishdan keyin yangilanmagan edi va olti joyda
+      jimgina yiqilardi. Chaqiruv har testda qo'lda yozilsa, keyingi
+      o'zgarishda AYNI holat takrorlanardi — shuning uchun ikkala
+      chaqiruv ham SHU YERDA, bitta joyda.
+    */
+
+    /// <summary>
+    /// Guruhdan chiqarish — sabab bilan. Javob TEKSHIRILMAYDI: ba'zi
+    /// testlar aynan xato kodini kutadi (masalan arxivlangan guruh).
+    /// </summary>
+    public static Task<HttpResponseMessage> RemoveMemberAsync(
+        HttpClient client, long groupId, long studentId, string reason = "Sinov: chiqarish")
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        return client.PostAsJsonAsync(
+            $"/api/v1/groups/{groupId}/members/{studentId}/remove",
+            new { reason });
+    }
+
+    /// <summary>Muzlatish — sabab bilan (<paramref name="pausedUntil"/> ixtiyoriy).</summary>
+    public static Task<HttpResponseMessage> PauseMemberAsync(
+        HttpClient client,
+        long groupId,
+        long studentId,
+        DateOnly? pausedUntil = null,
+        string reason = "Sinov: muzlatish")
+    {
+        ArgumentNullException.ThrowIfNull(client);
+
+        return client.PostAsJsonAsync(
+            $"/api/v1/groups/{groupId}/members/{studentId}/pause",
+            new { pausedUntil, reason });
+    }
+
     /// <summary>
     /// YAKUNLANGAN dars yaratadi va berilgan o'quvchilarga davomat yozadi.
     ///

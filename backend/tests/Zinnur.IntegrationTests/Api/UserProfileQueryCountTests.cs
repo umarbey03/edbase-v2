@@ -65,16 +65,57 @@ public sealed class UserProfileQueryCountTests(ZinnurApiFactory factory)
         var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "n1-profil");
 
         // Yana ikkita guruh (jami 3) — har biri ustoz ismini talab qiladi.
-        for (var i = 0; i < 2; i++)
+        //
+        // ══════════════════════════════════════════════════════════════════
+        // 🔴 2026-08-22: "3 GURUH" ENDI "3 A'ZOLIK QATORI" DEGANI
+        //
+        // 2026-08-17 dan o'quvchi bir vaqtda faqat BITTA guruhda bo'la
+        // oladi (`GroupService.AddMemberAsync`), ya'ni uni uchta guruhga
+        // BARAVARIGA qo'shib bo'lmaydi — ilgari shu yerda shunday
+        // qilinardi va endi 409 keladi.
+        //
+        // ★ O'LCHOVGA TA'SIRI YO'Q, chunki profil guruhlar blokini
+        //   HOLATIDAN QAT'I NAZAR quradi (chiqarilgan a'zolik ham
+        //   ko'rinadi — `Profile_ShowsStoppedAndPausedMemberships`) va
+        //   har qator uchun ustoz ismini talab qiladi. N+1 xavfi
+        //   qatorlar SONIDAN kelib chiqadi, ularning holatidan emas.
+        //
+        // Shuning uchun o'quvchi guruhlar orasida "aylantiriladi":
+        // chiqadi → yangi guruhga kiradi → chiqadi → ... → asosiysiga
+        // qaytadi. Natija: 2 ta `Stopped` + 1 ta `Active` = 3 qator.
+        // ══════════════════════════════════════════════════════════════════
+        using (var admin = await WorldBuilder.AdminClientAsync(factory))
         {
-            var extra = await WorldBuilder.CreateAsync(factory, "n1-guruh" + i.ToString(CultureInfo.InvariantCulture));
+            var left = await WorldBuilder.RemoveMemberAsync(
+                admin, world.GroupId, world.Student.Id);
 
-            using var admin = await WorldBuilder.AdminClientAsync(factory);
+            left.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(left));
 
-            var add = await admin.PostAsJsonAsync(
-                $"/api/v1/groups/{extra.GroupId}/members", new { studentId = world.Student.Id });
+            for (var i = 0; i < 2; i++)
+            {
+                var extra = await WorldBuilder.CreateAsync(
+                    factory, "n1-guruh" + i.ToString(CultureInfo.InvariantCulture));
 
-            add.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(add));
+                var add = await admin.PostAsJsonAsync(
+                    $"/api/v1/groups/{extra.GroupId}/members",
+                    new { studentId = world.Student.Id });
+
+                add.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(add));
+
+                var out_ = await WorldBuilder.RemoveMemberAsync(
+                    admin, extra.GroupId, world.Student.Id);
+
+                out_.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(out_));
+            }
+
+            // 🔴 ASOSIY GURUHGA QAYTARAMIZ: qolgan bloklar (davomat,
+            //    to'lov davrlari, vazifalar) o'quvchining FAOL a'zoligiga
+            //    tayanadi — usiz o'lchov "ko'p ma'lumot" ni ko'rmasdi.
+            var rejoin = await admin.PostAsJsonAsync(
+                $"/api/v1/groups/{world.GroupId}/members",
+                new { studentId = world.Student.Id });
+
+            rejoin.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(rejoin));
         }
 
         // Yana ikki oylik davr (jami 3) — har biri "o'sha oydagi darslar
