@@ -404,17 +404,46 @@ logging:
 #    port: 6789
 #
 #
-#  --- WEBHOOK'LAR (DAVOMAT UCHUN JUDA MOS) ---
-#  LiveKit ishtirokchi kirgan/chiqqanda backend'ga HTTP POST yuboradi.
-#  Bu SPEC 3-bo'limidagi Attendance (FirstJoinAt / LastJoinAt / LeftAt)
-#  ni to'ldirishning ENG ISHONCHLI yo'li: brauzer yopilib ketsa ham
-#  (klient hech narsa yubora olmaganda) server baribir xabar beradi.
-#  Hozir o'chiq, chunki SPEC 5-bo'limida bunday endpoint kelishilmagan.
+#  --- WEBHOOK'LAR ---
+#  LiveKit hodisalarni (ishtirokchi kirdi/chiqdi, yozuv tugadi) backend'ga
+#  HTTP POST bilan yuboradi.
+#
+#  ⚠️ IZOH YANGILANDI (2026-08-24). Ilgari bu yerda "endpoint kelishilmagan"
+#  deb yozilgandi — bu ENDI TO'G'RI EMAS: endpoint MAVJUD va imzo
+#  tekshiruvi bilan to'liq yozilgan:
+#      POST /api/v1/livekit/webhook   (LiveKitWebhookController,
+#                                      LiveKitWebhookVerifier)
+#
+#  SHUNGA QARAMAY U ATAYLAB O'CHIQ QOLDIRILDI. Sabab — yozuv webhook'ga
+#  TAYANMAYDI: haqiqat manbai OMBORNING O'ZI va watchdog har 15 soniyada
+#  ombordan so'raydi (`IRecordingStorage.HeadAsync` izohi). Ya'ni webhook
+#  yozuvni bir necha soniyaga tezlashtiradi, xolos.
+#
+#  🔴 YOQISHDAN OLDIN IKKI TUZOQNI HAL QILING — ikkalasi ham JIMGINA
+#     nosozlik beradi:
+#
+#   1) `api_key` bu yerda YOZIB QO'YILADI, kalitlar esa `LIVEKIT_KEYS`
+#      env'idan keladi (fayldagi `keys:` bloki BUTUNLAY almashadi).
+#      Ular mos kelmasa LiveKit imzoni yasay olmaydi. Ya'ni `.env` dagi
+#      `LIVEKIT_API_KEY` ni o'zgartirgan odam BU FAYLNI ham tuzatishi
+#      kerak bo'ladi — hozircha bu bog'liqlikni avtomatlashtirish yo'li
+#      yo'q (livekit-server faqat `LIVEKIT_CONFIG`, `LIVEKIT_KEYS`,
+#      `LIVEKIT_REGION`, `LIVEKIT_TURN_*`, `NODE_IP`, `UDP_PORT`,
+#      `REDIS_HOST`, `REDIS_PASSWORD` ni o'qiydi — qolgan nomlar
+#      JIMGINA e'tiborsiz qoladi).
+#
+#   2) MANZIL DEV VA PROD'DA BOSHQA-BOSHQA. Dev'da `http://api:8080`
+#      (Docker ichki DNS). PROD'da esa LiveKit `network_mode: host` da
+#      ishlaydi — ichki DNS o'chadi va `api` nomi YECHILMAYDI (aynan
+#      Redis bilan bo'lgan tuzoq). Prod'da to'g'ri manzil:
+#      `http://127.0.0.1:5080/api/v1/livekit/webhook`.
+#      Ya'ni yoqilsa — prod uchun alohida yaml kerak bo'ladi.
 #
 #  webhook:
-#    api_key: devkey                    # yuqoridagi `keys` dan biri
+#    api_key: <`.env` dagi LIVEKIT_API_KEY bilan AYNI>
 #    urls:
-#      - http://api:8080/api/v1/livekit/webhook
+#      - http://api:8080/api/v1/livekit/webhook          # DEV
+#    # - http://127.0.0.1:5080/api/v1/livekit/webhook    # PROD (host tarmog'i)
 #
 #
 #  --- STUN SERVERLARI ---

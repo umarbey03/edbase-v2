@@ -144,6 +144,75 @@ public sealed class ProductionSecretsGuardTests
     }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 BRAUZER KO'RADIGAN OMBOR MANZILI MAHALLIY BO'LMASIN
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// ★ NIMA UCHUN BU TEST BOR (2026-08-24). `Storage:PublicUrl`
+    ///   darvozada UMUMAN tekshirilmasdi va `docker-compose.prod.yml`
+    ///   uni qayta yozmasdi — natijada bazaviy `.env` dagi
+    ///   `http://localhost:9010` prod'ga o'z holicha o'tardi.
+    ///
+    /// 🔴 BU NOSOZLIKNI HECH QANDAY LOG KO'RSATMASDI: imzolangan havola
+    ///    BRAUZERGA beriladi, brauzer `localhost` ga boradi va u yerda
+    ///    hech narsa yo'q. So'rov bizning serverimizga umuman kelmaydi.
+    ///    Ya'ni yagona "monitoring" — o'quvchining shikoyati.
+    /// </summary>
+    [Theory]
+    [InlineData("http://localhost:9010")]
+    [InlineData("http://127.0.0.1:9010")]
+    public void Validate_InProduction_WithLocalStoragePublicUrl_Throws(string publicUrl)
+    {
+        var settings = Good();
+        settings["Storage:PublicUrl"] = publicUrl;
+
+        var act = () => Run("Production", settings);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Storage:PublicUrl*", "xabar QAYSI kalit ekanini aytishi kerak");
+    }
+
+    /// <summary>
+    /// `ServiceUrl` ham mahalliy manzilga tekshiriladi.
+    ///
+    /// ★ NIMA UCHUN ALOHIDA: yuqoridagi "minio" markeri faqat DOCKER
+    ///   xizmat nomini tutadi. `http://localhost:9000` — AYNI dev
+    ///   ombori, lekin host porti orqali — undan bemalol o'tib ketardi.
+    /// </summary>
+    [Fact]
+    public void Validate_InProduction_WithLocalStorageServiceUrl_Throws()
+    {
+        var settings = Good();
+        settings["Storage:ServiceUrl"] = "http://localhost:9000";
+
+        var act = () => Run("Production", settings);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Storage:ServiceUrl*");
+    }
+
+    /// <summary>
+    /// BO'SH `PublicUrl` — xato EMAS, aksincha TAVSIYA ETILGAN holat.
+    ///
+    /// Uning ma'nosi "ko'rish havolasi ham `ServiceUrl` dan qurilsin"
+    /// (`StorageOptions.EffectivePublicUrl`). R2 da ombor manzili ikkala
+    /// tomondan bir xil ko'ringani uchun bu HAR DOIM to'g'ri javob —
+    /// imzo va havola bitta xostga tegishli bo'ladi.
+    ///
+    /// ⚠️ Darvoza buni xato deb hisoblasa, prod uchun eng ishonchli
+    ///    sozlama IMKONSIZ bo'lardi.
+    /// </summary>
+    [Fact]
+    public void Validate_InProduction_WithEmptyStoragePublicUrl_Passes()
+    {
+        var settings = Good();
+        settings["Storage:PublicUrl"] = string.Empty;
+
+        var act = () => Run("Production", settings);
+
+        act.Should().NotThrow();
+    }
+
+    /// <summary>
     /// BO'SH ombor — xato EMAS.
     ///
     /// `docker-compose.prod.yml` `R2_*` sozlanmaganda to'rttasini ham

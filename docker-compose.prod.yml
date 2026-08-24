@@ -204,6 +204,81 @@ services:
           memory: ${LIVEKIT_MEM_RESERVATION:-512M}
 
   # ==========================================================================
+  # LIVEKIT EGRESS — dars yozuvi (prod farqlari)
+  # ==========================================================================
+  #
+  # Xizmatning O'ZI `docker-compose.yml` da (nima uchun kerakligi ham
+  # o'sha yerda). Bu yerda faqat UCHTA prod farqi:
+  #
+  #  1) LIVEKIT MANZILI. Dev'da `ws://livekit:7880` — Docker ichki DNS
+  #     hal qiladi. PROD'da esa LiveKit `network_mode: host` da ishlaydi,
+  #     ya'ni u bridge tarmog'ida UMUMAN yo'q va `livekit` degan nom
+  #     yechilmaydi. Egress esa bridge'da qoladi (unga tashqi port
+  #     kerak emas), shuning uchun LiveKit'ga HOST orqali boradi.
+  #
+  #     ⚠️ AYNI TUZOQ LiveKit'ning Redis manzilida ham bor edi va u
+  #     yuqorida batafsil yozilgan — sabab bitta: `network_mode: host`
+  #     Docker DNS'ini o'chiradi.
+  #
+  #  2) REDIS — O'ZGARMAYDI (`redis:6379`). Egress bridge'da qolgani
+  #     uchun ichki DNS unga ishlaydi. Bu AYNI Redis nusxasi: LiveKit
+  #     unga host porti (`127.0.0.1:6390`) orqali ulanadi, egress esa
+  #     ichki nom orqali. Muhimi — NUSXA bitta bo'lsin, chunki ular
+  #     buyruqni shu yerda almashadi.
+  #
+  #  3) RESURS CHEGARASI — pastda, alohida izoh bilan.
+  livekit-egress:
+    logging: *default-logging
+
+    environment:
+      # ⚠️ ENV BIRLASHADI, LEKIN BU KALIT BITTA — ya'ni bazaviy fayldagi
+      # butun YAML tanasi shu yerdagisi bilan TO'LIQ almashadi. Shuning
+      # uchun bu yerda konfiguratsiya QAYTA, to'liq yoziladi: bir qatorni
+      # tashlab ketish "dev qiymati jimgina qoldi" ga olib borardi.
+      EGRESS_CONFIG_BODY: |
+        redis:
+          address: redis:6379
+          db: 0
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ws://host.docker.internal:7880
+        health_port: 9090
+        log_level: info
+
+    # `host.docker.internal` — Docker Desktop'da tayyor, LINUX'da esa
+    # ATAYLAB e'lon qilinishi kerak. Busiz nom yechilmaydi va yozuv
+    # "xonaga ulana olmadim" bilan tugaydi.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    deploy:
+      resources:
+        limits:
+          # ══════════════════════════════════════════════════════════
+          # 🔴 YOZUV — SERVERDAGI ENG QIMMAT AMAL
+          #
+          # Har bir PARALLEL yozuv = bitta Chrome + ffmpeg = ~1-2 vCPU
+          # (DEPLOY_UBUNTU.md, ilova A, 5-risk). Bu SFU dan farq
+          # qiladi: SFU transkodlamaydi, egress esa AYNAN transkodlaydi.
+          #
+          # NEGA CHEGARA MAJBURIY: chegarasiz egress dars payti butun
+          # protsessorni egallab olardi va birinchi bo'lib JONLI dars
+          # sinardi — ya'ni yozuv (ikkilamchi funksiya) asosiy
+          # funksiyani o'ldirardi. 3.0 — 8 vCPU serverda taxminan
+          # 2 parallel yozuvga yetadi.
+          #
+          # ⚠️ 2 DAN KO'P PARALLEL YOZUV REJALASHTIRMANG: chegaraga
+          # tegilganda yozuv "sekinlashmaydi" — kadrlar TASHLANADI va
+          # video sifati tushadi.
+          # ══════════════════════════════════════════════════════════
+          cpus: "${EGRESS_CPUS:-3.0}"
+          # Chrome + ffmpeg + kadr buferi. 2G dan pastda uzun darsda
+          # OOM xavfi bor (konteyner o'ladi, yozuv yo'qoladi).
+          memory: ${EGRESS_MEM:-3G}
+        reservations:
+          memory: ${EGRESS_MEM_RESERVATION:-512M}
+
+  # ==========================================================================
   # POSTGRES — tashqariga CHIQARILMAYDI
   # ==========================================================================
   postgres:
@@ -614,9 +689,39 @@ services:
       Storage__SecretKey: ${R2_SECRET_KEY:-}
       Storage__Region: ${R2_REGION:-auto}
       # Prefiks sir emas, lekin u ham DEV faylidan meros qolmasin —
-      # "bitta blok, oltita kalit" qoidasi buzilsa, keyingi safar
+      # "bitta blok, yettita kalit" qoidasi buzilsa, keyingi safar
       # yangi kalit qo'shilganda aynan shu yerda unutilardi.
       Storage__KeyPrefix: ${R2_KEY_PREFIX:-submissions}
+
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 BRAUZER KO'RADIGAN OMBOR MANZILI — 2026-08-24 da QO'SHILDI
+      #
+      # ILGARI BU QATOR YO'Q EDI va aynan yuqoridagi izoh ogohlantirgan
+      # nosozlik SODIR BO'LGAN EDI: bazaviy `docker-compose.yml` dagi
+      #     Storage__PublicUrl: ${STORAGE_PUBLIC_URL:-}
+      # prod'ga o'z holicha o'tardi, `.env` dagi qiymat esa DEV niki —
+      # `http://localhost:9010`. Ya'ni prod'da dars yozuvining imzolangan
+      # havolasi `localhost` ga ishora qilardi.
+      #
+      # NEGA HECH KIM SEZMASDI: xato bizning serverimizda EMAS, brauzerda
+      # chiqadi — so'rov `localhost` ga ketadi va bizga umuman kelmaydi.
+      # Log toza, health-check yashil, o'quvchi esa "video ochilmadi"
+      # ko'radi. Sozlamaning eng qimmat turdagi xatosi.
+      #
+      # ★ STANDART — BO'SH, VA BU ATAYLAB: bo'sh `PublicUrl` "ko'rish
+      #   havolasi ham `ServiceUrl` dan qurilsin" degani
+      #   (`StorageOptions.EffectivePublicUrl`). R2 da ombor manzili
+      #   ikkala tomondan bir xil ko'ringani uchun bu HAR DOIM to'g'ri
+      #   javob: imzo va havola bitta xostga tegishli bo'ladi.
+      #
+      # 🔴 `R2_PUBLIC_URL` ga custom domen (media.zinnur.uz) YOZILMAYDI —
+      #   R2 custom domeni presigned imzoni tekshirmaydi. Sabab va
+      #   muqobili: `.env.example`, 9-bo'lim.
+      #
+      # Qiymat baribir noto'g'ri bo'lsa `ProductionSecretsGuard` ilovani
+      # ko'tarmaydi (localhost / minio tekshiruvi).
+      # ══════════════════════════════════════════════════════════════════
+      Storage__PublicUrl: ${R2_PUBLIC_URL:-}
       # Server GC: ko'p yadroli serverda o'tkazuvchanlikni sezilarli oshiradi.
       # Konteynerda default Workstation GC bo'lib qolishi mumkin.
       DOTNET_gcServer: "1"

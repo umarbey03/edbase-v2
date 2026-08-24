@@ -58,8 +58,10 @@ public static class ProductionSecretsGuard
     private static readonly string[] DevMarkers = ["dev_only", "change_me"];
 
     /// <summary>
-    /// Mahalliy manzillar — <c>Cors:AllowedOrigins</c> prod'da bularga
-    /// ishora qilmasligi kerak.
+    /// Mahalliy manzillar — prod'da <c>Cors:AllowedOrigins</c> ham,
+    /// <c>Storage:ServiceUrl</c> / <c>Storage:PublicUrl</c> ham bularga
+    /// ishora qilmasligi kerak (ro'yxat ATAYLAB bitta: "mahalliy manzil"
+    /// tushunchasi ikki xil bo'lishi mumkin emas).
     /// </summary>
     private static readonly string[] LocalHosts = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
 
@@ -131,6 +133,48 @@ public static class ProductionSecretsGuard
                 + "(docker-compose.prod.yml dagi Storage bloki).");
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 OMBORNING IKKALA MANZILI HAM MAHALLIY BO'LMASLIGI KERAK
+        //
+        // NIMA UCHUN QO'SHILDI (2026-08-24). `Storage:PublicUrl` bu
+        // yerda UMUMAN tekshirilmasdi, prod overlay'ida esa u qayta
+        // yozilmasdi — natijada bazaviy `.env` dagi
+        // `http://localhost:9010` prod'ga o'z holicha o'tardi.
+        //
+        // ★ NEGA AYNAN DARVOZA KERAK, "hujjatga yozib qo'yish" YETARLI
+        //   EMAS: bu xatoning oqibati SERVERDA KO'RINMAYDI. Imzolangan
+        //   havola brauzerga beriladi, brauzer `localhost` ga boradi va
+        //   u yerda hech narsa yo'q. Bizning logimizda birorta qator
+        //   ham paydo bo'lmaydi, health-check yashil turadi. Ya'ni
+        //   nosozlikni FAQAT o'quvchining shikoyati ochadi.
+        //
+        // ⚠️ `ServiceUrl` ham tekshiriladi: yuqoridagi "minio" markeri
+        //   faqat DOCKER nomini tutadi, `http://localhost:9000` esa
+        //   undan bemalol o'tib ketardi.
+        //
+        // ★ BO'SH QIYMAT — XATO EMAS (ikkalasi uchun ham):
+        //     • bo'sh `ServiceUrl` = ombor sozlanmagan (qonuniy holat,
+        //       fayl yuklash ochiq 503 beradi);
+        //     • bo'sh `PublicUrl` = "ko'rish havolasi `ServiceUrl` dan
+        //       qurilsin" (`StorageOptions.EffectivePublicUrl`) — bu R2
+        //       uchun TAVSIYA ETILGAN standart.
+        // ══════════════════════════════════════════════════════════════
+        CheckNotLocal(
+            configuration,
+            "Storage:ServiceUrl",
+            "Prod'da u R2 ning S3 manzili bo'lishi kerak "
+            + "(`https://<hisob>.r2.cloudflarestorage.com`) — `R2_SERVICE_URL`.",
+            problems);
+
+        CheckNotLocal(
+            configuration,
+            "Storage:PublicUrl",
+            "Bu manzildan dars yozuvining IMZOLANGAN havolasi quriladi va u "
+            + "BRAUZERGA beriladi; mahalliy manzil o'quvchining kompyuterida "
+            + "hech narsaga ishora qilmaydi. To'g'ri yechim — `R2_PUBLIC_URL` ni "
+            + "BO'SH qoldirish (u holda `Storage:ServiceUrl` ishlatiladi).",
+            problems);
+
         // ---- CORS: mahalliy manzil prod'da qolib ketmasin ----
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
@@ -159,10 +203,41 @@ public static class ProductionSecretsGuard
 
         throw new InvalidOperationException(
             "🔴 PRODUCTION SOZLAMASI YAROQSIZ — ilova ATAYLAB ishga tushmadi.\n\n"
-            + "Quyidagi qiymatlar hali NAMUNA (`.env.example`) holatida:\n\n"
+            + "Quyidagi qiymatlar prod uchun YAROQSIZ (namuna sir yoki dev manzili):\n\n"
             + string.Join("\n\n", numbered)
             + "\n\nHaqiqiy sirlarni yaratish: `docs/DEPLOY_UBUNTU.md`, 7.1-bo'lim.\n"
             + "Bu tekshiruvni o'chirish YO'LI YO'Q — u ataylab shunday.");
+    }
+
+    /// <summary>
+    /// Bitta manzil kalitini MAHALLIY xostlarga tekshiradi.
+    ///
+    /// ⚠️ Bo'sh qiymat — HAR DOIM qonuniy: uning ma'nosi kalitga qarab
+    /// farq qiladi (ombor sozlanmagan / zaxira manzil ishlatilsin) va
+    /// ikkala ma'no ham prod'da to'g'ri. Bu yerda faqat "dev qiymati
+    /// qolib ketdimi" savoliga javob beriladi.
+    /// </summary>
+    /// <param name="hint">
+    /// Operatorga NIMA QILISH kerakligini aytadigan qism — xabar
+    /// "xato" emas, "tuzatish yo'riqnomasi" bo'lishi kerak, chunki uni
+    /// o'qiydigan odam odatda deploy o'rtasida turadi.
+    /// </param>
+    private static void CheckNotLocal(
+        IConfiguration configuration, string key, string hint, List<string> problems)
+    {
+        var value = configuration[key];
+
+        if (string.IsNullOrWhiteSpace(value)) return;
+
+        foreach (var local in LocalHosts)
+        {
+            if (!value.Contains(local, StringComparison.OrdinalIgnoreCase)) continue;
+
+            problems.Add(
+                key + " mahalliy manzilga ishora qilyapti (\"" + value + "\"). " + hint);
+
+            return;
+        }
     }
 
     /// <summary>Bitta kalitni namuna markerlariga tekshiradi.</summary>

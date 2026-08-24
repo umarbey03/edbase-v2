@@ -72,6 +72,7 @@ public sealed class RecordingWatchdogJob(
     IApplicationDbContext db,
     ILiveKitEgress egress,
     IRecordingStorage storage,
+    IPresenceService presence,
     TimeProvider clock,
     RecordingWatchdogSettings settings,
     ILogger<RecordingWatchdogJob> logger) : IScheduledJob
@@ -168,6 +169,46 @@ public sealed class RecordingWatchdogJob(
             return true;
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 XONA BO'SH BO'LSA YOZUVNI BOSHLAMAYMIZ (2026-08-24)
+        //
+        // NIMA UCHUN QO'SHILDI. Yozuv qatori dars `Live` ga o'tganda
+        // yaratiladi — ya'ni ustoz "Darsni boshlash" ni bosgan ZAHOTI.
+        // Brauzer esa xonaga KEYIN kiradi: sahifa ochiladi, kamera/mikrofon
+        // ruxsati so'raladi (birinchi safar bu o'nlab soniya bo'lishi
+        // mumkin), keyingina trek e'lon qilinadi.
+        //
+        // Egress esa bo'sh xonani kutmaydi: Chrome kiradi, hech kim
+        // e'lon qilmasa ~18 soniyada "Start signal not received" bilan
+        // uziladi (O'LCHANDI, egress v1.14). Keyin watchdog faylni
+        // ombordan topa olmaydi va yozuvni `Failed` deb belgilaydi —
+        // 🔴 `Failed` esa YAKUNIY: o'sha darsning yozuvi BUTUNLAY
+        // yo'qoladi va qayta urinilmaydi.
+        //
+        // ⚠️ ALOMATI ALDAYDI: dars a'lo o'tadi, hech kim hech narsa
+        // sezmaydi. Nosozlik faqat keyin, "yozuv qani?" savoli bilan
+        // ochiladi — ya'ni eng yomon turdagi nosozlik.
+        //
+        // ★ NEGA `IPresenceService`, LiveKit'dan SO'RASH EMAS: bu ma'lumot
+        //   BIZDA allaqachon bor (Redis, SignalR hub'iga ulanish paytida
+        //   yoziladi) va u tarmoqqa chiqishni talab qilmaydi. LiveKit'ning
+        //   `ListParticipants` ini chaqirish yangi tashqi bog'liqlik
+        //   bo'lardi — har 15 soniyada, har kutayotgan yozuv uchun.
+        //
+        // ★ URINISH SANALMAYDI: bu XATO emas, KUTISH. `false` qaytariladi
+        //   va qator o'zgarmaydi — ya'ni `MaxAttempts` bu yerda sarflanmaydi.
+        //   Ustoz umuman kirmasa, qator dars tugagunicha kutadi va yuqoridagi
+        //   "Dars yakunlandi, yozuv esa boshlanmadi" qoidasi uni yopadi.
+        //
+        // ⚠️ XATOLIKDA — OCHIQ YO'L (fail-open). Redis javob bermasa
+        //   yozuvni BOSHLASHGA urinamiz: aks holda Redis'ning vaqtinchalik
+        //   nosozligi butun yozuv funksiyasini JIMGINA o'chirib qo'yardi.
+        //   Bu loyihadagi umumiy qoida: "ma'lumot yo'q" bilan "shart
+        //   bajarilmadi" ni aralashtirmaslik.
+        // ══════════════════════════════════════════════════════════════
+        if (!await RoomHasParticipantsAsync(recording, ct).ConfigureAwait(false))
+            return false;
+
         if (!recording.CanRetry(settings.MaxAttempts))
         {
             var reason = recording.Error is { Length: > 0 } error
@@ -189,6 +230,35 @@ public sealed class RecordingWatchdogJob(
             .ConfigureAwait(false);
 
         return true;
+    }
+
+    /// <summary>
+    /// Xonada kimdir bormi (Redis presence).
+    ///
+    /// <c>true</c> — boshlash mumkin; <c>false</c> — hali kutamiz.
+    /// Xato bo'lsa <c>true</c> (sabab yuqorida: fail-open).
+    /// </summary>
+    private async Task<bool> RoomHasParticipantsAsync(
+        SessionRecording recording, CancellationToken ct)
+    {
+        try
+        {
+            var count = await presence
+                .CountAsync(recording.SessionId, ct)
+                .ConfigureAwait(false);
+
+            if (count > 0) return true;
+
+            RecordingLog.WatchdogWaitingForParticipants(logger, recording.Id);
+
+            return false;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RecordingLog.WatchdogPresenceUnavailable(logger, ex, recording.Id);
+
+            return true;
+        }
     }
 
     // ================================================================= Starting / Active

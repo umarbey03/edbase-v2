@@ -202,7 +202,17 @@ public sealed class R2RecordingStorage(
 
         var client = httpClientFactory.CreateClient(R2SubmissionStorage.HttpClientName);
 
-        using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
+        // `HEAD` — eng kichik amal (tana umuman yo'q). Chegara klientda
+        // emas, shu yerda beriladi: sabab `StorageTimeout` izohida.
+        //
+        // ⚠️ BU YO'LNI WATCHDOG CHAQIRADI, ya'ni u ARQA FONDA ishlaydi:
+        // chegarasiz qolsa osilgan so'rov fon vazifasini butunlay
+        // to'xtatib qo'yardi va yozuvlar abadiy "Active" bo'lib qolardi.
+        using var timeout = StorageTimeout.Start(settings.TimeoutSeconds, ct);
+
+        using var response = await client
+            .SendAsync(request, timeout.Token)
+            .ConfigureAwait(false);
 
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;

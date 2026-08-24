@@ -1015,6 +1015,7 @@ cat /sys/kernel/mm/transparent_hugepage/enabled
 | Xizmat | `cpus` | `mem_limit` | `mem_reservation` | Asosiy sozlama |
 |---|---|---|---|---|
 | `livekit` | **6.0** (yumshoq) | `2g` | `512m` | CPU headroom eng muhim |
+| `livekit-egress` | `3.0` | `3g` | `512m` | ~2 parallel yozuv; Chrome + ffmpeg |
 | `api` | `2.0` | `3g` | `512m` | `DOTNET_gcServer=1` |
 | `postgres` | `2.0` | `3g` | `1g` | `shared_buffers=768MB` |
 | `redis` | `0.5` | `1g` | `256m` | `maxmemory 768mb` |
@@ -1296,13 +1297,23 @@ docker stats --no-stream "$(docker compose ps -q livekit)"
 Qoida: dars cho'qqisida LiveKit CPU **60% dan doimiy oshsa** — ikkinchi node
 haqida o'ylash vaqti keldi (8-bo'lim).
 
-> ⚠️ **Recording/egress bu hisobga KIRMAGAN.** `Group.RecordEnabled` va
-> `LiveSession.RecordingUrl` domenda bor (SPEC 3-bo'lim), lekin SPEC
-> 8-bo'limida `egress` xizmati **yo'q**. Yozib olish — bu **transkodlash**,
-> ya'ni SFU'dan tubdan farq qiladigan, CPU'ni yeydigan ish: bitta kompozit
-> yozuv taxminan **1-2 vCPU** talab qiladi. 4 ta parallel yozuv = 8 vCPU
-> serverning yarmidan ko'pi. Recording'ni yoqishdan oldin alohida sig'im
-> rejasi kerak (Ilova A ga qarang).
+> ⚠️ **Yozuv (egress) yuqoridagi LiveKit hisobiga KIRMAYDI — u ALOHIDA
+> xizmat va alohida sarf.** 2026-08-24 dan `livekit-egress` compose'da
+> bor (ilgari yo'q edi — Ilova A, 5-risk).
+>
+> Yozib olish — bu **transkodlash**, ya'ni SFU'dan tubdan farq qiladigan,
+> CPU'ni yeydigan ish: xona Chrome ichida chiziladi va ffmpeg bilan MP4
+> ga siqiladi. Bitta kompozit yozuv **~1-2 vCPU**.
+>
+> Shuning uchun egress'ga alohida kvota qo'yilgan (`EGRESS_CPUS`,
+> standarti `3.0` ≈ **2 parallel yozuv**). 🔴 Kvota **majburiy**:
+> chegarasiz egress dars payti protsessorni egallab olardi va birinchi
+> bo'lib **jonli dars** sinardi — ikkilamchi funksiya asosiysini
+> o'ldirardi.
+>
+> ⚠️ Chegaraga tegilganda yozuv "sekinlashmaydi" — **kadrlar tashlanadi**,
+> ya'ni sifat jimgina tushadi. 8 vCPU serverda bir vaqtda **2-3 tadan
+> ko'p yozuv rejalashtirmang**.
 
 ### 6.6. `web` (nginx, statik)
 
@@ -1390,7 +1401,17 @@ qadar):
 | `LiveKit:ApiKey` | aynan `devkey` |
 | `Storage:AccessKey` / `Storage:SecretKey` | ayni marker |
 | `Storage:ServiceUrl` | ichida `minio` bo'lsa (prod'da R2 bo'lishi kerak) |
+| `Storage:ServiceUrl` | `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` |
+| `Storage:PublicUrl` | `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` |
 | `Cors:AllowedOrigins` | `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` |
+
+> **Oxirgi ikki qator 2026-08-24 da qo'shildi** va sababi shu hujjatdagi
+> eng qimmat turdagi nosozlik: `Storage:PublicUrl` prod overlay'ida
+> **umuman yo'q edi**, ya'ni bazaviy `.env` dagi `http://localhost:9010`
+> prod'da qolib ketardi. Dars yozuvining imzolangan havolasi `localhost`
+> ga ishora qilardi — **serverning logida hech narsa ko'rinmasdi**, chunki
+> so'rov brauzerdan bizga umuman kelmaydi. Yagona alomat: "video
+> ochilmayapti". Endi ilova bunday sozlama bilan **ko'tarilmaydi**.
 
 ⚠️ **`POSTGRES_PASSWORD` bu ro'yxatda YO'Q** — uni darvoza tekshira
 olmaydi (sabab kod izohida). Uning tasodifiyligi yuqoridagi `openssl
@@ -1529,6 +1550,138 @@ Xodim ishdan ketgan kuni:
 Ikkalasi ham mavjud sessiyalarni **darhol** bekor qiladi. Faqat
 birinchisini bajarish yetarli emas: profil qaytadan faollashtirilsa eski
 bog'lanish tiklanib qolardi.
+
+### 7.1.2. 🔴 CLOUDFLARE R2 — video va fayllar ombori
+
+Prod'da **hech qanday fayl serverda saqlanmaydi**. Uch turdagi fayl ham
+bitta R2 bucket'iga tushadi:
+
+| Nima | Kalit (prefiks) | Kim yozadi | Kim o'qiydi |
+|---|---|---|---|
+| Jonli dars yozuvi (MP4) | `recordings/…` | **LiveKit Egress** — to'g'ridan R2 ga | brauzer, **imzolangan havola** bilan to'g'ridan R2 dan |
+| Yuklangan dars videosi | `<prefiks>/…` | `api` (oqim bilan) | `api` orqali (chipta + `Range`) |
+| Uy vazifasi fayli | `<prefiks>/…` | `api` | `api` orqali |
+
+⚠️ **Ikkinchi qatorga e'tibor bering**: yuklangan dars videosi brauzerga
+`api` orqali uzatiladi — ya'ni uning trafigi **sizning kanalingizdan
+o'tadi** (yozuvniki esa yo'q). Bu ONGLI qaror: video ko'rish huquqi
+(qarz, qulflangan dars) **har bir so'rovda** qayta tekshirilishi kerak.
+Sabab va muqobili — `IMediaStorage` izohida. Sig'im hisobida buni
+8.1-bo'limdagi matematikaga qo'shing.
+
+---
+
+**1. Bucket yaratish.** Cloudflare panel → R2 → *Create bucket*.
+
+* Nom: masalan `zinnur-prod`.
+* Joylashuv: *Automatic* (yoki `EEUR`).
+* 🔴 **Public access — O'CHIQ qoldiring.** Ochiq bucket butun ruxsat
+  modelini yo'q qiladi: havolani ushlagan har kim videoni ko'radi.
+
+**2. API tokeni.** R2 → *Manage R2 API Tokens* → *Create API token*.
+
+* Ruxsat: **Object Read & Write** (faqat `Read` bo'lsa — pastdagi
+  ogohlantirishni o'qing).
+* Bucket: **faqat yuqoridagi bucket** (hisobning hammasi emas).
+* Natijada uchta qiymat beriladi: *Access Key ID*, *Secret Access Key*
+  va *S3 endpoint* (`https://<hisob-id>.r2.cloudflarestorage.com`).
+  **Secret faqat bir marta ko'rsatiladi.**
+
+> 🔴 **Token FAQAT o'qish huquqiga ega bo'lsa nima bo'ladi:** dars
+> odatdagidek o'tadi, yozuv "boshlandi" deb ko'rinadi, xato hech
+> qayerda chiqmaydi — chunki faylni **Egress** yozadi, `api` emas.
+> Nosozlik faqat dars tugagach, watchdog faylni ombordan topa
+> olmaganda bilinadi. Ya'ni **bitta darsning yozuvi butunlay
+> yo'qoladi**.
+
+**3. `.env` ga yozish** (`/opt/zinnur/.env`, 9-bo'lim):
+
+```bash
+R2_SERVICE_URL=https://<hisob-id>.r2.cloudflarestorage.com
+R2_BUCKET=zinnur-prod
+R2_ACCESS_KEY=<Access Key ID>
+R2_SECRET_KEY=<Secret Access Key>
+R2_REGION=auto            # R2 uchun DOIM `auto`
+R2_KEY_PREFIX=submissions
+R2_PUBLIC_URL=            # BO'SH QOLDIRING — pastdagi izohni o'qing
+```
+
+> ⚠️ **"To'liq yoki bo'sh" qoidasi:** `R2_SERVICE_URL`, `R2_BUCKET`,
+> `R2_ACCESS_KEY`, `R2_SECRET_KEY` — to'rttasi ham to'ldirilishi yoki
+> to'rttasi ham bo'sh bo'lishi kerak. Yarim to'ldirilgan bo'lsa ilova
+> **ataylab ko'tarilmaydi**.
+
+---
+
+#### 🔴 `R2_PUBLIC_URL` — bo'sh qoldiring, custom domen YOZMANG
+
+Bu maydondan dars yozuvining **imzolangan (presigned)** havolasi
+quriladi. Bo'sh bo'lsa `R2_SERVICE_URL` ishlatiladi — ya'ni imzo ham,
+havola ham bitta xostga tegishli bo'ladi va nomuvofiqlik **hech qachon**
+chiqmaydi. Aynan shuning uchun bo'sh qoldirish — tavsiya etilgan holat.
+
+**Nega custom domen (`media.zinnur.uz`) yaramaydi:** R2 ning custom
+domeni S3 API emas va imzoni **tekshirmaydi**.
+
+* bucket ochiq bo'lsa — fayl **imzosiz ham** beriladi, ya'ni muddat,
+  to'lov darvozasi va ruxsat tekshiruvi umuman ishlamaydi;
+* bucket yopiq bo'lsa — **har bir** havola rad etiladi.
+
+**Nega bu xatoni topish qiyin:** SigV4 imzosi URL'ning **host** qismini
+ham qamrab oladi. Manzil noto'g'ri bo'lsa ombor havolani rad etadi,
+so'rov esa brauzerdan **bizning serverimizga umuman kelmaydi** — logda
+hech narsa yo'q, health-check yashil, o'quvchi esa "video ochilmadi"
+deydi.
+
+Shu sababli 7.1.0 dagi darvoza `Storage:PublicUrl` va
+`Storage:ServiceUrl` mahalliy manzilga ishora qilsa **ilovani
+ko'tarmaydi**.
+
+---
+
+#### Tekshirish — deploy'dan keyin
+
+**a) Dev qiymati oqib o'tmaganiga ishonch:**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  config | grep -i storage
+```
+
+Chiqishda **`minio` so'zi ham, `localhost` ham bo'lmasligi kerak**.
+`Storage__PublicUrl` bo'sh ko'rinsa — bu **to'g'ri**.
+
+**b) Ombor haqiqatan yozadimi** — panelda alohida "ulanishni tekshirish"
+tugmasi **yo'q**, shuning uchun eng ishonchli tekshiruv — kichik bir dars
+videosini yuklash. Fayl R2 panelida `<prefiks>/YYYY-MM/…` yo'lida paydo
+bo'lishi kerak. Yuklash `503` bersa — kalitlar yoki manzil noto'g'ri
+(sabab `api` logida ko'rinadi: `Ombor media faylni rad etdi … status=…`).
+
+**c) Yozuv yo'li** (eng muhimi, chunki uni **Egress** bajaradi): bitta
+qisqa test darsini yozib, tugatib, R2 da `recordings/YYYY-MM/<sessionId>/`
+papkasi paydo bo'lganini va yozuvni **o'quvchi hisobidan** ochib
+ko'ring. Bu uchta narsani bir yo'la tasdiqlaydi: Egress internetga
+chiqa oladi, token yozish huquqiga ega, presigned havola ishlaydi.
+
+---
+
+#### Sozlamalarni keyin o'zgartirish — qayta deploy SHART EMAS
+
+Ombor ulanish nuqtalari (`manzil`, `bucket`, `access key`, `secret
+key`, `region`, `brauzer manzili`) **bazadan** o'qiladi va **admin
+panelidan** o'zgartiriladi (Sozlamalar → Ombor). Ustunlik: **baza →
+muhit (`.env`) → standart**.
+
+Ya'ni kalit sizib chiqsa uni almashtirish uchun serverga kirish shart
+emas — bu ataylab shunday: kalit aylantirish eng shoshilinch daqiqada
+kerak bo'ladi, `.env` ni tahrirlab qayta deploy qilish esa eng sekin
+yo'l.
+
+⚠️ `R2_KEY_PREFIX` bundan **istisno** — u paneldan o'zgarmaydi. U ombor
+**ichidagi** joylashuv sxemasi: o'zgartirilsa allaqachon yuklangan
+fayllarga yo'l uzilardi.
+
+---
 
 ### 7.2. Birinchi deploy
 
@@ -1706,6 +1859,13 @@ docker compose exec -T redis redis-cli PING
 
 echo "== LiveKit (host'dan) =="
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:7880/
+
+echo "== Egress (dars yozuvi) =="
+# Konteyner "healthy" bo'lishi YETARLI EMAS — u Redis'ga ULANGANINI
+# ko'rish kerak, chunki LiveKit bilan aloqa AYNAN Redis orqali ketadi.
+# "service ready" qatori bo'lmasa yozuv JIMGINA boshlanmaydi.
+docker compose logs --tail=20 livekit-egress | grep -E "service ready|connecting to redis" \
+  && echo " egress OK" || echo " 🔴 EGRESS ULANMAGAN — yozuv ishlamaydi"
 
 echo "== LiveKit WSS (tashqaridan) =="
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' https://livekit.domen.uz/
@@ -2299,7 +2459,7 @@ bog'liq.
 | **2** | **LiveKit bridge tarmoqda ICE nomzodlarini noto'g'ri e'lon qiladi** | Xona ochiladi, ishtirokchilar ko'rinadi, **media umuman ulanmaydi** | `network_mode: host` yoki `use_external_ip: true` (9.3) |
 | **3** | **`LIVEKIT_KEYS=devkey: …`** | `devkey` — LiveKit misollaridagi ommaviy qiymat. Secret sizib chiqsa, kimdir **istalgan xonaga host huquqi bilan** kiradi | ✅ **MAJBURLANADI (2026-08-22).** `ProductionSecretsGuard` `Production` da `devkey` ni ko'rsa ilovani ISHGA TUSHIRMAYDI. Kalit nomini 7.1 bo'yicha yarating |
 | **4** | ~~**LiveKit token TTL 6 soat**~~ (SPEC 4-bo'lim) | ~~Guruhdan chiqarilgan o'quvchi **6 soat davomida** xonaga kira oladi~~ | ✅ **HAL QILINGAN (2026-08-22).** Muddat endi darsga bog'langan: `LiveSessionService.JoinTokenTtl` = dars tugashi + 30 daqiqa (eng kami 15 daq, eng ko'pi 6 soat). Zaxira qiymat ham 6 → 2 soatga tushirildi. ⚠️ Tavsiyaning ikkinchi yarmi — **xona tugaganda LiveKit API orqali yopish** — hali BAJARILMAGAN |
-| **5** | **Recording uchun `egress` xizmati yo'q** | `Group.RecordEnabled` / `LiveSession.RecordingUrl` domenda bor, lekin SPEC 8-bo'limida yozib oluvchi xizmat yo'q. Recording — **transkodlash**, bitta yozuv ~1-2 vCPU | Alohida `egress` xizmati + saqlash joyi + sig'im rejasi. 8 vCPU serverda 200 foydalanuvchi bilan bir vaqtda **ko'pi bilan 2-3 yozuv** |
+| **5** | ~~**Recording uchun `egress` xizmati yo'q**~~ | Backend'da yozuv TO'LIQ yozilgan edi (FAZA 5.3), lekin yozuvni BAJARADIGAN xizmat compose'da yo'q edi. Oqibati: `api` "yozuvni boshla" deb so'rardi, LiveKit "egress xizmati javob bermadi" derdi, dars esa o'z yo'lida davom etardi — ya'ni **yozuv hech qachon paydo bo'lmasdi va buni hech kim sezmasdi** | ✅ **YOPILDI (2026-08-24).** `livekit-egress` xizmati qo'shildi (dev + prod), fayl to'g'ridan **R2** ga yoziladi (7.1.2). Kvota: `EGRESS_CPUS=3.0` ≈ **2 parallel yozuv**. 8 vCPU serverda bir vaqtda **ko'pi bilan 2-3 yozuv** |
 | **6** | **TURN yo'q** | 7881 TCP fallback ko'p holatni qoplaydi, lekin faqat 443'ga ruxsat beradigan qattiq korporativ proxy ortidan ulanib bo'lmaydi | LiveKit'ning ichki TURN'ini yoqish. **Lekin 443 nginx tomonidan band** — TURN/TLS uchun alohida IP yoki 5349 port kerak |
 | **7** | **Redis bitta instance, uch vazifada** (kesh + presence + SignalR backplane) | `maxmemory` bosimi yoki `allkeys-lru` presence'ni **jimgina** o'chiradi → davomat buziladi | `volatile-lru` yoki `noeviction` (6.3); kelajakda ajratish |
 | **8** | **Connection string'da pool sozlamasi yo'q** | Npgsql default `Maximum Pool Size=100`; ikkinchi `api` replikasi qo'shilsa `too many clients` | `Maximum Pool Size=40` (6.2) |

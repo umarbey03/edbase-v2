@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.Jobs;
 using Zinnur.Application.Recordings.Dtos;
 using Zinnur.Application.Recordings.Jobs;
@@ -112,6 +114,51 @@ public class RecordingFactory : ZinnurApiFactory
     /// aks holda fon sikli test yaratgan navbat qatorini "o'g'irlab"
     /// ishlab qo'yardi va natija tasodifiy bo'lardi.
     /// </summary>
+    /// <summary>
+    /// ══════════════════════════════════════════════════════════════════
+    /// XONAGA KIRISH — WATCHDOG UCHUN MAJBURIY SHART (2026-08-24)
+    /// ══════════════════════════════════════════════════════════════════
+    ///
+    /// Watchdog BO'SH xonada yozuvni boshlamaydi. Sabab vazifaning
+    /// ichida batafsil, qisqasi: Egress bo'sh xonaga Chrome yuboradi va
+    /// ~18 soniyada "Start signal not received" bilan uziladi, yozuv esa
+    /// `Failed` (YAKUNIY) bo'lib qoladi — ya'ni o'sha darsning yozuvi
+    /// butunlay yo'qoladi.
+    ///
+    /// ★ NEGA TESTDA HAM SHU YO'L: shart hub orqali emas, TO'G'RIDAN
+    ///   `IPresenceService` ga yoziladi. Test SignalR ulanishini
+    ///   taqlid qilmaydi — u tekshirayotgan narsa yozuv mantig'i,
+    ///   presence esa uning KIRISH ma'lumoti.
+    /// </summary>
+    public async Task EnterRoomAsync(long sessionId, long userId)
+    {
+        await Services.GetRequiredService<IPresenceService>().AddAsync(
+            sessionId,
+            new PresenceEntry(
+                UserId: userId,
+                DisplayName: "Test",
+                Role: "Teacher",
+                HandRaised: false,
+                JoinedAt: DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Xonani KAFOLATLI bo'shatadi.
+    ///
+    /// 🔴 NIMA UCHUN KERAK — TEST MUHITINING NOZIK JOYI: har bir test
+    /// yurishi YANGI Postgres bazasi bilan boshlanadi, ya'ni `LiveSession.Id`
+    /// past raqamlardan QAYTA sanaladi. Redis esa TOZALANMAYDI va u
+    /// AYNAN shu id bo'yicha kalitlanadi — natijada oldingi yurishdan
+    /// qolgan presence yozuvi yangi darsga "meros" bo'lib o'tadi.
+    ///
+    /// ⚠️ Bu PROD'da muammo emas (id lar takrorlanmaydi), lekin testda u
+    /// "bo'sh xona" qoidasini JIMGINA buzardi: to'plam alohida
+    /// yurgizilganda test yashil, hammasi birga yurgizilganda qizil
+    /// bo'lardi — ya'ni eng chalg'ituvchi turdagi nosozlik.
+    /// </summary>
+    public Task ClearRoomAsync(long sessionId) =>
+        Services.GetRequiredService<IPresenceService>().ClearAsync(sessionId);
+
     public async Task<JobRunResult> RunRecordingWatchdogAsync()
     {
         using var scope = Services.CreateScope();

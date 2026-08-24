@@ -132,6 +132,8 @@ builder.Services.AddScoped<IScheduledJob>(sp => new RecordingWatchdogJob(
     sp.GetRequiredService<IApplicationDbContext>(),
     sp.GetRequiredService<ILiveKitEgress>(),
     sp.GetRequiredService<IRecordingStorage>(),
+    // Xona bo'sh bo'lsa yozuv boshlanmaydi — sabab vazifaning ichida.
+    sp.GetRequiredService<IPresenceService>(),
     sp.GetRequiredService<TimeProvider>(),
     RecordingWatchdogSettings.Default,
     sp.GetRequiredService<ILogger<RecordingWatchdogJob>>()));

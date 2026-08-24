@@ -72,8 +72,46 @@ public sealed class StorageOptions
     /// <summary>Kalit prefiksi — bitta bucket'ni modullar bo'yicha ajratish uchun.</summary>
     public string KeyPrefix { get; set; } = "submissions";
 
-    /// <summary>Yuklash uchun timeout (sekund). Sekin tarmoqda 10 MB ~30-60 s.</summary>
+    /// <summary>
+    /// KICHIK amallar uchun timeout (sekund): vazifa javobi (≤10 MB),
+    /// <c>HEAD</c>, <c>DELETE</c> va katta faylning SARLAVHASINI olish.
+    ///
+    /// ⚠️ BU QIYMAT KATTA VIDEO YUKLASHGA TEGISHLI EMAS — buning uchun
+    /// <see cref="LargeUploadTimeoutSeconds"/> bor. Sabab u yerda.
+    /// </summary>
     public int TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 KATTA MEDIA (DARS VIDEOSI) YUKLASH UCHUN TIMEOUT — ALOHIDA
+    /// ══════════════════════════════════════════════════════════════════
+    ///
+    /// NIMA UCHUN QO'SHILDI (2026-08-24). Ombor klientining timeout'i
+    /// YAGONA edi va <see cref="TimeoutSeconds"/> (60 s) dan olinardi.
+    /// Yuklashda esa u BUTUN so'rovni, ya'ni TANANI UZATISHNI ham
+    /// qamrab oladi.
+    ///
+    /// ARIFMETIKA — nega bu ishlamasligi shart edi:
+    ///
+    ///   ruxsat etilgan hajm (`LessonAssetsController.MaxUploadBytes`) 2 GB
+    ///   60 soniyada 2 GB  ->  ~273 Mbit/s DOIMIY tezlik kerak
+    ///   60 soniyada 200 MB ->  ~27 Mbit/s
+    ///
+    /// Ya'ni nginx 2049 MB ni o'tkazardi, kontroller uni qabul qilardi,
+    /// ombor esa yuklashni o'rtasida uzardi. Ustoz ko'radigan xabar:
+    /// "Fayl yuklash juda uzoq davom etdi" — 40 daqiqa kutgandan keyin.
+    ///
+    /// ★ 1800 s (30 daqiqa) — 2 GB uchun ~9 Mbit/s. Bu O'zbekistondagi
+    ///   odatiy yuklash tezligidan past, ya'ni chegara HAQIQIY sekin
+    ///   kanalda ham to'siq bo'lmaydi, lekin "abadiy osilgan" so'rovni
+    ///   baribir uzadi.
+    ///
+    /// ⚠️ NEGA UMUMAN CHEGARA BOR: chegarasiz so'rov ombor javob
+    /// bermay qolganda mangu osilib turardi va thread pool asta-sekin
+    /// tugab borardi (bu — klient timeout'ining ASL sababi, u o'z
+    /// kuchida qoladi, faqat endi amalga qarab tanlanadi).
+    /// </summary>
+    public int LargeUploadTimeoutSeconds { get; set; } = 1800;
 
     /// <summary>Hamma majburiy maydon to'ldirilganmi.</summary>
     public bool IsConfigured =>
