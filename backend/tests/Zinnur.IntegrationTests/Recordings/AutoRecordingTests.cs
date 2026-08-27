@@ -208,6 +208,82 @@ public sealed class AutoRecordingTests(RecordingFactory factory)
         recording.RequestedBy.Should().BeNull();
     }
 
+    /// <summary>
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 BO'SH XONADA YOZUV BOSHLANMAYDI
+    /// ══════════════════════════════════════════════════════════════════
+    ///
+    /// ★ NIMA UCHUN BU QOIDA BOR (2026-08-24). Yozuv qatori dars `Live`
+    ///   ga o'tgan ZAHOTI yaratiladi, ustozning brauzeri esa xonaga
+    ///   KEYIN kiradi (kamera ruxsati birinchi safar o'nlab soniya
+    ///   olishi mumkin). Egress bo'sh xonani kutmaydi: Chrome kiradi,
+    ///   hech kim e'lon qilmasa ~18 soniyada uziladi, watchdog esa
+    ///   faylni topa olmay yozuvni `Failed` deb belgilaydi.
+    ///
+    /// 🔴 `Failed` — YAKUNIY holat. Ya'ni sekin kirgan ustoz darsining
+    ///    yozuvi BUTUNLAY yo'qolardi va qayta urinilmasdi. Alomati esa
+    ///    yo'q: dars a'lo o'tadi, nosozlik faqat "yozuv qani?" savoli
+    ///    bilan ochiladi.
+    ///
+    /// ★ MUHIM TAFSILOT: kutish URINISH SANALMAYDI (`Attempts` = 0).
+    ///   Aks holda ustoz kirgunicha `MaxAttempts` sarflanib bo'lardi va
+    ///   qoida o'zi qutqarmoqchi bo'lgan nosozlikni O'ZI yasagan bo'lardi.
+    /// </summary>
+    [Fact]
+    public async Task Watchdog_WhenRoomIsEmpty_DoesNotStartRecording()
+    {
+        factory.Egress.FailWith = null;
+        factory.Egress.Started.Clear();
+
+        var world = await WorldBuilder.CreateAsync(factory, "autoempty");
+        await SetRecordEnabledAsync(world.GroupId, enabled: true);
+
+        var sessionId = await ScheduledSessionAsync(world.GroupId);
+        var roomName = await RoomNameAsync(sessionId);
+
+        // ⚠️ ATAYLAB `StartLessonAsync` EMAS: u ustozni xonaga ham
+        //    kiritadi. Bu yerda esa aynan "boshladi, lekin hali
+        //    kirmadi" holati kerak.
+        using (var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher))
+        {
+            var response = await teacher.PostAsync(
+                $"/api/v1/live-sessions/{sessionId}/start", null);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK, await Body(response));
+        }
+
+        // 🔴 Redis testlar orasida TOZALANMAYDI, baza esa har yurishda
+        //    yangi — ya'ni `sessionId` qayta ishlatiladi va oldingi
+        //    yurishdan qolgan presence "meros" bo'lib qolishi mumkin.
+        //    Sabab batafsil: `RecordingWorld.ClearRoomAsync`.
+        await factory.ClearRoomAsync(sessionId);
+
+        await factory.RunRecordingWatchdogAsync();
+
+        factory.Egress.Started.Should().NotContain(
+            request => request.RoomName == roomName,
+            "xona bo'sh ekan — Egress'ni bezovta qilish faqat yozuvni yo'qotardi");
+
+        var recording = (await RecordingsOfAsync(sessionId)).Single();
+
+        recording.Status.Should().Be(
+            RecordingStatus.Requested, "qator navbatda QOLADI, yo'qolmaydi");
+
+        recording.Attempts.Should().Be(
+            0, "kutish — urinish EMAS, aks holda `MaxAttempts` bekorga sarflanardi");
+
+        // ── Ustoz kirdi: keyingi yurishda yozuv boshlanishi kerak ──
+        await factory.EnterRoomAsync(sessionId, world.Teacher.Id);
+        await factory.RunRecordingWatchdogAsync();
+
+        factory.Egress.Started.Should().Contain(
+            request => request.RoomName == roomName,
+            "xona to'lgach yozuv O'ZIDAN boshlanishi kerak — qo'lda aralashuv shart emas");
+
+        (await RecordingsOfAsync(sessionId)).Single().Status
+            .Should().Be(RecordingStatus.Starting);
+    }
+
     // ================================================================= dars to'xtamaydi
 
     /// <summary>
@@ -422,6 +498,21 @@ public sealed class AutoRecordingTests(RecordingFactory factory)
     private Task<long> ScheduledSessionAsync(long groupId) =>
         WorldBuilder.AddScheduledSessionAsync(factory, groupId, DateTimeOffset.UtcNow);
 
+    /// <summary>
+    /// Darsni boshlaydi VA ustozni xonaga kiritadi.
+    ///
+    /// ★ IKKINCHI QADAM 2026-08-24 DA QO'SHILDI va u HAQIQIY oqimni
+    ///   aks ettiradi: ustoz "Darsni boshlash" ni bosgach brauzer uni
+    ///   darhol xonaga olib kiradi. Watchdog esa BO'SH xonada yozuvni
+    ///   boshlamaydi (sabab: `RecordingWatchdogJob`), ya'ni presence
+    ///   yozilmasa bu yerdagi testlar HAQIQATDAN uzoq holatni
+    ///   tekshirgan bo'lardi.
+    ///
+    /// ⚠️ Bo'sh xona qoidasining O'ZI alohida testda tekshiriladi
+    ///   (`Watchdog_WhenRoomIsEmpty_DoesNotStartRecording`) — shuning
+    ///   uchun bu yordamchini "har ehtimolga qarshi" ishlatish
+    ///   qoidani ko'r qilib qo'ymaydi.
+    /// </summary>
     private async Task StartLessonAsync(StudentWorld world, long sessionId)
     {
         using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
@@ -429,6 +520,8 @@ public sealed class AutoRecordingTests(RecordingFactory factory)
         var response = await teacher.PostAsync($"/api/v1/live-sessions/{sessionId}/start", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await Body(response));
+
+        await factory.EnterRoomAsync(sessionId, world.Teacher.Id);
     }
 
     private static async Task<LiveStatusResponse> LiveStatusAsync(HttpClient client, long sessionId)

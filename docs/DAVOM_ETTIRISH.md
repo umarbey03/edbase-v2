@@ -3,10 +3,16 @@
 > Bu fayl **kontekst tugaganda** ish uzilib qolmasligi uchun yuritiladi.
 > Yangi sessiya shu faylni o'qib, oldingi suhbatsiz davom eta oladi.
 >
-> **Oxirgi yangilanish:** 2026-08-14 — loyiha tozalandi: bajarilib bo'lgan
-> reja va jurnal hujjatlari o'chirildi (git tarixida qoladi).
-> **Holat:** ish `main` ga commit qilingan, working tree toza.
+> **Oxirgi yangilanish:** 2026-08-22 — prod tayyorgarligi auditi
+> (o'lchangan holat 2-bo'limda, tuzatishlar 2.1 da).
+> **Holat:** ish `main` ga commit qilingan.
 > Remote: `https://github.com/umarbey03/edbase-v2`.
+>
+> ⚠️ **Bu fayl 2026-08-14 dan 08-22 gacha yangilanmagan edi va o'sha
+> davrda ~30 commit ketgan.** Ya'ni "13 migratsiya", "1034 test" va
+> "Mini App / chat UI qolgan" degan qatorlar HAQIQATGA MOS EMAS edi.
+> Yangi sessiya bu faylga tayanadi, shuning uchun 2 va 3-bo'limlar har
+> katta ish oxirida qayta o'lchansin — eslab yozilmasin.
 >
 > Shartnoma: `docs/SPEC.md` · Deploy: `docs/DEPLOY_UBUNTU.md` ·
 > Moslashuvchanlik: `docs/MOSLASHUVCHANLIK.md`
@@ -129,9 +135,14 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
   mcr.microsoft.com/dotnet/sdk:9.0 dotnet test Zinnur.sln --nologo -v q
 ```
 
-**Kutilgan natija (2026-08-11 da o'lchangan): `main` da 621 unit + 434
-integratsiya = 1055 test, 0 yiqilgan.** Hujjatdagi eski "413 / 1034" raqami
-noto'g'ri edi — har safar buyruqni yurgizib haqiqiy bazani o'lchang.
+**Kutilgan natija (2026-08-22 da o'lchangan): `main` da 1001 unit + 801
+integratsiya = 1802 test, 0 yiqilgan.** Har safar buyruqni yurgizib
+haqiqiy bazani o'lchang — bu qator ilgari ikki marta eskirgan holda
+qolgan (avval "413 / 1034", keyin "621 / 434").
+
+⚠️ **`OutboxRateLimitTests` vaqtga sezgir.** Agar u yiqilsa, avval YAKKA
+yurgizib ko'ring (`--filter FullyQualifiedName~OutboxRateLimitTests`) —
+mashina qattiq yuklangan bo'lsa Redis'gacha borish sekinlashadi.
 
 ⚠️ `TEST_STORAGE_*` bermasangiz 5 ta fayl testi yiqiladi (MinIO'ga yetmaydi).
 ⚠️ `--no-incremental` MAJBURIY: Docker bind-mount'da inkremental build eski DLL
@@ -141,11 +152,29 @@ bilan "succeeded" deb yozadi va sizni chalg'itadi (bu bir marta yuz bergan).
 
 ## 2. HOZIRGI HOLAT
 
+**2026-08-22 da O'LCHANGAN** (eslab emas — buyruqlar 1-bo'limda):
+
 ```
-Build       : backend 0 xato / 0 ogohlantirish · frontend + eslint toza
-Testlar     : 1034 yashil (sessiya boshida 614 edi)
-Migratsiya  : 13 ta, oxirgisi AddSessionRecordings
+Build       : backend 0 xato / 0 ogohlantirish (TreatWarningsAsErrors)
+              frontend: vue-tsc toza · eslint 0 · kontrast auditi 12/12
+Testlar     : 1001 unit + 801 integratsiya = 1802
+Migratsiya  : 37 ta, oxirgisi AddAbsenceNoticeReplyAndCall
+TODO/FIXME  : 0 ta (butun kod bo'ylab)
 ```
+
+### 2.1. 🔴 2026-08-22 AUDITI — TOPILGAN VA TUZATILGAN
+
+| # | Nuqson | Tuzatish |
+|---|---|---|
+| 1 | **`SEED_DEMO` prod'ga oqib o'tardi.** Compose overlay `environment` ni birlashtiradi, ya'ni `${SEED_DEMO:-true}` prod konfiguratsiyasiga ham tushardi. "3 tadan ko'p foydalanuvchi" kafolati YANGI serverda ishlamaydi (baza aynan 3 tadan boshlanadi) — birinchi ishga tushishda haqiqiy markaz bazasiga demo ma'lumot yozilardi | Ikkala faylda ham standart `:-false`. Ataylab yoqish yo'li (`.env` da `SEED_DEMO=true`) ochiq qoldi |
+| 2 | **12 ta integratsiya testi qizil edi** (5 kun davomida). Sabab: 2026-08-17 da uch qoida qo'shilgan, testlar yangilanmagan — (a) o'quvchi bir vaqtda bitta guruhda, (b) muzlatish/chiqarishda sabab majburiy, (c) chiqarish `DELETE` dan `POST .../remove` ga o'tgan | Testlar yangi qoidalarga moslashtirildi; chiqarish/muzlatish chaqiruvi `WorldBuilder` da BITTA joyga yig'ildi |
+| 3 | **Beqaror test** `TokenBucket_RefillsOverTime` — 100 token/sekund, ya'ni "rad etilishi kerak" tasdig'i 10 ms oynaga tayanardi va parallel yukda yiqilardi | Tezlik 4/sekundga tushirildi (250 ms oyna), kutish 600 ms |
+| 4 | **Prod'da namuna sirlari bilan ilova ko'tarilardi** — `Jwt:Secret` uzunligi tekshirilardi, QIYMATI emas | `ProductionSecretsGuard`: `Production` da `dev_only` / `change_me` / `devkey` / `localhost` topilsa ilova ishga tushmaydi (7.1.0-bo'lim, DEPLOY_UBUNTU) |
+| 5 | **LiveKit tokeni 6 soat yashardi** — chiqarilgan o'quvchi eski tokeni bilan xonaga qayta kira olardi (API'ni chetlab) | Muddat darsga bog'landi: `JoinTokenTtl` = dars tugashi + 30 daq (15 daq … 6 soat) |
+
+★ **Ilova A (DEPLOY_UBUNTU) risklaridan** 1 va 4 yopildi, 3 va 9 endi
+majburlanadi. 1-risk (`LiveKit__Url` bitta o'zgaruvchi) aslida ANCHA
+oldin hal qilingan ekan — hujjat eskirgan edi.
 
 ### ✅ Tugatildi
 
@@ -174,12 +203,29 @@ Backend fazalari yopildi. Qolgani — asosan **frontend** va **deploy**.
 
 | № | Ish | Holat |
 |---|---|---|
-| 1 | **Telegram Mini App frontend** — o'quvchi kirish oqimi | backend tayyor, UI qolgan |
-| 2 | **Guruh chati UI** — brauzerda ko'rinish | protokol isbotlangan, UI qolgan |
-| 3 | **Dars yozuvi UI** — parite bo'shlig'i #4 | backend tayyor, UI qolgan |
-| 4 | **Hub xato tarjimasi uchun regressiya testi** | ishlaydi, lekin test YO'Q |
-| 5 | **Qolgan parite bo'shliqlari** — #5 xabarlar, #7 KPI, #8 profil modali, #9 tranzaksiya tarixi | boshlanmagan |
+| 1 | ~~Telegram Mini App frontend~~ | ✅ `features/telegram-auth/`, `app/providers/telegram-shell.ts` |
+| 2 | ~~Guruh chati UI~~ | ✅ `features/chat/`, `features/group-chat/` |
+| 3 | ~~Dars yozuvi UI~~ | ✅ `features/recording-list`, `recording-player`, `session-recording`, `widgets/recording-board` |
+| 4 | ~~Hub xato tarjimasi regressiya testi~~ | ✅ `HubErrorTranslationTests.cs` |
+| 5 | **Qolgan parite bo'shliqlari** — #5 xabarlar, #7 KPI, #8 profil modali, #9 tranzaksiya tarixi | ⚠️ **TEKSHIRILMADI** — 08-14 dan beri ko'p ish ketgan, ro'yxat qayta ko'rilsin |
 | 6 | **Deploy** — staging, prod cutover | boshlanmagan |
+
+⚠️ 1–4 qatorlar 2026-08-22 da fayl tizimi bo'yicha tasdiqlandi (papka va
+fayl mavjudligi). Ularning TO'LIQLIGI (har ekran ishlaydimi) alohida
+qo'lda sinovni talab qiladi — bu yerda faqat "boshlanmagan emas" degani.
+
+### 3.0. PROD'GA CHIQISHDAN OLDIN QOLGANI
+
+2026-08-22 auditidan keyin bloklovchi nuqson **qolmadi**. Qolgan ish:
+
+1. **Staging'da to'liq qo'lda sinov** — ayniqsa jonli dars (LiveKit ICE,
+   9.3-bo'lim) va to'lov bloki.
+2. **Ilova A ning ochiq risklari** (2, 5, 6, 7, 8, 10, 11, 12) — bular
+   sozlama va sig'im qarorlari, kod emas. Eng muhimi: **2** (LiveKit ICE)
+   va **7** (Redis eviction siyosati — presence jimgina o'chishi mumkin).
+3. **Xona tugaganda LiveKit API orqali yopish** — 4-riskning ikkinchi
+   yarmi (token muddati qisqartirildi, lekin xona yopilmaydi).
+4. **3.3 dagi ochiq biznes savoli** (pastda) — hamon javobsiz.
 
 ### 3.1. Guruh chati UI — protokol ALLAQACHON isbotlangan
 

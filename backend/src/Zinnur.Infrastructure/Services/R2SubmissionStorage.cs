@@ -93,11 +93,15 @@ public sealed class R2SubmissionStorage(
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
+        // Chegara AMALGA tegishli, klientga emas (sabab: `StorageTimeout`).
+        // Bu yerda fayl ≤10 MB, ya'ni KICHIK amal chegarasi to'g'ri keladi.
+        using var timeout = StorageTimeout.Start(settings.TimeoutSeconds, ct);
+
         HttpResponseMessage response;
 
         try
         {
-            response = await client.SendAsync(request, ct).ConfigureAwait(false);
+            response = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
@@ -160,6 +164,11 @@ public sealed class R2SubmissionStorage(
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
+        // Chegara faqat SARLAVHA olishga tegishli: `using` tugagach taymer
+        // to'xtaydi va tana o'qishi chegarasiz davom etadi (sabab va
+        // `Dispose` semantikasi: `StorageTimeout`).
+        using var timeout = StorageTimeout.Start(settings.TimeoutSeconds, ct);
+
         HttpResponseMessage response;
 
         try
@@ -168,7 +177,7 @@ public sealed class R2SubmissionStorage(
             // `SendAsync` butun faylni xotiraga yig'ib bo'lgach qaytardi va
             // 10 MB ovoz API xotirasidan ikki marta o'tardi.
             response = await client
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                 .ConfigureAwait(false);
         }
         catch (HttpRequestException ex)

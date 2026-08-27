@@ -362,11 +362,11 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
 
         var until = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
 
-        var pause = await client.PostAsJsonAsync(
-            $"/api/v1/groups/{created.Group.Id}/members/{studentId}/pause",
-            new { pausedUntil = until.ToString("O", CultureInfo.InvariantCulture) });
+        // 🔴 `reason` MAJBURIY (2026-08-17) — yordamchi uni o'zi qo'shadi.
+        var pause = await WorldBuilder.PauseMemberAsync(
+            client, created.Group.Id, studentId, until);
 
-        pause.StatusCode.Should().Be(HttpStatusCode.OK);
+        pause.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(pause));
 
         var paused = await pause.Content.ReadFromJsonAsync<MemberResponse>();
         paused!.Status.Should().Be(nameof(MemberStatus.Paused));

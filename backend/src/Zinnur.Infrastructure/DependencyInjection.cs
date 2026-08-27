@@ -413,13 +413,39 @@ public static class DependencyInjection
     /// </summary>
     private static void AddStorage(IServiceCollection services)
     {
-        services.AddHttpClient(R2SubmissionStorage.HttpClientName, (provider, client) =>
+        services.AddHttpClient(R2SubmissionStorage.HttpClientName, client =>
         {
-            var options = provider.GetRequiredService<IOptions<StorageOptions>>().Value;
-
-            // Timeout MAJBURIY: ombor javob bermay qolsa so'rov mangu
-            // osilib turardi va thread pool asta-sekin tugab borardi.
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 300));
+            // ══════════════════════════════════════════════════════════
+            // 🔴 TIMEOUT KLIENTDA EMAS, HAR AMALDA — 2026-08-24
+            //
+            // ILGARI SHU YERDA:
+            //     client.Timeout = clamp(Storage:TimeoutSeconds, 5, 300)
+            // ya'ni standart holatda 60 s, eng ko'pi 300 s.
+            //
+            // NIMA UCHUN BU NOSOZLIK EDI: `HttpClient.Timeout` — KLIENT
+            // xossasi va u bitta so'rov uchun o'zgartirilmaydi. Klient
+            // esa uchala ombor xizmatiga UMUMIY. Yuklashda timeout
+            // TANANI UZATISHNI ham qamrab oladi, ya'ni 2 GB dars videosi
+            // 60 soniyaga sig'ishi kerak bo'lardi (~273 Mbit/s doimiy
+            // tezlik). Amalda ~100-200 MB dan katta har qanday video
+            // yuklanmasdi va xato faqat uzoq kutishdan KEYIN chiqardi.
+            //
+            // 300 s ga ko'tarish ham yechim emasdi: u holda osilib
+            // qolgan HEAD so'rovi 5 daqiqa ushlanib turardi va baribir
+            // 2 GB uchun ~55 Mbit/s talab qilinardi.
+            //
+            // ★ ENDI: klientda chegara YO'Q, chegara har amalda
+            //   `StorageTimeout.Start(...)` bilan beriladi va amalning
+            //   TURIGA qarab tanlanadi (kichik amal -> TimeoutSeconds,
+            //   katta yuklash -> LargeUploadTimeoutSeconds).
+            //
+            // 🔴 SHARTNOMA: shu klient orqali yuborilgan har bir so'rov
+            //   `StorageTimeout` dan o'tishi SHART. O'tmasa u umuman
+            //   chegarasiz qoladi — aynan bu `Timeout` ning asl sababi
+            //   bo'lgan nosozlik (thread pool sekin tugab borishi).
+            //   Qoida `StorageTimeout` izohida ham takrorlangan.
+            // ══════════════════════════════════════════════════════════
+            client.Timeout = Timeout.InfiniteTimeSpan;
         });
 
         services.AddSingleton<ISubmissionStorage, R2SubmissionStorage>();

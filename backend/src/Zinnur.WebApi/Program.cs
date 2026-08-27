@@ -132,6 +132,8 @@ builder.Services.AddScoped<IScheduledJob>(sp => new RecordingWatchdogJob(
     sp.GetRequiredService<IApplicationDbContext>(),
     sp.GetRequiredService<ILiveKitEgress>(),
     sp.GetRequiredService<IRecordingStorage>(),
+    // Xona bo'sh bo'lsa yozuv boshlanmaydi — sabab vazifaning ichida.
+    sp.GetRequiredService<IPresenceService>(),
     sp.GetRequiredService<TimeProvider>(),
     RecordingWatchdogSettings.Default,
     sp.GetRequiredService<ILogger<RecordingWatchdogJob>>()));
@@ -142,6 +144,19 @@ var jwtSecret = builder.Configuration["Jwt:Secret"]
 
 if (jwtSecret.Length < 32)
     throw new InvalidOperationException("Jwt:Secret kamida 32 belgi bo'lishi kerak.");
+
+// ════════════════════════════════════════════════════════════════════════
+// 🔴 PROD'DA NAMUNA SIRLARI BILAN KO'TARILMAYMIZ (2026-08-22 auditi).
+//
+// Yuqoridagi ikki tekshiruv sirning MAVJUDLIGINI va UZUNLIGINI ko'radi,
+// lekin `.env.example` dagi namuna qiymat aynan shu ikkalasidan ham
+// muvaffaqiyatli o'tardi (u 32 belgidan uzun qilib yozilgan). Sabab va
+// to'liq qoida — `ProductionSecretsGuard` izohida.
+//
+// ★ SHU YERDA, chunki bu — `builder` bosqichi: xato port ochilgunga va
+//   migratsiyalar qo'llangunga QADAR chiqadi.
+// ════════════════════════════════════════════════════════════════════════
+ProductionSecretsGuard.Validate(builder.Configuration, builder.Environment);
 
 // Tokendagi ism claim'ining QISQA nomi (JwtTokenService shu nom bilan yozadi).
 const string JwtNameClaim = "name";

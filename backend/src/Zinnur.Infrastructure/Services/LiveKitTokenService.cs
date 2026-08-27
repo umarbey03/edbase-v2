@@ -59,13 +59,26 @@ namespace Zinnur.Infrastructure.Services;
 /// </summary>
 public sealed class LiveKitTokenService : ILiveKitTokenService
 {
-    /// <summary>Default amal qilish muddati (SPEC 7): 6 soat.</summary>
+    /// <summary>Zaxira muddat — chaqiruvchi <c>Ttl</c> bermasa.</summary>
     /// <remarks>
-    /// Dars 80 daqiqa + uzaytirish 10 daqiqa. 6 soat qo'yilgani — bir kunlik
-    /// jadvalda tokenni qayta so'ramaslik uchun; LiveKit tokeni faqat XONAGA
-    /// KIRISH uchun, sessiya boshlangandan keyin uning muddati ta'sir qilmaydi.
+    /// ⚠️ 2026-08-22 DA 6 SOATDAN 2 SOATGA TUSHIRILDI.
+    ///
+    /// Eski izoh "LiveKit tokeni faqat XONAGA KIRISH uchun, sessiya
+    /// boshlangandan keyin uning muddati ta'sir qilmaydi" deb yozgan edi va
+    /// bu TO'G'RI — lekin xulosasi noto'g'ri edi. Aynan "faqat kirish uchun"
+    /// bo'lgani sababli muddat MUHIM: guruhdan chiqarilgan yoki qarzi uchun
+    /// bloklangan o'quvchi eski tokeni bilan XONAGA QAYTA KIRA olardi va bu
+    /// bizning API'ni butunlay chetlab o'tardi (`DEPLOY_UBUNTU.md` Ilova A,
+    /// 4-risk).
+    ///
+    /// ★ HAQIQIY MUDDAT ENDI SHU YERDA HISOBLANMAYDI: yagona chaqiruvchi —
+    ///   <c>LiveSessionService.CreateJoinTokenAsync</c> — uni darsning
+    ///   tugash vaqtidan kelib chiqib beradi (<c>JoinTokenTtl</c>). Bu
+    ///   qiymat faqat kimdir <c>Ttl</c> ni unutgan holat uchun qoladi va
+    ///   ataylab qisqartirildi: eng uzun dars ham 2 soatdan oshmaydi
+    ///   (80 daqiqa + 10 daqiqa uzaytirish + zaxira).
     /// </remarks>
-    private static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(6);
+    private static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(2);
 
     /// <summary>{"alg":"HS256","typ":"JWT"} — o'zgarmas, bir marta hisoblanadi.</summary>
     private static readonly string EncodedHeader =

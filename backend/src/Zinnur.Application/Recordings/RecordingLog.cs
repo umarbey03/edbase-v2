@@ -120,4 +120,29 @@ internal static partial class RecordingLog
                   + "yozuv={RecordingId}")]
     internal static partial void WatchdogStorageUnavailable(
         ILogger logger, Exception exception, long recordingId);
+
+    /// <summary>
+    /// ★ `Debug` — bu NOSOZLIK EMAS, ODATIY KUTISH. Dars boshlangandan
+    /// keyin xona bir necha soniya bo'sh turishi normal holat. `Warning`
+    /// bo'lsa har bir dars boshida log axlat bilan to'lardi va haqiqiy
+    /// ogohlantirishlar ko'rinmay qolardi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6554,
+        Level = LogLevel.Debug,
+        Message = "Watchdog: xona hali bo'sh, yozuv kutilmoqda. yozuv={RecordingId}")]
+    internal static partial void WatchdogWaitingForParticipants(
+        ILogger logger, long recordingId);
+
+    /// <summary>
+    /// ⚠️ Presence o'qilmadi — yozuv BARIBIR boshlanadi (fail-open).
+    /// Sabab: `RecordingWatchdogJob.RoomHasParticipantsAsync`.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6555,
+        Level = LogLevel.Warning,
+        Message = "Watchdog: ishtirokchilar ro'yxati o'qilmadi, yozuv baribir "
+                  + "boshlanadi. yozuv={RecordingId}")]
+    internal static partial void WatchdogPresenceUnavailable(
+        ILogger logger, Exception exception, long recordingId);
 }

@@ -111,11 +111,22 @@ public sealed class R2MediaStorage(
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
+        // ═══════════════════════════════════════════════════════════════
+        // 🔴 KATTA FAYL CHEGARASI — AYNAN SHU YERDA NOSOZLIK BOR EDI
+        //
+        // Chegara ilgari klientda, `Storage:TimeoutSeconds` (60 s) dan
+        // olinardi va u TANA UZATISHNI ham qamrab olardi. Ya'ni 2 GB
+        // dars videosi 60 soniyaga sig'ishi kerak bo'lardi — amalda
+        // ~100-200 MB dan katta har qanday video yuklanmasdi.
+        // Arifmetika: `StorageOptions.LargeUploadTimeoutSeconds`.
+        // ═══════════════════════════════════════════════════════════════
+        using var timeout = StorageTimeout.Start(settings.LargeUploadTimeoutSeconds, ct);
+
         HttpResponseMessage response;
 
         try
         {
-            response = await client.SendAsync(request, ct).ConfigureAwait(false);
+            response = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
@@ -129,8 +140,9 @@ public sealed class R2MediaStorage(
             MediaStorageLog.UploadTimedOut(logger, ex, key);
 
             throw new ServiceUnavailableException(
-                "Fayl yuklash juda uzoq davom etdi. Katta video uchun `Storage:TimeoutSeconds` "
-                + "qiymatini oshirish kerak bo'lishi mumkin.");
+                "Fayl yuklash juda uzoq davom etdi. Juda sekin kanalda "
+                + "`Storage:LargeUploadTimeoutSeconds` qiymatini oshirish kerak bo'lishi "
+                + "mumkin (standarti 1800 s — 2 GB uchun ~9 Mbit/s).");
         }
 
         using (response)
@@ -187,6 +199,12 @@ public sealed class R2MediaStorage(
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
+        // ★★ CHEGARA FAQAT SARLAVHAGA. `using` tugagach taymer to'xtaydi,
+        //    video oqimi esa chegarasiz davom etadi — 40 daqiqalik darsni
+        //    "ombor timeout'i" o'rtasidan uzib qo'ymasin. Nega `Dispose`
+        //    oqimni buzmasligi: `StorageTimeout` izohi.
+        using var timeout = StorageTimeout.Start(settings.TimeoutSeconds, ct);
+
         HttpResponseMessage response;
 
         try
@@ -195,7 +213,7 @@ public sealed class R2MediaStorage(
             //   klientga bevosita uzatiladi. Busiz butun video avval API
             //   xotirasiga tushardi.
             response = await client
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                 .ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
@@ -283,11 +301,14 @@ public sealed class R2MediaStorage(
 
         var client = httpClientFactory.CreateClient(HttpClientName);
 
+        // O'chirish — kichik amal: tana yo'q, javob bir necha bayt.
+        using var timeout = StorageTimeout.Start(settings.TimeoutSeconds, ct);
+
         HttpResponseMessage response;
 
         try
         {
-            response = await client.SendAsync(request, ct).ConfigureAwait(false);
+            response = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {

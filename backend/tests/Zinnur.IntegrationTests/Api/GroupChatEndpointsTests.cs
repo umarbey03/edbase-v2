@@ -294,9 +294,9 @@ public sealed class GroupChatEndpointsTests(ZinnurApiFactory factory)
 
         using var admin = await WorldBuilder.AdminClientAsync(factory);
 
-        var paused = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{world.GroupId}/members/{world.Student.Id}/pause",
-            new { pausedUntil = (string?)null });
+        // Muddatsiz pauza (`pausedUntil = null`) — sabab esa MAJBURIY.
+        var paused = await WorldBuilder.PauseMemberAsync(
+            admin, world.GroupId, world.Student.Id);
 
         paused.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(paused));
 
@@ -314,8 +314,8 @@ public sealed class GroupChatEndpointsTests(ZinnurApiFactory factory)
 
         using var admin = await WorldBuilder.AdminClientAsync(factory);
 
-        var removed = await admin.DeleteAsync(new Uri(
-            $"/api/v1/groups/{world.GroupId}/members/{world.Student.Id}", UriKind.Relative));
+        var removed = await WorldBuilder.RemoveMemberAsync(
+            admin, world.GroupId, world.Student.Id);
 
         removed.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(removed));
 

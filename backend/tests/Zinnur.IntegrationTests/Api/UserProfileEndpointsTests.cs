@@ -99,6 +99,17 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
     /// <summary>
     /// A'zolik holatlari javobda ko'rinadi: chiqarilgan va pauzadagi
     /// a'zolik ham qaytadi (talab: "qaysilaridan chiqarib yuborilgan").
+    ///
+    /// ⚠️ TARTIB 2026-08-22 DA O'ZGARDI. Ilgari o'quvchi ikkinchi guruhga
+    /// HAM qo'shilib, keyin o'sha yerdan chiqarilardi — 2026-08-17 dan bu
+    /// 409 beradi ("o'quvchi bir vaqtda faqatgina bitta o'qituvchi
+    /// guruhida bo'lishi mumkin"). Endi ssenariy HAQIQIY hayotdagi
+    /// ketma-ketlikni takrorlaydi: birinchi guruhdan CHIQADI, ikkinchisiga
+    /// O'TADI, u yerda MUZLATILADI.
+    ///
+    /// ★ Tekshiruvning mazmuni o'zgarmadi — profilda baribir bitta
+    ///   <c>Stopped</c> va bitta <c>Paused</c> a'zolik ko'rinishi kerak.
+    ///   Faqat qaysi guruh qaysi holatda ekani almashdi.
     /// </summary>
     [Fact]
     public async Task Profile_ShowsStoppedAndPausedMemberships()
@@ -108,33 +119,33 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
 
         using var admin = await WorldBuilder.AdminClientAsync(factory);
 
-        // O'quvchini ikkinchi guruhga ham qo'shib, keyin chiqaramiz.
+        // 1) Birinchi guruhdan chiqaramiz (sabab MAJBURIY).
+        var remove = await WorldBuilder.RemoveMemberAsync(
+            admin, world.GroupId, world.Student.Id);
+        remove.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(remove));
+
+        // 2) Ikkinchisiga qo'shamiz — endi boshqa FAOL a'zolik yo'q.
         var add = await admin.PostAsJsonAsync(
             $"/api/v1/groups/{second.GroupId}/members", new { studentId = world.Student.Id });
         add.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(add));
 
-        var remove = await admin.DeleteAsync(new Uri(
-            $"/api/v1/groups/{second.GroupId}/members/{world.Student.Id}", UriKind.Relative));
-        remove.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(remove));
-
-        // Birinchi guruhda pauza (muddat bilan).
-        var pause = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{world.GroupId}/members/{world.Student.Id}/pause",
-            new { pausedUntil = "2030-01-01" });
+        // 3) Va u yerda muzlatamiz (muddat bilan).
+        var pause = await WorldBuilder.PauseMemberAsync(
+            admin, second.GroupId, world.Student.Id, new DateOnly(2030, 1, 1));
         pause.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(pause));
 
         var profile = await ProfileWorldBuilder.GetProfileAsync(admin, world.Student.Id);
 
         profile.Groups.Should().HaveCount(2);
 
-        var paused = profile.Groups.Find(g => g.GroupId == world.GroupId)!;
+        var stopped = profile.Groups.Find(g => g.GroupId == world.GroupId)!;
+        stopped.Status.Should().Be(nameof(MemberStatus.Stopped));
+        stopped.LeftAt.Should().NotBeNull("chiqarilgan a'zolikda taxminiy chiqish vaqti bo'ladi");
+
+        var paused = profile.Groups.Find(g => g.GroupId == second.GroupId)!;
         paused.Status.Should().Be(nameof(MemberStatus.Paused));
         paused.PausedUntil.Should().Be(new DateOnly(2030, 1, 1),
             "pauza muddati SOYA ustundan o'qiladi");
-
-        var stopped = profile.Groups.Find(g => g.GroupId == second.GroupId)!;
-        stopped.Status.Should().Be(nameof(MemberStatus.Stopped));
-        stopped.LeftAt.Should().NotBeNull("chiqarilgan a'zolikda taxminiy chiqish vaqti bo'ladi");
     }
 
     // ================================================================= 2) RUXSAT MATRITSASI

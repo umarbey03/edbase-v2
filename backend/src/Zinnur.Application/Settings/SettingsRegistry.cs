@@ -473,8 +473,34 @@ public static class SettingsRegistry
                 + "imzolangan bo'lsa-da ombor uni rad etadi. Xato serverning "
                 + "logida KO'RINMAYDI (so'rov bizga umuman kelmaydi) — "
                 + "foydalanuvchi faqat «video ochilmadi» deb ko'radi. "
-                + "R2 uchun bu odatda `https://<hisob>.r2.cloudflarestorage.com` "
-                + "yoki bucket'ga ulangan o'z domeningiz.",
+                + "R2 uchun to'g'ri qiymat — S3 API manzili: "
+                + "`https://<hisob>.r2.cloudflarestorage.com`. "
+
+                // ═══════════════════════════════════════════════════════
+                // 🔴 2026-08-24: "yoki bucket'ga ulangan o'z domeningiz"
+                // degan jumla BU YERDAN OLIB TASHLANDI — u NOTO'G'RI edi
+                // va aynan yuqorida ogohlantirilgan "jim 403" ga olib
+                // borardi.
+                //
+                // SABAB: R2 ning custom domeni (`media.maktab.uz`) S3 API
+                // EMAS — u imzolangan so'rovni tekshirmaydi. Ikkala
+                // natija ham yaroqsiz:
+                //   • bucket ochiq bo'lsa — fayl imzosiz ham beriladi,
+                //     ya'ni muddat, to'lov darvozasi va ruxsat
+                //     tekshiruvi UMUMAN ishlamaydi (havolani ushlagan
+                //     har kim ko'radi);
+                //   • bucket yopiq bo'lsa — har bir havola rad etiladi.
+                //
+                // ★ CDN KERAK BO'LSA yechim boshqa: `IMediaStorage`
+                //   izohidagi yo'l (alohida domen orqali proksi), bu
+                //   maydon emas.
+                // ═══════════════════════════════════════════════════════
+                + "🔴 CUSTOM DOMEN (masalan `media.maktab.uz`) YOZILMAYDI: R2 ning "
+                + "custom domeni S3 API emas va imzoni TEKSHIRMAYDI — bucket ochiq "
+                + "bo'lsa havola imzosiz ham ishlaydi (ruxsat nazorati yo'qoladi), "
+                + "yopiq bo'lsa esa har bir havola rad etiladi. "
+                + "✅ Eng ishonchli qiymat — BU MAYDONNI BO'SH QOLDIRISH: u holda "
+                + "«Ombor manzili» ishlatiladi va imzo bilan havola doim mos keladi.",
             Kind = SettingValueKind.Text,
             Format = SettingFormat.Url,
 

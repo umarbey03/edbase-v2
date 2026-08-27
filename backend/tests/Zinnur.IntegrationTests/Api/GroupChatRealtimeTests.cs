@@ -150,6 +150,24 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
     /// Test buni TO'G'RIDAN-TO'G'RI o'lchaydi: guruh chati jadvallariga
     /// tegadigan SQL buyruqlari sanaladi, keyin ikkinchi guruh qo'shilib,
     /// sanoq AYNAN o'sha bo'lishi tekshiriladi.
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 KUZATUVCHI — USTOZ, O'QUVCHI EMAS (2026-08-22 da o'zgartirildi)
+    ///
+    /// Ilgari o'lchov o'quvchi ko'zi bilan olinardi va ikkinchi guruh
+    /// O'SHA o'quvchiga qo'shilardi. 2026-08-17 dan bu mumkin emas:
+    /// o'quvchi bir vaqtda faqat BITTA guruhda bo'la oladi
+    /// (<c>GroupService.AddMemberAsync</c>). Ya'ni o'quvchi shoxida
+    /// "guruhlar soni o'sishi" endi ERISHIB BO'LMAYDIGAN holat va u
+    /// yerda N+1 tug'ilishi ham mumkin emas.
+    ///
+    /// ★ O'LCHOV O'Z MA'NOSINI YO'QOTMADI, aksincha to'g'ri joyga tushdi:
+    ///   yuqoridagi izohdagi motivatsiya ("40 guruhli ustoz") AYNAN xodim
+    ///   shoxi haqida. Guruhlari cheksiz ko'payadigan yagona rol — xodim.
+    ///
+    /// ⚠️ Ustoz har guruhdan BITTA qator ko'radi (o'z oqimi), o'quvchi esa
+    ///    ikkitasini — shuning uchun kutilgan sonlar 2/4 emas, 1/2.
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     [Fact]
     public async Task Threads_QueryCount_DoesNotGrowWithGroupCount()
@@ -157,17 +175,17 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
         var world = await WorldBuilder.CreateAsync(factory, "gcn1");
 
         using var student = await WorldBuilder.ClientAsync(factory, world.Student);
+        using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
 
         await GroupChatApi.SendAsync(
             student, world.GroupId, "Birinchi guruh, ustoz", GroupChatChannel.Teacher);
-        await GroupChatApi.SendAsync(
-            student, world.GroupId, "Birinchi guruh, kurator", GroupChatChannel.Curator);
 
         factory.StartCounting();
-        var oneGroup = await GroupChatApi.ThreadsAsync(student);
+        var oneGroup = await GroupChatApi.ThreadsAsync(teacher);
         var withOneGroup = factory.StopCounting();
 
-        oneGroup.Where(t => t.GroupId == world.GroupId).Should().HaveCount(2);
+        oneGroup.Where(t => t.GroupId == world.GroupId)
+            .Should().HaveCount(1, "ustoz guruhdan FAQAT o'z oqimini ko'radi");
 
         // ★ HISOBLAGICHNING O'ZI ISHLAYOTGANINI ISBOTLAYMIZ.
         //
@@ -176,27 +194,29 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
         // aynan shu testning birinchi variantida sodir bo'ldi.)
         withOneGroup.Should().NotBeEmpty("hisoblagich SQL buyruqlarini ko'rishi kerak");
 
-        // --- ikkinchi guruh ---
+        // --- ikkinchi guruh (AYNI ustozga, o'z o'quvchisi bilan) ---
         var secondGroupId = await GroupChatApi.AddGroupAsync(factory, world, "gcn1b");
 
         await GroupChatApi.SendAsync(
-            student, secondGroupId, "Ikkinchi guruh, ustoz", GroupChatChannel.Teacher);
-        await GroupChatApi.SendAsync(
-            student, secondGroupId, "Ikkinchi guruh, kurator", GroupChatChannel.Curator);
+            teacher, secondGroupId, "Ikkinchi guruh, ustoz", GroupChatChannel.Teacher);
 
         factory.StartCounting();
-        var twoGroups = await GroupChatApi.ThreadsAsync(student);
+        var twoGroups = await GroupChatApi.ThreadsAsync(teacher);
         var withTwoGroups = factory.StopCounting();
 
         twoGroups.Where(t => t.GroupId == world.GroupId || t.GroupId == secondGroupId)
-            .Should().HaveCount(4, "ikki guruh x ikki oqim");
+            .Should().HaveCount(2, "ikki guruh x ustoz oqimi");
 
         withTwoGroups.Count.Should().Be(withOneGroup.Count,
             "guruh qo'shilishi so'rovlar sonini oshirmasligi kerak (N+1 yo'q)");
 
         // Absolyut chegara ham qo'yiladi: kelajakda "bir xil, lekin 12 ta"
         // holatiga tushib qolmaslik uchun.
-        withTwoGroups.Count.Should().BeLessThanOrEqualTo(4);
+        //
+        // ★ Xodim shoxi o'quvchinikidan bitta so'rov ko'p ishlatadi —
+        //   kurator qamrovi (`ICuratorScope.ScopeGroupIdsAsync`). U ham
+        //   guruhlar soniga BOG'LIQ EMAS, shuning uchun chegara 5.
+        withTwoGroups.Count.Should().BeLessThanOrEqualTo(5);
     }
 
     /// <summary>
@@ -205,6 +225,25 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
     ///
     /// Bu N+1 testining ikkinchi yarmi: tezlikni tekshirgan test
     /// NATIJANI ham tekshirmasa, "tez va noto'g'ri" yechim yashil bo'lardi.
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 KUZATUVCHI — ADMIN, O'QUVCHI EMAS (2026-08-22 da o'zgartirildi)
+    ///
+    /// Testga IKKI GURUH ham, IKKI OQIM ham bir vaqtda ko'radigan aktor
+    /// kerak — aks holda "har GURUH va har OQIM uchun alohida" degan
+    /// da'voning yarmi sinovsiz qolardi. Ilgari bu o'quvchi edi, lekin
+    /// 2026-08-17 dan u ikki guruhda bo'la olmaydi
+    /// (<c>GroupChatApi.AddGroupAsync</c> izohi).
+    ///
+    /// Ustoz ham, kurator ham bittadan oqim ko'radi — ya'ni ular ham
+    /// yaramaydi. Admin esa uchala shartni ham qanoatlantiradi.
+    ///
+    /// ★ O'LCHANAYOTGAN MANTIQ O'ZGARMAYDI: <c>UnreadCountAsync</c> va
+    ///   <c>UnreadByThreadAsync</c> FAQAT <c>userId</c> ga qaraydi
+    ///   (<c>SenderId != userId</c> va shu foydalanuvchining o'qish
+    ///   chegarasi) — rolga umuman bog'liq emas. Ya'ni kutilgan sonlar
+    ///   ham o'zgarmadi.
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     [Fact]
     public async Task Threads_UnreadCount_IsPerGroupAndPerChannel()
@@ -212,7 +251,7 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
         var world = await WorldBuilder.CreateAsync(factory, "gcunr2");
         var secondGroupId = await GroupChatApi.AddGroupAsync(factory, world, "gcunr2b");
 
-        using var student = await WorldBuilder.ClientAsync(factory, world.Student);
+        using var observer = await WorldBuilder.AdminClientAsync(factory);
         using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
         using var curator = await WorldBuilder.ClientAsync(factory, world.Curator);
 
@@ -224,7 +263,7 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
         // 2-guruh: ustoz 1 ta yozdi
         await GroupChatApi.SendAsync(teacher, secondGroupId, "U3");
 
-        var threads = await GroupChatApi.ThreadsAsync(student);
+        var threads = await GroupChatApi.ThreadsAsync(observer);
 
         Unread(threads, world.GroupId, GroupChatChannel.Teacher).Should().Be(2);
         Unread(threads, world.GroupId, GroupChatChannel.Curator).Should().Be(1);
@@ -232,9 +271,9 @@ public sealed class GroupChatRealtimeTests(GroupChatRealtimeFactory factory)
         Unread(threads, secondGroupId, GroupChatChannel.Curator).Should().Be(0);
 
         // Bitta oqimni o'qiymiz — FAQAT o'sha nolga tushadi.
-        await GroupChatApi.MarkReadAsync(student, world.GroupId, GroupChatChannel.Teacher);
+        await GroupChatApi.MarkReadAsync(observer, world.GroupId, GroupChatChannel.Teacher);
 
-        var after = await GroupChatApi.ThreadsAsync(student);
+        var after = await GroupChatApi.ThreadsAsync(observer);
 
         Unread(after, world.GroupId, GroupChatChannel.Teacher).Should().Be(0);
         Unread(after, world.GroupId, GroupChatChannel.Curator).Should().Be(1,

@@ -38,6 +38,25 @@ public sealed class DevQuickLoginApiFactory : ZinnurApiFactory
 ///   OLDIN ishlaydi, ya'ni 404 ma'lumot yo'qligidan emas, MUHITDAN
 ///   kelib chiqadi. (Buni isbotlash oson: kalit yoqilgan-u namuna yo'q
 ///   Development'da endpoint 404 emas, BO'SH RO'YXAT bilan 200 qaytaradi.)
+///
+/// ⚠️ IKKI SOZLAMA PROD SHAKLIGA KELTIRILADI (2026-08-22):
+///
+///   • `LiveKit:ApiKey` — bazaviy fixture `devkey` beradi (dev uchun
+///     to'g'ri), lekin u LiveKit hujjatlaridagi OMMAVIY qiymat;
+///   • `Cors:AllowedOrigins:0` — `appsettings.json` dan
+///     `http://localhost:5173` bo'lib keladi.
+///
+/// Ikkalasini ham <c>ProductionSecretsGuard</c> `Production` da RAD
+/// ETADI va ilova umuman ko'tarilmasdi. Bu — darvozaning TO'G'RI ishi,
+/// aylanib o'tish emas: muhit `Production` bo'lgan joyda sozlama ham
+/// prod shaklida bo'lishi kerak. `Bootstrap:AdminPhone` bu yerga AYNI
+/// shu mulohaza bilan qo'shilgan edi (yuqoriga qarang).
+///
+/// ★ HAQIQIY LIVEKIT YOKI BRAUZER YO'Q, ya'ni qiymatlarning O'ZI
+///   ahamiyatsiz — muhimi ular namuna qiymat EMASLIGI.
+///
+/// ★ Darvozaning O'ZI alohida qo'riqlanadi:
+///   <c>Bootstrap/ProductionSecretsGuardTests.cs</c>.
 /// </summary>
 public sealed class DevQuickLoginProductionApiFactory : ZinnurApiFactory
 {
@@ -47,6 +66,8 @@ public sealed class DevQuickLoginProductionApiFactory : ZinnurApiFactory
     [
         new("Dev:QuickLogin", "true"),
         new(DbInitializer.AdminPhoneKey, "+998900000001"),
+        new("LiveKit:ApiKey", "zinnur-integration-test-key"),
+        new("Cors:AllowedOrigins:0", "https://app.zinnur-test.uz"),
     ];
 }
 

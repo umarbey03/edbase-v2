@@ -173,13 +173,31 @@ internal static class GroupChatApi
     }
 
     /// <summary>
-    /// Mavjud ustoz/kuratorga YANA bitta guruh qo'shadi va o'quvchini unga
-    /// a'zo qiladi.
+    /// Mavjud ustoz/kuratorga YANA bitta guruh qo'shadi va unga YANGI
+    /// o'quvchi a'zo qiladi.
     ///
     /// ★ N+1 testi uchun MAJBURIY: bitta guruhda so'rovlar soni har qanday
     /// amalga oshirishda bir xil bo'ladi. Farq FAQAT ikkinchi guruh
     /// qo'shilganda ko'rinadi — naif kod u yerda so'rovlar sonini ikkiga
     /// ko'paytiradi.
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 NEGA `world.Student` EMAS, YANGI O'QUVCHI (2026-08-22)
+    ///
+    /// Ilgari bu metod AYNI o'quvchini ikkinchi guruhga ham qo'shardi.
+    /// 2026-08-17 dan bu MUMKIN EMAS: "o'quvchi bir vaqtda faqatgina
+    /// bitta o'qituvchi guruhida bo'lishi mumkin" (loyiha egasi,
+    /// <c>GroupService.AddMemberAsync</c>) — chaqiruv 409 qaytaradi.
+    ///
+    /// ★ TESTLARNING MA'NOSI SAQLANADI, chunki bu metoddan foydalanadigan
+    ///   testlar ikkinchi guruhni USTOZ / KURATOR / ADMIN ko'zi bilan
+    ///   ko'radi, o'quvchi ko'zi bilan emas. Xodim esa istagancha ko'p
+    ///   guruhga ega bo'la oladi — "40 guruhli ustoz" aynan shu.
+    ///
+    /// ⚠️ SHU SABABLI O'QUVCHI SHOXINI IKKI GURUH BILAN SINAB BO'LMAYDI.
+    ///   U endi domen bo'yicha ERISHIB BO'LMAYDIGAN holat, ya'ni uni
+    ///   sinash — mavjud bo'lmagan xatti-harakatni sinash bo'lardi.
+    /// ══════════════════════════════════════════════════════════════════
     /// </summary>
     public static async Task<long> AddGroupAsync(
         Infrastructure.ZinnurApiFactory factory, StudentWorld world, string prefix)
@@ -203,8 +221,10 @@ internal static class GroupChatApi
 
         var created = (await response.Content.ReadFromJsonAsync<CreatedGroupResponse>())!;
 
+        var student = await WorldBuilder.CreateUserAsync(admin, UserRole.Student, prefix);
+
         var member = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{created.Group.Id}/members", new { studentId = world.Student.Id });
+            $"/api/v1/groups/{created.Group.Id}/members", new { studentId = student.Id });
 
         member.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(member));
 

@@ -106,26 +106,52 @@ docker compose up -d
 
 ## ⚠️ BU SOZLAMALAR SINOV BOSQICHI UCHUN
 
-`docker-compose.yml` da ikki kalitning standarti **ataylab** `true` qilingan
-(loyiha egasi qarori, 2026-08-14 — hamkasblar `.env` ni tahrirlamasdan
-sinay olsin uchun):
+Ikki kalit sinov qulayligi uchun bor va ular **`.env` da** yoqiladi
+(`.env.example` da ikkalasi ham `true` — shuning uchun yuqoridagi uch
+buyruq ishlaydi):
 
 | Kalit | Nima qiladi |
 |---|---|
 | `SEED_DEMO` | Bo'sh bazaga namunaviy ma'lumot yozadi |
 | `DEV_QUICK_LOGIN` | Kirish sahifasidagi rol tugmalari |
 
-🔴 **`DEV_QUICK_LOGIN` — autentifikatsiyani chetlab o'tish.** Standart
-o'zgardi, lekin **darvozalar o'zgarmadi** va aynan shu sababdan bu maqbul:
+🔴 **`DEV_QUICK_LOGIN` — autentifikatsiyani chetlab o'tish.** Uni ikki
+darvoza ushlab turadi:
 
 1. muhit `Production` bo'lsa — tugmalar **umuman chiqmaydi**;
 2. faqat **namunaviy** hisoblarga kiradi (soxta Telegram ID diapazoni) —
    haqiqiy markazning administratoriga bu yo'l bilan **hech qachon**
-   kirib bo'lmaydi;
-3. `docker-compose.prod.yml` bu kalitlarni **umuman bilmaydi**.
+   kirib bo'lmaydi.
 
-★ **Sinov tugagach** ikkalasini `docker-compose.yml` da `:-false` ga
-qaytaring (o'sha qatorlarda 🔴 belgili izoh turibdi).
+---
+
+### ✅ 2026-08-22: standartlar `false` ga qaytarildi
+
+Ilgari bu ikki kalitning standarti `docker-compose.yml` da `:-true` edi
+va bu yerda "`docker-compose.prod.yml` ularni umuman bilmaydi" deb
+yozilgan edi. **Bu xato edi** — Compose overlay'lari `environment` ni
+BIRLASHTIRADI, ya'ni ikkalasi ham prod konfiguratsiyasiga `true` bo'lib
+tushardi:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config \
+  | grep -E 'Seed__Demo|Dev__QuickLogin'
+```
+
+`SEED_DEMO` uchun bu haqiqiy xavf edi: "bazada 3 tadan ko'p foydalanuvchi
+bo'lsa seeder ishlamaydi" kafolati **ishlab turgan** markaz uchun to'g'ri,
+lekin **yangi server** uchun emas — u yerda baza aynan 3 ta foydalanuvchi
+bilan boshlanadi va shart `> 3` bo'lgani uchun darvoza ochiq qolardi.
+
+Endi:
+
+* `docker-compose.yml` → `${SEED_DEMO:-false}` va `${DEV_QUICK_LOGIN:-false}`;
+* `docker-compose.prod.yml` ham ikkalasini **aniq** `:-false` qilib yozadi
+  (serverdagi `.env` da eski qator qolib ketsa ham himoya turishi uchun).
+
+**Dev'da hech narsa o'zgarmadi** — `.env` ikkalasini yoqib turadi. Yangi
+serverda namunani ko'rmoqchi bo'lsangiz, `.env` ga `SEED_DEMO=true`
+yozish yetarli (bu yo'l ataylab ochiq qoldirilgan).
 
 ---
 

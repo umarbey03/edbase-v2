@@ -232,6 +232,30 @@ jobs:
       - name: prod compose tekshiruvi
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 
+      # ----------------------------------------------------------------------
+      # RESURS CHEGARALARI DARVOZASI (2026-08-22 auditi)
+      #
+      # NIMA UCHUN KERAK: yuqoridagi `config --quiet` faqat YAML sintaksisini
+      # tekshiradi. U qiymat MA'NOSINI bilmaydi — `POSTGRES_MEM=1G` bo'lib,
+      # ichkarida `shared_buffers=2GB` turgan holat ham u uchun "to'g'ri".
+      # Audit aynan shu holatni topdi: compose standartlari loyihaning O'Z
+      # deploy hujjatiga (docs/DEPLOY_UBUNTU.md 6.1/6.2) zid edi va bu
+      # o'zgaruvchilarning birortasi ham `.env.example` da yo'q edi.
+      #
+      # NEGA BOSHQA HECH NARSA BUNI TUTMAYDI: nomuvofiqlik faqat YUK OSTIDA
+      # chiqadi. Postgres ishga tushishda yiqilmaydi (shared_buffers sahifasi
+      # tegilganda ajratiladi), ya'ni `up -d`, healthcheck va smoke test —
+      # hammasi yashil bo'ladi. Portlash haqiqiy dars paytida, OOM-killer
+      # bitta backend'ni olganda sodir bo'ladi.
+      #
+      # Skript uchta manbani solishtiradi: DEPLOY_UBUNTU.md 6.1/6.2 jadvallari
+      # (haqiqat manbasi), docker-compose.prod.yml standartlari va
+      # .env.example. Farq bo'lsa — CI QIZIL. Qiymatni ataylab o'zgartirish
+      # uchun avval hujjat jadvali yangilanadi.
+      # ----------------------------------------------------------------------
+      - name: Resurs chegaralari darvozasi (compose == .env.example == 6.1/6.2)
+        run: ./infra/scripts/check-resource-limits.sh -v
+
       # Skriptlar sintaksisi (server-setup.sh, backup-db.sh)
       - name: Shell skriptlar sintaksisi
         run: |

@@ -211,6 +211,15 @@ public sealed class GroupChatThreadFilterTests(ZinnurApiFactory factory)
     /// Qo'shimcha tekshiruv: o'quvchida bitta guruh IKKI qator beradi
     /// (Ustoz va Kurator oqimlari) va filtr ularning IKKALASINI ham
     /// qoldirishi kerak — u GURUHGA tegishli, kanalga emas.
+    ///
+    /// ⚠️ 2026-08-22: o'quvchi endi IKKI guruhda bo'la olmaydi
+    /// (<c>GroupChatApi.AddGroupAsync</c> izohi), shuning uchun "ikkinchi
+    /// guruh chiqmadi" ni ISBOT sifatida olib bo'lmaydi — u ruxsat
+    /// qoidasi bo'yicha ham chiqmasdi. Filtrning KESAYOTGANI shuning
+    /// uchun ALOHIDA so'rov bilan tekshiriladi (pastda): o'quvchining O'Z
+    /// guruhi MOS KELMAYDIGAN yo'nalish bo'yicha so'ralganda ro'yxat
+    /// BO'SH bo'lishi kerak. Aynan shu — filtr o'quvchi shoxida
+    /// qo'llanayotganining yagona haqiqiy dalili.
     /// </summary>
     [Fact]
     public async Task Threads_ForAStudent_AreFilteredToo()
@@ -219,15 +228,24 @@ public sealed class GroupChatThreadFilterTests(ZinnurApiFactory factory)
         var secondGroupId = await GroupChatApi.AddGroupAsync(factory, world, "r38-oquvchi2");
 
         var wanted = await AttachCategoryAsync(world.GroupId, "Talaba");
-        await AttachCategoryAsync(secondGroupId, "Talaba2");
+        var other = await AttachCategoryAsync(secondGroupId, "Talaba2");
 
         using var student = await WorldBuilder.ClientAsync(factory, world.Student);
 
         var filtered = await GroupChatApi.ThreadsAsync(student, categoryId: wanted.Id);
 
-        filtered.Should().NotContain(t => t.GroupId == secondGroupId);
         filtered.Count(t => t.GroupId == world.GroupId).Should().Be(2,
             "o'quvchida har guruh IKKI oqim beradi va filtr GURUHGA tegishli");
+
+        filtered.Should().NotContain(t => t.GroupId == secondGroupId,
+            "o'quvchi a'zo bo'lmagan guruh ro'yxatga umuman tushmaydi");
+
+        // 🔴 FILTR HAQIQATAN KESYAPTIMI — mos kelmaydigan yo'nalish.
+        var mismatching = await GroupChatApi.ThreadsAsync(student, categoryId: other.Id);
+
+        mismatching.Should().BeEmpty(
+            "o'quvchining yagona guruhi bu yo'nalishga tegishli emas, "
+            + "ya'ni filtr uning IKKALA oqimini ham kesishi kerak");
     }
 
     /// <summary>

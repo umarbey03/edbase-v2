@@ -81,17 +81,43 @@ public sealed class OutboxRateLimitTests(ThrottledOutboxFactory factory)
             "boshqa makondagi chegara birinchisidan mustaqil bo'lishi kerak");
     }
 
-    /// <summary>Chelak vaqt o'tishi bilan TO'LADI (qat'iy oyna emas).</summary>
+    /// <summary>
+    /// Chelak vaqt o'tishi bilan TO'LADI (qat'iy oyna emas).
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 TEZLIK ATAYLAB PAST — BEQARORLIK TUZATILDI (2026-08-22)
+    ///
+    /// Ilgari bu yerda `permitsPerSecond: 100` turardi, ya'ni token har
+    /// 10 ms da tiklanardi. Ikkinchi tasdiq ("rad etilishi kerak") esa
+    /// birinchi chaqiruvdan keyin 10 ms ICHIDA bajarilishiga tayanardi.
+    ///
+    /// Yakka yurgizilganda bu bemalol o'tardi, TO'LIQ to'plamda esa —
+    /// o'nlab test sinfi bitta Redis'ga parallel urilganda — ikki chaqiruv
+    /// orasidagi tanaffus 10 ms dan oshib ketardi, chelak to'lib qolardi
+    /// va test "sababsiz" yiqilardi. Aynan shu holat 2026-08-22 dagi
+    /// to'liq yurishda ko'rindi (yakka holda 3/3 o'tdi).
+    ///
+    /// ★ 4 token/sekund = har 250 ms da bitta, ya'ni "rad etish" tasdig'i
+    ///   endi 25 BAROBAR kengroq oynaga ega. Kutish esa 600 ms — bitta
+    ///   tiklanish oralig'idan ikki barobar uzun, ya'ni testning ASOSIY
+    ///   da'vosi (chelak vaqt bilan to'ladi) hamon qat'iy tekshiriladi.
+    ///
+    /// ⚠️ Bu yerda soxta soat ishlatib bo'lmaydi: `RedisMessageRateLimiter`
+    ///    vaqtni REDIS tomonida oladi (chegara jarayondan tashqarida
+    ///    bo'lishi shu sinf testlarining butun mazmuni — sinf izohiga
+    ///    qarang), ya'ni `TimeProvider` ni kiritish testni soxtalashtirardi.
+    /// ══════════════════════════════════════════════════════════════════
+    /// </summary>
     [Fact]
     public async Task TokenBucket_RefillsOverTime()
     {
-        // 100 token/sekund = har 10 ms da bitta.
-        var limiter = NewLimiter(permitsPerSecond: 100, burst: 1);
+        // 4 token/sekund = har 250 ms da bitta.
+        var limiter = NewLimiter(permitsPerSecond: 4, burst: 1);
 
         (await limiter.TryAcquireAsync(NotificationChannel.Telegram)).Allowed.Should().BeTrue();
         (await limiter.TryAcquireAsync(NotificationChannel.Telegram)).Allowed.Should().BeFalse();
 
-        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        await Task.Delay(TimeSpan.FromMilliseconds(600));
 
         (await limiter.TryAcquireAsync(NotificationChannel.Telegram)).Allowed.Should().BeTrue(
             "kutilgandan keyin token qayta tiklanishi kerak");

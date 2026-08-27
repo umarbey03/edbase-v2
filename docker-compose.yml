@@ -458,6 +458,101 @@ services:
     networks: [zinnur-v2-net]
 
   # ===========================================================================
+  #  LIVEKIT EGRESS — DARS YOZUVINI BAJARADIGAN XIZMAT
+  # ===========================================================================
+  #
+  # 🔴 NIMA UCHUN QO'SHILDI (2026-08-24)
+  #
+  # Backend'da dars yozuvi TO'LIQ yozilgan (FAZA 5.3): avtomatik
+  # rejalashtiruvchi, `LiveKitEgressClient`, webhook, watchdog, pleyer,
+  # R2 ga saqlash. Lekin YOZUVNI BAJARADIGAN XIZMAT compose'da YO'Q edi
+  # — u `DEPLOY_UBUNTU.md` ilovasida 5-raqamli RISK sifatida yozilgan va
+  # ochiq qolgan edi.
+  #
+  # ⚠️ LiveKit server yozib OLMAYDI. `livekit-server` — SFU: u oqimlarni
+  # uzatadi, kompozitsiya va transkodlash qilmaydi. Yozuv alohida
+  # jarayonda (Chrome + ffmpeg) bajariladi va u AYNAN shu konteyner.
+  #
+  # BUSIZ NIMA BO'LARDI (va nega buni sezish qiyin): `api` yozuvni
+  # boshlash uchun LiveKit'ning Egress API'siga murojaat qiladi. Xizmat
+  # yo'q bo'lsa LiveKit "no response from egress service" qaytaradi —
+  # ya'ni DARS o'z yo'lida davom etadi, ustoz ham, o'quvchi ham hech
+  # narsa sezmaydi, faqat yozuv HECH QACHON paydo bo'lmaydi.
+  #
+  # ── QANDAY ISHLAYDI (uchta ulanish, uchalasi ham CHIQUVCHI) ─────────
+  #   1) REDIS — LiveKit bilan buyruq almashadi (RPC). Shuning uchun
+  #      egress AYNI Redis'ga ulanishi SHART, aks holda LiveKit uni
+  #      "yo'q" deb biladi.
+  #   2) WS_URL — Chrome xonaga xuddi oddiy ishtirokchidek kiradi va
+  #      `grid` maketini chizadi.
+  #   3) R2 — tayyor MP4 to'g'ridan omborga yuklanadi. Kalitlar bu yerda
+  #      EMAS: ularni `api` har bir yozuv so'rovi bilan yuboradi
+  #      (`LiveKitEgressClient`), ya'ni paneldan aylantirilgan kalit
+  #      darhol kuchga kiradi va konteynerni qayta ko'tarish shart emas.
+  #
+  # ⚠️ TASHQARIGA HECH NARSA OCHMAYDI: `ports` ATAYLAB yo'q — xizmat
+  # faqat chiquvchi ulanishlar qiladi.
+  livekit-egress:
+    # Server `v1.13` ga qadalgan, egress esa MUSTAQIL versiyalanadi
+    # (ular Redis orqali RPC bilan gaplashadi). Minor teg — `livekit-server`
+    # bilan AYNI uslub: patch'lar avtomatik keladi, minor esa ataylab
+    # qo'lda ko'tariladi.
+    image: livekit/egress:v1.14
+    container_name: zinnur-v2-egress
+    restart: unless-stopped
+
+    environment:
+      # Egress konfiguratsiyani YAML sifatida shu env'dan o'qiydi
+      # (`EGRESS_CONFIG_FILE` ga muqobil — alohida fayl va volume
+      # kerak bo'lmasin).
+      #
+      # 🔴 `api_key`/`api_secret` LiveKit'nikiga BAYTMA-BAYT mos
+      # bo'lishi shart (`LIVEKIT_KEYS` bilan bitta manbadan).
+      # Mos kelmasa egress Redis'ga ulanadi-yu, LiveKit uning
+      # javobini rad etadi — va bu XATO BERMAYDI, shunchaki yozuv
+      # boshlanmaydi.
+      EGRESS_CONFIG_BODY: |
+        redis:
+          address: redis:6379
+          db: 0
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        health_port: 9090
+        log_level: info
+
+    # 🔴 MAJBURIY: yozuv Chrome ichida chiziladi, Chrome esa o'z
+    # "sandbox" ini yaratish uchun shu imkoniyatni talab qiladi. Busiz
+    # konteyner ko'tariladi, lekin HAR BIR yozuv urinishi Chrome
+    # ishga tushmasdan yiqiladi.
+    cap_add:
+      - SYS_ADMIN
+
+    # Chrome `/dev/shm` ni ishlatadi; Docker'ning standarti — 64 MB va
+    # u HD kadrlar uchun yetmaydi. Alomati: yozuv o'rtasida Chrome
+    # jimgina o'lib qoladi ("tab crashed").
+    shm_size: 1gb
+
+    depends_on:
+      # Redis'siz egress LiveKit bilan umuman gaplasha olmaydi.
+      redis:
+        condition: service_healthy
+      # LiveKit tayyor bo'lmasa Chrome xonaga kira olmaydi.
+      livekit:
+        condition: service_healthy
+
+    healthcheck:
+      # Egress `health_port` da oddiy HTTP javob beradi. Image
+      # debian asosida — `wget` mavjud.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
   #  API — .NET 9 Web API + SignalR
   # ===========================================================================
   api:
@@ -537,12 +632,34 @@ services:
       # ishlab turgan markazning bazasiga soxta o'quvchi TUSHMAYDI —
       # standart o'zgargani bilan bu kafolat o'zgarmadi.
       #
-      # ★ Bu FAQAT DEV faylining standarti. `docker-compose.prod.yml` bu
-      # kalitni umuman bilmaydi, ya'ni prod'da C# standarti (`false`)
-      # amal qiladi.
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 STANDART — `false` (2026-08-22 da QAYTARILDI, sabab quyida).
       #
-      # 🔴 SINOV TUGAGACH QAYTARILADI: `${SEED_DEMO:-false}`.
-      Seed__Demo: ${SEED_DEMO:-true}
+      # ⚠️ BU YERDA ILGARI `:-true` TURARDI VA UNING IZOHI XATO EDI:
+      #    "docker-compose.prod.yml bu kalitni umuman bilmaydi, ya'ni
+      #    prod'da C# standarti amal qiladi" — YO'Q. Compose overlay'lari
+      #    `environment` XARITASINI BIRLASHTIRADI (bu faylning o'zida,
+      #    LiveKit va Storage bloklarida, aynan shu narsa ogohlantirish
+      #    bilan yozilgan). Tekshirilgan natija:
+      #
+      #      docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+      #        config | grep Seed__Demo
+      #      -> Seed__Demo: "true"
+      #
+      # 🔴 NIMA UCHUN BU XAVFLI EDI: "bazada 3 tadan ko'p foydalanuvchi
+      #    bo'lsa seeder ishlamaydi" kafolati ISHLAB TURGAN markaz uchun
+      #    to'g'ri, lekin YANGI SERVER uchun emas — u yerda `DbInitializer`
+      #    aynan 3 ta foydalanuvchi yozadi va shart `> 3` bo'lgani uchun
+      #    darvoza OCHIQ qoladi. Ya'ni birinchi ishga tushishda haqiqiy
+      #    markazning bazasiga 18 soxta o'quvchi, guruh va to'lov tushardi.
+      #    `DemoDataSeeder` da muhit darvozasi ATAYLAB yo'q (sabab o'sha
+      #    sinf izohida), ya'ni `Production` ham to'xtatmasdi.
+      #
+      # ★ DEV'DA HECH NARSA O'ZGARMAYDI: `.env` da `SEED_DEMO=true` turibdi
+      #   (`.env.example` ham shunday), ya'ni namunaviy ma'lumot avvalgidek
+      #   yoziladi. O'zgargani — kalit SO'RALMAGANDA nima bo'lishi.
+      # ══════════════════════════════════════════════════════════════════
+      Seed__Demo: ${SEED_DEMO:-false}
 
       # ---- SINOV UCHUN KIRISH (rol tugmalari) -----------------------------
       # `true` bo'lsa kirish sahifasida "Sinov rejimi" paneli chiqadi va har
@@ -574,8 +691,20 @@ services:
       # administratori bu yo'l bilan HECH QACHON ochilmaydi. Aynan shu
       # ikki darvoza tufayli standartni yoqish maqbul.
       #
-      # 🔴 SINOV TUGAGACH QAYTARILADI: `${DEV_QUICK_LOGIN:-false}`.
-      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-true}
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 STANDART — `false` (2026-08-22 da QAYTARILDI).
+      #
+      # Sabab `Seed__Demo` dagi bilan AYNI: overlay `environment` ni
+      # birlashtiradi, ya'ni `:-true` prod konfiguratsiyasiga ham tushardi.
+      # Bu yerda 2-darvoza (muhit `Production`) uni to'xtatib turardi —
+      # lekin o'shanda himoya BITTA qatlamga qisqarardi, `DevQuickLoginGate`
+      # esa uchta MUSTAQIL shart bo'lishini talab qiladi. Muhit `Staging`
+      # ga o'tkazilishi bilan (o'sha sinf izohi buni tavsiya ham qiladi)
+      # autentifikatsiyani chetlab o'tish jonli serverda ochilardi.
+      #
+      # ★ DEV'DA O'ZGARISH YO'Q: `.env` da `DEV_QUICK_LOGIN=true` turibdi.
+      # ══════════════════════════════════════════════════════════════════
+      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-false}
 
       # ---- OBYEKT OMBORI (vazifa fayllari) --------------------------------
       # DEV: MinIO (yuqoridagi xizmat). PROD: Cloudflare R2 — qiymatlar
@@ -635,8 +764,33 @@ services:
       # tanlanadi — aniq yozib qo'yamiz. 200 ta parallel SignalR ulanishida
       # GC pauzalari sezilarli qisqaradi.
       DOTNET_gcServer: "1"
-      # Konteyner CPU/RAM chegarasini hurmat qilsin.
-      DOTNET_GCHeapHardLimitPercent: "75"
+      # ⚠️ `DOTNET_GCHeapHardLimitPercent` BU YERDAN OLIB TASHLANDI (2026-08-22
+      # auditi). Ilgari `"75"` turardi va izohi "Konteyner CPU/RAM chegarasini
+      # hurmat qilsin" deb yozilgandi — qator AMALDA HECH NARSA QILMASDI.
+      #
+      # SABAB: .NET GC sozlamalari MUHIT O'ZGARUVCHISI orqali berilganda
+      # ONALTILIK (hex) o'qiladi (`runtimeconfig.json` orqali esa o'nlik).
+      # "75" = 0x75 = 117 o'nlikda; 100 dan katta bo'lgani uchun runtime uni
+      # butunlay e'tiborsiz qoldiradi. O'LCHANDI (net9.0, 3G limitli konteyner,
+      # GC.GetGCMemoryInfo().TotalAvailableMemoryBytes): yozilmagan -> 2304 MiB,
+      # "75" -> 2304 MiB (AYNAN bir xil = no-op), "32" (0x32=50%) -> 1536 MiB,
+      # "50" (0x50=80%) -> 2458 MiB, "4B" (0x4B=75%) -> 2304 MiB.
+      #
+      # NEGA AYNAN SHU FAYLDAN ham o'chirildi, prod'dan emas: compose
+      # `environment` ni BIRLASHTIRADI. Qatorni faqat docker-compose.prod.yml
+      # dan olib tashlash YETARLI EMAS edi — bu yerdagi nusxa prod
+      # konfiguratsiyasiga baribir tushardi (`docker compose ... config | grep
+      # GCHeap` bilan tekshiriladi).
+      #
+      # XAVFI: qator o'qigan odamni aldardi ("chegara qat'iy qo'yilgan" degan
+      # soxta ishonch), va kimdir uni "sozlamoqchi" bo'lib `60` yozsa
+      # 0x60 = 96% bo'lardi — GC konteyner limitining deyarli hammasini heap
+      # uchun olib, OOM kill (exit 137) ni O'ZI keltirib chiqarardi.
+      #
+      # KERAK EMAS: .NET cgroup limitini o'zi o'qiydi va standart chegarasi
+      # ~75% — bizga kerakli qiymatning aynan o'zi. Aniq yozish zarur bo'lsa
+      # yagona to'g'ri imlo — `"4B"` (DEPLOY_UBUNTU.md 6.4: "o'lchamasdan
+      # o'zgartirmang").
 
     ports:
       # SPEC 8: host 5080 -> ichki 8080.
