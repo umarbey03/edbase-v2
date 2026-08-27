@@ -631,8 +631,47 @@ services:
       # Tashqariga host nginx chiqaradi (TLS bilan), api to'g'ridan ochilmaydi
       - "127.0.0.1:5080:8080"
 
+    # `host.docker.internal` — LiveKit'ga host orqali borish uchun (sabab
+    # quyidagi `LiveKit__Url` izohida). Docker Desktop'da tayyor, LINUX'da
+    # esa ATAYLAB e'lon qilinishi kerak. Egress bloki ham AYNI qatorga
+    # tayanadi — u yerda bu tuzoq allaqachon hal qilingan edi.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+
+      # ---- LIVEKIT MANZILI: `livekit:7880` PROD'DA YECHILMAYDI ----------
+      #
+      # 🔴 NUQSON (2026-08-27 da topildi, jonli serverda). Bazaviy fayl
+      # `LiveKit__Url: ${LIVEKIT_INTERNAL_URL}` beradi va uning qiymati
+      # `http://livekit:7880` — DEV'da to'g'ri, chunki u yerda LiveKit
+      # bridge tarmog'ida va Docker ichki DNS uni yechadi.
+      #
+      # PROD'da esa LiveKit `network_mode: host` da ishlaydi (sabab shu
+      # faylning 33-satridagi izohda: WebRTC uchun UDP portlari kerak).
+      # `network_mode: host` Docker DNS'ini O'CHIRADI — konteyner bridge
+      # tarmog'ida umuman yo'q va `livekit` degan nom mavjud emas:
+      #
+      #   docker exec zinnur-v2-api getent hosts livekit   -> bo'sh
+      #
+      # ★ NIMA UCHUN BUNI HECH KIM SEZMADI: ilova ISHGA TUSHADI va
+      #   `up -d` yashil qaytaradi. Token yaratish ham ishlaydi — u
+      #   mahalliy JWT imzosi, LiveKit'ga so'rov yubormaydi. Ya'ni
+      #   deploy butunlay sog'lom ko'rinadi. Nosozlik faqat SERVER
+      #   TOMONIDAGI chaqiruvda chiqadi: xona yaratish, yozuvni
+      #   boshlash, ishtirokchini chiqarish. Yagona oldindan ko'rinadigan
+      #   belgi — `/health/ready` dagi `livekit: Degraded`.
+      #
+      # ⚠️ AYNI TUZOQ ikki joyda ALLAQACHON hal qilingan edi: egress'ning
+      #   `ws_url` ida va LiveKit'ning Redis manzilida. `api` esa
+      #   e'tibordan chetda qolgan — uchinchi nusxa shu yerda yopiladi.
+      #
+      # ★ `PublicUrl` GA TEGILMAYDI: u BRAUZERGA beriladi va
+      #   `wss://livekit.<domen>` bo'lib qolishi SHART. Bu yerdagi manzil
+      #   faqat api konteyneri ichida ma'noga ega — brauzerda
+      #   `host.docker.internal` hech narsaga ishora qilmaydi.
+      LiveKit__Url: http://host.docker.internal:7880
 
       # ---- OBYEKT OMBORI: DEV MinIO QIYMATLARI SHU YERDA O'LADI ----------
       #
