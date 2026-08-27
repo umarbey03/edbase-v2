@@ -57,29 +57,21 @@ public interface IAuthService
     /// eski tizimning X-1 zaifligining aynan o'zi bo'lardi.
     ///
     /// ══════════════════════════════════════════════════════════════
-    /// CHAQIRUVCHILAR — IKKITA, VA IKKALASI HAM SHU YERDA SANALADI
+    /// CHAQIRUVCHI — BITTA (2026-08-27 dan)
     ///
-    ///  1) <c>IPhoneLoginService.VerifyAsync</c> — asosiy va yagona
-    ///     ISHLAB CHIQARISH yo'li. Egalik bir martalik kod bilan
-    ///     isbotlanadi, `userId` esa <c>PhoneNormalized</c> bo'yicha
-    ///     topiladi.
+    /// <c>IPhoneLoginService.VerifyAsync</c> — YAGONA yo'l. Egalik bir
+    /// martalik kod bilan isbotlanadi, `userId` esa
+    /// <c>PhoneNormalized</c> bo'yicha topiladi.
     ///
-    ///  2) <c>DevQuickLoginService</c> (2026-08-14) — ⚠️ FAQAT SINOV
-    ///     UCHUN. U EGALIKNI UMUMAN TEKSHIRMAYDI; o'rniga UCHTA
-    ///     mustaqil darvoza qo'yadi: oshkor kalit (`Dev__QuickLogin`,
-    ///     standart `false`) + muhit `Production` EMAS + faqat
-    ///     `DemoDataSeeder` yozgan hisoblar (Telegram ID diapazoni).
-    ///     Prod'da endpointning O'ZI 404 qaytaradi.
+    /// 🔴 SINOV UCHUN KIRISH (`DevQuickLoginService`, rol tugmalari)
+    ///    2026-08-27 da KOD BAZASIDAN BUTUNLAY OLIB TASHLANDI —
+    ///    loyiha egasining qarori: tizim faqat haqiqiy ishlab chiqarishda
+    ///    ishlatiladi va autentifikatsiyani chetlab o'tadigan ikkinchi
+    ///    yo'l, qanchalik qattiq darvozalangan bo'lsa ham, kerak emas.
+    ///    Ya'ni bu metodga endi FAQAT kod tekshiruvidan o'tgan chaqiruv
+    ///    keladi.
     ///
-    /// ★ NIMA UCHUN U HAM SHU METODDAN O'TADI (alohida servis emas):
-    ///   yuqoridagi QAT'IY QOIDA — ikkinchi token yaratuvchi yozilmaydi.
-    ///   Sinov yo'li ham `TokenVersion`, `IsActive` tekshiruvi va
-    ///   `refresh`/`logout` bilan AYNAN bir xil ishlashi kerak, aks
-    ///   holda u "boshqa turdagi sessiya" bo'lib qolardi va sinov
-    ///   haqiqiy xulqni tekshirmasdi.
-    ///
-    /// ⚠️ METOD NOMI ("Phone") ENDI IKKINCHI CHAQIRUVCHIGA TO'LIQ MOS
-    ///   EMAS. Nomni o'zgartirish ataylab QILINMADI: u kanonik oqimni
+    /// ⚠️ METOD NOMI ("Phone") — kanonik oqimni
     ///   nomlaydi, sinov yo'li esa vaqtinchalik mehmon — nom
     ///   o'zgartirilsa asosiy oqimning tarixi va hujjatlardagi
     ///   havolalar uzilardi.

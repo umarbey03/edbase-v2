@@ -115,38 +115,6 @@ export interface AuthResponse {
   user: UserDto
 }
 
-/**
- * ══════════════════════════════════════════════════════════════════════
- * ⚠️ FAQAT SINOV UCHUN — `GET /api/v1/auth/dev/quick-login` bitta qatori
- * ══════════════════════════════════════════════════════════════════════
- *
- * Bu shakl HAQIQIY kirish oqimiga UMUMAN aloqador emas. U faqat kirish
- * sahifasidagi "sinov paneli" tugmalarini chizish uchun.
- *
- * 🔴 RO'YXAT SERVERDAN KELADI, MIJOZDA YOZILMAYDI. Rollar, ismlar va
- * raqamlar frontendga QATTIQ YOZILSA, backend darvozasi yopilganda ham
- * tugmalar chizilib turardi — ya'ni interfeys mavjud bo'lmagan
- * xususiyatni va'da qilardi. Endi qoida oddiy: ro'yxat bo'sh yoki 404
- * bo'lsa — panel UMUMAN chizilmaydi.
- */
-export interface DevQuickLoginAccount {
-  /** Rolning MASHINA nomi — POST tanasiga aynan shu ketadi. */
-  role: UserRoleName
-  /** Tugmadagi o'zbekcha nom. */
-  roleLabel: string
-  fullName: string
-  phone: string | null
-}
-
-/** ⚠️ FAQAT SINOV UCHUN. `GET /api/v1/auth/dev/quick-login` javobi. */
-export interface DevQuickLoginList {
-  /** Serverning O'ZI yozgan ogohlantirish — panelda AYNAN shu ko'rsatiladi. */
-  warning: string
-  /** Muhit nomi (`Development`, `Staging`…). */
-  environment: string
-  accounts: DevQuickLoginAccount[]
-}
-
 export interface LiveSessionDto {
   id: number
   groupId: number

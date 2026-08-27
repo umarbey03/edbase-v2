@@ -155,10 +155,37 @@ sed -i "s|^LIVEKIT_PUBLIC_URL=.*|LIVEKIT_PUBLIC_URL=wss://$LKDOMEN|" .env
 sed -i "s|^VITE_API_URL=.*|VITE_API_URL=https://$DOMEN|" .env
 sed -i "s|^VITE_HUB_URL=.*|VITE_HUB_URL=https://$DOMEN/hubs/live|" .env
 
+# 🔴 CORS — BUNI UNUTISH DEPLOY'NI TO'XTATADI (2026-08-27 da qo'shildi).
+#    `.env.example` da `CORS_ORIGIN_0=http://localhost:5173` turadi va
+#    prod overlay'i uni QAYTA YOZMAYDI. `ProductionSecretsGuard` esa
+#    `Cors:AllowedOrigins` ichida `localhost` topsa ilovani ATAYLAB
+#    ko'tarmaydi — ya'ni bu qatorsiz birinchi deploy har safar yiqilardi.
+sed -i "s|^CORS_ORIGIN_0=.*|CORS_ORIGIN_0=https://$DOMEN|" .env
+sed -i "s|^CORS_ORIGIN_1=.*|CORS_ORIGIN_1=|" .env
+
+# 🔴 BOSH ADMINISTRATOR TELEFONI — BO'SH BAZADA MAJBURIY.
+#    Prod'da standarti ATAYLAB yo'q (`BootstrapAdmin.Read`): "hammaga
+#    ma'lum raqam" administrator hisobini istalgan odamga ochib qo'yardi.
+#    Berilmasa `DbInitializer` ishga tushishdayoq yiqiladi.
+if ! grep -q '^Bootstrap__AdminPhone=' .env; then
+    printf '\n# Boshlang'"'"'ich administrator telefoni (bo'"'"'sh bazada MAJBURIY).\n' >> .env
+    printf 'Bootstrap__AdminPhone=%s\n' "${ADMIN_PHONE:-}" >> .env
+fi
+
+if ! grep -qE '^Bootstrap__AdminPhone=\+?[0-9]{9,}$' .env; then
+    fail ".env da Bootstrap__AdminPhone to'ldirilmagan."
+    fail "Bu raqamga bog'langan Telegram hisobiga kirish kodi keladi —"
+    fail "usiz platformaga HECH KIM kira olmaydi."
+    fail ""
+    fail "Yo'l qo'ying:  ADMIN_PHONE=+998901234567 $0 $DOMEN"
+    fail "yoki .env dagi Bootstrap__AdminPhone qatorini qo'lda to'ldiring."
+    exit 1
+fi
+
 if grep -qE 'change_me|dev_only' .env; then
     fail ".env da hali dev qiymatlari bor"; exit 1
 fi
-ok "domen va manzillar yozildi"
+ok "domen, manzillar, CORS va administrator raqami yozildi"
 
 # ---------------------------------------------------------------- 4. Firewall
 log "4/7 Firewall"
@@ -258,5 +285,6 @@ log "7/7 Deploy (build 5-15 daqiqa olishi mumkin)"
 
 printf '\n\033[1;32m════════════════════════════════════════════\033[0m\n'
 printf '\033[1;32m  TAYYOR:  https://%s\033[0m\n' "$DOMEN"
-printf '\033[1;32m  Admin :  admin@zinnur.uz\033[0m\n'
+printf '\033[1;32m  Kirish:  %s (Telegram orqali kod)\033[0m\n' \
+       "$(grep '^Bootstrap__AdminPhone=' .env | cut -d= -f2)"
 printf '\033[1;32m════════════════════════════════════════════\033[0m\n\n'

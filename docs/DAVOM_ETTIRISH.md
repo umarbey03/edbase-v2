@@ -71,36 +71,37 @@ Testlarda kirish HTTP orqali EMAS — `ZinnurApiFactory.LoginAsAdminAsync()`
 tokenni to'g'ridan-to'g'ri yasaydi (sabab o'sha faylda). Oqimning O'ZI
 `PhoneLoginEndpointsTests` da to'liq sinaladi.
 
-### 🧪 NAMUNAVIY (DEMO) MA'LUMOT — qo'lda tekshirish uchun
+### 🔴 NAMUNAVIY (DEMO) MA'LUMOT — 2026-08-27 DA BUTUNLAY OLIB TASHLANDI
 
-Bo'sh bazada `SEED_DEMO=true` (`.env`) qo'yilsa, ilova ishga tushganda
-TO'LIQ o'quv markazi yoziladi: o'quv bo'limi + 2 ustoz + 2 kurator +
-12 o'quvchi, 5 guruh (jumladan individual, kurator va ARXIV), kurs →
-modul → darslar (bittasida **3 qismli video**), o'tgan/kelgusi/hozir
-boshlanadigan darslar, davomatning BARCHA holati, dars baholari,
-vazifa javoblarining har bir holati, testlar, **chegaradan oshgan
-qarzdor**, chat (ikki kanal + DM + darsga bog'langan savol), yozuvlar
-(yashirilgani va sifat nazorati bilan) va o'qilmagan bildirishnomalar.
+Loyiha egasining qarori: tizim faqat haqiqiy ishlab chiqarishda
+ishlatiladi, shuning uchun namunaviy ma'lumot ham, kirish sahifasidagi
+rol tugmalari ham **kod bazasidan chiqarib tashlandi**.
 
-```bash
-# Kirish raqamlari jadvali — LOGDA:
-docker compose logs api | grep -A 25 "Namunaviy hisoblar"
+Olib tashlangan fayllar (`git log` da qidiring — tarixdan tiklash mumkin):
 
-# Kirish kodi soxta Telegram ID'ga ketadi, ya'ni telefonga KELMAYDI:
-docker compose exec -T postgres psql -U zinnur -d zinnur -c \
-  "SELECT \"Body\" FROM \"MessageOutbox\" WHERE \"TemplateKey\"='auth_login_code' \
-   ORDER BY \"Id\" DESC LIMIT 1;"
+```
+backend/src/Zinnur.Infrastructure/Persistence/DemoDataSeeder.cs
+backend/src/Zinnur.Infrastructure/Persistence/DemoWorld.cs
+backend/src/Zinnur.Infrastructure/Persistence/DemoMedia.cs
+backend/src/Zinnur.WebApi/Controllers/DevAuthController.cs
+backend/src/Zinnur.WebApi/Services/DevQuickLoginGate.cs
+backend/src/Zinnur.WebApi/Services/DevQuickLoginService.cs
+frontend  → LoginPage.vue dagi «Sinov rejimi» paneli va auth-api dagi
+            `devQuickLogin` / `fetchDevQuickLoginAccounts`
 ```
 
-🔴 **Uch qatlamli himoya** (`DemoDataSeeder` izohi): (1) `Seed__Demo`
-oshkor kaliti, standarti `false`; (2) bazada 3 tadan ko'p foydalanuvchi
-bo'lsa seeder ISHLAMAYDI va logga xato yozadi; (3) marker profil
-(`academic@zinnur.uz`) — ikkinchi ishga tushirish hech nima qilmaydi.
+`SEED_DEMO` va `DEV_QUICK_LOGIN` kalitlari `.env.example` dan ham,
+ikkala compose faylidan ham o'chirildi — endi ular hech qanday ta'sir
+ko'rsatmaydi.
 
-⚠️ **VIDEO OCHILMAYDI (404).** Dars videolari va dars yozuvlari faqat
-METAMA'LUMOT sifatida yoziladi (yaroqli MP4 ni kodsiz yasab bo'lmaydi).
-Rasm va hujjat biriktirmalari esa HAQIQATAN omborga yoziladi va
-ochiladi. Batafsil — `DemoMedia.cs` izohi.
+**Ya'ni istalgan muhitda (dev ham, prod ham) bo'sh bazaga faqat bitta
+yozuv tushadi:** `Bootstrap__AdminPhone` dagi raqamga ega bosh
+administrator. Qolgan hamma narsa interfeys orqali kiritiladi.
+
+Dev'da ekranlarni ko'rish uchun: administrator bilan kiring va bir
+guruh + bir nechta o'quvchi qo'lda qo'shing. Kirish kodi haqiqiy
+Telegram boti bo'lmasa `MessageOutbox` jadvalida qoladi (yuqoridagi
+A/B/C usullariga qarang).
 
 ### ⚠️ Образ eskirmaganmi — HAR SAFAR tekshiring
 
@@ -166,7 +167,7 @@ TODO/FIXME  : 0 ta (butun kod bo'ylab)
 
 | # | Nuqson | Tuzatish |
 |---|---|---|
-| 1 | **`SEED_DEMO` prod'ga oqib o'tardi.** Compose overlay `environment` ni birlashtiradi, ya'ni `${SEED_DEMO:-true}` prod konfiguratsiyasiga ham tushardi. "3 tadan ko'p foydalanuvchi" kafolati YANGI serverda ishlamaydi (baza aynan 3 tadan boshlanadi) — birinchi ishga tushishda haqiqiy markaz bazasiga demo ma'lumot yozilardi | Ikkala faylda ham standart `:-false`. Ataylab yoqish yo'li (`.env` da `SEED_DEMO=true`) ochiq qoldi |
+| 1 | **`SEED_DEMO` prod'ga oqib o'tardi.** Compose overlay `environment` ni birlashtiradi, ya'ni `${SEED_DEMO:-true}` prod konfiguratsiyasiga ham tushardi. "3 tadan ko'p foydalanuvchi" kafolati YANGI serverda ishlamaydi (baza aynan 3 tadan boshlanadi) — birinchi ishga tushishda haqiqiy markaz bazasiga demo ma'lumot yozilardi | O'shanda standart `:-false` qilingan edi; **2026-08-27 da seeder va kalitning O'ZI butunlay olib tashlandi** (yuqoridagi bo'limga qarang) |
 | 2 | **12 ta integratsiya testi qizil edi** (5 kun davomida). Sabab: 2026-08-17 da uch qoida qo'shilgan, testlar yangilanmagan — (a) o'quvchi bir vaqtda bitta guruhda, (b) muzlatish/chiqarishda sabab majburiy, (c) chiqarish `DELETE` dan `POST .../remove` ga o'tgan | Testlar yangi qoidalarga moslashtirildi; chiqarish/muzlatish chaqiruvi `WorldBuilder` da BITTA joyga yig'ildi |
 | 3 | **Beqaror test** `TokenBucket_RefillsOverTime` — 100 token/sekund, ya'ni "rad etilishi kerak" tasdig'i 10 ms oynaga tayanardi va parallel yukda yiqilardi | Tezlik 4/sekundga tushirildi (250 ms oyna), kutish 600 ms |
 | 4 | **Prod'da namuna sirlari bilan ilova ko'tarilardi** — `Jwt:Secret` uzunligi tekshirilardi, QIYMATI emas | `ProductionSecretsGuard`: `Production` da `dev_only` / `change_me` / `devkey` / `localhost` topilsa ilova ishga tushmaydi (7.1.0-bo'lim, DEPLOY_UBUNTU) |

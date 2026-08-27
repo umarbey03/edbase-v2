@@ -1,21 +1,19 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { fetchDevQuickLoginAccounts, homeRouteFor } from '@/entities/user'
+import { homeRouteFor } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { TelegramAuthScreen } from '@/features/telegram-auth'
 import { toUserMessage } from '@/shared/api'
 import {
-  formatPhone,
   maskPhoneField,
   PHONE_INPUT_MAXLENGTH,
   phoneDigits,
   stripPhoneFormatting,
 } from '@/shared/lib/phone'
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
-import type { DevQuickLoginAccount, UserRoleName } from '@/shared/types'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
 /*
@@ -224,84 +222,6 @@ function backToPhone(): void {
   stopResendCountdown()
 }
 
-/*
-  ══════════════════════════════════════════════════════════════════════════
-  ⚠️ SINOV PANELI — ROL BO'YICHA BIR BOSISHDA KIRISH (2026-08-14)
-  ══════════════════════════════════════════════════════════════════════════
-
-  Loyiha egasining talabi: *"real telefon va bot bilan sinash qiyin"*.
-  Har ekranni beshta rol ko'zi bilan ko'rish uchun beshta HAQIQIY telefon
-  va ISHLAYOTGAN bot kerak edi — dev mashinasida bot tokeni soxta, kod esa
-  `MessageOutbox` jadvalida qoladi.
-
-  🔴 BU — AUTENTIFIKATSIYANI CHETLAB O'TISH, VA HIMOYA BUTUNLAY SERVERDA:
-     oshkor kalit (`Dev__QuickLogin`, standarti `false`) + muhit
-     `Production` EMAS + FAQAT namunaviy (demo) hisoblar. Bu yerda ularning
-     hech biri TAKRORLANMAYDI: mijozdagi shart — bezak, u DevTools
-     ochilgunicha yashaydi.
-
-  ★ INTERFEYSNING YAGONA VAZIFASI — SERVERGA ISHONISH:
-      ro'yxat bo'sh (yoki 404) -> panel UMUMAN chizilmaydi.
-    Rollar frontendga QATTIQ YOZILMAYDI. Yozilsa, backend darvozasi yopiq
-    serverda ham tugmalar ko'rinib turardi — ya'ni interfeys mavjud
-    bo'lmagan xususiyatni va'da qilardi.
-
-  ★ HAQIQIY OQIM BIRLAMCHI BO'LIB QOLADI: panel formaning PASTIDA,
-    alohida ramkada va ochiq ogohlantirish bilan. U hech qachon telefon
-    formasining o'rnini egallamaydi.
-*/
-
-/** Serverdan kelgan namunaviy hisoblar. BO'SH — panel yo'q. */
-const devAccounts = shallowRef<DevQuickLoginAccount[]>([])
-
-/** Hozir qaysi rol yuklanmoqda (tugmalarni ikki marta bosishdan saqlaydi). */
-const devBusyRole = ref<UserRoleName | null>(null)
-
-/*
-  So'rov sahifadan chiqilganda bekor qilinadi: javob kechikib kelsa,
-  yo'q qilingan komponentga yozishga urinish bo'lardi.
-*/
-const devAbort = new AbortController()
-onBeforeUnmount(() => devAbort.abort())
-
-onMounted(async () => {
-  /*
-    ★ FAQAT TELEFON FORMASI REJIMIDA. Telegram Mini App ichida bu panel
-      ma'nosiz: o'quvchi allaqachon imzolangan `initData` bilan kiradi,
-      va u yerda begona tugma ko'rsatish faqat chalg'itardi.
-  */
-  if (telegramMode.value) return
-
-  // Xato bu yerga YETIB KELMAYDI — `fetchDevQuickLoginAccounts` 404 ni
-  // bo'sh ro'yxatga aylantiradi (sabab: `auth-api.ts` izohi).
-  devAccounts.value = await fetchDevQuickLoginAccounts({ signal: devAbort.signal })
-})
-
-/** ⚠️ SINOV: tanlangan rol nomidan kirish. */
-async function handleDevLogin(role: UserRoleName): Promise<void> {
-  if (devBusyRole.value !== null) return
-
-  devBusyRole.value = role
-  errorMessage.value = null
-
-  try {
-    const user = await auth.devQuickLogin(role)
-
-    /*
-      🔴 `?redirect=` ATAYLAB E'TIBORGA OLINMAYDI (telefon oqimidan farqli).
-
-      Sabab amaliy: tekshiruvchi rollarni KETMA-KET almashtiradi. Manzilda
-      esa oldingi roldan qolgan chuqur havola turadi (masalan `/moliya`) —
-      va o'quvchi sifatida kirgan odam darhol 403 ekraniga tushardi.
-      Rolga mos bosh sahifa esa har safar ISHLAYDI.
-    */
-    await router.replace({ name: homeRouteFor(user.role) })
-  } catch (error) {
-    errorMessage.value = toUserMessage(error)
-  } finally {
-    devBusyRole.value = null
-  }
-}
 </script>
 
 <template>
@@ -539,69 +459,6 @@ async function handleDevLogin(role: UserRoleName): Promise<void> {
         «Raqamni ulashish» tugmasini bosing. Yordam kerak bo'lsa —
         o'quv bo'limiga murojaat qiling.
       </p>
-
-      <!--
-        ══════════════════════════════════════════════════════════════════
-        ⚠️ SINOV PANELI — `v-if` BUTUN HIMOYANING KO'RINADIGAN QISMI
-        ══════════════════════════════════════════════════════════════════
-
-        Ro'yxat serverdan keladi; xususiyat o'chiq bo'lsa u BO'SH bo'ladi
-        va bu blok umuman render qilinmaydi (DOM'da hech qanday izi
-        qolmaydi). Sabab va qolgan uch darvoza — `<script>` dagi izohda.
-
-        🔴 KO'RINISHI ATAYLAB "NOTO'G'RI": punktir ramka, sariq
-           ogohlantirish rangi va bosh harfli sarlavha. Panel ilovaning
-           qolgan qismi bilan UYG'UNLASHMASLIGI kerak — u yerda turgani
-           darrov ko'zga tashlansin va uni "mahsulot xususiyati" deb
-           o'ylash imkoni bo'lmasin.
-      -->
-      <section
-        v-if="devAccounts.length > 0"
-        class="mt-8 rounded-[1.25rem] border-2 border-dashed border-amber-500/50 bg-amber-500/5 p-4"
-      >
-        <h2 class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
-          <AppIcon
-            name="alert"
-            :size="15"
-          />
-          Sinov rejimi
-        </h2>
-
-        <p class="mt-1.5 text-[11px] leading-relaxed text-amber-200/70">
-          Namunaviy hisoblarga telefon kodisiz kirish. Bu panel ishlab
-          chiqarish serverida <b class="font-semibold">ko'rinmaydi</b>.
-        </p>
-
-        <div class="mt-3 grid gap-1.5">
-          <button
-            v-for="account in devAccounts"
-            :key="account.role"
-            type="button"
-            :disabled="devBusyRole !== null"
-            class="flex items-center justify-between gap-3 rounded-lg bg-ink-950/60 px-3 py-2 text-left ring-1 ring-inset ring-amber-500/25 transition-colors hover:bg-ink-950 disabled:opacity-50"
-            @click="handleDevLogin(account.role)"
-          >
-            <span class="min-w-0">
-              <span
-                class="block truncate text-xs font-semibold text-amber-100"
-                v-text="account.roleLabel"
-              />
-              <!--
-                Ism va raqam — tekshiruvchi «bu kimning ekrani?» degan
-                savolga tugmani bosmasdan javob topsin.
-              -->
-              <span
-                class="block truncate text-[11px] text-amber-200/50"
-                v-text="`${account.fullName} · ${formatPhone(account.phone) || '—'}`"
-              />
-            </span>
-            <span
-              class="shrink-0 text-[11px] font-medium text-amber-300"
-              v-text="devBusyRole === account.role ? '…' : 'Kirish'"
-            />
-          </button>
-        </div>
-      </section>
     </div>
   </div>
 </template>

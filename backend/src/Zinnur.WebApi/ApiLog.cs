@@ -33,38 +33,6 @@ internal static partial class ApiLog
         string logFormat,
         string release);
 
-    // ------------------------------------------------- sinov uchun kirish
-    //
-    // 🔴 UCHALA SATR HAM `Warning` (yoki undan yuqori) — ATAYLAB.
-    // Bular autentifikatsiyani chetlab o'tish bilan bog'liq YAGONA
-    // ko'rinadigan signal. `Information` bo'lsa ular boshqa yuzlab satr
-    // orasida yo'qolardi va noto'g'ri sozlangan server jimgina ishlab
-    // ketaverardi.
-
-    [LoggerMessage(
-        EventId = 1002,
-        Level = LogLevel.Warning,
-        Message = "🔴 SINOV UCHUN KIRISH YOQILGAN (`POST /api/v1/auth/dev/quick-login`): "
-                  + "namunaviy hisoblarga PAROLSIZ va KODSIZ kirish mumkin. "
-                  + "Muhit={Environment}. O'chirish uchun `{Key}` kalitini olib tashlang. "
-                  + "⚠️ Bu satr ishlab chiqarish serverida CHIQMASLIGI kerak.")]
-    public static partial void DevQuickLoginEnabled(ILogger logger, string environment, string key);
-
-    [LoggerMessage(
-        EventId = 1003,
-        Level = LogLevel.Warning,
-        Message = "`{Key}` yoqilgan, LEKIN muhit {Environment} — sinov uchun kirish RAD ETILDI "
-                  + "va endpoint 404 qaytaradi. Bu himoya ataylab: kalit tasodifan prod'ga "
-                  + "o'tib ketsa ham eshik ochilmaydi.")]
-    public static partial void DevQuickLoginRefused(ILogger logger, string environment, string key);
-
-    [LoggerMessage(
-        EventId = 1004,
-        Level = LogLevel.Warning,
-        Message = "Sinov uchun kirish ishlatildi: rol={Role}, foydalanuvchi={UserId}. "
-                  + "(Namunaviy hisob — haqiqiy foydalanuvchi emas.)")]
-    public static partial void DevQuickLoginUsed(ILogger logger, string role, long userId);
-
     // ---------------------------------------------------------------- hub
 
     [LoggerMessage(
