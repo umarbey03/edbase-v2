@@ -254,6 +254,35 @@ EOF
     ok "sertifikat olindi"
 fi
 
+# 🔴 YANGILANISH HOOK'I — SERTIFIKAT BIR MARTA OLINSA YETARLI EMAS.
+#
+#    Sertifikat 90 kun amal qiladi, certbot 30 kun qolganda uni o'zi
+#    yangilaydi (paket bilan kelgan systemd taymer). LEKIN nginx yangi
+#    faylni O'ZI OLMAYDI — u ishga tushganda o'qigan nusxani xotirada
+#    ushlab turadi. Reload qilinmasa, ~60-kunda brauzer "sertifikat
+#    muddati tugagan" deb ogohlantiradi, serverda esa hech qanday xato
+#    ko'rinmaydi: certbot "renewed" deb yozadi va hammasi joyida
+#    ko'rinadi. Aynan shu sabab bu qadam ATAYLAB avtomatlashtirildi —
+#    hujjatdagi qo'lda bajariladigan qadam uch oydan keyin unutiladi.
+#
+#    `renewal-hooks/deploy/` — faqat sertifikat HAQIQATAN yangilanganda
+#    ishlaydi (`pre`/`post` esa har urinishda), ya'ni keraksiz reload yo'q.
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+cat > /etc/letsencrypt/renewal-hooks/deploy/00-reload-nginx.sh <<'HOOK'
+#!/usr/bin/env bash
+set -euo pipefail
+# Konfiguratsiya buzuq bo'lsa reload QILMAYMIZ — ishlab turgan nginx yiqilmasin.
+if nginx -t 2>/dev/null; then
+    systemctl reload nginx
+    logger -t certbot-hook "nginx reloaded after cert renewal"
+else
+    logger -t certbot-hook "ERROR: nginx -t failed, reload skipped"
+    exit 1
+fi
+HOOK
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/00-reload-nginx.sh
+ok "sertifikat yangilanish hook'i o'rnatildi (nginx avtomatik reload)"
+
 # ---------------------------------------------------------------- 6. nginx
 log "6/7 nginx konfiguratsiyasi"
 rm -f /etc/nginx/sites-enabled/acme.conf
