@@ -196,8 +196,31 @@ if command -v ufw >/dev/null; then
     # ⚠️ UDP SIZ MEDIA UMUMAN ISHLAMAYDI — deploy'dagi eng ko'p uchraydigan xato
     ufw allow 7882/udp >/dev/null
     ufw allow 3478/udp >/dev/null
+
+    # 🔴 LIVEKIT API PORTI — DOCKER BRIDGE'DAN (2026-08-27 da topildi).
+    #
+    #    LiveKit prod'da `network_mode: host` da ishlaydi, ya'ni 7880 ni
+    #    HOST portida tinglaydi. `api` va `egress` esa bridge tarmog'ida
+    #    qoladi va unga `host.docker.internal` (=host IP) orqali boradi.
+    #    Bu so'rov host uchun TASHQI kirish hisoblanadi va ufw INPUT
+    #    zanjiriga tushadi — 7880 uchun qoida bo'lmasa JIMGINA tashlanadi.
+    #
+    #    Belgisi: `/health/ready` da `livekit: Degraded`, 3000 ms timeout;
+    #    dars yozuvi esa "xonaga ulana olmadim" bilan tugaydi. Ilova
+    #    ishga tushadi va `up -d` yashil qaytaradi, ya'ni deploy sog'lom
+    #    ko'rinadi — nosozlik faqat haqiqiy darsda chiqadi.
+    #
+    #    ⚠️ FAQAT XUSUSIY BRIDGE TARMOQLARIDAN. `ufw allow 7880/tcp`
+    #    yozilsa, LiveKit'ning butun server API'si INTERNETGA ochilardi.
+    #    Bu manzillar (172.16/12) faqat shu hostdagi konteynerlarga
+    #    tegishli va tashqaridan yo'naltirib bo'lmaydi.
+    ufw allow from 172.17.0.0/16 to any port 7880 proto tcp \
+        comment 'LiveKit API: docker bridge' >/dev/null
+    ufw allow from 172.18.0.0/16 to any port 7880 proto tcp \
+        comment 'LiveKit API: docker compose net' >/dev/null
+
     ufw --force enable >/dev/null
-    ok "22/80/443 tcp + 7882/3478 udp ochildi"
+    ok "22/80/443 tcp + 7882/3478 udp + 7880 (docker bridge) ochildi"
 else
     warn "ufw yo'q — firewall qo'lda sozlansin"
 fi
