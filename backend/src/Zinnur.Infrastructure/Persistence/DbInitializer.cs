@@ -163,10 +163,7 @@ public static class DbInitializer
 
         var now = DateTimeOffset.UtcNow;
 
-        // BCrypt ~250 ms. Demo foydalanuvchilar uchun bitta hash qayta
-        // ishlatiladi — ishga tushish vaqtini uch barobar cho'zmaslik uchun.
         var adminHash = await hasher.HashAsync(AdminPassword, ct).ConfigureAwait(false);
-        var demoHash = await hasher.HashAsync(DemoPassword, ct).ConfigureAwait(false);
 
         var admin = new User
         {
@@ -188,6 +185,41 @@ public static class DbInitializer
         // administrator botga bir marta raqamini ulashadi.
         if (bootstrap.AdminTelegramId is { } telegramId)
             admin.LinkTelegram(telegramId, username: null, now);
+
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 ISHLAB CHIQARISHDA — FAQAT ADMINISTRATOR, BOSHQA HECH NARSA
+        //
+        // Pastdagi yozuvlar (Demo Ustoz, Demo O'quvchi, "ATF" kursi,
+        // "ATF-1 (demo)" guruhi, "Demo dars") SINOV uchun. Ular jonli
+        // markaz bazasiga tushmasligi kerak: haqiqiy ro'yxatlarda soxta
+        // ustoz va o'quvchi paydo bo'lardi, "Demo dars" esa jadvalda
+        // ko'rinib turardi.
+        //
+        // ★ NIMA UCHUN BUTUNLAY O'CHIRILMADI, BALKI MUHIT BILAN
+        //   CHEGARALANDI: integratsiya testlarining katta qismi aynan
+        //   shu ikki hisobga fixture sifatida tayanadi
+        //   (`teacher@zinnur.uz`, `student@zinnur.uz`). Ularni olib
+        //   tashlash o'nlab testni qayta yozishni talab qilardi va bu
+        //   ishning O'ZI yangi xatolar manbai bo'lardi.
+        //
+        // ⚠️ SHART `IsDevelopment`, "Production emas" EMAS: aks holda
+        //   `Staging` muhitidagi serverga ham demo ma'lumot tushardi.
+        //
+        // (2026-08-27 — jonli serverda topildi: `DemoDataSeeder` olib
+        //  tashlangan bo'lsa-da, bu yerdagi yozuvlar qolib ketgan edi.)
+        // ══════════════════════════════════════════════════════════════
+        if (!bootstrap.IsDevelopment)
+        {
+            db.Users.Add(admin);
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            DbInitializerLog.Seeded(logger, AdminEmail, bootstrap.AdminPhone ?? "-");
+            return;
+        }
+
+        // BCrypt ~250 ms. Demo foydalanuvchilar uchun bitta hash qayta
+        // ishlatiladi — ishga tushish vaqtini ikki barobar cho'zmaslik uchun.
+        var demoHash = await hasher.HashAsync(DemoPassword, ct).ConfigureAwait(false);
 
         var teacher = new User
         {
