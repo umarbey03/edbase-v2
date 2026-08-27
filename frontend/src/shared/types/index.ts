@@ -61,8 +61,6 @@ export type {
   CreateUserResponse,
   CuratorCandidateDto,
   DayOfWeekName,
-  DevQuickLoginAccount,
-  DevQuickLoginList,
   DirectMessageAttachmentDto,
   DirectMessageDto,
   DiscountKindName,

@@ -91,11 +91,10 @@ public static class ProductionSecretsGuard
         // u YAGONA kalit bo'lib, "namuna" va "haqiqiy, lekin dev bazasi"
         // ni ajratib bo'lmaydi:
         //
-        //   `DevQuickLoginProductionApiFactory` ilovani ATAYLAB
-        //   `Production` muhitida ko'taradi (quick-login darvozasini
-        //   aynan shu muhitda sinash uchun), lekin DEV bazasiga ulanadi
-        //   — uning paroli esa `zinnur_dev_only_change_me`. Ya'ni
-        //   tekshiruv o'zining xavfsizlik testini yiqitardi va bu
+        //   `Production` muhitini sinaydigan test fixture'lari ilovani
+        //   ataylab `Production` da ko'taradi, lekin DEV bazasiga
+        //   ulanadi — uning paroli esa `zinnur_dev_only_change_me`.
+        //   Ya'ni tekshiruv o'zining xavfsizlik testini yiqitardi va bu
         //   "tuzatish" uchun darvozaga umumiy o'chirgich qo'yish
         //   kerak bo'lardi — aynan shu narsadan qochilmoqda.
         //

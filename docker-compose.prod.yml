@@ -634,33 +634,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
 
-      # ---- SINOV KALITLARI: DEV STANDARTLARI SHU YERDA O'LADI ------------
-      #
-      # 🔴 NIMA UCHUN BU BLOK BOR (2026-08-22 auditi). Bazaviy faylda bu
-      # ikki kalitning standarti `:-true` edi va u yerdagi izoh "prod bu
-      # kalitni bilmaydi" deb da'vo qilardi. Bu XATO edi — overlay
-      # `environment` ni BIRLASHTIRADI (yuqoridagi Storage bloki aynan shu
-      # sababdan mavjud), ya'ni ikkalasi ham prod konfiguratsiyasiga
-      # `"true"` bo'lib tushardi:
-      #
-      #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-      #     config | grep -E 'Seed__Demo|Dev__QuickLogin'
-      #
-      # Bazaviy fayl endi `:-false` beradi, lekin bu blok ATAYLAB qoladi:
-      # kimdir standartni yana o'zgartirsa yoki serverdagi `.env` da eski
-      # `SEED_DEMO=true` qatori qolib ketsa, prod baribir himoyalangan
-      # bo'lishi kerak. "Bir joyda tuzatdim" degan ishonch — aynan shu
-      # bug'ning manbai edi.
-      #
-      # ★ ESHIK OCHIQ QOLADI, LEKIN ATAYLAB OCHILADI: yangi serverda
-      #   namunaviy ma'lumotni KO'RISH kerak bo'lsa, `.env` ga
-      #   `SEED_DEMO=true` yozish yetarli (loyiha egasining talabi —
-      #   `DemoDataSeeder` da muhit darvozasi shuning uchun yo'q).
-      #   `!reset null` qo'yilmagani ham shu sababdan: u bu yo'lni
-      #   BUTUNLAY yopib qo'yardi.
-      Seed__Demo: ${SEED_DEMO:-false}
-      Dev__QuickLogin: ${DEV_QUICK_LOGIN:-false}
-
       # ---- OBYEKT OMBORI: DEV MinIO QIYMATLARI SHU YERDA O'LADI ----------
       #
       # ⚠️ BU BLOK MAJBURIY. Compose overlay'lari `environment` ni

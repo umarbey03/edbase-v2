@@ -49,11 +49,9 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// ASP.NET muhit nomi. Odatiy — <c>Development</c>.
     ///
     /// ★ NIMA UCHUN OVERRIDE QILINADIGAN QILINDI (2026-08-14): ba'zi
-    ///   himoyalar AYNAN muhitga bog'liq va ularni boshqa yo'l bilan
-    ///   sinab bo'lmaydi. Birinchi shunday holat — sinov uchun kirish
-    ///   (`Dev__QuickLogin`): u <c>Production</c> da kalit YOQIQ bo'lsa
-    ///   ham ishlamasligi kerak, va bu shartni tekshiradigan yagona usul
-    ///   — ilovani HAQIQATAN <c>Production</c> muhitida ko'tarish.
+    ///   himoyalar AYNAN muhitga bog'liq (masalan
+    ///   `ProductionSecretsGuard`) va ularni tekshiradigan yagona usul —
+    ///   ilovani HAQIQATAN <c>Production</c> muhitida ko'tarish.
     ///
     /// ⚠️ <c>Production</c> ga o'tkazgan fixture <c>Bootstrap:AdminPhone</c>
     ///   ni HAM berishi shart: prod'da bu qiymatning standarti ATAYLAB
