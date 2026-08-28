@@ -505,7 +505,17 @@ router.beforeEach(async (to) => {
   return true
 })
 
-router.afterEach((to) => {
-  const title = to.meta.title
-  document.title = title !== undefined ? `${title} — Zin-Nur` : 'Zin-Nur'
+/*
+  Brauzer tabidagi sarlavha — DOIMIY kompaniya nomi (loyiha egasining
+  talabi, 2026-08-28). Ilgari u `${sahifa} — Zin-Nur` shaklida edi va
+  tab tor bo'lganda faqat sahifa nomi ko'rinardi ("Tizim sozla…"), ya'ni
+  kompaniya nomi eng ko'rinadigan joyda umuman o'qilmasdi.
+
+  ⚠️ `to.meta.title` OLIB TASHLANMADI: u `AppShell.vue` da ilova ichidagi
+  sarlavha uchun ishlatiladi. Bu yerda faqat brauzer sarlavhasi o'zgardi.
+*/
+const DOCUMENT_TITLE = 'Zinnur Online'
+
+router.afterEach(() => {
+  document.title = DOCUMENT_TITLE
 })
