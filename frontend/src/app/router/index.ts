@@ -51,6 +51,34 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Jonli dars' },
   },
 
+  /*
+    ════════════════════════════════════════════════════════════════════
+    SALOMLASHUV — «Nuri» o'quvchini kutib oladi (2026-08-30)
+    ════════════════════════════════════════════════════════════════════
+
+    Kirishdan keyin o'quvchi darhol bosh sahifaga tushmaydi: maskot uni
+    ismi bilan kutib oladi va gapi uning holatiga qarab o'zgaradi
+    (sabab va qoidalar — `StudentGreetingPage.vue` va
+    `features/nuri-greeting/model/greeting-message.ts` izohlarida).
+
+    ★ `AppShell` DAN HAM, `StudentShell` DAN HAM TASHQARIDA — `live-room`
+      bilan AYNI mulohaza: ekran to'liq sahnani egallaydi. Pastdagi tab
+      paneli yoki yuqoridagi appbar bu yerda faqat xalaqit berardi
+      (foydalanuvchi salomlashuvni O'QIMASDAN tabga bosib ketardi va
+      ekran o'z vazifasini bajarmasdi).
+
+    ★ `roles: STUDENT` — HIMOYANING O'ZI, bezak emas: xodim manzilni
+      qo'lda yozsa (yoki eski xatcho'pdan kirsa) qo'riqchi uni o'z bosh
+      sahifasiga qaytaradi. Ekran mazmuni butunlay o'quvchi
+      ma'lumotidan yasaladi va xodimda u yo'q.
+  */
+  {
+    path: '/salom',
+    name: 'student-greeting',
+    component: () => import('@/pages/student/StudentGreetingPage.vue'),
+    meta: { requiresAuth: true, title: 'Salom', roles: STUDENT },
+  },
+
   {
     /*
       ════════════════════════════════════════════════════════════════════

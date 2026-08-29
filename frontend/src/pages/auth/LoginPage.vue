@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { homeRouteFor } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { shouldGreetToday } from '@/features/nuri-greeting'
 import { TelegramAuthScreen } from '@/features/telegram-auth'
 import { toUserMessage } from '@/shared/api'
 import {
@@ -122,7 +123,7 @@ async function handleTelegramSuccess(user: User): Promise<void> {
     query'siga ko'chiradi — ya'ni manzil imzolangan kirish ma'lumotini
     o'z ichiga oladi. Unga qaytib borish uni URL'da yana tarqatardi.
   */
-  await router.replace({ name: homeRouteFor(user.role) })
+  await goAfterLogin(user, null)
 }
 
 /** `?redirect=` dagi ichki manzil (bo'lmasa `null`). */
@@ -134,9 +135,35 @@ function redirectTarget(): string | null {
   return null
 }
 
-/** Kirish tugagach boriladigan manzil — ikkala oqim uchun YAGONA. */
-async function goAfterLogin(user: User): Promise<void> {
-  const target = redirectTarget()
+/**
+ * Kirish tugagach boriladigan manzil — HAMMA oqim uchun YAGONA.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * ★ O'QUVCHI AVVAL «NURI» SALOMLASHUVIGA TUSHADI (2026-08-30, loyiha
+ *   egasining talabi). Ekranning o'zi va uning barcha qoidalari —
+ *   `pages/student/StudentGreetingPage.vue` da.
+ *
+ * ★ QAROR AYNAN SHU YERDA, GLOBAL QO'RIQCHIDA EMAS: salomlashuv KIRISH
+ *   marosimi, navigatsiya qoidasi emas. Qo'riqchiga qo'yilsa, chuqur
+ *   havola bo'yicha kirgan yoki sahifasini yangilagan o'quvchi ham
+ *   burib yuborilardi.
+ *
+ * ★ XODIM TEGILMAYDI: u to'g'ridan-to'g'ri ish paneliga o'tadi.
+ *
+ * ★ `redirect` YO'QOLMAYDI, `keyin=` bo'lib salomlashuvga uzatiladi va
+ *   u yerdan davom etadi. Aks holda bildirishnomadagi havola bilan
+ *   kirgan o'quvchi mo'ljalidan mahrum bo'lardi.
+ * ══════════════════════════════════════════════════════════════════════
+ */
+async function goAfterLogin(user: User, target: string | null): Promise<void> {
+  if (user.role === 'Student' && shouldGreetToday(user.id)) {
+    await router.replace({
+      name: 'student-greeting',
+      query: target !== null ? { keyin: target } : {},
+    })
+    return
+  }
+
   if (target !== null) await router.replace(target)
   else await router.replace({ name: homeRouteFor(user.role) })
 }
@@ -415,7 +442,7 @@ async function handleVerifyBot(): Promise<void> {
   try {
     const user = await auth.verifyTelegramLogin(botToken.value, botCode.value)
     clearFlow()
-    await goAfterLogin(user)
+    await goAfterLogin(user, redirectTarget())
   } catch (error) {
     errorMessage.value = toUserMessage(error)
     botCode.value = ''
@@ -535,7 +562,7 @@ async function handleVerify(): Promise<void> {
 
   try {
     const user = await auth.verifyPhoneCode(stripPhoneFormatting(phone.value), code.value.trim())
-    await goAfterLogin(user)
+    await goAfterLogin(user, redirectTarget())
   } catch (error) {
     errorMessage.value = toUserMessage(error)
     code.value = ''
