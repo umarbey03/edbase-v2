@@ -54,6 +54,17 @@ public static class TelegramTemplates
     public const string LoginCode = "auth_login_code";
 
     /// <summary>
+    /// Bot orqali kirish havolasi eskirgan (2026-08-28).
+    ///
+    /// ★ NIMA UCHUN ALOHIDA KALIT, <see cref="Help"/> YETARLI EMAS:
+    /// foydalanuvchi AYNAN kirishga urinyapti va unga aytiladigan yagona
+    /// foydali gap — "saytga qaytib tugmani qayta bosing". Umumiy yordam
+    /// matni uni bot ichida yechim izlashga majbur qilardi (yechim esa
+    /// bot ichida yo'q).
+    /// </summary>
+    public const string LoginLinkExpired = "auth_login_link_expired";
+
+    /// <summary>
     /// ⚠️ ESKI KALIT — 2026-08-17 dan BOSHLAB ISHLATILMAYDI.
     ///
     /// Telefon almashtirishning o'zi (o'z profilini o'zi tahrirlash bilan
@@ -214,6 +225,13 @@ public static class TelegramTemplates
         // ketib, u boshlagan oqimni tashlab ketishga majbur qilardi.
         LoginCode => TelegramMarkup.None,
 
+        // 🔴 ESKIRGAN HAVOLA — TUGMASIZ, VA BU HAM ATAYLAB. Yechim
+        // BRAUZERDA (saytga qaytib tugmani qayta bosish), ya'ni
+        // «Ilovani ochish» tugmasi odamni yana boshqa tomonga olib
+        // ketardi. «Raqamni ulashish» ham noto'g'ri bo'lardi: raqam
+        // bilan bog'liq muammo yo'q, chipta shunchaki eskirgan.
+        LoginLinkExpired => TelegramMarkup.None,
+
         AvailabilityAsk or AvailabilitySessions or AvailabilityDays or SubstituteOfferAsk =>
             TelegramMarkup.InlineButtons,
 
@@ -310,6 +328,21 @@ public static class TelegramTemplates
         + "⚠️ Bu kodni <b>hech kimga aytmang</b>. ZIN-NUR xodimlari uni "
         + "hech qachon so'ramaydi. Agar kirishga urinmagan bo'lsangiz — "
         + "xabarni e'tiborsiz qoldiring va o'quv bo'limiga bildiring.";
+
+    /// <summary>
+    /// Bot orqali kirish havolasi eskirgan yoki allaqachon ishlatilgan.
+    ///
+    /// ★ MATN «QAYTA URINING» DEMAYDI, «SAYTGA QAYTING» DEYDI: chipta
+    /// BRAUZERDA yasaladi va botdagi hech qanday harakat uni tiriltira
+    /// olmaydi. "Qayta urining" degan umumiy maslahat foydalanuvchini
+    /// botda <c>/start</c> ni qayta-qayta bosishga majbur qilardi —
+    /// natijasi esa har safar AYNI xabar bo'lardi.
+    /// </summary>
+    public static string LoginLinkExpiredText() =>
+        "⌛️ <b>Havola eskirgan</b>\n\n"
+        + "Xavfsizlik uchun kirish havolasi 15 daqiqa amal qiladi.\n\n"
+        + "Saytga qayting va <b>«Telegram orqali kirish»</b> tugmasini "
+        + "qaytadan bosing — bu bir necha soniya vaqt oladi.";
 
     /// <summary>
     /// ⚠️ ESKI MATN — 2026-08-17 dan boshlab HECH QAYERDAN chaqirilmaydi

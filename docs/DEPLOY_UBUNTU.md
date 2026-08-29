@@ -1450,7 +1450,28 @@ Telegram botiga tayanadi**:
 | Eshik | Kim ishlatadi | Nimaga tayanadi |
 |---|---|---|
 | Mini App (`initData` imzosi) | o'quvchi, telefonda | bot tokeni |
-| Telefon + bir martalik kod | **hamma**, istalgan brauzerda | bot tokeni |
+| **Bot havolasi + kod** (2026-08-28, asosiy) | **hamma**, istalgan brauzerda | bot tokeni + **bot nomi** |
+| Telefon + bir martalik kod (zaxira) | **hamma**, istalgan brauzerda | bot tokeni |
+
+#### 🔴 `telegram.bot_username` — YANGI MAJBURIY SOZLAMA (2026-08-28)
+
+Saytdagi **«Telegram orqali kirish»** tugmasi bot havolasini
+(`https://t.me/<nom>?start=<chipta>`) **serverdan** oladi. Nom bo'sh
+bo'lsa `POST /api/v1/auth/telegram/start` **503** qaytaradi va tugma
+ishlamaydi — foydalanuvchi zaxira («Telefon raqami bilan kirish»)
+yo'liga tushadi.
+
+To'ldirish: **Sozlamalar → Telegram → Bot foydalanuvchi nomi**
+(`@` siz, masalan `zinnur_bot`).
+
+> ⚠️ Bu **maxfiy emas**: bot nomi Telegram qidiruvida ham topiladi.
+> Lekin u **noto'g'ri** bo'lsa hech qanday xato ko'rinmaydi — Telegram
+> shunchaki "bunday foydalanuvchi yo'q" deydi. Nomni o'zgartirgandan
+> keyin havolani bir marta o'zingiz bosib tekshiring.
+
+> ★ Frontenddagi `VITE_TELEGRAM_BOT_USERNAME` — **boshqa narsa** va
+> kirish oqimiga ta'sir qilmaydi. U faqat landing sahifadagi «Telegram
+> bot» havolasi va Mini App'dagi "botga qaytish" tugmasi uchun.
 
 **Operator uchun bu nimani anglatadi:** bot tokeni buzilsa — **hech kim,
 hech qayerdan kira olmaydi.** Bu holat uchun ikkita mexanizm qurilgan;

@@ -69,11 +69,13 @@ const avatarUrl = useAvatar(
           rangda chizilardi. Endi butun so'z aksent tokenida — `AppSidebar`
           va `StudentAppBar` bilan AYNAN bir xil.
 
-          ★ Matn O'ZGARMADI — "Zin-Nur" aynan shundayligicha qoladi, faqat
-          ikkiga bo'lingan `<span>` bitta rangli qatlamga yig'ildi.
+          ★ 2026-08-29: yozilish "Zin-Nur" dan "ZIN-NUR" ga o'tdi. Brend
+          nomi HAR DOIM katta harflar bilan yoziladi (loyiha egasining
+          qoidasi) — ilgari ilova ichida ikki xil edi: `StudentAppBar`
+          "ZIN-NUR", qolgan hamma joy "Zin-Nur".
         -->
         <p class="truncate text-lg font-bold tracking-tight text-brand-500">
-          Zin-Nur
+          ZIN-NUR
         </p>
         <p class="mt-0.5 truncate text-[10px] font-bold uppercase tracking-[1.5px] text-dim">
           Talaba

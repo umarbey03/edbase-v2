@@ -289,6 +289,15 @@ public interface IApplicationDbContext
     /// <summary>Jarima tariflari katalogi — sozlamalardan boshqariladi.</summary>
     DbSet<PenaltyCategory> PenaltyCategories { get; }
 
+    /// <summary>
+    /// Landing sahifadan kelgan kursga arizalar (2026-08-28).
+    ///
+    /// 🔴 BU HISOB EMAS: yozuv <see cref="Users"/> ga UMUMAN tegmaydi va
+    /// hech qanday kirish huquqi bermaydi — sabab
+    /// <see cref="EnrollmentApplication"/> izohida.
+    /// </summary>
+    DbSet<EnrollmentApplication> EnrollmentApplications { get; }
+
     /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);

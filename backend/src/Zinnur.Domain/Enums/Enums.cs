@@ -417,3 +417,30 @@ public enum SubstituteOfferStatus
     /// <summary>Boshqa nomzod allaqachon rozi bo'lgani uchun bekor qilindi.</summary>
     Withdrawn = 3,
 }
+
+/// <summary>
+/// <see cref="Zinnur.Domain.Entities.EnrollmentApplication"/> ning ish holati
+/// (2026-08-28).
+///
+/// 🔴 TARTIB MUHIM: bazaga <c>int</c> sifatida yoziladi. Yangi qiymat FAQAT
+/// oxiriga qo'shiladi — o'rtaga qo'yilsa eski qatorlarning MA'NOSI
+/// o'zgarib ketardi.
+///
+/// ★ "O'CHIRILDI" HOLATI YO'Q VA BO'LMAYDI: ariza o'chirilmaydi (sabab
+/// entity izohida — konversiya o'lchovi). <see cref="Rejected"/> uning
+/// o'rnini bosadi.
+/// </summary>
+public enum EnrollmentApplicationStatus
+{
+    /// <summary>Yangi — hali hech kim ko'rmagan.</summary>
+    New = 0,
+
+    /// <summary>Bog'lanildi, javob kutilyapti.</summary>
+    Contacted = 1,
+
+    /// <summary>Guruhga qabul qilindi (ariza o'quvchiga aylandi).</summary>
+    Enrolled = 2,
+
+    /// <summary>Rad etildi yoki o'zi voz kechdi.</summary>
+    Rejected = 3,
+}

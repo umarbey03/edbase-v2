@@ -15,7 +15,10 @@ namespace Zinnur.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/auth")]
 [Produces("application/json")]
-public sealed class AuthController(IAuthService auth, IPhoneLoginService phone) : ControllerBase
+public sealed class AuthController(
+    IAuthService auth,
+    IPhoneLoginService phone,
+    ITelegramLoginService telegramLogin) : ControllerBase
 {
     /// <summary>
     /// Kod topishga (brute force) qarshi rate-limit siyosatining nomi.
@@ -56,6 +59,20 @@ public sealed class AuthController(IAuthService auth, IPhoneLoginService phone) 
     /// </summary>
     public const string RefreshRateLimitPolicy = "auth-refresh";
 
+    /// <summary>
+    /// Chipta holatini SO'RAB TURISH uchun alohida siyosat (2026-08-28).
+    ///
+    /// ★ NIMA UCHUN KIRISH SIYOSATI TO'G'RI KELMAYDI: bu endpoint
+    /// so'rov emas, KUTISH usuli — brauzer uni bir necha soniyada bir
+    /// chaqiradi. 20/daqiqalik budjet bilan foydalanuvchi botni ochib
+    /// ulgurmasidan 429 olardi.
+    ///
+    /// 🔴 KENG BUDJET XAVFSIZ, CHUNKI ENDPOINT SIR OCHMAYDI: 128 bitlik
+    /// chiptasiz u faqat "yo'q" deydi. Batafsil — `Program.cs` dagi
+    /// `authPollPermitLimit` izohi.
+    /// </summary>
+    public const string PollRateLimitPolicy = "auth-poll";
+
     // ================================================================ telefon
     //
     // ⚠️ `POST /api/v1/auth/login` (email + parol) OLIB TASHLANDI —
@@ -69,12 +86,23 @@ public sealed class AuthController(IAuthService auth, IPhoneLoginService phone) 
     /// Tana: <c>{ "phone": "+998901234567" }</c> — xom ko'rinish ham
     /// bo'ladi, normalizatsiya serverda.
     ///
-    /// 🔴 JAVOB HAR DOIM 200 VA HAR DOIM BIR XIL — raqam bazada bor yoki
-    /// yo'qligidan qat'i nazar. Bu ATAYLAB: aks holda endpoint "bu raqam
-    /// markazda bormi?" degan savolga javob beradigan qidiruv vositasiga
-    /// aylanardi (hisob sanash). Klient hech qachon "bunday raqam yo'q"
-    /// xabarini KO'RSATMASLIGI kerak — server uni bermaydi ham.
+    /// 🔴 JAVOB SABABNI OCHIQ AYTADI (2026-08-29 dan) — ILGARI AYTMASDI.
     ///
+    /// Ilgari javob har doim 200 va har doim bir xil edi: maqsad —
+    /// endpoint "bu raqam markazda bormi?" degan savolga javob beradigan
+    /// qidiruv vositasiga aylanmasin (hisob sanash).
+    ///
+    /// Loyiha egasi 2026-08-29 da ayirboshlash tushuntirilgandan keyin
+    /// ochiq xabarni talab qildi: o'quvchi "kod kelmadi" deb kutardi va
+    /// sababni bilmasdi, bot esa AYNI holatda allaqachon ochiq aytardi.
+    ///
+    /// ★ HISOB SANASHGA QARSHI HIMOYA SAQLANDI, LEKIN ENDI YAGONA:
+    ///   raqam bo'yicha kvota profil qidiruvidan OLDIN ishlaydi
+    ///   (`PhoneLoginService.RequestCodeAsync`). Har raqamni tekshirish
+    ///   uchun bir daqiqa kerak — ro'yxatni skanerlash amalda imkonsiz.
+    ///
+    /// <c>400</c> — raqam ro'yxatda yo'q · profil faol emas ·
+    /// Telegram bog'lanmagan (sabab `errors.phone` da) ·
     /// <c>429</c> — kvota (`Retry-After` sarlavhasi bilan) ·
     /// <c>503</c> — Telegram sozlanmagan, kod yuboradigan kanal yo'q.
     /// </summary>
@@ -82,6 +110,7 @@ public sealed class AuthController(IAuthService auth, IPhoneLoginService phone) 
     [AllowAnonymous]
     [EnableRateLimiting(LoginRateLimitPolicy)]
     [ProducesResponseType<PhoneCodeResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<PhoneCodeResponse>> RequestPhoneCode(
@@ -110,6 +139,71 @@ public sealed class AuthController(IAuthService auth, IPhoneLoginService phone) 
     public async Task<ActionResult<AuthResponse>> VerifyPhoneCode(
         [FromBody] PhoneVerifyRequest request, CancellationToken ct) =>
         Ok(await phone.VerifyAsync(request, ct));
+
+    // ================================================================ bot
+    //
+    // BOT ORQALI KIRISH — DEEP-LINK OQIMI (2026-08-28).
+    //
+    // Uch qadam: `start` -> (bot) -> `status` -> `verify`. Tahdid tahlili
+    // va nima uchun kod baribir so'ralishi — `ITelegramLoginService`
+    // izohida.
+    //
+    // ⚠️ TELEFON OQIMI (yuqorida) OLIB TASHLANMADI — u ZAXIRA yo'l
+    //    bo'lib qoladi: bot bloklangan, havola ochilmagan yoki Telegram
+    //    boshqa qurilmada bo'lgan holatlar bor.
+
+    /// <summary>
+    /// 1-QADAM: bir martalik chipta ochadi va bot havolasini qaytaradi.
+    ///
+    /// Tanasi YO'Q — foydalanuvchidan hech narsa so'ralmaydi.
+    ///
+    /// <c>503</c> — bot tokeni yoki bot nomi sozlanmagan.
+    /// </summary>
+    [HttpPost("telegram/start")]
+    [AllowAnonymous]
+    [EnableRateLimiting(LoginRateLimitPolicy)]
+    [ProducesResponseType<TelegramLoginStartResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<TelegramLoginStartResponse>> StartTelegramLogin(
+        CancellationToken ct) =>
+        Ok(await telegramLogin.StartAsync(ct));
+
+    /// <summary>
+    /// 2-QADAM: chipta holati. Brauzer buni bir necha soniyada bir so'raydi.
+    ///
+    /// 🔴 HAR DOIM 200 — noma'lum yoki eskirgan chipta ham
+    /// <c>"yoq"</c> holati bilan qaytadi. Sabab
+    /// <see cref="ITelegramLoginService.StatusAsync"/> izohida.
+    /// </summary>
+    [HttpGet("telegram/status")]
+    [AllowAnonymous]
+    [EnableRateLimiting(PollRateLimitPolicy)]
+    [ProducesResponseType<TelegramLoginStatusResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<TelegramLoginStatusResponse>> TelegramLoginStatus(
+        [FromQuery] string? token, CancellationToken ct) =>
+        Ok(await telegramLogin.StatusAsync(token, ct));
+
+    /// <summary>
+    /// 3-QADAM: bot yuborgan kodni tasdiqlash va sessiya ochish.
+    ///
+    /// Tana: <c>{ "token": "...", "code": "123456" }</c>.
+    /// Javob — mavjud <see cref="AuthResponse"/> bilan AYNAN bir xil.
+    ///
+    /// <c>401</c> — kod xato yoki chipta muddati o'tgan ·
+    /// <c>403</c> — profil faol emas · <c>429</c> — urinishlar tugadi.
+    /// </summary>
+    [HttpPost("telegram/verify")]
+    [AllowAnonymous]
+    [EnableRateLimiting(LoginRateLimitPolicy)]
+    [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<AuthResponse>> VerifyTelegramLogin(
+        [FromBody] TelegramLoginVerifyRequest request, CancellationToken ct) =>
+        Ok(await telegramLogin.VerifyAsync(request, ct));
 
     /// <summary>Kirish tokenini yangilash.</summary>
     [HttpPost("refresh")]

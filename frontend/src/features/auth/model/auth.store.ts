@@ -3,14 +3,22 @@ import { computed, ref, shallowRef } from 'vue'
 
 import {
   fetchMe,
+  fetchTelegramLoginStatus,
   loginWithTelegram as telegramLoginRequest,
   logout as logoutRequest,
   requestPhoneCode as requestPhoneCodeRequest,
+  startTelegramLogin as startTelegramLoginRequest,
   verifyPhoneCode as verifyPhoneCodeRequest,
+  verifyTelegramLogin as verifyTelegramLoginRequest,
 } from '@/entities/user'
 import type { User } from '@/entities/user'
 import { clearTokens, getRefreshToken, onAuthExpired, refreshAccessToken, setTokens } from '@/shared/api'
-import type { AuthResponse, PhoneCodeResponse } from '@/shared/types'
+import type {
+  AuthResponse,
+  PhoneCodeResponse,
+  TelegramLoginStartResponse,
+  TelegramLoginStatusResponse,
+} from '@/shared/types'
 
 /**
  * Autentifikatsiya store'i.
@@ -69,6 +77,35 @@ export const useAuthStore = defineStore('auth', () => {
   /** 2-BOSQICH: kodni tasdiqlash — SESSIYA aynan shu yerda ochiladi. */
   async function verifyPhoneCode(phone: string, code: string): Promise<User> {
     return applySession(await verifyPhoneCodeRequest({ phone, code }))
+  }
+
+  /*
+    ══════════════════════════════════════════════════════════════════════
+    BOT ORQALI KIRISH — DEEP-LINK OQIMI (2026-08-28)
+
+    Uch qadam va ularning ORASIDA HOLAT SAQLANMAYDI (store'da `ref` yo'q):
+    chipta sahifaning O'ZIDA, `sessionStorage` da yashaydi. Sabab —
+    oqim BITTA ekranga tegishli va uni store'ga ko'chirish "kirish
+    sahifasidan chiqib ketilganda kim tozalaydi?" degan savolni tug'dirardi.
+    ══════════════════════════════════════════════════════════════════════
+  */
+
+  /** 1-BOSQICH: chipta ochish va bot havolasini olish. Sessiya OCHILMAYDI. */
+  async function startTelegramLogin(): Promise<TelegramLoginStartResponse> {
+    return startTelegramLoginRequest()
+  }
+
+  /** 2-BOSQICH: chipta holatini so'rash. Sessiya OCHILMAYDI. */
+  async function telegramLoginStatus(
+    token: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<TelegramLoginStatusResponse> {
+    return fetchTelegramLoginStatus(token, options)
+  }
+
+  /** 3-BOSQICH: kodni tasdiqlash — SESSIYA aynan shu yerda ochiladi. */
+  async function verifyTelegramLogin(token: string, code: string): Promise<User> {
+    return applySession(await verifyTelegramLoginRequest({ token, code }))
   }
 
   /**
@@ -136,6 +173,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     reloadProfile,
     requestPhoneCode,
+    startTelegramLogin,
+    telegramLoginStatus,
     verifyPhoneCode,
+    verifyTelegramLogin,
   }
 })

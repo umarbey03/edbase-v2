@@ -61,6 +61,80 @@ export interface PhoneVerifyRequest {
   code: string
 }
 
+/*
+  ══════════════════════════════════════════════════════════════════════════
+  BOT ORQALI KIRISH — DEEP-LINK OQIMI (2026-08-28)
+
+  Uch qadam: `start` -> (foydalanuvchi botni ochadi) -> `status` -> `verify`.
+  Foydalanuvchi saytga HECH NARSA yozmaydi — telefon raqami ham so'ralmaydi,
+  chunki uni Telegram akkauntning O'ZI aniqlaydi.
+
+  🔴 NIMA UCHUN KOD BARIBIR SO'RALADI: deep-link havolasini hujumchi o'zi
+  yasab, qurbonga yuborishi mumkin. Kod QURBONNING Telegramiga boradi,
+  ya'ni uni saytga kiritadigan odam BRAUZER egasi bo'lishi shart. Batafsil
+  tahlil — backenddagi `ITelegramLoginService` izohida.
+  ══════════════════════════════════════════════════════════════════════════
+*/
+
+/** `POST /api/v1/auth/telegram/start` javobi. */
+export interface TelegramLoginStartResponse {
+  /**
+   * Bir martalik chipta identifikatori.
+   *
+   * 🔴 BU SESSIYA TOKENI EMAS — u faqat "boshlangan kirish urinishi" ni
+   * nomlaydi va u bilan hech qanday himoyalangan ma'lumot ochilmaydi.
+   * `sessionStorage` da saqlanadi: sahifa yangilansa oqim davom etsin,
+   * lekin brauzer yopilgach iz qolmasin.
+   */
+  token: string
+  /**
+   * Botning to'liq deep-link havolasi.
+   *
+   * ★ FRONTEND UNI O'ZI YASAMAYDI: bot nomi ish jarayonida sozlamadan
+   * o'zgaradi va mijozdagi nusxa jimgina eskirib qolardi (havola
+   * MAVJUD BO'LMAGAN botga olib borardi).
+   */
+  link: string
+  /** Chipta necha sekund yaroqli (taymer uchun). */
+  expiresInSeconds: number
+}
+
+/**
+ * Chipta holatining nomlari — backenddagi `TelegramLoginStatuses` bilan
+ * AYNAN mos.
+ */
+export type TelegramLoginStatusName =
+  /** Chipta ochildi, botga hali `/start` kelmadi. */
+  | 'kutilmoqda'
+  /** Bot ochildi, lekin Telegram akkaunt profilga bog'lanmagan. */
+  | 'raqam-kerak'
+  /** Kod yuborildi — endi uni saytga kiritish kerak. */
+  | 'kod'
+  /** Profil topildi, lekin faol emas. */
+  | 'nofaol'
+  /** Chipta yo'q yoki muddati o'tgan. */
+  | 'yoq'
+
+/** `GET /api/v1/auth/telegram/status` javobi. */
+export interface TelegramLoginStatusResponse {
+  status: TelegramLoginStatusName
+  /**
+   * Foydalanuvchiga ko'rsatiladigan bir qatorli izoh.
+   *
+   * ★ MATN SERVERDAN KELADI: holat qo'shilganda mijozdagi `switch`
+   * jimgina eskirib qolardi va foydalanuvchi bo'sh ekran ko'rardi.
+   */
+  hint: string
+  /** Chipta muddati tugashiga qancha qolgani. `0` — tugagan yoki yo'q. */
+  expiresInSeconds: number
+}
+
+/** `POST /api/v1/auth/telegram/verify` tanasi. */
+export interface TelegramLoginVerifyRequest {
+  token: string
+  code: string
+}
+
 /**
  * `POST /api/v1/auth/refresh` tanasi.
  * SPEC'da alohida DTO ko'rsatilmagan (5-bo'limda faqat javob turi bor) —
@@ -68,6 +142,68 @@ export interface PhoneVerifyRequest {
  */
 export interface RefreshRequest {
   refreshToken: string
+}
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+  KURSGA ARIZA (2026-08-28)
+
+  Landing sahifadagi forma. 🔴 ARIZA HISOB YARATMAYDI — u faqat "biz bilan
+  bog'laning" so'rovi. Hisobni hamon FAQAT o'quv bo'limi ochadi (botning
+  "akkaunt yaratmaydi" qoidasi bilan AYNI mulohaza).
+  ══════════════════════════════════════════════════════════════════════════
+*/
+
+/** Arizaning ish holati. */
+export type EnrollmentApplicationStatusName =
+  /** Yangi — hali hech kim ko'rmagan. */
+  | 'New'
+  /** Bog'lanildi — javob kutilyapti. */
+  | 'Contacted'
+  /** Guruhga qabul qilindi. */
+  | 'Enrolled'
+  /** Rad etildi yoki o'zi voz kechdi. */
+  | 'Rejected'
+
+/** `POST /api/v1/applications` tanasi — ANONIM. */
+export interface CreateEnrollmentApplicationRequest {
+  fullName: string
+  /** Xom ko'rinish ham bo'ladi — normalizatsiya SERVERDA. */
+  phone: string
+  /** Qiziqtirgan yo'nalish (ixtiyoriy). */
+  course?: string | null
+  /** Qo'shimcha izoh (ixtiyoriy). */
+  note?: string | null
+}
+
+/** Arizaning boshqaruv panelidagi ko'rinishi. */
+export interface EnrollmentApplicationDto {
+  id: number
+  fullName: string
+  phone: string
+  course: string | null
+  note: string | null
+  status: EnrollmentApplicationStatusName
+  createdAt: string
+  /** Kim va qachon ishlagani. `null` — hali hech kim tegmagan. */
+  handledAt: string | null
+  handledByName: string | null
+  /** Operatorning izohi (qo'ng'iroq natijasi). */
+  comment: string | null
+}
+
+/** Arizalar ro'yxatining filtri. */
+export interface EnrollmentApplicationListParams {
+  status?: EnrollmentApplicationStatusName | null
+  search?: string | null
+  page?: number
+  pageSize?: number
+}
+
+/** `PUT /api/v1/applications/{id}` tanasi. */
+export interface UpdateEnrollmentApplicationRequest {
+  status: EnrollmentApplicationStatusName
+  comment?: string | null
 }
 
 /**

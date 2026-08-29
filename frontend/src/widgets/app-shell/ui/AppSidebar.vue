@@ -138,11 +138,11 @@ const panelLabel = computed(() =>
           (`slate-100`), "-Nur" esa `text-brand-500` edi: bitta so'z ikki xil
           rangda chizilardi. Endi butun so'z aksent tokenida.
 
-          ★ Matn O'ZGARMADI — "Zin-Nur" aynan shundayligicha qoladi, faqat
+          ★ Matn O'ZGARMADI — "ZIN-NUR" aynan shundayligicha qoladi, faqat
           ikkiga bo'lingan `<span>` bitta rangli qatlamga yig'ildi.
         -->
         <p class="truncate text-lg font-bold tracking-tight text-brand-500">
-          Zin-Nur
+          ZIN-NUR
         </p>
         <!--
           Logo ostida ROL yoziladi — eski panellarda ham shunday edi

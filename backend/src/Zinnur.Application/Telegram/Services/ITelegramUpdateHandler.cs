@@ -103,4 +103,27 @@ public enum TelegramUpdateOutcome
     /// jurnalda son sifatida saqlanadi.
     /// </summary>
     AbsenceReplyHandled = 16,
+
+    /*
+      ═══════════════════════════════════════════════════════════════════
+      BOT ORQALI KIRISH (2026-08-28) — `/start <chipta>` shoxlari.
+
+      ★ QIYMATLAR FAQAT OXIRIGA QO'SHILADI: enum jurnalda va webhook
+        javobida SON sifatida saqlanadi, ya'ni o'rtaga yangi qiymat
+        qo'yilsa eski yozuvlarning MA'NOSI o'zgarib ketardi.
+      ═══════════════════════════════════════════════════════════════════
+    */
+
+    /// <summary>Chipta tanildi, kirish kodi navbatga qo'yildi.</summary>
+    LoginCodeSent = 17,
+
+    /// <summary>
+    /// Chipta tanildi, lekin bu Telegram akkaunt hech qaysi profilga
+    /// bog'lanmagan — raqam so'raldi. Oqim TO'XTAMAYDI: raqam ulangach
+    /// kod avtomatik yuboriladi.
+    /// </summary>
+    LoginContactNeeded = 18,
+
+    /// <summary>Chipta yo'q yoki muddati o'tgan — saytdan qayta boshlash kerak.</summary>
+    LoginLinkExpired = 19,
 }

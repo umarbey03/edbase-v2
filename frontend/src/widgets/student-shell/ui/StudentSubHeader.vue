@@ -55,8 +55,14 @@ defineProps<{ title: string; subtitle?: string }>()
       />
     </RouterLink>
     <div class="min-w-0">
+      <!--
+        2026-08-29: serif sarlavha (`font-display`).
+        🔴 `font-extrabold` (800) DAN `font-semibold` (600) GA TUSHIRILDI —
+        Newsreader faqat 600 da yuklanadi, boshqa vazn so'ralsa brauzer uni
+        sun'iy qalinlashtiradi. Batafsil: `style.css` dagi `@font-face`.
+      -->
       <h1
-        class="truncate text-[17px] font-extrabold leading-tight lg:text-[26px] lg:tracking-[-0.4px]"
+        class="truncate font-display text-[19px] font-semibold leading-tight lg:text-[28px] lg:tracking-[-0.4px]"
         v-text="title"
       />
       <p

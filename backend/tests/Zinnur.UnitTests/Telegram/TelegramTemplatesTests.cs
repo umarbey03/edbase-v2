@@ -97,6 +97,7 @@ public class TelegramTemplatesTests
             TelegramTemplates.ContactInactiveText(),
             TelegramTemplates.HelpText(),
             TelegramTemplates.LoginCodeText("123456", TimeSpan.FromMinutes(5)),
+            TelegramTemplates.LoginLinkExpiredText(),
         ];
 
         foreach (var text in texts)
@@ -124,6 +125,7 @@ public class TelegramTemplatesTests
             TelegramTemplates.ContactInactive,
             TelegramTemplates.Help,
             TelegramTemplates.LoginCode,
+            TelegramTemplates.LoginLinkExpired,
         ];
 
         foreach (var key in keys)

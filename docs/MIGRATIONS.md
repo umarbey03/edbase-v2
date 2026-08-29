@@ -79,6 +79,31 @@ uchun uni bir necha marta ishga tushirish xavfsiz.
 
 ---
 
+## ⚠️ Qo'lda yozilgan migratsiya — `20260828120000_AddEnrollmentApplications`
+
+Bu **yagona** migratsiya `dotnet ef migrations add` bilan emas, qo'lda
+yozilgan: kod yozilgan mashinada .NET SDK ham, ishlayotgan Docker daemon
+ham yo'q edi. Uchala fayl ham to'ldirilgan:
+
+- `20260828120000_AddEnrollmentApplications.cs` — `Up`/`Down`;
+- `...Designer.cs` — `[Migration]` atributi va model kesimi;
+- `ApplicationDbContextModelSnapshot.cs` — yangi entity va uning
+  bog'lanishi qo'shildi.
+
+**Keyingi migratsiyani yaratishdan oldin buni bir marta tekshiring:**
+
+```bash
+# Yuqoridagi "Yangi migratsiya qo'shish" buyrug'i bilan
+dotnet ef migrations add Tekshiruv
+```
+
+Natijadagi `Up`/`Down` **bo'sh** bo'lsa — kesim to'g'ri, tekshiruv
+migratsiyasini `migrations remove` bilan o'chiring. Bo'sh bo'lmasa —
+farqni `AddEnrollmentApplications` ga ko'chiring va kesimni qaytadan
+yarating.
+
+---
+
 ## Qo'llash
 
 ### Lokal / dev

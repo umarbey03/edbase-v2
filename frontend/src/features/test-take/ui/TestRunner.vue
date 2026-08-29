@@ -165,10 +165,12 @@ function confirmSubmit(): void {
         </div>
       </div>
 
-      <!-- Jarayon chizig'i: raqamdan ko'ra tezroq o'qiladi. -->
+      <!-- Jarayon chizig'i: raqamdan ko'ra tezroq o'qiladi.
+           2026-08-29: `bg-brand-vivid` — yorqin yashil, `StudentLearnPage`
+           dagi kurs chizig'i bilan AYNI qoida (izoh o'sha yerda). -->
       <div class="mt-2 h-1 overflow-hidden rounded-full bg-ink-800">
         <div
-          class="h-full rounded-full bg-brand-500 transition-[width] duration-200"
+          class="h-full rounded-full bg-brand-vivid transition-[width] duration-200"
           :style="{ width: `${questions.length === 0 ? 0 : (answered / questions.length) * 100}%` }"
         />
       </div>
