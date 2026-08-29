@@ -2,6 +2,14 @@
 /*
   Eski dizayndagi `h1` (22px/700) + `.sub` (13px, muted) juftligi.
   Telefonda sarlavha 18px — 390px kengliqda ikki qatorga bo'linmasin.
+
+  ── 2026-08-29: SARLAVHA SERIF SHRIFTGA O'TDI (`font-display`) ──
+
+  🔴 `font-bold` (700) EMAS, `font-semibold` (600) — VA BU MAJBURIY.
+  Newsreader faqat 600 vaznda yuklanadi (sabab `style.css` dagi
+  `@font-face` izohida: o'zgaruvchi fayl 5.6 barobar og'ir). 700
+  so'ralsa brauzer harflarni SUN'IY qalinlashtiradi va serif shriftda
+  bu ayniqsa xunuk chiqadi.
 */
 withDefaults(defineProps<{ title: string; subtitle?: string }>(), { subtitle: '' })
 </script>
@@ -10,7 +18,7 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), { subtitle: ''
   <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
     <div class="min-w-0">
       <h1
-        class="text-lg font-bold tracking-tight sm:text-[22px]"
+        class="font-display text-xl font-semibold tracking-tight sm:text-[25px]"
         v-text="title"
       />
       <p

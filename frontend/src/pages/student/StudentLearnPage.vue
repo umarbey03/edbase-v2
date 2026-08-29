@@ -242,10 +242,17 @@ function plannedCount(lessons: CourseLessonDto[]): number {
           <p class="mt-1 text-[12.5px] text-slate-400">
             {{ course.completedCount.value }} / {{ course.plannedCount.value }} dars tugatilgan
           </p>
-          <!-- Jarayon chizig'i yo'li: `bg-white/10` oq sirtda ko'rinmaydi. -->
+          <!--
+            Jarayon chizig'i yo'li: `bg-white/10` oq sirtda ko'rinmaydi.
+
+            2026-08-29: to'ldirish `bg-brand-500` DAN `bg-brand-vivid` GA.
+            Yorqin yashil (#00a36c) — sahifadagi yagona "nur" nuqtasi.
+            U KATTA YUZA rangi; mayda matnda ishlatilmaydi (oq ustida
+            atigi 3.25:1), lekin chiziq va diagrammada aynan shu kerak.
+          -->
           <div class="mt-2 h-[5px] overflow-hidden rounded-sm bg-ink-750">
             <span
-              class="block h-full rounded-sm bg-brand-500 transition-[width] duration-500"
+              class="block h-full rounded-sm bg-brand-vivid transition-[width] duration-500"
               :style="{ width: `${course.progressPercent.value}%` }"
             />
           </div>

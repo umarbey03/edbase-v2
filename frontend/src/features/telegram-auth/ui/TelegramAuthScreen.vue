@@ -209,18 +209,30 @@ function handleClose(): void {
         ko'rinadi. `LoginPage` dagi ayni o'lchamdagi plita bilan bir xil
         qiymat: ikkalasi ham kirish oqimida, ketma-ket ko'rinadi.
       -->
-      <div
-        class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-500 text-lg font-bold text-on-brand"
-      >
-        Z
-      </div>
       <!--
-        R19 — brend nomi BITTA rangda ("Zin" tanadan meros olgan
-        `slate-50` va "-Nur" ning aksenti o'rniga butun so'z aksentda).
-        ★ Matn O'ZGARMADI.
+        HAQIQIY BREND LOGOSI (2026-08-29) — `LoginPage` bilan AYNI.
+        Ikkala ekran ham kirish oqimida, ketma-ket ko'rinadi, shuning
+        uchun ular bir xil bo'lishi SHART.
       -->
-      <h1 class="mt-4 text-2xl font-bold tracking-tight text-brand-500">
-        Zin-Nur
+      <img
+        class="mx-auto size-14 rounded-full"
+        src="/logo-64.png"
+        alt="ZIN-NUR ONLINE logosi"
+        width="56"
+        height="56"
+      >
+      <!--
+        SO'Z BELGISI — ikki qator, ikkalasi bir xil. Sabab va qoidalar
+        `LoginPage` dagi ayni blokda izohlangan; bu ikki ekran kirish
+        oqimida ketma-ket ko'rinadi va AYNI bo'lishi shart.
+      -->
+      <h1 class="mt-4 flex h-14 flex-col items-center justify-center">
+        <span class="font-display text-[26px] font-semibold leading-[28px] tracking-tight text-brand-500">
+          ZIN-NUR
+        </span>
+        <span class="font-display text-[26px] font-semibold leading-[28px] tracking-tight text-brand-500">
+          ONLINE
+        </span>
       </h1>
 
       <!-- YUKLANISH: oq ekran emas, nima bo'layotgani yozilgan. -->

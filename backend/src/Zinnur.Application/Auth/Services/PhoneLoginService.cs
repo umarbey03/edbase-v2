@@ -62,11 +62,24 @@ public sealed class PhoneLoginService(
 
         if (normalized is null)
         {
-            // Raqamsiz matn ("qwerty") — kvota kalitlarini ham bekorga
-            // yaratmaymiz. Javob baribir AYNI: klient "kod yuborildi"
-            // ekranini ko'radi. Bu oshkorlik emas — matnda raqam yo'qligi
-            // klientning O'ZIGA ham ko'rinib turibdi.
-            return Response;
+            // Raqamsiz yoki noto'g'ri shakldagi matn ("qwerty").
+            //
+            // ⚠️ 2026-08-29 GACHA BU YERDA JIMGINA `Response` QAYTARDI —
+            // ya'ni foydalanuvchi "qwerty" yozib "kod yuborildi" ekranini
+            // ko'rardi va kod kutib o'tirardi. O'sha paytda bu izchil edi
+            // (hamma shox jim edi), endi esa emas: qolgan uchala shox
+            // sababni ochiq aytadi.
+            //
+            // Bu shox hisob sanashga UMUMAN aloqador emas — bazaga
+            // murojaat ham qilinmaydi, ya'ni oshkor qiladigan narsa yo'q.
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["phone"] =
+                [
+                    "Telefon raqami noto'g'ri kiritilgan. "
+                    + "Namuna: +998 90 123 45 67",
+                ],
+            });
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -97,37 +110,72 @@ public sealed class PhoneLoginService(
             .ConfigureAwait(false);
 
         // ══════════════════════════════════════════════════════════════
-        // 🔴 UCHALA RAD ETISH SHOXI HAM JIMGINA — VA BU ATAYLAB.
+        // 🔴 UCHALA RAD ETISH SHOXI ENDI SABABNI OCHIQ AYTADI (2026-08-29).
         //
         //   • raqam topilmadi;
         //   • profil faol emas;
         //   • Telegram bog'lanmagan (kod yuboradigan manzil yo'q).
         //
-        // Har biri uchun boshqacha javob berish "bu raqam bazada bor,
-        // lekin Telegram ulanmagan" degan qimmatli ma'lumotni tekinga
-        // berardi — ya'ni hujumchi avval mavjud raqamlarni ajratib olib,
-        // keyin faqat ularga e'tibor qaratardi.
+        // ⚠️ BU AVVALGI QARORNING TESKARISI — TASODIF EMAS, TALAB.
         //
-        // ★ SABAB LOGDA QOLADI: qo'llab-quvvatlash "nega kod kelmadi?"
-        //   degan savolga javob bera olishi kerak. Log ichkarida, javob
-        //   esa tashqarida — ikkalasi ham o'z vazifasini bajaradi.
+        // Ilgari uchalasi ham JIMGINA `Response` qaytarardi: maqsad —
+        // hujumchi qaysi raqamlar bazada borligini bittalab aniqlab
+        // olmasin (hisob sanash / enumeration).
+        //
+        // Loyiha egasi 2026-08-29 da buni ochiq qilishni talab qildi va
+        // ayirboshlash TUSHUNTIRILGANDAN KEYIN tasdiqladi. Sabab amaliy:
+        // o'quvchi "kod kelmadi" deb kutib o'tirardi va sababni bilmasdi —
+        // qo'ng'iroqlarning katta qismi shundan edi. Bot AYNI holatda
+        // allaqachon ochiq aytardi (`TelegramTemplates.ContactUnknownText`),
+        // ya'ni sayt bilan bot bir-biriga zid gapirardi.
+        //
+        // ★ HISOB SANASHGA QARSHI HIMOYA YO'QOLMADI, FAQAT JOYI O'ZGARDI:
+        //   `codes.TryReserveAsync` YUQORIDA, profil qidiruvidan OLDIN
+        //   chaqiriladi va RAQAM bo'yicha 60 sekundlik oynani yopadi.
+        //   Ya'ni ommaviy tekshirish uchun har raqamga bir daqiqa kerak —
+        //   ro'yxatni skanerlash amalda imkonsiz. Shu tartibni
+        //   O'ZGARTIRMANG: kvota qidiruvdan keyinga o'tsa, himoya butunlay
+        //   yo'qoladi.
+        //
+        // ★ SABAB LOGDA HAM QOLADI: qo'llab-quvvatlash uchun kerak.
         // ══════════════════════════════════════════════════════════════
         if (user is null)
         {
             PhoneLoginLog.UnknownPhone(logger);
-            return Response;
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["phone"] =
+                [
+                    "Bu raqam ro'yxatda yo'q. O'quv bo'limiga murojaat qiling "
+                    + "va ro'yxatdagi telefon raqamingizni tekshiring.",
+                ],
+            });
         }
 
         if (!user.IsActive)
         {
             PhoneLoginLog.InactiveProfile(logger, user.Id);
-            return Response;
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["phone"] =
+                [
+                    "Profilingiz faol emas. O'quv bo'limiga murojaat qiling.",
+                ],
+            });
         }
 
         if (user.TelegramId is not { } telegramId)
         {
             PhoneLoginLog.NotLinked(logger, user.Id);
-            return Response;
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["phone"] =
+                [
+                    "Telegram hisobingiz bog'lanmagan — kodni yuboradigan manzil yo'q. "
+                    + "«Telegram orqali kirish» tugmasidan foydalaning: bot sizni "
+                    + "tanib, raqamingizni o'zi bog'laydi.",
+                ],
+            });
         }
 
         var code = GenerateCode();

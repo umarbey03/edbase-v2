@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import type { UserRoleName } from '@/shared/types'
 
 declare module 'vue-router' {
@@ -52,17 +53,60 @@ const routes: RouteRecordRaw[] = [
 
   {
     /*
-      Ildiz manzil rolga qarab yo'naltiriladi. Sahifa YANGI ochilganda sessiya
-      hali tiklanmagan bo'ladi (rol `null`) — bunda o'quvchi sahifasiga
-      boriladi, so'ng `beforeEach` bootstrap'dan keyin rolga mos sahifaga
-      qayta yo'naltiradi.
+      ════════════════════════════════════════════════════════════════════
+      ILDIZ MANZIL — MEHMONGA LANDING, KIRGANGA O'Z BOSH SAHIFASI
+      ════════════════════════════════════════════════════════════════════
 
-      Yozuv ALOHIDA turadi (karkas komponentisiz), chunki o'quvchi va xodim
-      endi IKKI XIL karkasda yashaydi — bu redirect ikkalasiga ham tegishli.
+      ⚠️ 2026-08-28 DA O'ZGARDI. Ilgari bu yerda `requiresAuth: true` va
+      rolga qarab `redirect` turardi, ya'ni kirmagan odam darhol `/login`
+      ga tashlanardi va markazning ochiq yuzi umuman yo'q edi (sabab va
+      qaror — `LandingPage.vue` izohida).
+
+      ★ NEGA `beforeEach` EMAS, `beforeEnter`: qoida FAQAT shu marshrutga
+        tegishli. Global qo'riqchiga qo'shilsa, u har navigatsiyada
+        tekshirilib, "ildiz manzil" degan maxsus holat butun ilova
+        bo'ylab tarqalardi.
+
+      ★ NEGA `requiresAuth` YO'Q: bu sahifa ANONIM. Global qo'riqchi uni
+        `/login` ga tashlamasligi kerak — aks holda landing hech qachon
+        ko'rinmasdi.
     */
     path: '/',
-    meta: { requiresAuth: true },
-    redirect: () => ({ name: homeRouteFor(useAuthStore().role) }),
+    name: 'landing',
+    component: () => import('@/pages/landing/LandingPage.vue'),
+    meta: { title: 'Arab tili kursi' },
+    beforeEnter: () => {
+      /*
+        🔴 TELEGRAM MINI APP — LANDING KO'RSATILMAYDI.
+
+        Telegram ilovani AYNAN `/` da ochadi. Bu yerda landing chizilsa,
+        o'quvchi Mini App ichida reklama sahifasini ko'rardi va avtomatik
+        kirish ekraniga umuman tushmasdi (u `/login` da yashaydi).
+
+        Tekshiruv `useAuthStore` dan OLDIN: Mini App'da sessiya hali
+        yo'q va u aynan shu yo'naltirishdan keyin ochiladi.
+
+        ★ FRAGMENT (`#tgWebAppData=...`) BU YERDA UZATILMAYDI — VA
+          KERAK EMAS. Telegram imzoni manzil fragmentiga qo'yadi, lekin
+          `shared/lib/telegram-web-app.ts` uni MODUL YUKLANGAN ZAHOTI,
+          router umuman ishga tushishidan OLDIN suratga oladi (o'sha
+          fayldagi 2-blok izohi). Ya'ni bu yo'naltirish fragmentni
+          "yo'qotsa" ham, imzo allaqachon xotirada.
+      */
+      if (isTelegramMiniApp()) return { path: '/login' }
+
+      const auth = useAuthStore()
+
+      // Kirgan foydalanuvchi landing'ni ko'rmaydi — har ochilishda
+      // reklama sahifasidan o'tib yurishi kerak bo'lardi.
+      //
+      // ★ `beforeEach` bu paytda `bootstrap()` ni ALLAQACHON kutgan,
+      //   ya'ni `isAuthenticated` haqiqiy qiymat (yangi ochilgan
+      //   sahifada ham).
+      if (auth.isAuthenticated) return { name: homeRouteFor(auth.role) }
+
+      return true
+    },
   },
 
   /*
@@ -314,6 +358,20 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          ARIZALAR (2026-08-28) — landing sahifadagi «Kursga yozilish»
+          formasidan kelgan so'rovlar.
+
+          🔴 ARIZA HISOB EMAS: bu sahifadagi hech qanday amal
+             foydalanuvchi yaratmaydi (sabab `ManageApplicationsPage.vue`
+             va backenddagi `EnrollmentApplication` izohida).
+        */
+        path: 'boshqaruv/arizalar',
+        name: 'manage-applications',
+        component: () => import('@/pages/manage/ManageApplicationsPage.vue'),
+        meta: { title: 'Arizalar', roles: MANAGERS },
+      },
+      {
+        /*
           JARIMALAR (2026-08-18) — ustoz/kurator uchun. O'quv bo'limi
           ko'radi va qo'lda kirita oladi.
 
@@ -469,7 +527,27 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
+  scrollBehavior(to) {
+    /*
+      ★ LANGAR (`#ariza`) — 2026-08-28 da qo'shildi. Kirish sahifasidagi
+        «ariza qoldiring» havolasi landing'ning AYNAN o'sha bo'limiga
+        olib borishi kerak; ilgari u har doim sahifa boshiga tushardi.
+
+      🔴 SELEKTOR TEKSHIRILADI, XOM `to.hash` ISHLATILMAYDI.
+
+      Telegram Mini App ilovani `#tgWebAppData=...` fragmenti bilan
+      ochadi. U CSS selektor sifatida YAROQSIZ (`=` va boshqa belgilar)
+      va `querySelector` istisno tashlardi — ya'ni Mini App'ning butun
+      navigatsiyasi bitta imzo fragmenti tufayli buzilardi.
+
+      Shuning uchun faqat SODDA langar qabul qilinadi: harf, raqam va
+      chiziqcha.
+    */
+    if (/^#[a-z][a-z0-9-]*$/i.test(to.hash)) {
+      // `top: 80` — yopishqoq yuqori panel sarlavhani yopib qo'ymasin.
+      return { el: to.hash, top: 80, behavior: 'smooth' }
+    }
+
     return { top: 0 }
   },
 })
@@ -507,5 +585,5 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   const title = to.meta.title
-  document.title = title !== undefined ? `${title} — Zin-Nur` : 'Zin-Nur'
+  document.title = title !== undefined ? `${title} — ZIN-NUR ONLINE` : 'ZIN-NUR ONLINE'
 })

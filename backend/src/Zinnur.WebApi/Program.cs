@@ -334,8 +334,35 @@ var authPermitLimit = PositiveSetting(
 var authRefreshPermitLimit = PositiveSetting(
     builder.Configuration, "RateLimiting:Auth:RefreshPermitLimit", defaultValue: 60);
 
+// ★ HOLAT SO'ROVI UCHUN ALOHIDA, KENG BUDJET (2026-08-28).
+//
+// Bot orqali kirish oqimida brauzer chipta holatini bir necha soniyada
+// bir so'rab turadi (`GET /auth/telegram/status`) — bu SO'ROV EMAS,
+// KUTISH usuli. Kirish siyosati (20/daqiqa) unga qo'llansa, foydalanuvchi
+// botni ochib ulgurmasidan 429 olardi, bitta NAT ortidagi maktabda esa
+// birinchi ikki o'quvchidan keyin oqim umuman ishlamasdi.
+//
+// 🔴 KENG BUDJET BU YERDA XAVFSIZ, CHUNKI ENDPOINT HECH NARSA OCHMAYDI:
+//    u 128 bitlik chiptasiz "yo'q" dan boshqa javob bermaydi va bitta
+//    Redis o'qishidan iborat. Ya'ni cheklovning vazifasi — faqat
+//    toshqinni to'sish, sirni himoya qilish emas.
+var authPollPermitLimit = PositiveSetting(
+    builder.Configuration, "RateLimiting:Auth:PollPermitLimit", defaultValue: 240);
+
 var authWindowSeconds = PositiveSetting(
     builder.Configuration, "RateLimiting:Auth:WindowSeconds", defaultValue: 60);
+
+// ★ OCHIQ FORMA (landing'dagi «Ariza qoldirish») — 2026-08-28.
+//
+// 5/daqiqa. Bu ATAYLAB tor: odam bir kunda bitta ariza qoldiradi, ya'ni
+// chegara haqiqiy foydalanuvchiga umuman sezilmaydi.
+//
+// 🔴 BU YOLG'IZ YETARLI EMAS: cheklov IP bo'yicha bo'linadi va bitta
+//    maktab bitta NAT ortida turadi (`FixedWindowByIp` izohi). ASOSIY
+//    himoya RAQAM bo'yicha va use-case ichida:
+//    `EnrollmentApplicationService` (10 daqiqalik oyna, sutkada 3 ta).
+var publicFormPermitLimit = PositiveSetting(
+    builder.Configuration, "RateLimiting:PublicForm:PermitLimit", defaultValue: 5);
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -386,6 +413,14 @@ builder.Services.AddRateLimiter(options =>
     // Yangilash — boshqa tahdid modeli, kengroq budjet (izoh: AuthController).
     options.AddPolicy(AuthController.RefreshRateLimitPolicy,
         context => FixedWindowByIp(context, authRefreshPermitLimit, authWindowSeconds));
+
+    // Chipta holatini so'rab turish — sabab yuqoridagi `authPollPermitLimit` izohida.
+    options.AddPolicy(AuthController.PollRateLimitPolicy,
+        context => FixedWindowByIp(context, authPollPermitLimit, authWindowSeconds));
+
+    // Landing'dagi ariza formasi — sabab `publicFormPermitLimit` izohida.
+    options.AddPolicy(ApplicationsController.PublicFormRateLimitPolicy,
+        context => FixedWindowByIp(context, publicFormPermitLimit, authWindowSeconds));
 });
 
 // IP bo'yicha qat'iy oyna (fixed window).

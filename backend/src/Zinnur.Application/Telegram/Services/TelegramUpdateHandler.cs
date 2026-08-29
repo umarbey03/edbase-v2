@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Absentees.Services;
+using Zinnur.Application.Auth.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
@@ -50,6 +51,7 @@ public sealed class TelegramUpdateHandler(
     ITeacherAvailabilityService availability,
     IAbsenceNoticeService absenceNotices,
     ITelegramCallbackAcknowledger callbackAcknowledger,
+    ITelegramLoginService telegramLogin,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
     /// <summary>Faqat shaxsiy suhbat bilan ishlaymiz (guruhda bot hech nima bog'lamaydi).</summary>
@@ -226,17 +228,28 @@ public sealed class TelegramUpdateHandler(
     private async Task<TelegramUpdateOutcome> HandleStartAsync(
         long updateId, long chatId, TelegramUserDto sender, string? payload, CancellationToken ct)
     {
-        // ★ PAYLOAD HECH QACHON SHAXSNI ANIQLAMAYDI.
+        // ══════════════════════════════════════════════════════════════
+        // ★ PAYLOAD HECH QACHON SHAXSNI ANIQLAMAYDI — QOIDA KUCHIDA.
         //
         // `/start <payload>` — Telegram'ning deep-link mexanizmi va u
         // OCHIQ matn: havolani ko'rgan yoki uni ulashib yuborgan istalgan
-        // odam AYNI payload bilan botga kira oladi. Agar payload profilni
+        // odam AYNI payload bilan botga kira oladi. Agar payload PROFILNI
         // aniqlasa, bu eski tizimning X-1 zaifligining aynan o'zi bo'lardi,
-        // faqat boshqa niqobda. Shuning uchun u faqat LOGGA yoziladi
-        // (kampaniya manbasini bilish uchun) va oqimga TA'SIR QILMAYDI:
-        // shaxsni faqat `contact_shared` aniqlaydi.
-        if (!string.IsNullOrEmpty(payload))
-            TelegramBotLog.StartPayload(logger, updateId, Shorten(payload));
+        // faqat boshqa niqobda.
+        //
+        // ⚠️ 2026-08-28 — PAYLOAD ENDI MA'NOGA EGA, LEKIN QOIDA BUZILMADI.
+        //
+        // Saytdagi «Telegram orqali kirish» tugmasi bir martalik CHIPTA
+        // yasaydi va uni deep-link payloadiga qo'yadi. Chipta esa
+        // PROFILNI emas, BRAUZER OYNASINI nomlaydi — ya'ni u "kim" degan
+        // savolga emas, "kodni qaysi ekran kutyapti" degan savolga javob
+        // beradi. "Kim" ni hamon FAQAT Telegramning o'zi aniqlaydi:
+        // profil quyida `sender.Id` (`TelegramId` ustuni) bo'yicha
+        // topiladi.
+        //
+        // Batafsil tahdid tahlili (va nima uchun kod baribir so'raladi) —
+        // `ITelegramLoginService` izohida.
+        // ══════════════════════════════════════════════════════════════
 
         // ★ `AsTracking()` — ATAYLAB (avval `AsNoTracking()` edi): quyida
         //   username yangilanadi. Telegram username'ni foydalanuvchi istalgan
@@ -254,6 +267,59 @@ public sealed class TelegramUpdateHandler(
         // `/start` bekorga `UPDATE` yozmasin). Saqlash `HandleAsync` dagi
         // YAGONA `SaveChangesAsync` da — bitta tranzaksiya qoidasi buzilmaydi.
         _ = linked?.RefreshTelegramUsername(sender.Username);
+
+        // ── SAYTDAN KELGAN KIRISH CHIPTASIMI ─────────────────────────────
+        var attach = await telegramLogin
+            .AttachAsync(payload, sender.Id, linked, chatId, ct)
+            .ConfigureAwait(false);
+
+        switch (attach)
+        {
+            case TelegramLoginAttach.CodeSent:
+                // 🔴 SALOMLASHUV YUBORILMAYDI. Kod xabari allaqachon
+                //    navbatda va u O'ZI to'liq yo'riqnoma. Ikkinchi xabar
+                //    kodni ekranda YUQORIGA surib yuborardi — aynan
+                //    foydalanuvchi qidirayotgan narsani.
+                return TelegramUpdateOutcome.LoginCodeSent;
+
+            case TelegramLoginAttach.ContactNeeded:
+                // Raqam so'raladi. Shablon AYNI `StartUnlinked`:
+                // `MarkupFor` unga «📱 Raqamni ulashish» klaviaturasini
+                // biriktiradi, ya'ni foydalanuvchi keyingi qadamni
+                // ko'rib turadi. Raqam ulangach kod AVTOMATIK ketadi
+                // (`ContinueAfterLinkAsync`).
+                await ReplyAsync(updateId, chatId, recipientUserId: null,
+                    TelegramTemplates.StartUnlinked,
+                    TelegramTemplates.StartUnlinkedText(), ct).ConfigureAwait(false);
+
+                return TelegramUpdateOutcome.LoginContactNeeded;
+
+            case TelegramLoginAttach.Inactive:
+                await ReplyAsync(updateId, chatId, linked?.Id,
+                    TelegramTemplates.ContactInactive,
+                    TelegramTemplates.ContactInactiveText(), ct).ConfigureAwait(false);
+
+                return TelegramUpdateOutcome.Inactive;
+
+            case TelegramLoginAttach.Expired:
+                await ReplyAsync(updateId, chatId, linked?.Id,
+                    TelegramTemplates.LoginLinkExpired,
+                    TelegramTemplates.LoginLinkExpiredText(), ct).ConfigureAwait(false);
+
+                return TelegramUpdateOutcome.LoginLinkExpired;
+
+            case TelegramLoginAttach.NotTicket:
+            default:
+                break;
+        }
+
+        // 🔴 PAYLOAD LOGGA FAQAT SHU YERDA TUSHADI — ya'ni u chipta
+        //    EMASLIGI aniqlangandan keyin. Chipta tokeni bir martalik
+        //    kirish oqimini ochadi va uning logda ko'rinishi (Sentry,
+        //    konteyner oqimi) boshqa odamning oqimini o'g'irlash uchun
+        //    yetarli bo'lardi.
+        if (!string.IsNullOrEmpty(payload))
+            TelegramBotLog.StartPayload(logger, updateId, Shorten(payload));
 
         if (linked is { Role: UserRole.Student, IsActive: true })
         {
@@ -356,6 +422,16 @@ public sealed class TelegramUpdateHandler(
                 await ReplyAsync(updateId, chatId, alreadyLinked.Id,
                     TelegramTemplates.ContactLinked,
                     TelegramTemplates.ContactLinkedText(alreadyLinked.FullName), ct).ConfigureAwait(false);
+
+                // ★ KUTAYOTGAN KIRISH CHIPTASI BU YERDA HAM DAVOM ETTIRILADI.
+                //   Sabab: bog'langan foydalanuvchi ham botga kelib
+                //   «Raqamni ulashish» tugmasini qayta bosishi mumkin
+                //   (masalan `/start` dan keyingi klaviatura ekranda
+                //   qolgan). Bu shox tashlab ketilsa, u kod kutib
+                //   qolardi va oqim jimgina to'xtardi.
+                _ = await telegramLogin
+                    .ContinueAfterLinkAsync(alreadyLinked, chatId, ct)
+                    .ConfigureAwait(false);
 
                 return TelegramUpdateOutcome.AlreadyLinked;
             }
@@ -466,6 +542,23 @@ public sealed class TelegramUpdateHandler(
         await ReplyAsync(updateId, chatId, candidate.Id,
             TelegramTemplates.ContactLinked,
             TelegramTemplates.ContactLinkedText(candidate.FullName), ct).ConfigureAwait(false);
+
+        // ══════════════════════════════════════════════════════════════
+        // ★ SAYTDAN KELGAN OQIMNING DAVOMI (2026-08-28).
+        //
+        // Foydalanuvchi saytda «Telegram orqali kirish» ni bosgan, bot
+        // uni tanimagani uchun raqam so'ragan edi. Raqam ANA ENDI
+        // ulandi — ya'ni kod yuborish uchun to'siq qolmadi va uni
+        // yuborish AYNAN shu daqiqada kerak: aks holda odam botda
+        // "raqamingiz ulandi" xabarini o'qib, saytga qaytib, tugmani
+        // QAYTADAN bosishi kerak bo'lardi.
+        //
+        // Chipta kutmayotgan bo'lsa (odam botga o'zi kelgan) — metod
+        // `false` qaytaradi va hech nima yubormaydi.
+        // ══════════════════════════════════════════════════════════════
+        _ = await telegramLogin
+            .ContinueAfterLinkAsync(candidate, chatId, ct)
+            .ConfigureAwait(false);
 
         return TelegramUpdateOutcome.Linked;
     }

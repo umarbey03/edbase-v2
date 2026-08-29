@@ -52,6 +52,11 @@ internal static class TelegramSetup
         // Imzo tekshiruvchisi HOLATSIZ — Singleton.
         services.AddSingleton<ITelegramInitDataValidator, TelegramInitDataValidator>();
 
+        // Bot havolasi yasovchisi ham HOLATSIZ — Singleton. Bot nomi har
+        // chaqiruvda `IRuntimeOptions` dan qayta o'qiladi, ya'ni eskirgan
+        // qiymat ushlab qolinmaydi (sabab `TelegramBotLink` izohida).
+        services.AddSingleton<ITelegramBotLink, TelegramBotLink>();
+
         // `answerCallbackQuery` yuboruvchisi — token HAR chaqiruvda qayta
         // o'qiladi (`TelegramMessageSender` dagi bilan AYNI sabab), shuning
         // uchun Singleton bo'lishi xavfsiz.

@@ -8,6 +8,7 @@ using Zinnur.Application.Broadcasts.Services;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Scope;
 using Zinnur.Application.Courses.Services;
+using Zinnur.Application.Enrollment.Services;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.GroupChat.Services;
 using Zinnur.Application.Groups.Services;
@@ -59,6 +60,23 @@ public static class DependencyInjection
         //   umrli hech narsaga tegmaydi.
         services.AddSingleton<IPhoneLoginCodeStore, PhoneLoginCodeStore>();
         services.AddScoped<IPhoneLoginService, PhoneLoginService>();
+
+        // ── BOT ORQALI KIRISH (2026-08-28) ──────────────────────────────
+        //
+        // ★ CHIPTA SAQLOVCHISI — SINGLETON: bog'liqliklari (`ICacheService`,
+        //   `TimeProvider`) singleton va u hech qanday holat saqlamaydi
+        //   (yuqoridagi `IPhoneLoginCodeStore` bilan AYNI mulohaza).
+        //
+        // ★ SERVIS — SCOPED: u `IApplicationDbContext` va
+        //   `INotificationOutbox` ga tayanadi, kod xabari esa webhook'ning
+        //   AYNI tranzaksiyasida saqlanishi SHART.
+        services.AddSingleton<ITelegramLoginTicketStore, TelegramLoginTicketStore>();
+        services.AddScoped<ITelegramLoginService, TelegramLoginService>();
+
+        // Landing sahifadagi «Ariza qoldirish» formasi (2026-08-28).
+        // 🔴 RO'YXATDAN O'TISH EMAS — hisob yaratmaydi (sabab
+        //    `IEnrollmentApplicationService` izohida).
+        services.AddScoped<IEnrollmentApplicationService, EnrollmentApplicationService>();
 
         // O'Z PROFIL RASMI (2026-08-15, 2026-08-17 da qisqartirildi — sabab
         // `IProfileService` izohida: ism/telefonni o'zi tahrirlash olib

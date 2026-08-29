@@ -117,37 +117,35 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
     // ================================================================ hisob sanash
 
     /// <summary>
-    /// 🔴 ENG MUHIM MAXFIYLIK TESTI: noma'lum raqam ham AYNI javobni oladi.
+    /// 🔴 NOMA'LUM RAQAM — SABAB OCHIQ AYTILADI (2026-08-29 dan).
     ///
-    /// Aks holda endpoint "bu raqam markazda o'qiydimi?" degan savolga
-    /// javob beradigan ochiq qidiruv vositasiga aylanardi. O'zbekiston
-    /// mobil raqamlari makoni kichik (9 xona) — uni to'liq skanerlash
-    /// arzon va butun mijozlar bazasi tiklanardi.
+    /// ⚠️ BU TEST AVVAL TESKARISINI TEKSHIRARDI
+    /// (`RequestCode_ForUnknownPhone_LooksIdentical`): javob noma'lum va
+    /// haqiqiy raqam uchun AYNAN bir xil bo'lishi talab qilinardi.
+    ///
+    /// Loyiha egasi 2026-08-29 da ayirboshlash tushuntirilgandan keyin
+    /// ochiq xabarni talab qildi: o'quvchi "kod kelmadi" deb kutib
+    /// o'tirardi va sababni bilmasdi, bot esa AYNI holatda allaqachon
+    /// ochiq aytardi — sayt bilan bot bir-biriga zid gapirardi.
+    ///
+    /// ★ HISOB SANASHGA QARSHI HIMOYA `RequestCode_QuotaAppliesToUnknownPhonesToo`
+    ///   testiga KO'CHDI: raqam bo'yicha kvota profil qidiruvidan OLDIN
+    ///   ishlaydi, ya'ni ro'yxatni skanerlash uchun har raqamga bir daqiqa
+    ///   kerak. O'sha test buzilsa — himoya yo'qolgan bo'ladi.
     /// </summary>
     [Fact]
-    public async Task RequestCode_ForUnknownPhone_LooksIdentical()
+    public async Task RequestCode_ForUnknownPhone_SaysSo()
     {
-        var known = TestPhones.Next();
-        await factory.CreateUserAsync(
-            UserRole.Student, rawPhone: known, telegramId: NextTelegramId());
-
         using var client = factory.CreateClient();
 
-        using var forKnown = await client.PostAsJsonAsync(
-            "/api/v1/auth/phone/request-code", new { phone = known });
-
-        using var forUnknown = await client.PostAsJsonAsync(
+        using var response = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone = TestPhones.Next() });
 
-        forKnown.StatusCode.Should().Be(HttpStatusCode.OK);
-        forUnknown.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var knownBody = await forKnown.Content.ReadAsStringAsync();
-        var unknownBody = await forUnknown.Content.ReadAsStringAsync();
-
-        unknownBody.Should().Be(knownBody,
-            "javob tanasi ham AYNAN bir xil bo'lishi kerak — bitta farqli maydon ham "
-            + "raqamning bazada borligini oshkor qilardi");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("ro'yxatda yo'q",
+            "foydalanuvchi kod kutib o'tirmasligi uchun sabab AYNIQSA aytilishi kerak");
     }
 
     /// <summary>Noma'lum raqamga xabar NAVBATGA HAM tushmaydi.</summary>
@@ -160,18 +158,19 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
         using var response = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone = TestPhones.Next() });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         (await OutboxCountAsync()).Should().Be(before);
     }
 
     /// <summary>
-    /// 🔴 TELEGRAM BOG'LANMAGAN PROFIL — kod yuborilmaydi, lekin javob
-    /// baribir AYNI.
+    /// 🔴 TELEGRAM BOG'LANMAGAN PROFIL — kod yuborilmaydi va sabab
+    /// aytiladi (2026-08-29 dan; ilgari javob AYNI bo'lishi talab
+    /// qilinardi).
     ///
-    /// Bu — eng nozik shox: raqam bazada BOR, ya'ni "topildi" degan
-    /// signal berish juda oson. Berilsa, hujumchi avval mavjud
-    /// raqamlarni ajratib olardi.
+    /// Bu shox uchun ochiq xabar ayniqsa foydali: foydalanuvchi nima
+    /// qilishini biladi — «Telegram orqali kirish» tugmasi bosilsa, bot
+    /// raqamni o'zi bog'laydi.
     /// </summary>
     [Fact]
     public async Task RequestCode_WhenTelegramNotLinked_QueuesNothing()
@@ -185,12 +184,15 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
         using var response = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await OutboxCountAsync()).Should().Be(before,
             "bog'lanmagan profilga kod yuboradigan manzil yo'q");
     }
 
-    /// <summary>O'chirilgan profilga ham kod yuborilmaydi (javob esa AYNI).</summary>
+    /// <summary>
+    /// O'chirilgan profilga ham kod yuborilmaydi — va sabab aytiladi
+    /// (2026-08-29 dan; ilgari javob AYNI bo'lishi talab qilinardi).
+    /// </summary>
     [Fact]
     public async Task RequestCode_WhenProfileInactive_QueuesNothing()
     {
@@ -205,7 +207,7 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
         using var response = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await OutboxCountAsync()).Should().Be(before);
     }
 
@@ -333,11 +335,18 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
     }
 
     /// <summary>
-    /// ★ KVOTA MAVJUD BO'LMAGAN RAQAMGA HAM QO'LLANADI.
+    /// 🔴 KVOTA MAVJUD BO'LMAGAN RAQAMGA HAM QO'LLANADI — ENDI BU
+    /// HISOB SANASHGA QARSHI YAGONA HIMOYA (2026-08-29 dan).
     ///
-    /// Bu — hisob sanashga qarshi himoyaning davomi: agar kvota faqat
-    /// haqiqiy raqamlarga qo'llanganda, 429 javobining O'ZI "bu raqam
-    /// bazada bor" degan signal bo'lib qolardi.
+    /// Ilgari himoya ikki qatlamli edi: javoblar bir xil bo'lardi VA
+    /// kvota ishlardi. Javoblar ochiq qilingandan keyin (loyiha egasining
+    /// talabi) faqat kvota qoldi.
+    ///
+    /// ⚠️ BU TEST BUZILSA — REJANI EMAS, KODNI TUZATING. U buzilishi
+    /// `TryReserveAsync` profil qidiruvidan KEYINGA surilganini bildiradi;
+    /// o'sha tartibda raqamlar ro'yxatini cheklovsiz skanerlash mumkin
+    /// bo'lib qoladi. Tartib `PhoneLoginService.RequestCodeAsync` da
+    /// izohlangan.
     /// </summary>
     [Fact]
     public async Task RequestCode_QuotaAppliesToUnknownPhonesToo()
@@ -348,13 +357,15 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
 
         using var first = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone });
-        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        first.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "noma'lum raqam — sabab ochiq aytiladi");
 
         using var second = await client.PostAsJsonAsync(
             "/api/v1/auth/phone/request-code", new { phone });
 
         second.StatusCode.Should().Be(HttpStatusCode.TooManyRequests,
-            "aks holda 429 javobining o'zi raqam bazada borligini bildirardi");
+            "kvota raqam bo'yicha va PROFIL QIDIRUVIDAN OLDIN ishlashi kerak — "
+            + "aks holda ro'yxatni cheklovsiz skanerlash mumkin bo'lardi");
     }
 
     // ================================================================ bog'lanish uzilishi

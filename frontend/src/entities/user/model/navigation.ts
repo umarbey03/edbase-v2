@@ -166,6 +166,17 @@ const ASSISTANT_NAV: NavItem[] = [
 const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-groups', label: 'Guruhlar', icon: 'grid' },
   { routeName: 'manage-users', label: 'Foydalanuvchilar', icon: 'users' },
+  /*
+    "Arizalar" — v2 qo'shimchasi (2026-08-28): landing sahifadagi «Kursga
+    yozilish» formasidan kelgan so'rovlar.
+
+    ★ "Foydalanuvchilar" dan KEYIN, "Testlar" dan OLDIN: ariza —
+      foydalanuvchi bo'lishga NOMZOD, ya'ni u aynan shu bandning
+      davomi. Operator ariza bilan ishlagach, o'quvchini yuqoridagi
+      "Foydalanuvchilar" bo'limidan qo'shadi — ikkala band yonma-yon
+      turgani shu oqimni qisqartiradi.
+  */
+  { routeName: 'manage-applications', label: 'Arizalar', icon: 'note' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
   /*
     Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda
@@ -279,6 +290,7 @@ function pick(source: NavItem[], routeNames: string[]): NavItem[] {
 const ACADEMIC_SECTION_ROUTES = [
   'manage-groups',
   'manage-users',
+  'manage-applications',
   'manage-teacher-availability',
   'manage-absentees',
   'manage-attrition',

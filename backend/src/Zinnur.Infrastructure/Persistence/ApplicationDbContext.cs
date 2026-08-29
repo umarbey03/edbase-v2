@@ -241,6 +241,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<PenaltyCategory> PenaltyCategories => Set<PenaltyCategory>();
 
+    public DbSet<EnrollmentApplication> EnrollmentApplications => Set<EnrollmentApplication>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

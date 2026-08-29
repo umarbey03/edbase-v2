@@ -644,6 +644,69 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.EnrollmentApplication", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Course")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset?>("HandledAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("HandledByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PhoneNormalized")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HandledByUserId");
+
+                    b.HasIndex("PhoneNormalized")
+                        .HasDatabaseName("IX_EnrollmentApplications_PhoneNormalized");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_EnrollmentApplications_Status_CreatedAt");
+
+                    b.ToTable("EnrollmentApplications", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Group", b =>
                 {
                     b.Property<long>("Id")
@@ -3588,6 +3651,16 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.EnrollmentApplication", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", "HandledBy")
+                        .WithMany()
+                        .HasForeignKey("HandledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("HandledBy");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.Group", b =>

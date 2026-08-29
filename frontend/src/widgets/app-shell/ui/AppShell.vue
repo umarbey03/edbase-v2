@@ -143,7 +143,7 @@ const drawerPanel = ref<HTMLElement | null>(null)
 
 const pageTitle = computed(() => {
   const title = route.meta.title
-  return typeof title === 'string' ? title : 'Zin-Nur'
+  return typeof title === 'string' ? title : 'ZIN-NUR'
 })
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -306,7 +306,7 @@ async function handleLogout(): Promise<void> {
           ikki rangli so'z bu yerda ayniqsa ko'zga tashlanardi.
         -->
         <p class="shrink-0 pr-2 text-base font-bold text-brand-500">
-          Zin-Nur
+          ZIN-NUR
         </p>
       </header>
 

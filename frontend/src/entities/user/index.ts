@@ -1,9 +1,12 @@
 export {
   fetchMe,
+  fetchTelegramLoginStatus,
   loginWithTelegram,
   logout,
   requestPhoneCode,
+  startTelegramLogin,
   verifyPhoneCode,
+  verifyTelegramLogin,
 } from './api/auth-api'
 export { dropAvatar, useAvatar } from './model/useAvatar'
 export { avatarPath, fetchAvatarBlob, removeAvatar, uploadAvatar } from './api/profile-api'

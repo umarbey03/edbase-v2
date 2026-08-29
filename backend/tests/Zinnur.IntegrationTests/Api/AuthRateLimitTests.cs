@@ -154,10 +154,17 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
     /// <summary>
     /// ★ ASOSIY TEST: budjetdan keyingi urinish 429 oladi.
     ///
-    /// Budjet ichidagi javoblar 200 bo'lishi kerak — raqam bazada
-    /// bo'lmasa ham. Bu ikki narsani birdan isbotlaydi: cheklov haddan
-    /// tashqari qattiq emas VA endpoint hisob sanashga yo'l bermaydi
-    /// (noma'lum raqam ham 200 oladi).
+    /// Budjet ICHIDAGI so'rovlar use-case javobini olishi kerak — bu
+    /// yerda 400 ("bu raqam ro'yxatda yo'q"), chunki `TestPhones.Next()`
+    /// hech kimga tegishli emas. Muhimi 400 emas, 429 EMASLIGI: cheklov
+    /// haddan tashqari qattiq emasligi shundan ko'rinadi.
+    ///
+    /// ⚠️ ILGARI BU YERDA 200 KUTILARDI va izohda "noma'lum raqam ham
+    /// 200 oladi, ya'ni hisob sanash mumkin emas" deb yozilgandi.
+    /// 2026-08-29 da javob ochiq qilindi (loyiha egasining talabi), ya'ni
+    /// o'sha dalil endi bu testga tegishli emas. Hisob sanashga qarshi
+    /// himoya RAQAM bo'yicha kvotaga ko'chdi —
+    /// `PhoneLoginEndpointsTests.RequestCode_QuotaAppliesToUnknownPhonesToo`.
     /// </summary>
     [Fact]
     public async Task RequestCode_AfterPermitLimit_ReturnsTooManyRequests()
@@ -172,8 +179,8 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
             statuses.Add(response.StatusCode);
         }
 
-        statuses.Take(PermitLimit).Should().AllBeEquivalentTo(HttpStatusCode.OK,
-            "budjet ichidagi so'rovlar odatdagidek javob olishi kerak");
+        statuses.Take(PermitLimit).Should().NotContain(HttpStatusCode.TooManyRequests,
+            "budjet ichidagi so'rovlar cheklovga urilmasligi kerak");
 
         statuses[PermitLimit].Should().Be(HttpStatusCode.TooManyRequests,
             "11-so'rov chegaradan oshadi — aks holda kod so'rash cheksiz davom etardi");
@@ -194,15 +201,16 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
         for (var attempt = 0; attempt <= PermitLimit; attempt++)
         {
             using var burned = await RequestCodeAsync(noisy);
-            burned.StatusCode.Should().Be(attempt < PermitLimit
-                ? HttpStatusCode.OK
-                : HttpStatusCode.TooManyRequests);
+            if (attempt < PermitLimit)
+                burned.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests);
+            else
+                burned.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         }
 
         using var innocent = factory.CreateClientFromIp("10.0.0.4");
         using var response = await RequestCodeAsync(innocent);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK,
+        response.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests,
             "boshqa IP o'z budjetiga ega — qo'shni ayb bilan bloklanmasin");
     }
 
@@ -278,7 +286,7 @@ public sealed class AuthRateLimitTests(ThrottledApiFactory factory)
         for (var attempt = 0; attempt < PermitLimit; attempt++)
         {
             using var burned = await RequestCodeAsync(client);
-            burned.StatusCode.Should().Be(HttpStatusCode.OK);
+            burned.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests);
         }
 
         using var blockedLogin = await RequestCodeAsync(client);
