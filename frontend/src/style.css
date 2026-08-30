@@ -671,6 +671,320 @@
 }
 
 /*
+  ══════════════════════════════════════════════════════════════════════════
+   LANDING HERO — JONLI FON (2026-08-30, loyiha egasining talabi)
+  ══════════════════════════════════════════════════════════════════════════
+
+  Ilgari hero fonida IKKITA QIMIRLAMAYDIGAN radial gradient turardi. U
+  yomon emas edi, lekin birinchi ekran statik bo'lgani uchun sahifa
+  "rasm" bo'lib qolardi.
+
+  Endi uch qatlam bor va uchalasi ham SEKIN harakatlanadi:
+    1) `hero-orb`     — yumshoq rangli sharlar, bir-biriga qarama-qarshi
+                        yo'nalishda suzadi;
+    2) `hero-grid`    — juda past kontrastli nuqtali setka, asta suriladi;
+    3) `hero-rise`    — sahifa ochilganda matnning navbat bilan chiqishi.
+
+  ┌────────────────────────────────────────────────────────────────────┐
+  │ 🔴 FAQAT `transform` VA `opacity` ANIMATSIYA QILINADI              │
+  └────────────────────────────────────────────────────────────────────┘
+  Bu ikkalasi kompozitor qatlamida, ya'ni brauzer har kadrda sahifani
+  qaytadan hisoblamaydi (layout/paint bo'lmaydi). `filter: blur()` esa
+  BIR MARTA, animatsiyadan TASHQARIDA qo'llanadi — uni kadrma-kadr
+  o'zgartirish mobil qurilmada darhol sekinlashtirardi.
+
+  ★ NEGA `will-change` YOZILMAGAN: sharlar doim ekranda va doim
+    harakatda, ya'ni brauzer ularni o'zi alohida qatlamga chiqaradi.
+    Qo'lda `will-change` yozish bu yerda faqat xotira sarflaydi.
+
+  ★ `prefers-reduced-motion` ALOHIDA YOZILMADI — pastdagi global blok
+    (`animation-duration: 0.01ms`) bu animatsiyalarni ham to'xtatadi.
+    Sharlar o'sha joyida qotadi va fon oddiy gradientga aylanadi, ya'ni
+    ko'rinish BUZILMAYDI (aynan shuning uchun `alternate` ishlatilgan:
+    boshlang'ich va yakuniy holat ikkalasi ham "to'g'ri" ko'rinadi).
+*/
+
+@keyframes hero-orb-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, 8%, 0) scale(1.18);
+  }
+}
+
+@keyframes hero-orb-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.12);
+  }
+  to {
+    transform: translate3d(-7%, -6%, 0) scale(0.94);
+  }
+}
+
+@keyframes hero-orb-c {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.96);
+  }
+  to {
+    transform: translate3d(4%, -9%, 0) scale(1.14);
+  }
+}
+
+/* Nuqtali setkaning surilishi. Bitta katak masofasiga suriladi va
+   qaytadan boshlanadi — shuning uchun "sakrash" ko'rinmaydi. */
+@keyframes hero-grid-pan {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-56px, -56px, 0);
+  }
+}
+
+/* Matnning navbat bilan chiqishi. `both` — kechikish paytida element
+   boshlang'ich (ko'rinmas) holatda tursin. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  /* Chetlari umuman ko'rinmasin — shar emas, YORUG'LIK bo'lib tursin. */
+  filter: blur(72px);
+  pointer-events: none;
+  animation: hero-orb-a 22s ease-in-out infinite alternate;
+}
+
+.hero-orb--b {
+  animation-name: hero-orb-b;
+  animation-duration: 27s;
+}
+
+.hero-orb--c {
+  animation-name: hero-orb-c;
+  animation-duration: 32s;
+}
+
+/*
+  ┌────────────────────────────────────────────────────────────────────┐
+  │ SETKALI NAQSH — hero fonining ikkinchi qatlami                     │
+  └────────────────────────────────────────────────────────────────────┘
+
+  ⚠️ 2026-08-30 — NUQTALARDAN SETKAGA (loyiha egasining talabi).
+     Ilgari bu qatlam faqat nuqtalardan iborat edi va katta ekranda u
+     "shovqin" bo'lib ko'rinardi — naqsh emas. Endi uchta qatlam bitta
+     `background-image` da:
+
+       1) tugun nuqtalari  — chiziqlar kesishgan joyda, YORQINROQ;
+       2) tik chiziqlar    — xira;
+       3) yotiq chiziqlar  — xira.
+
+  ★ NEGA CHIZIQLAR XIRAROQ (`color-mix … 45%`): bir xil quyuqlikda
+    chizilganda setka jadvalga o'xshab qolardi va matnni "kataklarga"
+    bo'lib yuborardi. Tugunlar yorqinroq bo'lgani uchun ko'z avval
+    naqshni, keyin chiziqni ko'radi.
+
+  ★ UCHALASI HAM BITTA `background-size` (56px): tugun nuqtasi har
+    katakning burchagida — ya'ni AYNAN chiziqlar kesishgan nuqtada
+    turadi. O'lchamlar boshqacha bo'lsa, nuqtalar chiziqdan sirg'alib
+    ketardi.
+
+  ★ `inset: -20%` va `140%` — qatlam ramkadan KATTAROQ. U bir katak
+    masofasiga suriladi (`hero-grid-pan`), va kichikroq bo'lsa
+    surilgan chetida bo'sh yo'lak ochilib qolardi.
+*/
+.hero-grid {
+  position: absolute;
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(currentColor 1.4px, transparent 1.5px),
+    linear-gradient(
+      to right,
+      color-mix(in oklab, currentColor 45%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, currentColor 45%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 56px 56px;
+  opacity: 0.1;
+  animation: hero-grid-pan 40s linear infinite;
+}
+
+/*
+  SETKANING NIQOBI (mask).
+
+  🔴 NEGA ALOHIDA O'RAM KERAK: niqob elementning O'ZIGA yopishadi. Agar
+     u to'g'ridan-to'g'ri `.hero-grid` ga qo'yilsa, qatlam surilganda
+     niqob ham u bilan birga surilardi — ya'ni so'nish chegarasi ekran
+     bo'ylab sudralib yurardi va harakat darhol sezilardi.
+
+     Shuning uchun niqob QIMIRLAMAYDIGAN o'ramda, harakat esa uning
+     ichida.
+
+  ★ Naqsh markazda to'liq, chetlarga borib yo'qoladi: to'liq ekranni
+    qoplagan setka fonni og'irlashtiradi va sarlavha ustidagi
+    kontrastni pasaytiradi.
+
+  ★ `-webkit-mask-image` — Safari uchun (u hamon prefiksli shaklni
+    talab qiladi).
+*/
+.hero-grid-mask {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(
+    75% 70% at 50% 18%,
+    #000 8%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(75% 70% at 50% 18%, #000 8%, transparent 78%);
+}
+
+/*
+  MATN NAVBATI.
+
+  `--rise-delay` — har element o'z kechikishini beradi
+  (`style="--rise-delay: 120ms"`). Standart qiymat `0s`: o'zgaruvchi
+  berilmasa animatsiya darhol boshlanadi.
+*/
+.hero-rise {
+  animation: hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   LANDING BO'LIMLARI — SIRT VA TEKSTURA (2026-08-30)
+  ══════════════════════════════════════════════════════════════════════════
+
+  🔴 MUAMMO: sahifadagi sakkiz bo'limning hammasi bir xil ko'rinardi —
+     to'q fon, `rounded-2xl bg-ink-900` karta, `ring-1 ring-line` chekka.
+     Farq faqat fonning 40% shaffofligida edi va u ko'zga ILINMASDI.
+     Natijada uzun sahifa "bitta cheksiz blok" bo'lib o'qilardi va odam
+     qayerdaligini yo'qotardi.
+
+  YECHIM — bo'limlarga RITM berildi. Kuchli va tinch bo'limlar navbatma-
+  navbat keladi:
+
+     hero (kuchli · brend sirti)
+       -> bepul dars (tinch)
+       -> natija (yengil tasma)
+       -> kurs tuzilmasi (tinch)
+       -> kitoblar (ko'tarilgan karta)
+       -> NARX (kuchli · brend sirti)   ← ikkinchi cho'qqi
+       -> ariza (tinch)
+       -> savollar (yengil tasma)
+
+  ★ NEGA AYNAN NARX: sahifada ikkita qaror nuqtasi bor — "qiziqdim"
+    (hero) va "to'layman" (narx). Vizual cho'qqi shu ikkalasiga to'g'ri
+    kelishi kerak; oraliqdagi bo'limlar esa ularni ko'tarib turadi.
+
+  ⚠️ KITOB BLOKI BREND SIRTIDAN OLINDI. U narxdan darhol OLDIN turadi va
+     ikkita to'q yashil blok ketma-ket kelganda ikkalasi ham "oddiy fon"
+     bo'lib qolardi — ya'ni narx o'z urg'usini yo'qotardi.
+*/
+
+/*
+  BO'LIM YORLIG'I ("Natija", "Narx", "Ariza"…) oldidagi qisqa chiziq.
+
+  ★ NEGA `::before`, shablonda qo'shimcha `<span>` EMAS: yorliq oltita
+    joyda takrorlanadi va har biriga bo'sh element qo'shish shablonni
+    ma'nosiz belgi bilan to'ldirardi. Chiziq — BEZAK, ya'ni DOM'da
+    o'z elementiga ega bo'lishi shart emas (ekran o'quvchi ham uni
+    o'qimaydi).
+
+  `currentColor` — chiziq yorliq bilan bir rangda, ya'ni sirt
+  o'zgarganda (masalan brend sirtida) u ham o'z-o'zidan moslashadi.
+*/
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.eyebrow::before {
+  content: '';
+  width: 1.5rem;
+  height: 2px;
+  border-radius: 9999px;
+  background-color: currentColor;
+}
+
+/*
+  Statik nuqtali tekstura. `hero-grid` bilan bir xil naqsh, lekin
+  HARAKATSIZ: bo'lim ichida ko'zni chalg'itmasligi kerak, vazifasi —
+  yassi sirtga "material" hissini berish.
+
+  ★ `currentColor` — rang ota elementdan (`text-*`) olinadi, ya'ni bitta
+    klass ham to'q, ham yorug' sirtda ishlaydi.
+*/
+.dot-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.06;
+}
+
+/*
+  Bo'lim tepasidagi yumshoq yorug'lik — tasmali bo'limlar uchun.
+  Chegara chizig'i (`border-y`) yolg'iz o'zi bo'limni ajratardi, lekin
+  "yangi bo'lim boshlandi" degan tuyg'uni bermasdi.
+*/
+.section-glow {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 22rem;
+  pointer-events: none;
+  background: radial-gradient(
+    48rem 16rem at 50% 0%,
+    color-mix(in oklab, var(--color-brand-vivid) 10%, transparent),
+    transparent 70%
+  );
+}
+
+/*
+  KARTA KO'TARILISHI — sichqoncha ostida.
+
+  ★ `translate3d` (`translateY` EMAS): shakl kompozitor qatlamida
+    ko'chadi va matn har kadrda qaytadan rasterlanmaydi — 60 Hz da farq
+    mobil qurilmada sezilarli.
+
+  ★ FAQAT `hover` MOSLAMASIDA: sensorli ekranda `hover` "yopishib"
+    qolardi (bosgandan keyin karta ko'tarilgan holda turib qolardi).
+*/
+@media (hover: hover) {
+  .card-lift {
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.25s ease,
+      background-color 0.25s ease;
+  }
+
+  .card-lift:hover {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+/*
   ============================ SHRIFT ============================
   Plus Jakarta Sans — eski o'quvchi ilovasining shrifti.
 

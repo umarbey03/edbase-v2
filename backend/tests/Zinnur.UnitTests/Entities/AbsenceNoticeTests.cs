@@ -8,8 +8,8 @@ namespace Zinnur.UnitTests.Entities;
 /// KELMAGANLARGA XABAR (2026-08-18) — yozuv va o'rin egallovchilar.
 ///
 /// ★ O'RIN EGALLOVCHILAR SINALADI, CHUNKI ULAR PULGA EMAS, ISHONCHGA
-/// TA'SIR QILADI: `{ism}` almashtirilmay ketsa, o'quvchi "Assalomu
-/// alaykum, {ism}!" degan xabar oladi va markaz beparvo ko'rinadi.
+/// TA'SIR QILADI: `{ism}` almashtirilmay ketsa, o'quvchi "Hurmatli
+/// {ism}," degan xabar oladi va markaz beparvo ko'rinadi.
 /// Bunday xato jimgina sodir bo'ladi — hech qayerda istisno chiqmaydi.
 /// </summary>
 public class AbsenceNoticeTests

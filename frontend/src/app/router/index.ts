@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { BRAND_NAME, LANDING_TITLE } from '@/shared/config/seo'
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import type { UserRoleName } from '@/shared/types'
 
@@ -612,20 +613,65 @@ router.beforeEach(async (to) => {
 })
 
 /*
-  Brauzer tabidagi sarlavha — DOIMIY brend nomi (loyiha egasining talabi,
-  2026-08-28). Ilgari u `${sahifa} — <brend>` shaklida edi va tab tor
-  bo'lganda faqat sahifa nomi ko'rinardi ("Tizim sozla…"), ya'ni brend
-  eng ko'rinadigan joyda umuman o'qilmasdi.
+  ══════════════════════════════════════════════════════════════════════════
+  SARLAVHA VA INDEKSLASH METASI (SEO, 2026-08-30)
+  ══════════════════════════════════════════════════════════════════════════
 
-  ★ NOM YOZILISHI — `ZIN-NUR ONLINE`, landing sahifa bilan AYNI
-    (2026-08-29 da tanlandi). Ikki xil yozilish saytda darrov ko'zga
-    tashlanardi: tabda bir xil, sahifada boshqa.
+  🔴 BOSH SAHIFA ALOHIDA ISHLANADI. `index.html` dagi `<title>` kalit
+     so'zlar bilan yozilgan ("Online arab tili kursi — ..."), va u
+     QIDIRUV NATIJASIDA ko'rinadigan yagona sarlavha. Bu yerdagi umumiy
+     qoida uni "Arab tili kursi — ZIN-NUR ONLINE" ga almashtirib
+     yuborardi, ya'ni prerender qilingan sarlavhani brauzerda darhol
+     buzardi.
 
-  ⚠️ `to.meta.title` OLIB TASHLANMADI: u `AppShell.vue` da ilova ichidagi
-  sarlavha uchun ishlatiladi. Bu yerda faqat brauzer sarlavhasi o'zgardi.
+     ⚠️ LEKIN "TEGMASLIK" HAM XATO EDI (2026-08-30 da tuzatildi).
+        Avvalgi tuzatishda `/` marshrutida sarlavhaga UMUMAN
+        tegilmasdi. Natijada ilova ICHIDAN bosh sahifaga qaytilganda
+        (`/login` -> `/`) tabda oldingi sahifaning nomi — «Kirish —
+        ZIN-NUR ONLINE» — qotib qolardi. Birinchi yuklashda to'g'ri,
+        keyingi navigatsiyada noto'g'ri.
+
+        Endi bosh sahifada sarlavha `LANDING_TITLE` dan TIKLANADI. U
+        `index.html` dagi `<title>` bilan bir xil (build ularni
+        solishtiradi — `scripts/prerender.mjs`), ya'ni almashtirish
+        ko'rinmaydi: qiymat o'zi bilan o'zi almashadi.
+
+  ★ ILOVA SAHIFALARI INDEKSGA TUSHMAYDI. `/login`, `/ustoz/...`,
+    `/admin/...` — bularning qidiruvda chiqishidan foyda yo'q va ular
+    faqat "arab tili kursi" so'rovi bo'yicha saytning o'z sahifalarini
+    bir-biriga raqobatchi qilardi.
+
+    ⚠️ Bu `robots.txt` da EMAS, aynan shu yerda hal qilinadi: robots.txt
+       ochiq fayl va unga maxfiy yo'llarni yozish — hujumchiga xarita
+       berish (batafsil `scripts/seo-files-plugin.ts` da).
 */
-const DOCUMENT_TITLE = 'ZIN-NUR ONLINE'
 
-router.afterEach(() => {
-  document.title = DOCUMENT_TITLE
+/** `<meta name="robots">` ni yaratadi yoki mavjudini yangilaydi. */
+function setRobotsMeta(content: string): void {
+  let tag = document.querySelector<HTMLMetaElement>('meta[name="robots"]')
+
+  if (tag === null) {
+    tag = document.createElement('meta')
+    tag.name = 'robots'
+    document.head.appendChild(tag)
+  }
+
+  tag.content = content
+}
+
+router.afterEach((to) => {
+  const isLanding = to.path === '/'
+
+  if (isLanding) {
+    document.title = LANDING_TITLE
+  }
+  else {
+    const title = to.meta.title
+    document.title = title !== undefined ? `${title} — ${BRAND_NAME}` : BRAND_NAME
+  }
+
+  // `follow` — sahifa indekslanmasin, lekin undagi havolalar KUZATILSIN.
+  // `nofollow` bo'lsa, ilova ichidan bosh sahifaga qaytadigan havolalar
+  // ham "o'lik" bo'lib qolardi.
+  setRobotsMeta(isLanding ? 'index, follow' : 'noindex, follow')
 })

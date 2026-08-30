@@ -66,3 +66,7 @@ infra/livekit/certs/
 docs/
 *.md
 docker-compose*.yml
+
+# Prerender oraliq bundle`i (scripts/prerender.mjs uni o`chiradi, lekin
+# build yarim yo`lda uzilsa qolib ketishi mumkin).
+dist-ssg

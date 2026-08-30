@@ -22,7 +22,7 @@ import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
  * O'quvchining javobi: matn va/yoki fayllar.
  *
  * So'rov `multipart/form-data` bilan ketadi (`submitAssignment`), chunki
- * javobga daftar surati yoki qiroat yozuvi ilova qilinadi.
+ * javobga daftar surati yoki ovozli o'qish yozuvi ilova qilinadi.
  *
  * NIMA UCHUN FORMATLAR SHU YERDA HAM TEKSHIRILADI: server qoidasi
  * (`Assignment.EnsureFormatAllowed`) o'z joyida qoladi va u YAKUNIY hakam,

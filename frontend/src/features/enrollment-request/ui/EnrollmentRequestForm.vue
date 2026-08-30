@@ -110,8 +110,15 @@ async function handleSubmit(): Promise<void> {
       <h3 class="mt-4 text-lg font-semibold text-slate-100">
         Arizangiz qabul qilindi
       </h3>
+      <!--
+        ⚠️ 2026-08-30 — "O'QUV BO'LIMI" O'RNIGA "MENEJERLARIMIZ"
+        (loyiha egasining talabi). "O'quv bo'limi" — ICHKI bo'lim nomi;
+        ariza qoldirgan odam uchun u hech narsani anglatmaydi. Ayni
+        almashtirish `landing/model/content.ts` dagi `STEPS` va `FAQ`
+        da ham qilingan.
+      -->
       <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-400">
-        O‘quv bo‘limi ish vaqti davomida siz bilan bog‘lanadi. Iltimos,
+        Menejerlarimiz ish vaqti davomida siz bilan bog‘lanadi. Iltimos,
         qo‘ng‘iroqni kutib turing.
       </p>
     </div>
@@ -227,7 +234,7 @@ async function handleSubmit(): Promise<void> {
 
       <p class="mt-3 text-center text-[12px] leading-relaxed text-slate-500">
         Ma’lumotlaringiz faqat siz bilan bog‘lanish uchun ishlatiladi.
-        Ariza yuborish hisob ochmaydi — hisobni o‘quv bo‘limi ochadi.
+        Ariza yuborish hisob ochmaydi — hisobni menejerlarimiz ochadi.
       </p>
     </form>
   </div>

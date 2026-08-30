@@ -54,3 +54,7 @@ backups/
 
 # Baza dumplari (qo'lda olingan zaxira) — repoga TUSHMASIN.
 .backups/
+
+# Prerender oraliq bundle`i (scripts/prerender.mjs uni o`chiradi, lekin
+# build yarim yo`lda uzilsa qolib ketishi mumkin).
+dist-ssg

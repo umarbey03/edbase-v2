@@ -25,4 +25,29 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  /*
+    BUILD SKRIPTLARI — BRAUZER EMAS, NODE MUHITI (2026-08-30).
+
+    `scripts/` ichidagi fayllar `npm run build` paytida Node'da ishlaydi:
+    ular `process.env` ni o'qiydi va build jarayoni haqida konsolga yozadi.
+
+    ★ NEGA UMUMIY QOIDA O'ZGARTIRILMADI: `process` ni hamma joyda ochib
+      qo'yish ILOVA kodida ham unga murojaat qilish yo'lini ochardi —
+      u yerda esa `process` yo'q va bunday kod brauzerda yiqilardi.
+
+    ★ `console.log` bu yerda RUXSAT: build logi — skriptning yagona
+      chiqish kanali. Ilovada esa u hamon ogohlantirish beradi.
+  */
+  {
+    files: ['scripts/**/*.{js,mjs,ts}', 'vite.config.ts'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]

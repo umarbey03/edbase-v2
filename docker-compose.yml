@@ -760,6 +760,10 @@ services:
         # konteynerni restart qilish YETARLI EMAS.
         VITE_API_URL: ${VITE_API_URL}
         VITE_HUB_URL: ${VITE_HUB_URL}
+        VITE_SITE_URL: ${VITE_SITE_URL}
+        VITE_GOOGLE_SITE_VERIFICATION: ${VITE_GOOGLE_SITE_VERIFICATION}
+        VITE_YANDEX_VERIFICATION: ${VITE_YANDEX_VERIFICATION}
+        VITE_INDEXNOW_KEY: ${VITE_INDEXNOW_KEY}
     image: zinnur/web:dev
     container_name: zinnur-v2-web
     restart: unless-stopped

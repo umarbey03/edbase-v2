@@ -282,7 +282,7 @@ public static class TelegramTemplates
 
     /// <summary>Bog'lanmagan foydalanuvchi uchun salom va yo'riq.</summary>
     public static string StartUnlinkedText() =>
-        "Assalomu alaykum! 👋\n"
+        "Salom! 👋\n"
         + "Bu — <b>ZIN-NUR Online</b> o'quv platformasining rasmiy boti.\n\n"
         + "Tizimga kirish uchun pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing.\n\n"
         + "⚠️ Raqamni <b>qo'lda yozib bo'lmaydi</b> — u faqat shu tugma orqali "
@@ -291,7 +291,7 @@ public static class TelegramTemplates
 
     /// <summary>Allaqachon bog'langan o'quvchi uchun salom.</summary>
     public static string StartLinkedText(string? fullName) =>
-        $"Assalomu alaykum, <b>{NotificationText.Parameter(fullName)}</b>! 👋\n"
+        $"Salom, <b>{NotificationText.Parameter(fullName)}</b>! 👋\n"
         + "Profilingiz Telegram akkauntingizga ulangan.\n\n"
         + "Darslar, davomat va vazifalarni ochish uchun quyidagi tugmani bosing.";
 

@@ -29,6 +29,28 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+> **⚠️ ESKI `.env` BILAN ISHLAYOTGAN BO'LSANGIZ (2026-08-30 dan):**
+> frontend build'i endi `VITE_SITE_URL` ni TALAB QILADI va usiz
+> ATAYLAB yiqiladi:
+>
+> ```
+> [plugin zinnur-seo-files] VITE_SITE_URL berilmagan. Usiz robots.txt
+> `Disallow: /` bilan yasalardi va sayt indeksdan tushardi.
+> ```
+>
+> Sabab: bo'sh qiymat ilgari "sinov muhiti" deb qabul qilinardi va bu
+> PROD'da butun saytni indeksdan tushirib yuborardi — jimgina. Endi
+> xato build paytida ko'rinadi.
+>
+> Tuzatish — `.env` ga bitta qator (lokal uchun):
+>
+> ```bash
+> echo 'VITE_SITE_URL=http://localhost:5173' >> .env
+> ```
+>
+> To'liq ro'yxat (tasdiqlash kodlari, IndexNow kaliti) —
+> `.env.example` ning 7-bo'limida.
+
 Birinchi ko'tarilish ~2–4 daqiqa (image yig'iladi, migratsiyalar qo'llanadi).
 
 | Manzil | Nima |

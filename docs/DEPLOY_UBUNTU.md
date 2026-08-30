@@ -1367,6 +1367,30 @@ LIVEKIT_KEYS=${LK_KEY}: ${LK_SECRET}
 #    Bu raqamga bog'langan Telegram hisobiga kirish kodi keladi.
 #    Yo'q bo'lsa API ATAYLAB ko'tarilmaydi (sabab: 7.1.1).
 Bootstrap__AdminPhone=+998901234567
+
+# 🔴 SEO — FRONTEND BUILD UCHUN MAJBURIY (2026-08-30 dan).
+#    Bu qatorsiz `docker compose build web` YIQILADI.
+#
+#    Nega majburiy qilingan: qiymat berilmasa Compose bo'sh satr
+#    uzatadi, bo'sh satr Dockerfile standartini bekor qiladi va build
+#    saytni "sinov muhiti" deb belgilaydi — ya'ni PROD robots.txt
+#    `Disallow: /` bilan chiqib, sayt butunlay indeksdan tushadi.
+#    Bu xato jimgina sodir bo'lardi: robots.txt ga hech kim qaramaydi.
+#
+#    ⚠️ Qiymat AYNAN prod domeni bo'lsin. "www." qo'shilsa yoki
+#       "http://" yozilsa build uni staging deb qabul qiladi (build
+#       logida ogohlantirish chiqadi — o'qing).
+VITE_SITE_URL=https://zinnuronline.uz
+
+#    Qidiruv tizimlarida tasdiqlash kodlari — ixtiyoriy, keyin
+#    to'ldiriladi (Search Console / Yandex Webmaster bergan `content`
+#    qiymati, butun <meta> teg EMAS).
+VITE_GOOGLE_SITE_VERIFICATION=
+VITE_YANDEX_VERIFICATION=
+
+#    IndexNow kaliti (Bing va Yandex). Akkaunt talab qilmaydi.
+#    Kalit MAXFIY EMAS — u sayt ildizida ochiq faylda turadi.
+VITE_INDEXNOW_KEY=9f3f23b8b3bf11af76a3439f90f30912
 EOF
 
 chmod 600 .env
@@ -1641,7 +1665,7 @@ quriladi. Bo'sh bo'lsa `R2_SERVICE_URL` ishlatiladi — ya'ni imzo ham,
 havola ham bitta xostga tegishli bo'ladi va nomuvofiqlik **hech qachon**
 chiqmaydi. Aynan shuning uchun bo'sh qoldirish — tavsiya etilgan holat.
 
-**Nega custom domen (`media.zinnur.uz`) yaramaydi:** R2 ning custom
+**Nega custom domen (`media.zinnuronline.uz`) yaramaydi:** R2 ning custom
 domeni S3 API emas va imzoni **tekshirmaydi**.
 
 * bucket ochiq bo'lsa — fayl **imzosiz ham** beriladi, ya'ni muddat,

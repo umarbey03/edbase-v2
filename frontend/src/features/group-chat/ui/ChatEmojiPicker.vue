@@ -77,7 +77,7 @@ const EMOJI_GROUPS: readonly {
       { char: '👋', label: 'salom' },
       { char: '☝️', label: 'diqqat' },
       { char: '✍️', label: 'yozish' },
-      { char: '🤲', label: 'duo' },
+      { char: '🤞', label: 'omad' },
       { char: '🫡', label: 'bosh ustiga' },
     ],
   },

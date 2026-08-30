@@ -8,8 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build && vite build --ssr src/entry-ssg.ts --outDir dist-ssg && node scripts/prerender.mjs",
     "preview": "vite preview",
+    "seo:ping": "node scripts/indexnow.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint . --max-warnings 0"
   },
