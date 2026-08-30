@@ -7,6 +7,7 @@ import type { User } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { TelegramAuthScreen } from '@/features/telegram-auth'
 import { toUserMessage } from '@/shared/api'
+import { COURSE_FACTS } from '@/shared/config/course-facts'
 import {
   maskPhoneField,
   PHONE_INPUT_MAXLENGTH,
@@ -16,6 +17,7 @@ import {
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import type { TelegramLoginStatusName } from '@/shared/types'
 import { AppIcon, BaseButton } from '@/shared/ui'
+import type { IconName } from '@/shared/ui'
 
 /*
   ══════════════════════════════════════════════════════════════════════════
@@ -113,6 +115,72 @@ const botCodeInput = useTemplateRef<HTMLInputElement>('botCodeInput')
 const telegramMode = ref(isTelegramMiniApp())
 
 const sessionExpired = computed(() => route.query['sabab'] === 'sessiya-tugadi')
+
+/*
+  CHAP USTUNDAGI BREND PANELI (faqat `lg` dan boshlab ko'rinadi).
+
+  ★ NIMA UCHUN AYNAN SHU UCH GAP: kirish ekraniga ikki xil odam keladi —
+    (a) allaqachon o'quvchi, u shunchaki kirmoqchi; (b) landing'dan kelib
+    "bu qanaqa tizim?" deb qarab turgan odam. Ikkinchisi uchun panel
+    kabinetda NIMA borligini bir qarashda aytadi.
+
+  🔴 BU YERDA SOTUV MATNI YO'Q (narx, guruh hajmi, aksiya). Kirish
+     ekrani — ishchi ekran; unga sotuv matnini qo'yish kirmoqchi bo'lgan
+     odamni sekinlashtiradi. Sotuv landing'da (`pages/landing`).
+*/
+const PANEL_POINTS: readonly { icon: IconName, title: string, text: string }[] = [
+  {
+    icon: 'video',
+    title: 'Jonli darslar',
+    text: 'Dars saytning o‘zida ochiladi va yozuvi kabinetingizda qoladi.',
+  },
+  {
+    icon: 'clipboard',
+    title: 'Vazifa va testlar',
+    text: 'Har mavzudan keyingi test, natijalaringiz va davomatingiz.',
+  },
+  {
+    icon: 'telegram',
+    title: 'Parolsiz kirish',
+    text: 'Eslab qolinadigan parol yo‘q — tasdiq Telegram orqali keladi.',
+  },
+]
+
+/*
+  PANEL PASTIDAGI FAKTLAR CHIZIG'I (2026-08-30).
+
+  ★ MUAMMO: panel `justify-between` bilan tuzilgan — tepada logo, pastda
+    "bosh sahifaga" havolasi. Matn bloki kalta bo'lgani uchun ular
+    orasida katta bo'sh maydon qolardi va panelning pastki uchdan biri
+    quruq yashil bo'lib turardi.
+
+  ┌────────────────────────────────────────────────────────────────────┐
+  │ 🔴 NEGA "1 200 O'QUVCHI" KABI RAQAM EMAS                           │
+  └────────────────────────────────────────────────────────────────────┘
+  Premium kirish sahifalari odatda ijtimoiy dalil ko'rsatadi va eng
+  kuchlisi — o'quvchi soni. Lekin uni HOZIR chizib bo'lmaydi:
+
+    • `/api/v1/*` ning hammasi autentifikatsiya talab qiladi, ya'ni
+      KIRMAGAN odam turgan sahifa bu sonni serverdan ola olmaydi;
+    • qo'lda yozilgan son bir hafta ichida eskiradi va yolg'onga
+      aylanadi — kirish sahifasidagi yolg'on esa ishonchni aynan
+      ishonch eng kerak bo'lgan joyda buzadi.
+
+  Shuning uchun bu yerda SHARTNOMAVIY faktlar turibdi: ular ham aniq va
+  tekshiriladigan, lekin markaz qarori bilan o'zgaradi va o'z-o'zidan
+  eskirmaydi. Manba — `shared/config/course-facts.ts`, ya'ni landing
+  bilan AYNI qiymatlar (ikki sahifa hech qachon ikki xil raqam
+  ko'rsatmaydi).
+
+  ⚠️ HAQIQIY HISOBLAGICH KERAK BO'LSA: backendda anonim endpoint
+     ochilishi kerak (masalan `GET /api/v1/public/stats`). O'shanda bu
+     ro'yxat so'rov natijasi bilan almashtiriladi.
+*/
+const PANEL_STATS: readonly { value: string, label: string }[] = [
+  { value: COURSE_FACTS.courseDuration, label: 'ATF kursi' },
+  { value: COURSE_FACTS.weeklyLessonDays, label: 'haftasiga dars' },
+  { value: COURSE_FACTS.groupSize, label: 'kishilik guruh' },
+]
 
 /** Telegram orqali kirish tugagach — rolga mos bosh sahifaga. */
 async function handleTelegramSuccess(user: User): Promise<void> {
@@ -592,13 +660,82 @@ onMounted(() => {
     @phone-login="telegramMode = false"
   />
 
+  <!--
+    ══════════════════════════════════════════════════════════════════════
+     2026-08-30 — EKRAN IKKI USTUNGA BO'LINDI (loyiha egasining talabi)
+    ══════════════════════════════════════════════════════════════════════
+
+    Ilgari bu ekran QAT'IY MARKAZLASHGAN edi: qorong'i fon ustida bitta
+    `max-w-sm` karta. Telefonda bu to'g'ri ko'rinardi, lekin kompyuterda
+    ekranning katta qismi bo'sh qolardi va sahifa "hali qurib
+    bo'linmagan" taassurot berardi — landing esa yonida to'liq
+    bezatilgan holda turardi.
+
+    Endi `lg` dan boshlab CHAP ustunda brend paneli (landing hero bilan
+    AYNI to'q yashil sirt), o'ngda esa o'sha karta turadi.
+
+    🔴 KARTANING ICHIGA TEGILMADI — ATAYLAB. Bo'linish faqat SHU
+       o'ramda: `lg` gacha element oddiy `flex` markazlashgan qobiq
+       bo'lib qoladi, ya'ni telefonda va Telegram Mini App ichida
+       ko'rinish O'ZGARMAGAN. Shu sababli oqim mantig'ining birorta
+       qatori ham qayta yozilmadi.
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 🔴 `lg:items-stretch` — MAJBURIY, BEZAK EMAS                     │
+    └──────────────────────────────────────────────────────────────────┘
+    `items-center` telefon uchun kerak (karta ekran o'rtasida tursin),
+    lekin u `align-items` xossasi va u GRID rejimida ham kuchda qoladi.
+    Natijada `lg` da setka kataklari kontent balandligicha qolib,
+    yashil panel ekranning o'rtasida "suzib" turardi — tepasida va
+    pastida katta bo'sh maydon bilan.
+
+    ⚠️ Bu 2026-08-30 da AYNAN shunday xato bo'lib chiqdi va skrinshotdan
+       topildi. `lg:items-stretch` uni bekor qiladi: panel to'liq
+       balandlikni oladi.
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ USTUN NISBATI VA FORMA KENGLIGI — BIRGA HAL QILINADI             │
+    └──────────────────────────────────────────────────────────────────┘
+    ⚠️ 2026-08-30 — IKKINCHI TUZATISH. Avval `1.05fr 1fr` va forma
+       `max-w-sm` (384px) edi. Natijada chap panel EKRANNING YARMINI
+       to'liq bo'yardi, o'ngdagi forma esa o'z ustunining atigi 56%
+       ini egallab, o'rtada suzib turardi.
+
+       Ko'z og'irlikni chapda ko'rar edi va KIRISH FORMASI — sahifaning
+       butun vazifasi — ikkinchi darajali narsaga o'xshab qolardi.
+
+    Yechim ikki tomonlama: ustunlar TENGLASHTIRILDI va forma
+    `max-w-md` (448px) gacha kengaytirildi. Endi o'ng ustunning ~66%
+    i to'lgan va ikki tomon og'irligi teng.
+
+    🔴 FORMA KENGLIGI `max-w-md` DAN OSHMASIN: bitta ustunli forma
+       448px dan kengaygach, yorliq bilan maydon orasidagi masofa
+       ko'z uchun uzayadi va o'qish qiyinlashadi.
+  -->
   <div
     v-else
-    class="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10"
+    class="relative flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10 lg:grid lg:grid-cols-2 lg:items-stretch lg:p-0"
   >
     <!--
       Fon nuri. Yorug' fonda shaffoflik PASAYTIRILGAN (7%/5%): oq sirtda
       bir xil foiz nurni "bo'yoq dog'i" darajasiga chiqaradi.
+    -->
+    <!--
+      ⚠️ 2026-08-30 — FONGA CHUQURLIK QO'SHILDI.
+
+      Yorug' temada karta ham oq, sahifa foni ham deyarli oq edi:
+      ikkalasini bir-biridan AJRATADIGAN yagona narsa soya bo'lib
+      qolgandi. Natijada karta "qog'ozga chizilgan to'rtburchak"dek
+      ko'rinardi.
+
+      Endi uch qatlam: ikkita mavjud burchak nuri (kuchaytirildi) va
+      YANGI, kartaning orqasidagi yumshoq yashil halqa. Halqa aynan
+      formaning markaziga to'g'ri keladi (`72% 50%` — o'ng ustunning
+      o'rtasi), ya'ni karta yorug' dog' ustida "ko'tarilib" turadi.
+
+      🔴 FOIZLAR ATAYLAB KICHIK (5–11%): bu QATLAM, naqsh emas. Qiymat
+         kattalashsa yorug' fonda darhol "bo'yoq dog'i" bo'lib ko'rinadi
+         va matn kontrasti pasayadi.
     -->
     <div
       class="pointer-events-none fixed inset-0"
@@ -606,20 +743,179 @@ onMounted(() => {
       style="
         background:
           radial-gradient(
+              38rem 30rem at 72% 50%,
+              color-mix(in oklab, var(--color-brand-vivid) 11%, transparent),
+              transparent 70%
+            ),
+          radial-gradient(
               60rem 40rem at 20% -10%,
-              color-mix(in oklab, var(--color-brand-500) 7%, transparent),
+              color-mix(in oklab, var(--color-brand-500) 9%, transparent),
               transparent 60%
             ),
           radial-gradient(
             40rem 30rem at 90% 110%,
-            color-mix(in oklab, var(--color-violet-500) 5%, transparent),
+            color-mix(in oklab, var(--color-violet-500) 6%, transparent),
             transparent 60%
           );
       "
     />
 
-    <div class="relative w-full max-w-sm">
-      <div class="mb-7 text-center">
+    <!--
+      ═══════════════════════════════════════════ BREND PANELI (chap) ═══
+      `surface-brand` — landing hero bilan AYNI to'q yashil sirt (qoidalar
+      `style.css` da). Ikki ekran ketma-ket ko'rinadi: landing'dan
+      «Kirish» bosgan odam bir xil rangdagi sahifaga tushadi va oqim
+      uzilmaydi.
+
+      🔴 `hidden lg:flex` — telefonda BUTUNLAY chizilmaydi. Kichik ekranda
+         u formani pastga surib yuborardi, holbuki kirish ekranida
+         BIRINCHI ko'rinishi kerak bo'lgan narsa — forma.
+    -->
+    <aside
+      class="surface-brand relative hidden overflow-hidden bg-ink-950 p-10 lg:flex lg:flex-col lg:justify-between xl:p-14"
+    >
+      <!--
+        SETKALI NAQSH — landing hero'dagi bilan AYNI qatlam.
+
+        ★ NEGA KERAK: ikkala ekran ham brend sirtida va ketma-ket
+          ko'rinadi (landing -> «Kirish»). Hero'da tekstura bor, bu
+          yerda yo'q edi — panel yassi "bo'yalgan maydon" bo'lib turardi
+          va ikkalasi bir brendning ikki sahifasidek o'qilmasdi.
+
+        Tuzilishi va niqob nima uchun alohida o'ramda ekani —
+        `style.css` dagi `.hero-grid-mask` izohida.
+      -->
+      <div class="hero-grid-mask">
+        <div class="hero-grid text-slate-50" />
+      </div>
+
+      <!-- Fon nuri — landing hero'dagi bilan bir xil naqsh. -->
+      <div
+        class="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+        style="
+          background:
+            radial-gradient(
+                50rem 34rem at 10% -15%,
+                color-mix(in oklab, var(--color-brand-500) 18%, transparent),
+                transparent 62%
+              ),
+            radial-gradient(
+              34rem 26rem at 95% 105%,
+              color-mix(in oklab, var(--color-brand-500) 12%, transparent),
+              transparent 60%
+            );
+        "
+      />
+
+      <RouterLink
+        class="relative inline-flex items-center gap-2.5 self-start"
+        to="/"
+      >
+        <img
+          class="size-10 rounded-full"
+          src="/logo-64.png"
+          alt="ZIN-NUR ONLINE logosi"
+          width="40"
+          height="40"
+        >
+        <!--
+          SO'Z BELGISI — ikki qator, ikkalasi bir xil. Balandlik logo
+          bilan AYNAN teng: logo `size-10` = 40px, ya'ni har qator 20px.
+          Qoidaning to'liq izohi shu faylning pastroq blokida.
+        -->
+        <span class="flex h-10 flex-col justify-center">
+          <span class="font-display text-[18px] font-semibold leading-[20px] tracking-tight text-brand-500">
+            ZIN-NUR
+          </span>
+          <span class="font-display text-[18px] font-semibold leading-[20px] tracking-tight text-brand-500">
+            ONLINE
+          </span>
+        </span>
+      </RouterLink>
+
+      <div class="relative max-w-md">
+        <h2
+          class="font-display text-[2rem] font-semibold leading-[1.12] tracking-[-0.01em] text-slate-50 xl:text-[2.6rem]"
+        >
+          Kabinetingizga
+          <span class="text-brand-500">xush kelibsiz</span>
+        </h2>
+
+        <ul class="mt-9 space-y-5">
+          <li
+            v-for="point in PANEL_POINTS"
+            :key="point.title"
+            class="flex gap-3.5"
+          >
+            <span
+              class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/12 text-brand-500"
+            >
+              <AppIcon
+                :name="point.icon"
+                :size="17"
+              />
+            </span>
+            <div>
+              <p class="text-sm font-bold text-slate-100">
+                {{ point.title }}
+              </p>
+              <p class="mt-1 text-sm leading-relaxed text-slate-300">
+                {{ point.text }}
+              </p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="relative">
+        <!--
+          FAKTLAR CHIZIG'I — panelning pastki bo'sh maydonini to'ldiradi
+          va bir vaqtning o'zida "bu qanaqa kurs?" degan savolga javob
+          beradi. Qiymatlar landing bilan AYNI manbadan; nega o'quvchi
+          SONI emasligi `PANEL_STATS` izohida.
+        -->
+        <dl class="flex flex-wrap gap-x-10 gap-y-5 border-t border-line pt-7">
+          <div
+            v-for="stat in PANEL_STATS"
+            :key="stat.label"
+          >
+            <dt class="font-display text-2xl font-semibold tracking-tight text-slate-50">
+              {{ stat.value }}
+            </dt>
+            <dd class="mt-0.5 text-xs text-slate-400">
+              {{ stat.label }}
+            </dd>
+          </div>
+        </dl>
+
+        <RouterLink
+          class="mt-8 inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 transition-colors hover:text-brand-500"
+          to="/"
+        >
+          <AppIcon
+            name="arrow-left"
+            :size="15"
+          />
+          Bosh sahifaga qaytish
+        </RouterLink>
+      </div>
+    </aside>
+
+    <!--
+      ═══════════════════════════════════════════════ FORMA (o'ng) ═══
+      🔴 `lg:place-self-center` — `lg` da bu element setka katagi bo'lib
+         qoladi va O'ZINI markazlashtiradi. Shu sabab ichidagi kartaga
+         (va butun oqim mantig'iga) tegilmadi: markazlash o'ramdan
+         setka katagiga ko'chdi, xolos.
+    -->
+    <div class="relative w-full max-w-md lg:my-auto lg:justify-self-center lg:px-8">
+      <!--
+        TELEFONDAGI SARLAVHA. `lg:hidden` — kompyuterda brend chap
+        panelda turadi va uni ikkinchi marta takrorlash kartani
+        pastga surardi.
+      -->
+      <div class="mb-7 text-center lg:hidden">
         <!--
           HAQIQIY BREND LOGOSI (2026-08-29).
 
@@ -673,8 +969,23 @@ onMounted(() => {
         </p>
       </div>
 
+      <!--
+        KOMPYUTERDAGI SARLAVHA — logo O'RNIGA, u yonidagi panelda.
+        Chapga tekislangan: karta ham chapga tekislangan matndan iborat,
+        markazlashgan sarlavha uning ustida "boshqa ekrandan kelgandek"
+        turardi.
+      -->
+      <div class="mb-6 hidden lg:block">
+        <h1 class="font-display text-4xl font-semibold tracking-tight text-slate-100">
+          Tizimga kirish
+        </h1>
+        <p class="mt-2.5 text-base text-slate-400">
+          Parol kerak emas — kirish Telegram orqali tasdiqlanadi.
+        </p>
+      </div>
+
       <form
-        class="rounded-[1.25rem] bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line"
+        class="rounded-2xl bg-ink-900 p-7 shadow-xl ring-1 ring-inset ring-line sm:p-8"
         novalidate
         @submit.prevent="
           mode === 'bot'
@@ -699,12 +1010,12 @@ onMounted(() => {
             savolga javob kerak bo'ladi.
           -->
           <ol
-            class="mb-5 flex items-center gap-2 text-[11px]"
+            class="mb-6 flex items-center gap-2.5 text-xs"
             aria-label="Bosqichlar"
           >
             <li class="flex flex-1 items-center gap-2">
               <span
-                class="flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold"
+                class="flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold"
                 :class="botStep === 'kutish'
                   ? 'border-transparent bg-brand-500 text-on-brand'
                   : 'border-brand-500 text-brand-500'"
@@ -724,7 +1035,7 @@ onMounted(() => {
             </li>
             <li class="flex items-center gap-2">
               <span
-                class="flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold"
+                class="flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold"
                 :class="botStep === 'kutish'
                   ? 'border-brand-500 text-brand-500'
                   : 'border-line text-slate-600'"
@@ -738,10 +1049,16 @@ onMounted(() => {
 
           <!-- ─────────────────────────────── 1-QADAM: BOTNI OCHISH -->
           <template v-if="botStep === 'boshlash'">
-            <p class="text-[13px] leading-relaxed text-slate-400">
-              Tugmani bosing — <b class="font-medium text-slate-200">Telegram boti</b>
-              sizni taniydi va 6 xonali kod yuboradi.
-              Telefon raqamingizni yozish shart emas.
+            <!--
+              ⚠️ 2026-08-30 — MATN QISQARTIRILDI. Ilgari bu yerda uch
+              gap turardi va ularning ikkitasi pastdagi izoh bilan bir
+              narsani ("yozish shart emas", "parol yo'q") takrorlardi.
+              Kirish ekranida o'qiladigan matn qancha kam bo'lsa,
+              tugmagacha shuncha tez boriladi.
+            -->
+            <p class="text-sm leading-relaxed text-slate-400">
+              <b class="font-medium text-slate-200">Telegram boti</b> sizni
+              taniydi va 6 xonali kod yuboradi — hech narsa yozish shart emas.
             </p>
 
             <p
@@ -759,16 +1076,22 @@ onMounted(() => {
               :loading="isSubmitting"
               @click="handleStartBot"
             >
+              <!--
+                🔴 `telegram` — HAQIQIY BREND BELGISI (2026-08-30).
+                   Ilgari `send` ("qog'oz samolyot") turardi: u Telegram
+                   logosiga O'XSHAYDI, lekin u emas. Tugma odamni
+                   Telegramga olib chiqadi, ya'ni belgi aynan o'sha
+                   ilovani ko'rsatishi kerak.
+              -->
               <AppIcon
-                name="send"
+                name="telegram"
                 :size="17"
               />
               Telegram orqali kirish
             </BaseButton>
 
             <p class="mt-3 text-center text-[12px] leading-relaxed text-slate-500">
-              Parol yo'q va uni eslab qolish shart emas — kirish har safar
-              Telegram orqali tasdiqlanadi.
+              Parol yo'q — kirish har safar Telegram orqali tasdiqlanadi.
             </p>
           </template>
 
@@ -797,7 +1120,7 @@ onMounted(() => {
             </template>
 
             <template v-else>
-              <p class="text-[13px] leading-relaxed text-slate-400">
+              <p class="text-sm leading-relaxed text-slate-400">
                 <template v-if="botStatus === 'raqam-kerak'">
                   Botda <b class="font-medium text-slate-200">«📱 Raqamni ulashish»</b>
                   tugmasini bosing — kod shundan keyin keladi.
@@ -833,7 +1156,7 @@ onMounted(() => {
                 @click="openBotManually"
               >
                 <AppIcon
-                  name="send"
+                  name="telegram"
                   :size="17"
                 />
                 Telegram botni ochish
@@ -854,7 +1177,7 @@ onMounted(() => {
                 class="mt-5 border-t border-line pt-5"
               >
                 <label class="block">
-                  <span class="mb-1.5 block text-xs font-medium text-slate-400">Botdan kelgan kod</span>
+                  <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.6px] text-slate-500">Botdan kelgan kod</span>
                   <div class="relative">
                     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
                       <AppIcon
@@ -876,7 +1199,7 @@ onMounted(() => {
                       maxlength="6"
                       required
                       placeholder="123456"
-                      class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-center text-lg font-semibold tracking-[0.4em] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      class="h-13 w-full rounded-xl bg-ink-950 pl-10 pr-3 text-center text-xl font-semibold tracking-[0.5em] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
                       @input="onBotCodeInput"
                     >
                   </div>
@@ -932,7 +1255,7 @@ onMounted(() => {
           <!-- ─────────────────────────────────── 1-BOSQICH: RAQAM -->
           <template v-if="step === 'telefon'">
             <label class="block">
-              <span class="mb-1.5 block text-xs font-medium text-slate-400">Telefon raqami</span>
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.6px] text-slate-500">Telefon raqami</span>
               <div class="relative">
                 <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
                   <AppIcon
@@ -955,7 +1278,7 @@ onMounted(() => {
                   required
                   :maxlength="PHONE_INPUT_MAXLENGTH"
                   placeholder="+998 90 123 45 67"
-                  class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-sm tracking-[0.3px] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  class="h-12 w-full rounded-xl bg-ink-950 pl-10 pr-3 text-base tracking-[0.3px] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   @input="phone = maskPhoneField($event.target as HTMLInputElement)"
                 >
               </div>
@@ -1006,7 +1329,7 @@ onMounted(() => {
             </div>
 
             <label class="block">
-              <span class="mb-1.5 block text-xs font-medium text-slate-400">Telegramdan kelgan kod</span>
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.6px] text-slate-500">Telegramdan kelgan kod</span>
               <div class="relative">
                 <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500">
                   <AppIcon
@@ -1024,7 +1347,7 @@ onMounted(() => {
                   maxlength="6"
                   required
                   placeholder="123456"
-                  class="h-11 w-full rounded-lg bg-ink-950 pl-10 pr-3 text-center text-lg font-semibold tracking-[0.4em] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  class="h-13 w-full rounded-xl bg-ink-950 pl-10 pr-3 text-center text-xl font-semibold tracking-[0.5em] text-slate-100 ring-1 ring-inset ring-line-strong transition-colors placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
               </div>
             </label>
@@ -1077,8 +1400,13 @@ onMounted(() => {
         </template>
       </form>
 
+      <!--
+        ⚠️ 2026-08-30 — "O'QUV BO'LIMI" O'RNIGA "MENEJERLARIMIZ"
+        (loyiha egasining talabi). Ayni almashtirish ariza formasi va
+        landing matnida ham qilingan.
+      -->
       <p class="mt-6 text-center text-xs leading-relaxed text-slate-600">
-        Hisobingiz yo'qmi? Hisoblarni o'quv bo'limi ochadi —
+        Hisobingiz yo'qmi? Hisoblarni menejerlarimiz ochadi —
         <RouterLink
           class="font-medium text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-400"
           to="/#ariza"
@@ -1087,6 +1415,27 @@ onMounted(() => {
         </RouterLink>
         yoki markazga murojaat qiling.
       </p>
+
+      <!--
+        TELEFONDA BOSH SAHIFAGA QAYTISH. Kompyuterda bu havola chap
+        panelning pastida turadi (`lg:hidden` shuning uchun).
+
+        🔴 ILGARI QAYTISH YO'LI UMUMAN YO'Q EDI: landing'dan «Kirish»
+           bosgan odam bu ekranda qamalib qolardi va faqat brauzerning
+           «orqaga» tugmasi qutqarardi.
+      -->
+      <div class="mt-6 text-center lg:hidden">
+        <RouterLink
+          class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-300"
+          to="/"
+        >
+          <AppIcon
+            name="arrow-left"
+            :size="13"
+          />
+          Bosh sahifaga qaytish
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>

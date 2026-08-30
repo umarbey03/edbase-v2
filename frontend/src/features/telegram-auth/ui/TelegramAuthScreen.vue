@@ -166,8 +166,10 @@ const ERROR_VIEWS: Record<string, ErrorView> = {
   503: {
     icon: 'alert',
     title: 'Kirish vaqtincha ishlamayapti',
+    // ⚠️ 2026-08-30: "o'quv bo'limi" -> "menejerlarimiz" (loyiha egasining
+    //    talabi). Sabab `landing/model/content.ts` dagi `STEPS` izohida.
     hint: 'Bu vaqtinchalik holat. Biroz kutib, qaytadan urinib ko‘ring — '
-      + 'muammo davom etsa o‘quv bo‘limiga xabar bering.',
+      + 'muammo davom etsa menejerlarimizga xabar bering.',
     primary: 'retry',
     secondary: 'phone',
   },
@@ -199,7 +201,22 @@ function handleClose(): void {
 </script>
 
 <template>
-  <div class="flex min-h-dvh items-center justify-center bg-ink-950 px-5 py-10">
+  <!--
+    🔴 XAVFSIZ SOHA (2026-08-30). Bu ekran Telegram Mini App ICHIDA
+    ochiladi: yuqorida Telegram'ning o'z paneli, pastda esa telefonning
+    "home" chizig'i turadi. `min-h-dvh` + qat'iy `py-10` da uzunroq
+    xato matni pastdagi chiziq ostiga kirib qolardi va tugma bosilmasdi.
+
+    `env(safe-area-inset-*)` — Mini App'da ham, brauzerda ham ishlaydi:
+    o'ram bo'lmagan joyda qiymat 0 ga teng, ya'ni ko'rinish o'zgarmaydi.
+  -->
+  <div
+    class="flex min-h-dvh items-center justify-center bg-ink-950 px-5 py-10"
+    style="
+      padding-top: max(2.5rem, env(safe-area-inset-top));
+      padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
+    "
+  >
     <div class="w-full max-w-sm text-center">
       <!--
         R19 — plita radiusi boshqa qobiqlarniki bilan tenglashtirildi
