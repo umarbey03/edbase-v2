@@ -28,11 +28,156 @@
     <meta name="color-scheme" content="light" />
     <!-- Mobil brauzer manzil paneli rangi — sahifa foni bilan bir xil (`ink-950`). -->
     <meta name="theme-color" content="#fbfaf8" />
+
+    <!--
+      ══════════════════════════════════════════════════════════════════════
+       SEO — 2026-08-30 DA QAYTA YOZILDI
+      ══════════════════════════════════════════════════════════════════════
+
+      🔴 MUAMMO: loyiha egasi brauzerda "online arab tili kursi" deb
+         qidirdi va sayt CHIQMADI. Sabab bitta emas, uchta edi:
+
+         1) SARLAVHADA KALIT SO'Z YO'Q. Jonli saytda `<title>` shunchaki
+            "ZIN-NUR ONLINE" edi — ya'ni faqat BREND nomi. Brend nomini
+            esa hali hech kim qidirmaydi (uni bilgan odam allaqachon
+            mijoz). Odam "arab tili kursi onlayn" deb qidiradi, va
+            sarlavhada bu so'zlar bo'lmasa sahifa mos deb topilmaydi.
+
+         2) `robots.txt` VA `sitemap.xml` YO'Q edi — batafsil sabab
+            `scripts/seo-files-plugin.ts` da.
+
+         3) HTML BO'SH edi (`<div id="app">` dan boshqa hech narsa yo'q).
+            Buni prerender hal qiladi — `scripts/prerender.mjs`.
+
+      ★ SARLAVHA TARTIBI — KALIT SO'Z BIRINCHI, BREND OXIRIDA. Qidiruv
+        natijasida sarlavha ~60 belgidan keyin kesiladi va brend nomi
+        boshda tursa, aynan mos keladigan so'zlar kesilib ketardi.
+
+      ⚠️ ILOVA SAHIFALARIDA (`/login`, `/ustoz/...`) BU TEGLAR MOS EMAS.
+         Ular `app/router` dagi `afterEach` bilan almashtiriladi va
+         indekslashdan `robots` metasi orqali chiqariladi.
+    -->
+    <title>Online arab tili kursi — 8 oyda mustaqil o‘qishni o‘rganasiz | ZIN-NUR ONLINE</title>
     <meta
       name="description"
-      content="ZIN-NUR ONLINE — 8 oylik to‘liq arab tili kursi: jonli darslar, kuratorlik va kitoblar uyingizgacha."
+      content="Onlayn arab tili kursi: 8 oylik ATF dasturi, haftasiga 5 kun jonli dars, 18–20 kishilik guruh. Kitoblar Uzpost orqali bepul yetkaziladi. Bepul birinchi darsni hoziroq ko‘ring."
     />
-    <title>ZIN-NUR ONLINE — Arab tili kursi</title>
+    <meta name="keywords" content="arab tili kursi, online arab tili, onlayn arab tili kursi, arab tilini o‘rganish, arab alifbosi, ZIN-NUR ONLINE" />
+
+    <!--
+      KANONIK MANZIL.
+
+      🔴 NEGA MAJBURIY: bitta sahifaga bir nechta manzildan kirish mumkin
+         (`/`, `/?utm_source=...`, `www.` bilan va usiz). Kanonik teg
+         bo'lmasa qidiruv tizimi ularni alohida sahifalar deb hisoblaydi
+         va bir xil kontent uchun ballni ular orasida bo'lib yuboradi.
+
+      ⚠️ `zinnur.uz` BU SAYTGA ALOQADOR EMAS — u alohida platforma.
+         Kanonik manzil FAQAT `zinnuronline.uz`.
+
+      ⚠️ Manzil BUILD paytida `VITE_SITE_URL` dan qo'yiladi
+         (`scripts/prerender.mjs`), shuning uchun bu yerdagi qiymat —
+         zaxira. Domen o'zgarsa `.env` ni tahrirlang, bu faylni emas.
+    -->
+    <link rel="canonical" href="https://zinnuronline.uz/" />
+
+    <!-- Ijtimoiy tarmoqda ulashilganda ko'rinadigan kartochka. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ZIN-NUR ONLINE" />
+    <meta property="og:locale" content="uz_UZ" />
+    <meta property="og:url" content="https://zinnuronline.uz/" />
+    <meta property="og:title" content="Online arab tili kursi — 8 oyda mustaqil o‘qishni o‘rganasiz" />
+    <meta
+      property="og:description"
+      content="8 oylik ATF dasturi, haftasiga 5 kun jonli dars, 18–20 kishilik guruh. Kitoblar Uzpost orqali bepul yetkaziladi."
+    />
+    <meta property="og:image" content="https://zinnuronline.uz/logo-64.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      TASHQI MANBALARGA OLDINDAN ULANISH.
+
+      Bepul dars posteri `img.youtube.com` dan keladi. `preconnect` DNS +
+      TLS qo'l siqishini rasm so'ralishidan OLDIN bajaradi — mobil
+      internetda bu ~200-400 ms tejaydi.
+
+      ★ `crossorigin` SHART: rasm anonim so'rov bilan olinadi va usiz
+        brauzer ulanishni QAYTA ochadi (ya'ni preconnect behuda ketadi).
+    -->
+    <link rel="preconnect" href="https://img.youtube.com" crossorigin />
+
+    <!--
+      ══════════════════════════════════════════════════════════════════════
+       STRUKTURALANGAN MA'LUMOT (schema.org / JSON-LD)
+      ══════════════════════════════════════════════════════════════════════
+
+      Qidiruv tizimiga sahifa NIMA haqidaligini matnni tahlil qilmasdan
+      aytadi: bu — ta'lim tashkiloti va u shunday kurs beradi.
+
+      ★ NEGA `Course` VA `EducationalOrganization` BIRGA: birinchisisiz
+        sayt "shunchaki tashkilot", ikkinchisisiz kurs "kimniki?" degan
+        savolni ochiq qoldiradi. `provider` maydoni ikkalasini bog'laydi.
+
+      🔴 `FAQPage` ATAYLAB QO'SHILMADI: Google 2023-yildan buyon FAQ
+         boyitilgan natijalarini deyarli barcha saytlar uchun
+         KO'RSATMAYDI. Ya'ni u sahifaga og'irlik qo'shib, hech narsa
+         bermasdi. Sahifadagi savol-javob bloki (`<details>`) o'z
+         vazifasini matn sifatida baribir bajaradi.
+
+      ⚠️ RAQAMLAR BU YERDA QO'LDA YOZILGAN va ular `content.ts` bilan
+         MOS BO'LISHI SHART. Narx yoki davomiylik o'zgarsa — shu blokni
+         ham yangilang. (Ularni avtomatik yasash uchun kontentni build
+         vaqtida o'qish kerak bo'lardi; hozircha bu ortiqcha murakkablik.)
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "EducationalOrganization",
+            "@id": "https://zinnuronline.uz/#organization",
+            "name": "ZIN-NUR ONLINE",
+            "description": "Onlayn arab tili akademiyasi. Jonli darslar, support teacher bilan mashg‘ulotlar va kitoblar Uzpost orqali yetkazib berish.",
+            "url": "https://zinnuronline.uz/",
+            "logo": "https://zinnuronline.uz/logo-64.png",
+            "telephone": "+998787777717",
+            "areaServed": {
+              "@type": "Country",
+              "name": "O‘zbekiston"
+            },
+            "sameAs": [
+              "https://t.me/zinnurakademiyasi_onlayn",
+              "https://www.youtube.com/@zinnur_onlayn",
+              "https://www.instagram.com/zinnur_onlayn"
+            ]
+          },
+          {
+            "@type": "Course",
+            "@id": "https://zinnuronline.uz/#atf",
+            "name": "ATF — 8 oylik online arab tili kursi",
+            "description": "Alifbodan boshlanadi va 8 oyda arab tilidagi harakatli matnni mustaqil o‘qiy oladigan darajaga olib boradi. Uch modul: Harf (3 oy), Qoida (4 oy), Amaliyot I.",
+            "inLanguage": "uz",
+            "provider": {
+              "@id": "https://zinnuronline.uz/#organization"
+            },
+            "offers": {
+              "@type": "Offer",
+              "category": "Paid",
+              "price": "540000",
+              "priceCurrency": "UZS",
+              "description": "540 000 so‘m — asosiy ustozning 8 ta darsi uchun (bitta dars 67 500 so‘m).",
+              "availability": "https://schema.org/InStock"
+            },
+            "hasCourseInstance": {
+              "@type": "CourseInstance",
+              "courseMode": "Online",
+              "courseWorkload": "PT1H20M",
+              "inLanguage": "uz"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="bg-ink-950 text-slate-100 antialiased">
     <div id="app"></div>

@@ -70,10 +70,25 @@ COPY . .
 ARG VITE_API_URL=http://localhost:5080
 ARG VITE_HUB_URL=http://localhost:5080/hubs/live
 
+#  VITE_SITE_URL — saytning KANONIK manzili. robots.txt, sitemap.xml,
+#  <link rel="canonical"> va Open Graph teglari SHUNDAN yasaladi.
+#  Sabab va dev/staging qoidasi — .env dagi izohda.
+ARG VITE_SITE_URL=https://zinnuronline.uz
+
+#  Qidiruv tizimida tasdiqlash kodlari va IndexNow kaliti.
+#  Bo‘sh bo‘lsa teg ham, kalit fayli ham YASALMAYDI (sabab .env izohida).
+ARG VITE_GOOGLE_SITE_VERIFICATION=
+ARG VITE_YANDEX_VERIFICATION=
+ARG VITE_INDEXNOW_KEY=
+
 # ARG -> ENV: Vite o'zgaruvchilarni MUHITDAN o'qiydi, ARG esa
 # `npm run build` jarayoniga avtomatik ko'rinmaydi. Bu qator — ko'prik.
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_HUB_URL=$VITE_HUB_URL
+ENV VITE_SITE_URL=$VITE_SITE_URL
+ENV VITE_GOOGLE_SITE_VERIFICATION=$VITE_GOOGLE_SITE_VERIFICATION
+ENV VITE_YANDEX_VERIFICATION=$VITE_YANDEX_VERIFICATION
+ENV VITE_INDEXNOW_KEY=$VITE_INDEXNOW_KEY
 
 # Ishlab chiqarish rejimi: Vite minifikatsiya qiladi, tree-shaking
 # bajaradi va fayl nomlariga hash qo'shadi (app.4f2c9a1b.js).

@@ -4,10 +4,12 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
+import { seoFilesPlugin } from './scripts/seo-files-plugin'
+
 // Tailwind v4 — PostCSS/tailwind.config.js ISHLATILMAYDI, faqat `@tailwindcss/vite` plagini
 // va `src/style.css` ichidagi `@import "tailwindcss";`.
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue(), tailwindcss(), seoFilesPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
