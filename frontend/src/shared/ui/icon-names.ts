@@ -3,7 +3,25 @@
  * bo'lmaydi, lekin boshqa komponentlar (`EmptyState`, navigatsiya) ikonka
  * nomini prop sifatida qabul qiladi va uni QAT'IY tekshirish kerak.
  */
+/*
+  BREND BELGILARI — boshqa ikonkalardan AJRATIB turadi.
+
+  🔴 NEGA ALOHIDA TUR: bu uchtasi `AppIcon` da CHIZIQ bilan emas,
+  TO'LDIRIB chiziladi (yo'llari `brand-icon-paths.ts` da). Alohida tur
+  bo'lgani uchun `AppIcon` dagi oddiy ikonkalar ro'yxati ularni talab
+  qilmaydi va aksincha — biri ikkinchisining shoxiga tushib qolmaydi.
+
+  ⚠️ BU YERGA YANGI NOM FAQAT HAQIQIY BREND LOGOSI UCHUN qo'shiladi.
+  Ichki ma'nodagi belgi ("yuborish", "ijro etish") pastdagi umumiy
+  ro'yxatga tushadi.
+*/
+export type BrandIconName =
+  | 'telegram'
+  | 'instagram'
+  | 'youtube'
+
 export type IconName =
+  | BrandIconName
   | 'mic'
   | 'mic-off'
   | 'camera'

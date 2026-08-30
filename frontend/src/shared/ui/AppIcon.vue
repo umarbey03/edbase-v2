@@ -3,7 +3,10 @@
  * Yagona ikonka komponenti — tashqi ikonka kutubxonasi qo'shilmaydi (bundle kichik qoladi).
  * Barcha yo'llar 24×24 setkada, `stroke` uslubida.
  */
-import type { IconName } from './icon-names'
+import { computed } from 'vue'
+
+import { BRAND_ICON_PATHS } from './brand-icon-paths'
+import type { BrandIconName, IconName } from './icon-names'
 
 const props = withDefaults(
   defineProps<{
@@ -13,7 +16,12 @@ const props = withDefaults(
   { size: 20 },
 )
 
-const PATHS: Record<IconName, string> = {
+/*
+  ⚠️ `Exclude<…, BrandIconName>` — brend belgilari BU RO'YXATDA YO'Q.
+  Ular `BRAND_ICON_PATHS` da va boshqacha (to'ldirib) chiziladi; shu tur
+  yozuvi ularni bu yerga tasodifan qo'shib qo'yishdan saqlaydi.
+*/
+const PATHS: Record<Exclude<IconName, BrandIconName>, string> = {
   mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8',
   'mic-off':
     'M1 1l22 22 M9 9v3a3 3 0 0 0 5.12 2.12 M15 9.34V4a3 3 0 0 0-5.94-.6 M17 16.95A7 7 0 0 1 5 12v-2 M19 10v2a7 7 0 0 1-.11 1.23 M12 19v4 M8 23h8',
@@ -151,6 +159,23 @@ const PATHS: Record<IconName, string> = {
   */
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
 }
+
+/**
+ * Brend logosimi (Telegram, Instagram, YouTube).
+ *
+ * 🔴 SHAKL BOSHQACHA CHIZILADI: brend belgisi TO'LDIRILADI (`fill`),
+ * qolgan ikonkalar esa CHIZIQ (`stroke`) bilan chiziladi. Brend shaklini
+ * chiziqqa aylantirish uni tanib bo'lmas holga keltiradi — masalan
+ * YouTube'ning to'ldirilgan to'rtburchagi ichki uchburchagini yo'qotadi.
+ */
+const isBrand = computed(() => props.name in BRAND_ICON_PATHS)
+
+const path = computed(
+  () =>
+    isBrand.value
+      ? BRAND_ICON_PATHS[props.name as BrandIconName]
+      : PATHS[props.name as Exclude<IconName, BrandIconName>],
+)
 </script>
 
 <template>
@@ -158,8 +183,8 @@ const PATHS: Record<IconName, string> = {
     :width="props.size"
     :height="props.size"
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
+    :fill="isBrand ? 'currentColor' : 'none'"
+    :stroke="isBrand ? 'none' : 'currentColor'"
     stroke-width="1.75"
     stroke-linecap="round"
     stroke-linejoin="round"
@@ -167,6 +192,6 @@ const PATHS: Record<IconName, string> = {
     focusable="false"
     class="shrink-0"
   >
-    <path :d="PATHS[props.name]" />
+    <path :d="path" />
   </svg>
 </template>
