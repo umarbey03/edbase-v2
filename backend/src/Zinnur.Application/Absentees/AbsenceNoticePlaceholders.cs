@@ -8,7 +8,7 @@ namespace Zinnur.Application.Absentees;
 /// ════════════════════════════════════════════════════════════════════════
 ///
 /// ★ NEGA KERAK: kelmaganlarga yuboriladigan xabar SHAXSIY bo'lishi
-/// kerak — "Assalomu alaykum" bilan boshlangan bir xil matn 40 kishiga
+/// kerak — quruq salom bilan boshlangan bir xil matn 40 kishiga
 /// ketsa, u e'longa o'xshab qoladi va o'qilmaydi. Ism, guruh va dars
 /// sanasi qo'yilgan xabar esa aynan o'sha o'quvchiga qaratilgan bo'ladi.
 ///

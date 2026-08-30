@@ -14,7 +14,7 @@ import { BaseButton, BaseField, BaseModal } from '@/shared/ui'
  *  KELMAGANLARGA XABAR YOZISH (2026-08-18)
  * ════════════════════════════════════════════════════════════════════════
  *
- * ★ O'RIN EGALLOVCHILAR — BU OYNANING BUTUN MA'NOSI: "Assalomu alaykum"
+ * ★ O'RIN EGALLOVCHILAR — BU OYNANING BUTUN MA'NOSI: quruq salom
  * bilan boshlangan bir xil matn 40 kishiga ketsa, u e'longa o'xshab
  * qoladi va o'qilmaydi. Ism, guruh va dars sanasi qo'yilgan xabar esa
  * aynan o'sha o'quvchiga qaratilgan bo'ladi. Almashtirish SERVERDA
@@ -56,7 +56,7 @@ const queryClient = useQueryClient()
  * sezilarli qisqaradi.
  */
 const DEFAULT_BODY =
-  'Assalomu alaykum, {ism}!\n\n'
+  'Hurmatli {ism},\n\n'
   + 'Siz {sana} kuni soat {vaqt} dagi {guruh} guruhi darsiga qatnashmadingiz.\n\n'
   + '❓ Nima sababdan qatnasha olmadingiz?\n'
   + 'Iltimos, sababini SHU YERGA — javob xabari sifatida yozib yuboring.\n\n'

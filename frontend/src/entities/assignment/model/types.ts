@@ -140,7 +140,7 @@ export const ANSWER_FORMAT_OPTIONS: ReadonlyArray<{
 }> = [
   { value: 'Text', label: 'Matn', hint: 'Yozma javob' },
   { value: 'Image', label: 'Rasm', hint: 'Daftar surati' },
-  { value: 'Audio', label: 'Audio', hint: 'Talaffuz, qiroat' },
+  { value: 'Audio', label: 'Audio', hint: 'Talaffuz, ovoz chiqarib o‘qish' },
 ]
 
 /**
