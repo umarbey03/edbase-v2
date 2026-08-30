@@ -30,6 +30,22 @@
     <meta name="theme-color" content="#fbfaf8" />
 
     <!--
+      TASHQI MANBALARGA OLDINDAN ULANISH.
+
+      Bepul dars posteri `img.youtube.com` dan keladi. `preconnect` DNS +
+      TLS qo'l siqishini rasm so'ralishidan OLDIN bajaradi — mobil
+      internetda bu ~200-400 ms tejaydi.
+
+      ★ `crossorigin` SHART: rasm anonim so'rov bilan olinadi va usiz
+        brauzer ulanishni QAYTA ochadi (ya'ni preconnect behuda ketadi).
+
+      ⚠️ SEO BLOKIDAN TASHQARIDA VA UNDAN YUQORIDA (2026-08-30). Bu teg
+         SEO emas, TEZLIK ishorasi — `app.html` dan olib tashlanmaydi va
+         qancha erta uchrasa, brauzer ulanishni shuncha erta ochadi.
+    -->
+    <link rel="preconnect" href="https://img.youtube.com" crossorigin />
+
+    <!--
       ══════════════════════════════════════════════════════════════════════
        SEO — 2026-08-30 DA QAYTA YOZILDI
       ══════════════════════════════════════════════════════════════════════
@@ -58,6 +74,38 @@
          indekslashdan `robots` metasi orqali chiqariladi.
     -->
     <title>Online arab tili kursi — 8 oyda mustaqil o‘qishni o‘rganasiz | ZIN-NUR ONLINE</title>
+    <!-- SEO:START -->
+    <!--
+      ══════════════════════════════════════════════════════════════════════
+       SEO:START ... SEO:END — INDEKSLANADIGAN SAHIFAGA TEGISHLI TEGLAR
+      ══════════════════════════════════════════════════════════════════════
+
+      🔴 BU BELGILARGA TEGMANG — ULAR KOD TOMONIDAN O'QILADI.
+         `scripts/prerender.mjs` shu ikki belgi ORASIDAGI hamma narsani
+         `app.html` dan KESIB TASHLAYDI.
+
+      NEGA KERAK (2026-08-30 da topilgan muammo): `app.html` — bu
+      faylning NUSXASI va u `/login`, `/ustoz/...`, `/admin/...` va
+      har qanday noma'lum manzilga beriladi. Nusxada kanonik manzil ham,
+      Open Graph ham, kursning JSON-LD tavsifi ham qolib ketardi. Ya'ni:
+
+        • O'NLAB manzil o'zini "bosh sahifa" deb ko'rsatardi
+          (`<link rel="canonical" href="…/">`);
+        • o'sha sahifalarga `noindex` ham qo'yilardi.
+
+      `noindex` + BOSHQA manzilga ko'rsatuvchi `canonical` — bir-biriga
+      ZID signal. Qidiruv tizimi sahifalarni kanonik manzilga
+      birlashtirganda `noindex` ni O'SHA MANZILGA, ya'ni BOSH SAHIFAGA
+      ko'chirib qo'yishi mumkin. Natija — aynan indeksga chiqarmoqchi
+      bo'lgan sahifa indeksdan tushardi.
+
+      Yechim: indekslanadigan sahifaga tegishli hamma narsa shu ikki
+      belgi orasida turadi va `app.html` ga UMUMAN TUSHMAYDI.
+
+      ⚠️ BELGI SHU IZOHDAN OLDIN turadi — ataylab: aks holda izohning
+         O'ZI `app.html` ga tushib qolardi va u yerda `rel="canonical"`
+         degan matn (teg emas, matn) qolib, tekshirishda chalg'itardi.
+    -->
     <meta
       name="description"
       content="Onlayn arab tili kursi: 8 oylik ATF dasturi, haftasiga 5 kun jonli dars, 18–20 kishilik guruh. Kitoblar Uzpost orqali bepul yetkaziladi. Bepul birinchi darsni hoziroq ko‘ring."
@@ -91,20 +139,36 @@
       property="og:description"
       content="8 oylik ATF dasturi, haftasiga 5 kun jonli dars, 18–20 kishilik guruh. Kitoblar Uzpost orqali bepul yetkaziladi."
     />
-    <meta property="og:image" content="https://zinnuronline.uz/logo-64.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-
     <!--
-      TASHQI MANBALARGA OLDINDAN ULANISH.
+      ┌──────────────────────────────────────────────────────────────────┐
+      │ 🔴 KARTOCHKA RASMI 1200x630 BO'LISHI SHART — 64x64 EMAS          │
+      └──────────────────────────────────────────────────────────────────┘
+      2026-08-30 gacha bu yerda `logo-64.png` (64x64) turardi va u
+      UCHTA talabning HECH BIRIDAN o'tmasdi:
 
-      Bepul dars posteri `img.youtube.com` dan keladi. `preconnect` DNS +
-      TLS qo'l siqishini rasm so'ralishidan OLDIN bajaradi — mobil
-      internetda bu ~200-400 ms tejaydi.
+        · Open Graph (Telegram, Facebook) — eng kami 200x200;
+        · Twitter `summary_large_image`    — eng kami 300x157;
+        · Google `Organization.logo`       — eng kami 112x112.
 
-      ★ `crossorigin` SHART: rasm anonim so'rov bilan olinadi va usiz
-        brauzer ulanishni QAYTA ochadi (ya'ni preconnect behuda ketadi).
+      Natijada havola ULASHILGANDA kartochka RASMSIZ chiqardi. Telegram
+      bu loyihada asosiy kanal bo'lgani uchun buni har bir foydalanuvchi
+      ko'rardi — ya'ni bu "SEO tafsiloti" emas, ko'rinadigan nuqson edi.
+
+      ⚠️ RASM `public/og-cover.png` DA va u QO'LDA yasalgan emas:
+         `scripts/og-cover.py` uni brend palitrasi, brend shrifti va
+         haqiqiy logotipdan yig'adi. Brend o'zgarsa — o'sha skriptni
+         qayta ishga tushiring, Photoshop ochmang.
+
+      ★ `og:image:width/height` — ATAYLAB YOZILGAN: usiz Telegram va
+        Facebook rasmni O'ZI yuklab, o'lchamini bilguncha kartochkani
+        rasmsiz ko'rsatadi. O'lcham oldindan aytilsa, birinchi
+        ulashishdayoq to'liq kartochka chiqadi.
     -->
-    <link rel="preconnect" href="https://img.youtube.com" crossorigin />
+    <meta property="og:image" content="https://zinnuronline.uz/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ZIN-NUR ONLINE — 8 oylik online arab tili kursi" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!--
       ══════════════════════════════════════════════════════════════════════
@@ -128,6 +192,33 @@
          MOS BO'LISHI SHART. Narx yoki davomiylik o'zgarsa — shu blokni
          ham yangilang. (Ularni avtomatik yasash uchun kontentni build
          vaqtida o'qish kerak bo'lardi; hozircha bu ortiqcha murakkablik.)
+
+      ┌────────────────────────────────────────────────────────────────┐
+      │ `logo` — 2026-08-30 da `logo-64.png` DAN ALMASHTIRILDI         │
+      └────────────────────────────────────────────────────────────────┘
+      Google `Organization.logo` uchun eng kami 112x112 talab qiladi.
+      64x64 undan o'tmasdi va logotip natijalarda umuman ko'rsatilmasdi.
+      `apple-touch-icon.png` — logotipning bizdagi YAGONA 112 dan katta
+      (180x180) haqiqiy rasmi. Uni KATTALASHTIRILGAN nusxa bilan
+      almashtirmang: 180 dan 512 ga cho'zilgan logotip loyqa chiqadi va
+      bu natijalarda darrov ko'zga tashlanadi.
+
+      ┌────────────────────────────────────────────────────────────────┐
+      │ `courseWorkload` — 2026-08-30 da PT1H20M DAN PT2H40M GA        │
+      └────────────────────────────────────────────────────────────────┘
+      schema.org'da `courseWorkload` — o'quvchidan kutilayotgan ish
+      hajmi, ODATDA HAFTASIGA. Ilgari bu yerda PT1H20M turardi, ya'ni
+      BITTA darsning davomiyligi — noto'g'ri o'lchov birligi edi.
+
+      PT2H40M = haftasiga 2 kun x 1 soat 20 daqiqa (asosiy ustoz darsi,
+      manba: `content.ts` dagi hafta jadvali).
+
+      ⚠️ BU RAQAM TO'LIQ EMAS — u FAQAT asosiy ustoz darslarini sanaydi.
+         Haftada yana 3 kun support teacher darsi bor, lekin ularning
+         DAVOMIYLIGI hech qayerda qayd etilmagan. Taxminiy raqam yozish
+         — qidiruv tizimiga yolg'on ma'lumot berish demak, shuning uchun
+         faqat ISBOTLANADIGAN qism sanaldi. Support darsining davomiyligi
+         aniqlangach, bu qiymatni oshiring.
     -->
     <script type="application/ld+json">
       {
@@ -139,7 +230,7 @@
             "name": "ZIN-NUR ONLINE",
             "description": "Onlayn arab tili akademiyasi. Jonli darslar, support teacher bilan mashg‘ulotlar va kitoblar Uzpost orqali yetkazib berish.",
             "url": "https://zinnuronline.uz/",
-            "logo": "https://zinnuronline.uz/logo-64.png",
+            "logo": "https://zinnuronline.uz/apple-touch-icon.png",
             "telephone": "+998787777717",
             "areaServed": {
               "@type": "Country",
@@ -171,13 +262,14 @@
             "hasCourseInstance": {
               "@type": "CourseInstance",
               "courseMode": "Online",
-              "courseWorkload": "PT1H20M",
+              "courseWorkload": "PT2H40M",
               "inLanguage": "uz"
             }
           }
         ]
       }
     </script>
+    <!-- SEO:END -->
   </head>
   <body class="bg-ink-950 text-slate-100 antialiased">
     <div id="app"></div>

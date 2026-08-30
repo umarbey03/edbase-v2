@@ -219,7 +219,7 @@ turn:
   # ===========================================================================
   #  turn:
   #    enabled: true
-  #    domain: livekit.zinnur.uz          # DNS A-yozuvi serverning oq IP'siga
+  #    domain: livekit.zinnuronline.uz          # DNS A-yozuvi serverning oq IP'siga
   #    udp_port: 3478                     # ochiq bo'lishi SHART
   #    tls_port: 5349                     # TURN over TLS — standart port
   #

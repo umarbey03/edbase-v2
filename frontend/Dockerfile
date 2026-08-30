@@ -60,7 +60,7 @@ COPY . .
 #
 #  Shuning uchun ular ARG orqali (build vaqtida) keladi:
 #      docker compose build web        <- .env dagi qiymatlar bilan
-#      docker build --build-arg VITE_API_URL=https://zinnur.uz/api ...
+#      docker build --build-arg VITE_API_URL=https://zinnuronline.uz/api ...
 #
 #  ARG'lar aynan shu yerda — `COPY . .` dan KEYIN, `npm run build` dan
 #  OLDIN turadi. Sabab: ARG qiymati o'zgarsa faqat build qatlami
@@ -73,7 +73,23 @@ ARG VITE_HUB_URL=http://localhost:5080/hubs/live
 #  VITE_SITE_URL — saytning KANONIK manzili. robots.txt, sitemap.xml,
 #  <link rel="canonical"> va Open Graph teglari SHUNDAN yasaladi.
 #  Sabab va dev/staging qoidasi — .env dagi izohda.
-ARG VITE_SITE_URL=https://zinnuronline.uz
+#
+#  🔴 STANDART QIYMAT ATAYLAB BO'SH (2026-08-30). Ilgari bu yerda
+#     `=https://zinnuronline.uz` turardi va u IKKI TOMONLAMA XAVFLI edi:
+#
+#     1) `docker build frontend/` to'g'ridan-to'g'ri chaqirilsa (masalan
+#        sinov nusxasini yig'ishda), tayyor image O'ZINI PROD deb e'lon
+#        qilardi: robots.txt `Allow: /`, sitemap prod manzillari bilan.
+#        Sinov nusxasi indeksga tushib, asosiy sayt bilan raqobatlashardi.
+#
+#     2) Teskari tomoni ham yomon edi — bu standart QUTQARMASDI: Compose
+#        `${VITE_SITE_URL}` ni bo'sh satr sifatida uzatsa, bo'sh
+#        argument ARG standartini BEKOR QILADI va sayt sinov rejimida
+#        yig'ilardi (`Disallow: /`).
+#
+#     Endi qiymat berilmasa build YIQILADI (`scripts/seo-files-plugin.ts`)
+#     — ya'ni ikkala holat ham jimgina o'tib ketmaydi.
+ARG VITE_SITE_URL=
 
 #  Qidiruv tizimida tasdiqlash kodlari va IndexNow kaliti.
 #  Bo‘sh bo‘lsa teg ham, kalit fayli ham YASALMAYDI (sabab .env izohida).

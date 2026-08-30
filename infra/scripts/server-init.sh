@@ -4,7 +4,7 @@
 #
 #  Ishga tushirish (loyiha ildizidan):
 #      ./infra/scripts/server-init.sh
-#      ./infra/scripts/server-init.sh zinnur.uz        # o'z domeningiz bilan
+#      ./infra/scripts/server-init.sh zinnuronline.uz        # o'z domeningiz bilan
 #
 #  Uzilishga chidamli qilib (TAVSIYA ETILADI):
 #      nohup ./infra/scripts/server-init.sh > ~/init.log 2>&1 &
@@ -309,11 +309,11 @@ ok "sertifikat yangilanish hook'i o'rnatildi (nginx avtomatik reload)"
 # ---------------------------------------------------------------- 6. nginx
 log "6/7 nginx konfiguratsiyasi"
 rm -f /etc/nginx/sites-enabled/acme.conf
-# Almashtirish TARTIBI muhim: `livekit.zinnur.uz` ichida `zinnur.uz` bor,
+# Almashtirish TARTIBI muhim: `livekit.zinnuronline.uz` ichida `zinnuronline.uz` bor,
 # shuning uchun eng uzun nomdan boshlanadi.
-sed -e "s|livekit\.zinnur\.uz|$LKDOMEN|g" \
-    -e "s|www\.zinnur\.uz|$DOMEN|g" \
-    -e "s|zinnur\.uz|$DOMEN|g" \
+sed -e "s|livekit\.zinnuronline\.uz|$LKDOMEN|g" \
+    -e "s|www\.zinnuronline\.uz|$DOMEN|g" \
+    -e "s|zinnuronline\.uz|$DOMEN|g" \
     infra/nginx/zinnur.conf > /etc/nginx/sites-available/zinnur.conf
 
 # ⚠️ SERTIFIKAT YO'LI: `certbot -d A -d B` BITTA sertifikat yaratadi va uni

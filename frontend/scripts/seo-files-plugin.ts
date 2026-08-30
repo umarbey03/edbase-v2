@@ -208,9 +208,56 @@ export function seoFilesPlugin(): Plugin {
       // yopishtiriladi va ikkita "/" hosil bo'lib qolmasin.
       const origin = raw.trim().replace(/\/+$/, '')
 
-      // Qiymat berilmagan bo'lsa ham SINOV deb hisoblaymiz — noto'g'ri
-      // manzilli sitemap chiqargandan ko'ra indekslashni to'xtatgan yaxshi.
+      /*
+        ┌────────────────────────────────────────────────────────────────┐
+        │ 🔴 QIYMAT BO'SH BO'LSA — BUILD YIQILADI, JIMGINA O'TMAYDI      │
+        └────────────────────────────────────────────────────────────────┘
+        Ilgari bu yerda "bo'sh bo'lsa SINOV deb hisoblaymiz" degan qoida
+        turardi va u XAVFLI edi. Sabab zanjiri (2026-08-30 da aniqlangan):
+
+          1) `docker-compose.yml` build argumentini `${VITE_SITE_URL}`
+             dan oladi;
+          2) SERVERDAGI `.env` eski bo'lsa (unda bu kalit YO'Q), Compose
+             BO'SH SATR uzatadi;
+          3) bo'sh argument `Dockerfile` dagi ARG standartini BEKOR
+             QILADI — ya'ni standart qiymat qutqarmaydi;
+          4) bu yerda `origin === ''` bo'lib, sayt SINOV deb belgilanadi;
+          5) natijada PROD'ga `Disallow: /` bilan chiqadi va butun sayt
+             indeksdan tushadi.
+
+        Va bu xato KO'RINMAYDI: robots.txt ga odam qaramaydi, natijalar
+        esa asta-sekin yo'qoladi. Shuning uchun tanlov aniq — JIM
+        QOLGANDAN KO'RA BUILD YIQILGANI YAXSHI. Yiqilgan build 30 soniyada
+        tuzatiladi, indeksga qaytish esa oylar oladi.
+      */
+      if (origin.length === 0) {
+        this.error(
+          'VITE_SITE_URL berilmagan. Usiz robots.txt `Disallow: /` bilan '
+          + 'yasalardi va sayt indeksdan tushardi.\n'
+          + '  · Lokal/staging: `.env` ga sinov manzilini yozing '
+          + '(masalan http://localhost:5173).\n'
+          + `  · Prod: \`.env\` ga \`VITE_SITE_URL=${PRODUCTION_ORIGIN}\` qatorini qo'shing.\n`
+          + '  · Namuna — `.env.example` ning 7-bo\'limi.',
+        )
+      }
+
       const isProduction = origin === PRODUCTION_ORIGIN
+
+      /*
+        ⚠️ SINOV REJIMI LOGDA AYTILADI. Manzil berilgan, lekin prod
+        domeniga TENG EMAS — bu odatda ataylab (staging), lekin ba'zan
+        arzimas farqdan bo'ladi: "www." qo'shilgan, "http://" yozilgan yoki
+        harf tushib qolgan. Bunday holatda sayt jimgina indeksdan tushardi.
+        Endi build logida bitta qator turadi va sababi ko'rinadi.
+      */
+      if (!isProduction) {
+        this.warn(
+          `SINOV REJIMI: VITE_SITE_URL="${origin}" prod domeni `
+          + `(${PRODUCTION_ORIGIN}) bilan bir xil emas. robots.txt `
+          + '`Disallow: /` bilan yasaladi, sitemap va IndexNow kaliti '
+          + 'CHIQARILMAYDI. Prod build uchun qiymatni AYNAN tekshiring.',
+        )
+      }
 
       this.emitFile({
         type: 'asset',

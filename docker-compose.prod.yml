@@ -726,7 +726,7 @@ services:
       #   ikkala tomondan bir xil ko'ringani uchun bu HAR DOIM to'g'ri
       #   javob: imzo va havola bitta xostga tegishli bo'ladi.
       #
-      # 🔴 `R2_PUBLIC_URL` ga custom domen (media.zinnur.uz) YOZILMAYDI —
+      # 🔴 `R2_PUBLIC_URL` ga custom domen (media.zinnuronline.uz) YOZILMAYDI —
       #   R2 custom domeni presigned imzoni tekshirmaydi. Sabab va
       #   muqobili: `.env.example`, 9-bo'lim.
       #

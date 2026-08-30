@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { BRAND_NAME, LANDING_TITLE } from '@/shared/config/seo'
 import { isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import type { UserRoleName } from '@/shared/types'
 
@@ -595,7 +596,17 @@ router.beforeEach(async (to) => {
      yuborardi, ya'ni prerender qilingan sarlavhani brauzerda darhol
      buzardi.
 
-     Shuning uchun `/` marshrutida sarlavhaga TEGILMAYDI.
+     ⚠️ LEKIN "TEGMASLIK" HAM XATO EDI (2026-08-30 da tuzatildi).
+        Avvalgi tuzatishda `/` marshrutida sarlavhaga UMUMAN
+        tegilmasdi. Natijada ilova ICHIDAN bosh sahifaga qaytilganda
+        (`/login` -> `/`) tabda oldingi sahifaning nomi — «Kirish —
+        ZIN-NUR ONLINE» — qotib qolardi. Birinchi yuklashda to'g'ri,
+        keyingi navigatsiyada noto'g'ri.
+
+        Endi bosh sahifada sarlavha `LANDING_TITLE` dan TIKLANADI. U
+        `index.html` dagi `<title>` bilan bir xil (build ularni
+        solishtiradi — `scripts/prerender.mjs`), ya'ni almashtirish
+        ko'rinmaydi: qiymat o'zi bilan o'zi almashadi.
 
   ★ ILOVA SAHIFALARI INDEKSGA TUSHMAYDI. `/login`, `/ustoz/...`,
     `/admin/...` — bularning qidiruvda chiqishidan foyda yo'q va ular
@@ -623,9 +634,12 @@ function setRobotsMeta(content: string): void {
 router.afterEach((to) => {
   const isLanding = to.path === '/'
 
-  if (!isLanding) {
+  if (isLanding) {
+    document.title = LANDING_TITLE
+  }
+  else {
     const title = to.meta.title
-    document.title = title !== undefined ? `${title} — ZIN-NUR ONLINE` : 'ZIN-NUR ONLINE'
+    document.title = title !== undefined ? `${title} — ${BRAND_NAME}` : BRAND_NAME
   }
 
   // `follow` — sahifa indekslanmasin, lekin undagi havolalar KUZATILSIN.
