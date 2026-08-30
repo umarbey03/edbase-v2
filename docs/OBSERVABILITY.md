@@ -197,7 +197,9 @@ uchun:
 Tekshirish:
 
 ```bash
-cd frontend && npm run build
+# VITE_SITE_URL MAJBURIY (2026-08-30 dan): usiz build ataylab yiqiladi —
+# sabab `.env.example` ning 7-bo'limida. Sinov uchun lokal manzil yetarli.
+cd frontend && VITE_SITE_URL=http://localhost:5173 npm run build
 ls -lh dist/assets/vendor-*.js dist/assets/sentry-*.js
 # vendor ~67 KB, sentry ~450 KB (alohida, lazy)
 ```

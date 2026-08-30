@@ -211,6 +211,18 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+        env:
+          # 🔴 MAJBURIY (2026-08-30 dan): `scripts/seo-files-plugin.ts`
+          #    qiymat berilmasa build'ni ATAYLAB yiqitadi. Sabab —
+          #    bo'sh qiymat ilgari "sinov muhiti" deb qabul qilinardi va
+          #    prod'da robots.txt "Disallow: /" bilan chiqib, sayt
+          #    indeksdan tushardi. Endi xato jimgina o'tmaydi.
+          #
+          # ⚠️ QIYMAT PROD DOMENI EMAS — ataylab: CI build'i sinov
+          #    rejimida yig'ilsin, ya'ni robots.txt "Disallow: /" bo'lsin.
+          #    Bu yerda prod domeni yozilsa, CI artefakti tasodifan
+          #    tarqatilganda indekslanadigan nusxa bo'lib qolardi.
+          VITE_SITE_URL: http://localhost:5173
 
   # ==========================================================================
   # DOCKER — compose fayllari to'g'riligi
