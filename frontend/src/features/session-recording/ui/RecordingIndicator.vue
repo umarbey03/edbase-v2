@@ -35,11 +35,12 @@ import { useRecordingIndicator } from '../model/useRecordingIndicator'
  *
  * ── HOSTGA HAM KO'RSATILADI ─────────────────────────────────────────────
  *
- * ⚠️ Host yonida `SessionRecordingControl` tugmasi ham turadi va bu
- * KO'RINISHDAN takrorga o'xshaydi. ATAYLAB shunday: nishon — o'quvchi
- * KO'RAYOTGAN narsaning AYNI o'zi, ya'ni host xonadagilar nima ko'rib
- * turganini biladi. Tugma esa amal beradi. Ikkalasini birlashtirish
- * indikatorni yana "faqat host ko'radigan" holatga qaytarardi.
+ * ★ 2026-09-01 DAN BOSHLAB BU — XONADAGI YAGONA YOZUV BELGISI.
+ * Ilgari host yonida `SessionRecordingControl` tugmasi ham turardi;
+ * loyiha egasi qaroriga ko'ra qo'lda boshqaruv butunlay olib tashlandi
+ * (yozuv faqat `Group.RecordEnabled` bilan boshqariladi). Nishonning
+ * o'zi esa QOLDI va endi yanada muhimroq: u xonadagi HAR KIMGA —
+ * o'quvchiga ham — yozuv ketayotganini aytadigan yagona narsa.
  */
 const props = defineProps<{
   sessionId: number

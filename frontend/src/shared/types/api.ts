@@ -269,13 +269,6 @@ export interface LiveSessionDto {
   /** Guruhda jami nechta FAOL o'quvchi bor (2026-08-18). */
   studentCount: number
   /**
-   * Guruhda yozuv YOQILGANMI (`Group.RecordEnabled`) — SOZLAMA.
-   *
-   * ⚠️ `recording-status` dagi "hozir yozuv ketyaptimi" BILAN
-   * ARALASHTIRILMAYDI: bu sozlama, u — holat.
-   */
-  recordEnabled: boolean
-  /**
    * HOZIR xonada nechta ishtirokchi turibdi. FAQAT jonli darsda son
    * bo'ladi, qolganida `null` — "0 kishi" va "dars boshlanmagan" ikki
    * boshqa holat (manbasi Redis presence, davomat EMAS).

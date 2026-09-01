@@ -97,43 +97,31 @@ namespace Zinnur.Application.Recordings.Services;
 /// </summary>
 public interface IRecordingService
 {
-    /// <summary>
-    /// Yozuvni QO'LDA boshlaydi (faqat dars HOSTI, faqat JONLI dars).
-    ///
-    /// ★ AVTOMATIK REJIMDAN KEYIN BU — OVERRIDE, ASOSIY YO'L EMAS. U
-    /// UCH holatda kerak bo'ladi va shuning uchun saqlab qolindi:
-    ///   1) guruhda <c>RecordEnabled</c> O'CHIQ, lekin AYNAN shu darsni
-    ///      yozib olish kerak (ochiq dars, o'rnini bosuvchi ustoz);
-    ///   2) dars boshlangan paytda Egress/ombor SOZLANMAGAN edi, ya'ni
-    ///      avtomatik navbat qator qo'shmadi (sabab:
-    ///      <see cref="IAutoRecordingScheduler"/>). Administrator paneldan
-    ///      sozlamani tuzatgach, host darsni QAYTA BOSHLAMASDAN yozuvni
-    ///      yoqa oladi;
-    ///   3) host <see cref="StopAsync"/> bilan to'xtatgan yozuvni qaytadan
-    ///      boshlamoqchi (tanaffusdan keyin).
-    ///
-    /// IDEMPOTENT: yozuv allaqachon ketayotgan bo'lsa AYNI qator qaytadi,
-    /// ikkinchi egress boshlanmaydi. ⚠️ Ya'ni avtomatik navbat qo'ygan
-    /// qator ustiga bosilgan tugma IKKINCHI yozuv YARATMAYDI.
-    ///
-    /// ⚠️ Egress javob bermasa metod ISTISNO TASHLAMAYDI: qator
-    /// <c>Requested</c> holatida saqlanadi, xato matni <c>Error</c> da
-    /// qaytadi va watchdog qayta uradi. Ustoz darsni odatdagidek davom
-    /// ettiradi.
-    /// </summary>
-    Task<RecordingDto> StartAsync(long sessionId, long actorId, CancellationToken ct = default);
+    /*
+       ════════════════════════════════════════════════════════════════════
+       🔴 `StartAsync` VA `StopAsync` OLIB TASHLANDI (2026-09-01)
+       ════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Yozuvni to'xtatadi (faqat host). Fayl DARHOL tayyor bo'lmaydi —
-    /// yakuniy holat webhook bilan keladi.
-    ///
-    /// 🔴 AVTOMATIK REJIMDA BU METOD ROZILIKNING ZAXIRA CHIQISHI. Yozuv
-    /// endi o'z-o'zidan boshlanadi, ya'ni "yozilmasin" deyishning YAGONA
-    /// yo'li — shu. Metodni (va uni chaqiradigan tugmani) olib tashlash
-    /// darsni to'xtatmasdan yozuvni to'xtatish imkonini butunlay yo'q
-    /// qilardi.
-    /// </summary>
-    Task<RecordingDto> StopAsync(long sessionId, long actorId, CancellationToken ct = default);
+       Loyiha egasining qarori: "qo'lda yozuvni boshlash ham to'xtatish ham
+       mumkin bo'lmasin — guruhga yozish-yozmaslik faqat tizimda GURUH
+       DARAJASIDA boshqarilsa yetadi".
+
+       Yozuv endi FAQAT avtomatik: `LiveSessionService.StartAsync` ->
+       `IAutoRecordingScheduler` navbatga qator qo'yadi, `RecordingWatchdogJob`
+       uni bo'shatadi. Ikkalasi ham `Group.RecordEnabled` ni o'qiydi.
+
+       ⚠️ BU YERDA ILGARI QARAMA-QARSHI DALIL YOZILGAN EDI va uni
+          yashirmasdan qoldiramiz: `StopAsync` "rozilikning zaxira chiqishi"
+          deb ta'riflangandi — ya'ni yozuv avtomatik boshlangach, uni
+          to'xtatishning yagona yo'li o'sha metod edi. Endi bunday yo'l
+          YO'Q: dars davomida yozuvni to'xtatib bo'lmaydi.
+
+          ★ O'RNIGA NIMA BOR: guruhning `RecordEnabled` kaliti. "Bu dars
+            yozilmasin" degan qaror DARS BOSHLANISHIDAN OLDIN qabul
+            qilinadi — o'quv bo'limi guruh kartochkasidan o'chiradi.
+            Loyiha egasi aynan shuni tanladi: bitta boshqaruv nuqtasi,
+            oldindan qabul qilinadigan qaror.
+    */
 
     /// <summary>
     /// ════════════════════════════════════════════════════════════════

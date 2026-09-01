@@ -453,7 +453,7 @@ function isPeerActive(conversation: ConversationDto): boolean {
  * arbitrary qiymatiga solib bo'lmaydi (`safe-area-inset-bottom` ichidagi
  * tirelar matematik amal deb o'qilishi mumkin). Ilovadagi boshqa hamma
  * safe-area hisoblari ham shu sababdan inline `:style` da
- * (`BaseModal`, `ConfirmDialog`, `SessionRecordingControl`).
+ * (`BaseModal`, `ConfirmDialog`, `RecordingIndicator`).
  *
  * `min-height` — yotiq holatdagi past ekran uchun: u yerda sahifa
  * skrollanadi, lekin yozish paneli hech qachon nolga siqilmaydi.

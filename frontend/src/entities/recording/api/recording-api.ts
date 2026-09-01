@@ -98,28 +98,14 @@ export function fetchRecordingLink(recordingId: number): Promise<RecordingLinkDt
   return http.get<RecordingLinkDto>(`${RECORDINGS_BASE}/${recordingId}/link`)
 }
 
-/**
- * `POST /api/v1/live-sessions/{id}/recordings/start`.
- *
- * Ruxsat (jonli tekshirilgan): ustoz/kurator (dars egasi) va o'quv bo'limi/admin
- * — ha; o'quvchi — `403` (tanasiz). Dars JONLI bo'lmasa `409`:
- * "Yozuvni faqat JONLI dars uchun boshlash mumkin. Avval darsni boshlang."
- *
- * ⚠️ Javob `200` bo'lsa ham yozuv MUVAFFAQIYATLI boshlangan degani emas:
- * egress rad etsa DTO `status: "Requested"`, `error: "..."` bilan qaytadi
- * (jonli ko'rilgan). Shuning uchun UI javobdagi `error` ni ham o'qiydi.
- */
-export function startRecording(sessionId: number): Promise<RecordingDto> {
-  return http.post<RecordingDto>(`${SESSIONS_BASE}/${sessionId}/recordings/start`)
-}
+/*
+   🔴 `startRecording` VA `stopRecording` OLIB TASHLANDI (2026-09-01).
 
-/**
- * `POST /api/v1/live-sessions/{id}/recordings/stop`.
- * Faol yozuv bo'lmasa `409`: "Bu darsda faol yozuv yo'q."
- */
-export function stopRecording(sessionId: number): Promise<RecordingDto> {
-  return http.post<RecordingDto>(`${SESSIONS_BASE}/${sessionId}/recordings/stop`)
-}
+   Loyiha egasining qarori: yozuv faqat GURUH DARAJASIDA boshqariladi
+   (`Group.RecordEnabled`), qo'lda boshlash/to'xtatish umuman bo'lmasin.
+   Server tomonda ham `POST .../recordings/start` va `.../stop` yo'llari
+   o'chirildi — ya'ni bu funksiyalar chaqirilsa 404 bo'lardi.
+*/
 
 /**
  * `PATCH /api/v1/recordings/{id}/visibility` — yozuvni o'quvchilarga

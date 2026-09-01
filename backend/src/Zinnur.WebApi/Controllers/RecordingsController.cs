@@ -32,51 +32,35 @@ public sealed class RecordingsController(IRecordingService recordings) : Control
 
     // ================================================================= dars ichidan
 
-    /// <summary>
-    /// Yozuvni QO'LDA boshlaydi (faqat JONLI dars, faqat host).
-    ///
-    /// ★ QAROR (2026-08-13): yozuv AVTOMATIK boshlanadi — guruhda
-    /// <c>RecordEnabled</c> yoqilgan bo'lsa, dars boshlanishi bilan
-    /// navbatga tushadi (<see cref="IAutoRecordingScheduler"/>). BU ENDPOINT
-    /// esa OVERRIDE bo'lib qoladi: yozuvi o'chiq guruhning bitta darsini
-    /// yozib olish, sozlama tuzatilgandan keyin darsni qayta boshlamasdan
-    /// yozuvni yoqish va to'xtatilgan yozuvni qaytadan boshlash uchun.
-    /// Sabab, bekor qilingan eski qaror va uning dalillari
-    /// <see cref="IRecordingService"/> izohida.
-    ///
-    /// IDEMPOTENT: tugma ikki marta bosilsa AYNI yozuv qaytadi. ⚠️
-    /// Avtomatik navbat allaqachon qator qo'ygan bo'lsa ham AYNI qator
-    /// qaytadi — ikkinchi egress ochilmaydi.
-    /// </summary>
-    /// <response code="200">Yozuv so'raldi (holat DTO'da).</response>
-    /// <response code="403">Host emas.</response>
-    /// <response code="409">Dars jonli emas.</response>
-    /// <response code="503">Yozuv xizmati yoki ombor sozlanmagan.</response>
-    [HttpPost("~/api/v1/live-sessions/{sessionId:long}/recordings/start")]
-    [Authorize(Roles = HostRoles)]
-    [ProducesResponseType<RecordingDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<RecordingDto>> Start(long sessionId, CancellationToken ct) =>
-        Ok(await recordings.StartAsync(sessionId, CurrentUserId, ct));
+    /*
+       ════════════════════════════════════════════════════════════════════
+       🔴 QO'LDA BOSHLASH/TO'XTATISH OLIB TASHLANDI (2026-09-01)
+       ════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Yozuvni to'xtatadi (faqat host).
-    ///
-    /// ⚠️ Fayl DARHOL tayyor bo'lmaydi: Egress videoni yakunlab, omborga
-    /// yuklashi kerak. Yakuniy holat webhook bilan keladi, yo'qolsa
-    /// watchdog tiklaydi.
-    /// </summary>
-    [HttpPost("~/api/v1/live-sessions/{sessionId:long}/recordings/stop")]
-    [Authorize(Roles = HostRoles)]
-    [ProducesResponseType<RecordingDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<RecordingDto>> Stop(long sessionId, CancellationToken ct) =>
-        Ok(await recordings.StopAsync(sessionId, CurrentUserId, ct));
+       Bu yerda `POST .../recordings/start` va `.../stop` yo'llari turardi.
+       Loyiha egasining qarori: "qo'lda yozuvni boshlash ham to'xtatish ham
+       mumkin bo'lmasin — guruhga yozish-yozmaslik faqat tizimda GURUH
+       DARAJASIDA boshqarilsa yetadi".
+
+       ★ NEGA BU TO'G'RI: IKKI MANBA BITTA SAVOLGA JAVOB BERARDI.
+         `Group.RecordEnabled` "bu guruh yoziladimi" degan sozlama edi,
+         tugma esa uni chetlab o'tardi. Oqibatlari:
+           • yozuvi ATAYLAB o'chirilgan guruhda dars yozib olinishi mumkin
+             edi (2026-09-01 sinovida aynan shu yuz berdi — tugma bosildi
+             va yozuv qatori yaratildi);
+           • yozuvi yoqilgan guruhda ustoz uni to'xtatib qo'yishi va buni
+             hech kim sezmasligi mumkin edi.
+         Endi qaror BITTA joyda — guruh kartochkasida.
+
+       ★ YOZUV TO'LIQ AVTOMATIK: dars `Live` ga o'tganda
+         `AutoRecordingScheduler` navbatga qator qo'yadi, `RecordingWatchdogJob`
+         uni bo'shatadi. Ikkala qadam ham `Group.RecordEnabled` ni hurmat
+         qiladi, ya'ni sozlama yagona haqiqat.
+
+       ⚠️ INDIKATOR QOLDI (`recording-status`, quyida): xonadagi HAR KIM
+          yozuv ketayotganini ko'rishi kerak — bu rozilik masalasi va u
+          boshqaruv tugmasidan mustaqil.
+    */
 
     /// <summary>
     /// ══════════════════════════════════════════════════════════════════
