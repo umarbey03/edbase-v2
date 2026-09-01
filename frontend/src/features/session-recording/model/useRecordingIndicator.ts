@@ -28,7 +28,7 @@ import { fetchSessionRecordingStatus } from '@/entities/recording'
  *     hech qanday yozuv bo'lmasdi.
  *
  *  2) 🔴 SO'ROV DOIM YURADI, "yozuv ketayotganda" EMAS. Bu
- *     `useSessionRecording` dagi ro'yxat so'rovidan ATAYLAB farq qiladi
+ *     yozuvlar ro'yxati so'rovidan ATAYLAB farq qiladi
  *     (u faqat jarayon davom etayotganda takrorlanadi). Sabab oddiy:
  *     indikatorning butun vazifasi — yozuvning BOSHLANISHINI ko'rsatish.
  *     Faqat "yozuv bor" holatida so'rasak, u hech qachon `false` dan
@@ -47,7 +47,7 @@ import { fetchSessionRecordingStatus } from '@/entities/recording'
 /**
  * Holat shu oraliqda qayta so'raladi.
  *
- * ★ `useSessionRecording` dagi qiymat bilan AYNI (10 s) — ikki so'rov bir
+ * ★ Yozuvlar ro'yxatidagi qiymat bilan AYNI (10 s) — ikki so'rov bir
  * xil ritmda yursin. ⚠️ Bu yerda u YUKGA ta'sir qiladi: so'rovni xonadagi
  * HAR ODAM yuboradi (host uchun bittagina emas). Shuning uchun javob
  * ataylab ikki maydondan iborat va bitta indeksli so'rovdan chiqadi

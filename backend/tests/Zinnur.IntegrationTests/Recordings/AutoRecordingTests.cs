@@ -133,17 +133,24 @@ public sealed class AutoRecordingTests(RecordingFactory factory)
     }
 
     /// <summary>
-    /// Avtomatik navbat qo'ygan qator ustiga bosilgan QO'LDA boshlash
-    /// tugmasi AYNI qatorni qaytaradi.
+    /// 🔴 QO'LDA BOSHLASH/TO'XTATISH YO'LLARI UMUMAN YO'Q (2026-09-01).
     ///
-    /// ★ Tugma avtomatik rejimdan keyin ham qoldi (u — OVERRIDE), ya'ni
-    /// ikki yo'l bir darsda uchrashishi MUMKIN va bu holat aniq
-    /// belgilangan bo'lishi kerak.
+    /// Ilgari bu yerda "avtomatik navbat ustiga bosilgan qo'lda tugma AYNI
+    /// qatorni qaytaradi" degan test turardi. Loyiha egasining qarori bilan
+    /// qo'lda boshqaruv butunlay olib tashlandi: yozuv FAQAT guruh
+    /// darajasida (<c>Group.RecordEnabled</c>) boshqariladi.
+    ///
+    /// ★ TEST SAQLANDI, MA'NOSI ALMASHDI: endi u yo'llarning QAYTIB
+    /// KELMASLIGINI qo'riqlaydi. Kimdir endpointni "qulaylik uchun"
+    /// tiklab qo'ysa, bu test yiqiladi va qaror qayta muhokama qilinadi —
+    /// aks holda tiklash jimgina o'tib ketardi.
     /// </summary>
-    [Fact]
-    public async Task ManualStart_AfterAutomaticQueue_ReturnsTheSameRecording()
+    [Theory]
+    [InlineData("recordings/start")]
+    [InlineData("recordings/stop")]
+    public async Task ManualRecordingEndpoints_NoLongerExist(string path)
     {
-        var world = await WorldBuilder.CreateAsync(factory, "automanual");
+        var world = await WorldBuilder.CreateAsync(factory, $"manual{path.GetHashCode(StringComparison.Ordinal):x}");
         await SetRecordEnabledAsync(world.GroupId, enabled: true);
 
         var sessionId = await ScheduledSessionAsync(world.GroupId);
@@ -153,17 +160,16 @@ public sealed class AutoRecordingTests(RecordingFactory factory)
         var started = await teacher.PostAsync($"/api/v1/live-sessions/{sessionId}/start", null);
         started.StatusCode.Should().Be(HttpStatusCode.OK, await Body(started));
 
-        var queued = (await RecordingsOfAsync(sessionId)).Single();
+        var manual = await teacher.PostAsync($"/api/v1/live-sessions/{sessionId}/{path}", null);
 
-        var manual = await teacher.PostAsync(
-            $"/api/v1/live-sessions/{sessionId}/recordings/start", null);
+        manual.StatusCode.Should().Be(
+            HttpStatusCode.NotFound,
+            "qo'lda yozuv boshqaruvi ATAYLAB olib tashlangan");
 
-        manual.StatusCode.Should().Be(HttpStatusCode.OK, await Body(manual));
-
-        var dto = await manual.Content.ReadFromJsonAsync<RecordingResponse>();
-
-        dto!.Id.Should().Be(queued.Id, "qo'lda boshlash AYNI qatorni qaytaradi");
-        (await RecordingsOfAsync(sessionId)).Should().ContainSingle();
+        // Avtomatik navbat esa O'Z ISHINI QILGAN bo'lishi kerak — ya'ni
+        // endpoint yo'qolgani yozuvni umuman o'chirib qo'ymagan.
+        (await RecordingsOfAsync(sessionId)).Should().ContainSingle(
+            "guruh kaliti yoqilgan, ya'ni dars boshlanishida qator qo'yiladi");
     }
 
     // ================================================================= watchdog merosi

@@ -36,15 +36,23 @@ namespace Zinnur.Application.Recordings.Services;
 /// "tugallangan yozuvni orqaga qaytarish" kabi xatolar bu yerda YUZAGA
 /// KELA OLMAYDI.
 /// </summary>
+/*
+   ⚠️ `ILiveKitEgress` VA `ILogger` BOG'LIQLIKLARI OLIB TASHLANDI
+   (2026-09-01). Ular faqat `StartAsync`/`StopAsync` da ishlatilardi;
+   qo'lda boshqaruv olib tashlangach o'qilmay qoldi va kompilyator
+   ularni xato deb belgiladi (CS9113).
+
+   ★ EGRESS BILAN MULOQOT ENDI BITTA JOYDA: `RecordingWatchdogJob`
+     (`RecordingStarter` orqali). Bu servis endi faqat O'QIYDI —
+     ro'yxat, havola, ko'rinuvchanlik.
+*/
 public sealed class RecordingService(
     IApplicationDbContext db,
     ILiveSessionService liveSessions,
-    ILiveKitEgress egress,
     IRecordingStorage storage,
     IPaymentBlockService paymentBlock,
     ISettingsResolver settings,
-    TimeProvider clock,
-    ILogger<RecordingService> logger) : IRecordingService
+    TimeProvider clock) : IRecordingService
 {
     /// <summary>
     /// Ro'yxat so'rovining eng uzun oralig'i (kun).
@@ -56,146 +64,20 @@ public sealed class RecordingService(
     /// </summary>
     private const int MaxRangeDays = 92;
 
-    /// <inheritdoc />
-    public async Task<RecordingDto> StartAsync(
-        long sessionId, long actorId, CancellationToken ct = default)
-    {
-        var (session, view) = await LoadAsync(sessionId, actorId, ct).ConfigureAwait(false);
+    /*
+       ════════════════════════════════════════════════════════════════════
+       🔴 `StartAsync` VA `StopAsync` OLIB TASHLANDI (2026-09-01) — sabab
+       va oqibati `IRecordingService` izohida batafsil.
 
-        if (!view.IsHost)
-            throw new ForbiddenException("Yozuvni faqat dars hosti boshlay oladi.");
+       Qisqasi: yozuv endi FAQAT guruh darajasida boshqariladi
+       (`Group.RecordEnabled`). Dars `Live` ga o'tganda
+       `AutoRecordingScheduler` navbatga qator qo'yadi, `RecordingWatchdogJob`
+       esa `RecordingStarter.TryAsync` orqali Egress'ga boradi.
 
-        if (session.Status != SessionStatus.Live)
-        {
-            throw new ConflictException(
-                "Yozuvni faqat JONLI dars uchun boshlash mumkin. Avval darsni boshlang.");
-        }
-
-        // ══════════════════════════════════════════════════════════════
-        // 🔴 GURUH KALITI QO'LDA BOSHLASHGA HAM TEGISHLI (2026-09-01)
-        //
-        // Ilgari `Group.RecordEnabled` FAQAT avtomatik yozuvni to'sardi
-        // (`AutoRecordingScheduler`), bu yo'l esa uni umuman o'qimasdi.
-        // Ya'ni yozuvi ATAYLAB o'chirilgan guruhda ham tugma ishlayverardi
-        // va dars yozib olinardi — sozlama va xatti-harakat bir-biriga zid
-        // javob berardi.
-        //
-        // 🔴 QANDAY TOPILDI: 1-sentabr sinovida yozuvi o'chirilgan sinov
-        //    guruhida tugma bosildi va yozuv qatori YARATILDI. O'sha payt
-        //    bu "nega yozuv qatori bor?" degan chalkashlik bergan edi.
-        //
-        // ★ HIMOYA IKKI QATLAMLI: klient tugmani chizmaydi
-        //   (`LiveSessionDto.RecordEnabled`), lekin qaror SHU YERDA —
-        //   eski klient yoki to'g'ridan-to'g'ri so'rov ham o'tmasin.
-        // ══════════════════════════════════════════════════════════════
-        if (!view.RecordEnabled)
-        {
-            throw new ConflictException(
-                "Bu guruhda dars yozuvi o'chirilgan. Yoqish uchun o'quv bo'limiga murojaat qiling.");
-        }
-
-        // Ombor VA LiveKit — ikkalasi ham kerak (sabab: `ILiveKitEgress`).
-        // 503 ataylab: bu bizning bug'imiz emas, sozlanmagan bog'liqlik.
-        if (!egress.IsConfigured)
-        {
-            throw new ServiceUnavailableException(
-                "Yozuv xizmati sozlanmagan (`LiveKit:*` yoki `Storage:*`). "
-                + "Dars odatdagidek davom etadi.");
-        }
-
-        var existing = await db.SessionRecordings
-            .AsTracking()
-            .Where(r => r.SessionId == sessionId
-                     && r.Status != RecordingStatus.Completed
-                     && r.Status != RecordingStatus.Failed)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefaultAsync(ct)
-            .ConfigureAwait(false);
-
-        // IDEMPOTENT: tugma ikki marta bosilsa (yoki ikki qurilmadan
-        // bosilsa) ikkinchi egress BOSHLANMAYDI — u alohida fayl yozib,
-        // ikkalasi ham tarmoq va disk yeb qo'yardi.
-        if (existing is not null)
-            return await MapWithReviewAsync(existing, ct).ConfigureAwait(false);
-
-        var now = clock.GetUtcNow();
-
-        var recording = new SessionRecording
-        {
-            SessionId = sessionId,
-            RequestedBy = actorId,
-            ObjectKey = storage.BuildObjectKey(sessionId),
-        };
-
-        db.SessionRecordings.Add(recording);
-
-        // 🔴 QATOR EGRESS'GA MUROJAATDAN OLDIN SAQLANADI.
-        //
-        // Sabab: shu lahzada jarayon qulasa yoki Egress javobni yo'qotsa,
-        // "boshlangan, lekin hech qayerda yozilmagan" yozuv qolib
-        // ketardi — ya'ni fayl omborga tushardi-yu, uni hech kim topa
-        // olmasdi. Endi eng yomon holatda qator `Requested` bo'lib qoladi
-        // va watchdog uni ko'radi.
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-        await RecordingStarter
-            .TryAsync(egress, recording, session.RoomName, now, logger, ct)
-            .ConfigureAwait(false);
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-        return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<RecordingDto> StopAsync(
-        long sessionId, long actorId, CancellationToken ct = default)
-    {
-        var (_, view) = await LoadAsync(sessionId, actorId, ct).ConfigureAwait(false);
-
-        if (!view.IsHost)
-            throw new ForbiddenException("Yozuvni faqat dars hosti to'xtata oladi.");
-
-        var recording = await db.SessionRecordings
-            .AsTracking()
-            .Where(r => r.SessionId == sessionId
-                     && r.Status != RecordingStatus.Completed
-                     && r.Status != RecordingStatus.Failed)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefaultAsync(ct)
-            .ConfigureAwait(false)
-            ?? throw new ConflictException("Bu darsda faol yozuv yo'q.");
-
-        var now = clock.GetUtcNow();
-
-        if (string.IsNullOrWhiteSpace(recording.EgressId))
-        {
-            // Egress umuman boshlanmagan (birinchi urinish yiqilgan).
-            // To'xtatadigan narsa yo'q — yozuvni YAKUNIY xato deb yopamiz,
-            // aks holda watchdog ustoz ataylab bekor qilgan yozuvni qayta
-            // urib turaverardi.
-            recording.MarkFailed("Yozuv boshlanmasdan bekor qilindi.", now);
-
-            await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-            return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
-        }
-
-        // ⚠️ To'xtatish DARHOL fayl degani emas: yakuniy holat webhook
-        // bilan keladi. Shuning uchun bu yerda `MarkCompleted` YO'Q —
-        // u fayl hali yozilmagan yozuvni "tayyor" deb ko'rsatardi.
-        var accepted = await egress
-            .StopRecordingAsync(recording.EgressId, ct)
-            .ConfigureAwait(false);
-
-        recording.MarkStopRequested(now);
-
-        RecordingLog.StopRequested(logger, recording.Id, recording.EgressId, accepted);
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-
-        return await MapWithReviewAsync(recording, ct).ConfigureAwait(false);
-    }
+       ⚠️ `RecordingStarter` VA `MapWithReviewAsync` QOLDI — ular
+          watchdog yo'lida ishlatiladi, ya'ni "endi hech kim chaqirmaydi"
+          degan xulosa chiqarib o'chirib yubormang.
+    */
 
     /// <inheritdoc />
     public async Task<RecordingLiveStatusDto> GetLiveStatusAsync(

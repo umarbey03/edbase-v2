@@ -45,20 +45,7 @@ public sealed record LiveSessionDto(
     bool IsHost,
     string? HostName,
     int StudentCount,
-    int? OnlineCount,
-
-    /// <summary>
-    /// Shu darsning guruhida yozuv YOQILGANMI (<c>Group.RecordEnabled</c>).
-    ///
-    /// ★ NIMA UCHUN DARS DTO'SIDA, ALOHIDA SO'ROV EMAS: klient yozuv
-    /// tugmasini darsni chizayotgan paytda hal qilishi kerak. Alohida
-    /// endpoint bo'lsa tugma avval chizilib, keyin g'oyib bo'lardi.
-    ///
-    /// ⚠️ "Hozir yozuv ketyaptimi" BILAN ARALASHTIRILMAYDI — u
-    /// <c>GET /live-sessions/{id}/recording-status</c> dan keladi va
-    /// butunlay boshqa savolga javob beradi. Bu — SOZLAMA, u — HOLAT.
-    /// </summary>
-    bool RecordEnabled = false);
+    int? OnlineCount);
 
 /// <summary>
 /// KALENDAR uchun dars.

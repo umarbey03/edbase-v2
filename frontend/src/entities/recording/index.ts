@@ -4,8 +4,6 @@ export {
   fetchRecordingSection,
   fetchSessionRecordings,
   fetchSessionRecordingStatus,
-  startRecording,
-  stopRecording,
   updateRecordingVisibility,
 } from './api/recording-api'
 export {

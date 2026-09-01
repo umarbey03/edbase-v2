@@ -18,7 +18,6 @@ import { useLiveKitRoom } from '@/features/live-room/model/useLiveKitRoom'
 import MediaControlBar from '@/features/live-room/ui/MediaControlBar.vue'
 import VideoStage from '@/features/live-room/ui/VideoStage.vue'
 import RecordingIndicator from '@/features/session-recording/ui/RecordingIndicator.vue'
-import SessionRecordingControl from '@/features/session-recording/ui/SessionRecordingControl.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatCountdown } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
@@ -42,7 +41,7 @@ import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
   semantik shkalalar to'q sirt uchun qayta belgilanadi; aksent indigo qoladi.
 
   ★ ATRIBUT `<html>` GA QO'YILADI, sahifa ildiz `<div>` iga EMAS.
-  Sabab — `DAVOM_ETTIRISH.md` 6-bo'lim, 9-tuzoq: `SessionRecordingControl`
+  Sabab — `DAVOM_ETTIRISH.md` 6-bo'lim, 9-tuzoq: yozuv boshqaruvi
   ning xato toasti `<Teleport to="body">` bilan chiziladi va sahifa
   daraxtidan TASHQARIDA turadi; `<div>` da bo'lganda u to'q sahna ustida
   YORUG' tema tokenlarida chiqardi. `<html>` da bo'lganda `<body>` fonining
@@ -388,7 +387,7 @@ function handleStartSession(): void {
  * boshlash — QAYTARILADIGAN amal (xato bosilsa darhol yakunlanadi va hech
  * kim zarar ko'rmaydi), yakunlash esa uch narsani BIR VAQTDA va qaytarib
  * bo'lmaydigan qilib bajaradi: davomat yopiladi, yozuv to'xtaydi, xonadagi
- * HAMMA uziladi. Tugma "Yakunlash" yozuvi bilan `SessionRecordingControl`
+ * HAMMA uziladi. Tugma "Yakunlash" yozuvi bilan yozuv indikatori
  * yonida turadi va telefonda ikkalasi ham qisqargan holatda ("Stop") —
  * xato bosish real ehtimol.
  *
@@ -640,21 +639,18 @@ onBeforeUnmount(() => {
           bo'lmagan darsda esa hamma 409 oladi (jonli tekshirilgan).
         -->
         <!--
-          ★ `recordEnabled` SHARTI (2026-09-01): yozuvi O'CHIRILGAN guruhda
-          tugma umuman chizilmaydi. Ilgari guruh kaliti faqat AVTOMATIK
-          yozuvni to'sardi, tugma esa ishlayverardi — ya'ni sozlama va
-          xatti-harakat bir-biriga zid javob berardi (1-sentabr sinovida
-          aynan shu chalkashlik chiqdi).
+          🔴 YOZUV BOSHQARUV TUGMASI OLIB TASHLANDI (2026-09-01).
 
-          🔴 BU FAQAT KO'RINISH QATLAMI: haqiqiy rad etish serverda
-          (`RecordingService.StartAsync`), aks holda eski klient yoki
-          to'g'ridan-to'g'ri so'rov baribir yozuvni boshlab yuborardi.
+          Loyiha egasining qarori: "qo'lda yozuvni boshlash ham to'xtatish
+          ham mumkin bo'lmasin — guruhga yozish-yozmaslik faqat tizimda
+          GURUH DARAJASIDA boshqarilsa yetadi".
+
+          Server tomonda ham `POST .../recordings/start` va `.../stop`
+          yo'llari o'chirildi, ya'ni bu faqat ko'rinish tozalash emas.
+
+          ⚠️ Yuqoridagi `RecordingIndicator` QOLDI: xonadagi har kim
+             yozuv ketayotganini ko'rishi kerak (rozilik).
         -->
-        <SessionRecordingControl
-          v-if="canManageSession && isLive && isValidSession && session?.recordEnabled === true"
-          :session-id="sessionId"
-          :is-live="isLive"
-        />
 
         <BaseButton
           v-if="canManageSession && session?.status === 'Scheduled'"
