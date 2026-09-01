@@ -245,6 +245,40 @@ services:
         health_port: 9090
         log_level: info
 
+        # ══════════════════════════════════════════════════════════════
+        # 🔴 CPU NARXI — LiveKit STANDARTIDAN PAST VA BU ATAYLAB
+        # ══════════════════════════════════════════════════════════════
+        #
+        # Egress ishchisi vazifani QABUL QILISHDAN OLDIN "menda shuncha
+        # yadro bormi?" deb tekshiradi. Standart narx —
+        # `room_composite_cpu_cost: 4`, chunki LiveKit uni 8 vCPU li
+        # mashinaga mo'ljallagan. Bizdagi egressga esa `EGRESS_CPUS`
+        # (2.0) beriladi, ya'ni 4 dan KAM — va ishchi har safar
+        # JIMGINA rad etadi.
+        #
+        # 🔴 NIMA BO'LGANI (2026-09-01): dars yozuvi shu sababdan
+        #    ishlamasdi. Tashqaridan bu "timeout" bo'lib ko'rinardi:
+        #      • LiveKit `StartRoomCompositeEgress` ni qabul qiladi;
+        #      • psrpc orqali ishchi qidiradi, ishchi javob BERMAYDI;
+        #      • `LiveKitEgressClient` ning 10 soniyalik muhlati tugaydi;
+        #      • qator `Failed`, sabab "Yozuv xizmati javob bermadi".
+        #    Egress konteyner logida esa BIRORTA job ko'rinmasdi —
+        #    faqat ishga tushish paytidagi ogohlantirish:
+        #      `not enough cpu ... {"minimumCpu": 4, "available": 1}`
+        #
+        # ★ 1.5 — O'LCHOVGA ASOSLANGAN: dars yozuvi bir vaqtda BITTA
+        #   ketadi (jadvalda tekshirilgan) va 720p room-composite
+        #   amalda ~1–1.5 yadro yeydi. `max_cpu_utilization` standart
+        #   0.8, ya'ni 2.0 yadrodan hisobga ~1.6 olinadi — 1.5 shunga
+        #   sig'adi, 2.0 esa sig'masdi.
+        #
+        # ⚠️ QIYMATNI OSHIRISHDAN OLDIN `EGRESS_CPUS` ni oshiring.
+        #    Teskarisi — narx cheklovdan katta bo'lishi — yozuvni
+        #    yana JIMGINA o'chiradi va buni faqat konteyner logidagi
+        #    `cpu available: X  max cost: Y` qatori ko'rsatadi.
+        cpu_cost:
+          room_composite_cpu_cost: 1.5
+
     # `host.docker.internal` — Docker Desktop'da tayyor, LINUX'da esa
     # ATAYLAB e'lon qilinishi kerak. Busiz nom yechilmaydi va yozuv
     # "xonaga ulana olmadim" bilan tugaydi.
