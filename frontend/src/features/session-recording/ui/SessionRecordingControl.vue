@@ -57,9 +57,40 @@ const isRecording = computed(() => recording.activeRecording.value !== null)
 const label = computed(() => {
   const active = recording.activeRecording.value
   if (active === null) return 'Yozuvni boshlash'
-  // "Navbatda"/"Boshlanmoqda" holatida "To'xtatish" yozish chalg'itardi —
-  // xodim yozuv allaqachon ketyapti deb o'ylardi.
-  return active.status === 'Active' ? 'Yozuvni to‘xtatish' : recordingStatusLabel(active.status)
+
+  /*
+    ════════════════════════════════════════════════════════════════════
+    `Starting` HAM "yozilyapti" DEB HISOBLANADI (2026-09-01 da tuzatildi)
+    ════════════════════════════════════════════════════════════════════
+
+    Ilgari bu yerda faqat `Active` tekshirilardi va izohda "Boshlanmoqda
+    holatida To'xtatish yozish chalg'itardi" deb yozilgandi. Mulohaza
+    to'g'ri edi, lekin BITTA FAKT hisobga olinmagan:
+
+    🔴 `Active` HOLATIGA O'TISH BU JOYLASHUVDA UMUMAN SODIR BO'LMAYDI.
+       Unga o'tkazadigan yagona narsa — LiveKit'ning `egress_started`
+       webhook'i, webhook esa `infra/livekit/livekit.yaml` da ATAYLAB
+       o'chirilgan (sabab o'sha faylda: haqiqat manbai — ombor, watchdog
+       har 15 soniyada undan so'raydi).
+
+    Natijada tugma BUTUN DARS DAVOMIDA "Boshlanmoqda" bo'lib turardi,
+    holbuki egress allaqachon yozayotgan bo'lardi (1-sentabr sinovida
+    o'lchandi: `EgressId` berilgan, egress 1.55 yadro yeb yozyapti,
+    fayl R2 ga 39 MB bo'lib tushdi — status esa `Starting`).
+
+    ★ ENDIGI QOIDA: `Starting` — egress vazifani QABUL QILGAN va
+      `EgressId` bergan holat, ya'ni yozuv HAQIQATDA ketyapti. Faqat
+      `Requested` (egress hali javob bermagan) "Navbatda" bo'lib qoladi
+      — u yerda to'xtatadigan narsaning o'zi yo'q.
+
+    ★ SERVER ALLAQACHON TAYYOR: `RecordingService.StopAsync` "yakunlanmagan
+      qator" filtrida ishlaydi (`!= Completed && != Failed`), ya'ni
+      `Starting` dan to'xtatish avvaldan qo'llab-quvvatlangan — bu
+      o'zgarish faqat YOZUVNI to'g'rilaydi.
+  */
+  return active.status === 'Active' || active.status === 'Starting'
+    ? 'Yozuvni to‘xtatish'
+    : recordingStatusLabel(active.status)
 })
 
 function toggle(): void {

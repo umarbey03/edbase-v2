@@ -851,6 +851,11 @@ public sealed class LiveSessionService(
         // ★ NOMLI ARGUMENT: yuqorida ketma-ket `bool`/`string?` turgan
         //   joyda pozitsiyani almashtirib yuborish JIMGINA xato beradi
         //   (`GroupService.Map` dagi AYNI ehtiyot chorasi).
+        // `Group` bu yerda HAR DOIM yuklangan: `LoadAndAuthorizeAsync` ham,
+        // `ListForUserAsync` ham uni `Include` qiladi (yuqoridagi
+        // `s.Group?.Name` bilan AYNI tayanch). Yuklanmagan holat uchun
+        // `false` — "yozuv yoqilmagan" xavfsizroq standart.
+        RecordEnabled: s.Group?.RecordEnabled ?? false,
         StudentCount: studentCount,
         OnlineCount: onlineCount);
 
