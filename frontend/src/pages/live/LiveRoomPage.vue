@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { fetchRecentMessages } from '@/entities/message'
@@ -225,7 +225,23 @@ const hostUserId = computed<number | null>(() => {
   if (teacher !== undefined) return teacher.userId
   const assistant = list.find((entry) => entry.role === 'Assistant')
   if (assistant !== undefined) return assistant.userId
-  return isHost.value ? auth.userId : null
+
+  /*
+    🔴 ILGARI BU YERDA `isHost.value ? auth.userId : null` TURARDI —
+    ya'ni xonada ustoz topilmasa "host — bu men" deb hisoblanardi.
+
+    Oqibati (2026-09-01 jonli sinovida ko'rildi): ikki administrator
+    kirganda ro'yxatda na `Teacher`, na `Assistant` bor edi, shuning
+    uchun `hostUserId` KIRGAN ODAMNING O'ZINIKI bo'lib qolardi va
+    `VideoStage` asosiy sahnaga uning O'Z KAMERASINI qo'yardi. Ya'ni
+    odam qarshi tarafni emas, o'zini ko'rib turardi.
+
+    ★ `null` TO'G'RI JAVOB: "ustoz kim ekani noma'lum". `VideoStage`
+    bu holatda uzoqdagi birinchi videoga o'tadi — bu aynan kerakli
+    xatti-harakat. "Men hostman" degan ma'lumot bu yerda umuman
+    kerak emas: u ekran ulashish tugmasi uchun alohida ishlatiladi.
+  */
+  return null
 })
 
 const endsAtIso = computed(() => mediaEndsAt.value ?? session.value?.endsAt ?? null)
@@ -409,6 +425,74 @@ function openChat(): void {
   chatUnread.value = 0
 }
 
+/* ------------------------------ to'liq ekran ------------------------------ */
+
+/*
+  ════════════════════════════════════════════════════════════════════════
+  TO'LIQ EKRAN (2026-09-01) — loyiha egasi talabi: "student teacherning
+  ekranini full screenda ko'ra olishi kerak".
+  ════════════════════════════════════════════════════════════════════════
+
+  ★ QAMROV — VIDEO + BOSHQARUV PANELI, ya'ni quyidagi `<main>`.
+    Muqobillar ataylab rad etildi:
+      • butun sahifa — chat o'ng ustunda joy egallab turardi va video
+        deyarli kattalashmasdi, ya'ni maqsad bajarilmasdi;
+      • faqat `<video>` elementi — eng katta video, LEKIN u holatda
+        mikrofonni yoqish yoki darsdan chiqish uchun avval to'liq
+        ekrandan chiqish kerak bo'lardi. Dars davomida bu qabul
+        qilib bo'lmaydigan qadam.
+
+  ★ HAQIQAT MANBAI — `document.fullscreenElement`, bizning bayrog'imiz
+    EMAS. Brauzerdan `Esc`, `F11` yoki tizim jesti bilan ham chiqish
+    mumkin va bunda hech qanday bosish bo'lmaydi; bayroqqa tayansak
+    tugma "chiqish" holatida qotib qolardi.
+
+  🔴 iOS SAFARI'DA `Element.requestFullscreen` YO'Q (faqat `<video>`
+    uchun `webkitEnterFullscreen`). Shuning uchun tugma qo'llab-
+    quvvatlash aniqlangandagina chiziladi — ishlamaydigan tugma
+    yolg'on va'da bo'lardi. iPhone'da sahifa allaqachon `h-dvh` bilan
+    butun oynani egallaydi, ya'ni yo'qotish katta emas.
+*/
+const stageRef = useTemplateRef<HTMLElement>('stageRef')
+const isFullscreen = ref(false)
+
+const canFullscreen =
+  typeof document !== 'undefined' && document.fullscreenEnabled === true
+
+function syncFullscreen(): void {
+  isFullscreen.value = document.fullscreenElement !== null
+}
+
+async function toggleFullscreen(): Promise<void> {
+  const element = stageRef.value
+  if (element === null) return
+
+  try {
+    if (document.fullscreenElement !== null) {
+      await document.exitFullscreen()
+      return
+    }
+
+    /*
+      Chatni YOPAMIZ: mobil varaqa `fixed` bo'lib, to'liq ekranga
+      o'tadigan elementdan TASHQARIDA turadi — ya'ni to'liq ekranda u
+      umuman ko'rinmasdi va foydalanuvchi "chat yo'qoldi" deb o'ylardi.
+      Yopilgani esa ko'rinadigan, tushunarli holat.
+    */
+    chatOpen.value = false
+    await element.requestFullscreen()
+  } catch {
+    /*
+      Brauzer rad etishi mumkin (ruxsat siyosati, iframe `allowfullscreen`
+      siz, Telegram WebView). Bu XATO EMAS — hech narsa buzilmaydi,
+      shunchaki sahifa o'z holicha qoladi. Toast chiqarish shovqin
+      bo'lardi: foydalanuvchi tugmani bosdi va hech narsa o'zgarmadi —
+      buni o'zi ko'rib turibdi.
+    */
+    syncFullscreen()
+  }
+}
+
 /* ------------------------------- hayot davri ------------------------------- */
 
 onMounted(() => {
@@ -426,6 +510,10 @@ onMounted(() => {
   clockTimer = window.setInterval(() => {
     nowMs.value = Date.now()
   }, 1000)
+
+  // `Esc` va `F11` ham holatni o'zgartiradi — tugma ikonkasi ular bilan
+  // ham sinxron qolishi kerak (yuqoridagi izoh).
+  document.addEventListener('fullscreenchange', syncFullscreen)
 })
 
 onBeforeUnmount(() => {
@@ -433,6 +521,8 @@ onBeforeUnmount(() => {
     window.clearInterval(clockTimer)
     clockTimer = null
   }
+
+  document.removeEventListener('fullscreenchange', syncFullscreen)
   // `useLiveKitRoom` va `useLiveHub` o'z tozalashini o'zlari bajaradi
   // (trek'lar detach qilinadi, tinglovchilar olib tashlanadi, ulanish yopiladi).
 })
@@ -549,8 +639,19 @@ onBeforeUnmount(() => {
           faqat dars JONLI paytida. O'quvchi bu chaqiruvlardan 403, jonli
           bo'lmagan darsda esa hamma 409 oladi (jonli tekshirilgan).
         -->
+        <!--
+          ★ `recordEnabled` SHARTI (2026-09-01): yozuvi O'CHIRILGAN guruhda
+          tugma umuman chizilmaydi. Ilgari guruh kaliti faqat AVTOMATIK
+          yozuvni to'sardi, tugma esa ishlayverardi — ya'ni sozlama va
+          xatti-harakat bir-biriga zid javob berardi (1-sentabr sinovida
+          aynan shu chalkashlik chiqdi).
+
+          🔴 BU FAQAT KO'RINISH QATLAMI: haqiqiy rad etish serverda
+          (`RecordingService.StartAsync`), aks holda eski klient yoki
+          to'g'ridan-to'g'ri so'rov baribir yozuvni boshlab yuborardi.
+        -->
         <SessionRecordingControl
-          v-if="canManageSession && isLive && isValidSession"
+          v-if="canManageSession && isLive && isValidSession && session?.recordEnabled === true"
           :session-id="sessionId"
           :is-live="isLive"
         />
@@ -718,7 +819,8 @@ onBeforeUnmount(() => {
         (pastdagi izohga qarang), shuning uchun tayanch nuqta kerak.
       -->
       <main
-        class="relative flex min-w-0 flex-1 flex-col"
+        ref="stageRef"
+        class="relative flex min-w-0 flex-1 flex-col bg-ink-950"
         :class="isShortLandscape ? 'p-2' : 'gap-3 p-3'"
       >
         <VideoStage
@@ -762,11 +864,14 @@ onBeforeUnmount(() => {
             :screen-pending="screenPending"
             :disabled="sessionEnded"
             :unread-count="chatUnread"
+            :is-fullscreen="isFullscreen"
+            :can-fullscreen="canFullscreen"
             @toggle-mic="toggleMic"
             @toggle-camera="toggleCamera"
             @toggle-screen="toggleScreenShare"
             @toggle-hand="handleToggleHand"
             @toggle-chat="openChat"
+            @toggle-fullscreen="toggleFullscreen"
             @leave="handleLeave"
           />
         </div>

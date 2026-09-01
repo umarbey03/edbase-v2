@@ -35,6 +35,23 @@ const props = withDefaults(
     disabled?: boolean
     /** Mobil rejimda chat tugmasi ustidagi o'qilmagan xabarlar soni. */
     unreadCount?: number
+    /**
+     * Hozir to'liq ekran rejimidami — ikonka shunga qarab almashadi.
+     *
+     * ★ HOLAT OTA KOMPONENTDA: to'liq ekranga o'tadigan element bu panel
+     * emas, uni O'RAB TURGAN blok (video + panel birga). Bundan tashqari
+     * brauzer to'liq ekrandan `Esc` bilan ham chiqadi — ya'ni haqiqat
+     * manbai `document.fullscreenElement`, tugmaning o'zi emas.
+     */
+    isFullscreen?: boolean
+    /**
+     * Brauzer to'liq ekranni umuman qo'llab-quvvatlaydimi.
+     *
+     * 🔴 iOS Safari'da `Element.requestFullscreen` YO'Q (faqat `<video>`
+     * uchun `webkitEnterFullscreen`). U yerda tugma chizilmaydi —
+     * ishlamaydigan tugmani ko'rsatish yolg'on va'da bo'lardi.
+     */
+    canFullscreen?: boolean
   }>(),
   {
     micPending: false,
@@ -42,6 +59,8 @@ const props = withDefaults(
     screenPending: false,
     disabled: false,
     unreadCount: 0,
+    isFullscreen: false,
+    canFullscreen: false,
   },
 )
 
@@ -51,6 +70,7 @@ const emit = defineEmits<{
   'toggle-screen': []
   'toggle-hand': []
   'toggle-chat': []
+  'toggle-fullscreen': []
   leave: []
 }>()
 
@@ -201,6 +221,33 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
         v-text="props.unreadCount > 99 ? '99+' : String(props.unreadCount)"
       />
       <span class="sr-only">Suhbat</span>
+    </button>
+
+    <!--
+      TO'LIQ EKRAN (2026-09-01).
+
+      ★ NEGA AYNAN SHU PANELDA, sahnaning burchagida emas: loyiha egasi
+      talabi — "o'quvchi ustozning ekranini to'liq ekranda ko'ra olishi
+      kerak" — va o'quvchi to'liq ekranda ham mikrofonini yoqa olishi
+      kerak. Shuning uchun to'liq ekranga video BILAN BIRGA shu panel
+      ham kiradi (ota komponentdagi `<main>` o'raladi), ya'ni tugmaning
+      o'zi ham ko'rinib turadi va qaytish yo'li yo'qolmaydi.
+
+      ★ Ajratgichdan OLDIN turadi: o'ngdagi qizil "chiqish" tugmasi
+      alohida guruh bo'lib qolsin — u boshqa og'irlikdagi amal.
+    -->
+    <button
+      v-if="props.canFullscreen"
+      type="button"
+      :class="[BASE, 'bg-ink-750 text-slate-100 hover:bg-ink-700']"
+      :title="props.isFullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekran'"
+      @click="emit('toggle-fullscreen')"
+    >
+      <AppIcon :name="props.isFullscreen ? 'minimize' : 'maximize'" />
+      <span
+        class="sr-only"
+        v-text="props.isFullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekran'"
+      />
     </button>
 
     <div

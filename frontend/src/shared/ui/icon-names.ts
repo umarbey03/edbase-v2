@@ -27,6 +27,8 @@ export type IconName =
   | 'camera'
   | 'camera-off'
   | 'screen-share'
+  | 'maximize'
+  | 'minimize'
   | 'hand'
   | 'chat'
   | 'leave'

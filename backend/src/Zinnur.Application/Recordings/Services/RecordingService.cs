@@ -71,6 +71,29 @@ public sealed class RecordingService(
                 "Yozuvni faqat JONLI dars uchun boshlash mumkin. Avval darsni boshlang.");
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 GURUH KALITI QO'LDA BOSHLASHGA HAM TEGISHLI (2026-09-01)
+        //
+        // Ilgari `Group.RecordEnabled` FAQAT avtomatik yozuvni to'sardi
+        // (`AutoRecordingScheduler`), bu yo'l esa uni umuman o'qimasdi.
+        // Ya'ni yozuvi ATAYLAB o'chirilgan guruhda ham tugma ishlayverardi
+        // va dars yozib olinardi — sozlama va xatti-harakat bir-biriga zid
+        // javob berardi.
+        //
+        // 🔴 QANDAY TOPILDI: 1-sentabr sinovida yozuvi o'chirilgan sinov
+        //    guruhida tugma bosildi va yozuv qatori YARATILDI. O'sha payt
+        //    bu "nega yozuv qatori bor?" degan chalkashlik bergan edi.
+        //
+        // ★ HIMOYA IKKI QATLAMLI: klient tugmani chizmaydi
+        //   (`LiveSessionDto.RecordEnabled`), lekin qaror SHU YERDA —
+        //   eski klient yoki to'g'ridan-to'g'ri so'rov ham o'tmasin.
+        // ══════════════════════════════════════════════════════════════
+        if (!view.RecordEnabled)
+        {
+            throw new ConflictException(
+                "Bu guruhda dars yozuvi o'chirilgan. Yoqish uchun o'quv bo'limiga murojaat qiling.");
+        }
+
         // Ombor VA LiveKit — ikkalasi ham kerak (sabab: `ILiveKitEgress`).
         // 503 ataylab: bu bizning bug'imiz emas, sozlanmagan bog'liqlik.
         if (!egress.IsConfigured)
