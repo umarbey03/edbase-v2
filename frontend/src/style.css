@@ -87,6 +87,41 @@
   --font-display: Newsreader, Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
+  /*
+    UCHINCHI SHRIFT — ARAB YOZUVI (2026-09-03).
+
+    ★ NEGA KERAK BO'LDI: landing va daraja testida arab matni endi
+      DEKORATSIYA emas, MAZMUN — «ع» harfi hero'da 100px, test
+      savollarida esa harakatli so'zlar (مَدْرَسَة, الشَّمْس) 58px gacha
+      chiqadi. Bunday o'lchamda tizim shrifti (Windows'da Segoe UI,
+      Android'da Noto) harakatlarni harfga yopishtirib qo'yadi va
+      aynan biz o'rgatayotgan narsa — fatha bilan damma farqi —
+      o'qilmay qoladi.
+
+    🔴 ONEST VA NEWSREADER ARAB YOZUVINI UMUMAN QOPLAMAYDI. Ular
+       bo'lmasa brauzer o'zining zaxira shriftiga tushadi va matn har
+       qurilmada boshqacha ko'rinadi.
+
+    ★ NEGA AMIRI: u Naskh uslubidagi, aynan HARAKATLI matn uchun
+      chizilgan shrift — harakatlar harfning ustida/ostida to'g'ri
+      joyda turadi. Kursning o'quv kitoblari ham shu uslubda.
+
+    ⚠️ HAJM — 106 KB, ya'ni qolgan uchta shriftning yig'indisidan
+       (98.9 KB) ham katta. Bu ataylab qabul qilingan, sabab:
+         • `unicode-range` faqat arab bloki — sahifada arab harfi
+           BO'LMASA fayl UMUMAN yuklanmaydi;
+         • `display: swap` — matn shrift kelguncha ham ko'rinadi;
+         • u FAQAT landing va testda ishlatiladi, ichki panellarda emas.
+
+       Agar keyinchalik hajm muammo bo'lsa — `pyftsubset` bilan faqat
+       ishlatilayotgan belgilarga qisqartiring, LEKIN `--layout-features`
+       ni saqlang: usiz harflar bir-biriga ULANMAY qoladi (arab yozuvi
+       kontekstga qarab shakl o'zgartiradi).
+
+    Faqat 400 vazn: dizaynda arab matni hech qayerda qalin emas.
+  */
+  --font-arabic: Amiri, 'Noto Naskh Arabic', 'Traditional Arabic', serif;
+
   /* ---------------------- NEYTRAL SIRTLAR (teskari) ----------------------
      ILIQ, DEYARLI OQ QOG'OZ (2026-08-29). Ilgari salqin kul-ko'k
      (#f4f6fb) edi — u indigo aksent uchun yasalgan. Yashil aksent ustida
@@ -679,57 +714,40 @@
   yomon emas edi, lekin birinchi ekran statik bo'lgani uchun sahifa
   "rasm" bo'lib qolardi.
 
-  Endi uch qatlam bor va uchalasi ham SEKIN harakatlanadi:
-    1) `hero-orb`     — yumshoq rangli sharlar, bir-biriga qarama-qarshi
-                        yo'nalishda suzadi;
-    2) `hero-grid`    — juda past kontrastli nuqtali setka, asta suriladi;
-    3) `hero-rise`    — sahifa ochilganda matnning navbat bilan chiqishi.
+  Shundan keyin bu yerda uch qatlam paydo bo'ldi: `hero-orb` (rangli
+  sharlar), `hero-grid` (nuqtali setka) va `hero-rise` (matnning navbat
+  bilan chiqishi).
+
+  ══════════════════════════════════════════════════════════════════════
+   ⚠️ 2026-09-03 — `hero-orb` OLIB TASHLANDI
+  ══════════════════════════════════════════════════════════════════════
+
+  Landing hero'si to'q yashildan YORUG'ga o'tdi (sabab
+  `LandingPage.vue` dagi hero izohida) va sharlar shu bilan
+  ishlatilmay qoldi: ular to'q sirt uchun hisoblangan edi, yorug'
+  fonda esa loyqa dog' bo'lib qolardi. Ularning o'rnini sahifaning
+  UMUMIY foni egalladi (`LandingPage.vue` dagi `decor-*`).
+
+  🔴 QOLGAN IKKITASI ISHLATILADI — o'chirmang:
+     `hero-grid` + `hero-grid-mask` — `LoginPage` ning to'q yashil chap
+     paneli; `hero-rise` — landing hero matnining chiqishi.
 
   ┌────────────────────────────────────────────────────────────────────┐
   │ 🔴 FAQAT `transform` VA `opacity` ANIMATSIYA QILINADI              │
   └────────────────────────────────────────────────────────────────────┘
   Bu ikkalasi kompozitor qatlamida, ya'ni brauzer har kadrda sahifani
-  qaytadan hisoblamaydi (layout/paint bo'lmaydi). `filter: blur()` esa
-  BIR MARTA, animatsiyadan TASHQARIDA qo'llanadi — uni kadrma-kadr
-  o'zgartirish mobil qurilmada darhol sekinlashtirardi.
+  qaytadan hisoblamaydi (layout/paint bo'lmaydi).
 
-  ★ NEGA `will-change` YOZILMAGAN: sharlar doim ekranda va doim
-    harakatda, ya'ni brauzer ularni o'zi alohida qatlamga chiqaradi.
+  ★ NEGA `will-change` YOZILMAGAN: naqsh doim ekranda va doim
+    harakatda, ya'ni brauzer uni o'zi alohida qatlamga chiqaradi.
     Qo'lda `will-change` yozish bu yerda faqat xotira sarflaydi.
 
   ★ `prefers-reduced-motion` ALOHIDA YOZILMADI — pastdagi global blok
     (`animation-duration: 0.01ms`) bu animatsiyalarni ham to'xtatadi.
-    Sharlar o'sha joyida qotadi va fon oddiy gradientga aylanadi, ya'ni
-    ko'rinish BUZILMAYDI (aynan shuning uchun `alternate` ishlatilgan:
-    boshlang'ich va yakuniy holat ikkalasi ham "to'g'ri" ko'rinadi).
+    Naqsh o'sha joyida qotadi va ko'rinish BUZILMAYDI (aynan shuning
+    uchun `alternate` ishlatilgan: boshlang'ich va yakuniy holat
+    ikkalasi ham "to'g'ri" ko'rinadi).
 */
-
-@keyframes hero-orb-a {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(6%, 8%, 0) scale(1.18);
-  }
-}
-
-@keyframes hero-orb-b {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.12);
-  }
-  to {
-    transform: translate3d(-7%, -6%, 0) scale(0.94);
-  }
-}
-
-@keyframes hero-orb-c {
-  from {
-    transform: translate3d(0, 0, 0) scale(0.96);
-  }
-  to {
-    transform: translate3d(4%, -9%, 0) scale(1.14);
-  }
-}
 
 /* Nuqtali setkaning surilishi. Bitta katak masofasiga suriladi va
    qaytadan boshlanadi — shuning uchun "sakrash" ko'rinmaydi. */
@@ -753,25 +771,6 @@
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
-}
-
-.hero-orb {
-  position: absolute;
-  border-radius: 9999px;
-  /* Chetlari umuman ko'rinmasin — shar emas, YORUG'LIK bo'lib tursin. */
-  filter: blur(72px);
-  pointer-events: none;
-  animation: hero-orb-a 22s ease-in-out infinite alternate;
-}
-
-.hero-orb--b {
-  animation-name: hero-orb-b;
-  animation-duration: 27s;
-}
-
-.hero-orb--c {
-  animation-name: hero-orb-c;
-  animation-duration: 32s;
 }
 
 /*
@@ -1074,6 +1073,29 @@
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
     U+2C60-2C7F, U+A720-A7FF;
+}
+
+/*
+  ARAB YOZUVI — Amiri (400). Sabab va hajm hisobi yuqoridagi `@theme`
+  blokidagi `--font-arabic` izohida.
+
+  🔴 `unicode-range` FAQAT ARAB BLOKI — bu shu yerdagi eng muhim qator.
+     Usiz brauzer Amiri'ni lotin matn uchun ham nomzod deb hisoblab,
+     sahifada bitta ham arab harfi bo'lmasa ham 106 KB yuklardi.
+     Diapazon Google Fonts'ning `arabic` subseti bilan bir xil: arab
+     bloki, uning kengaytmalari va taqdimot shakllari (FB50-FDFF,
+     FE70-FEFC) — oxirgilari harflarning ulangan ko'rinishlari uchun.
+*/
+@font-face {
+  font-family: 'Amiri';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/amiri-arabic.woff2') format('woff2');
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF,
+    U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC,
+    U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF;
 }
 
 /*
