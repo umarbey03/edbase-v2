@@ -167,12 +167,31 @@ const {
   `matchMedia` ustida ishlaydi va boshlang'ich qiymatni mount'dan OLDIN
   o'qiydi — birinchi kadrda "sakrash" bo'lmaydi.
 
-  `isDesktop` esa faqat xavfsiz zona uchun kerak (pastdagi `chatSheetStyle`).
+  `isDesktop` esa suhbat/ishtirokchilar paneli doimiy ustun bo'ladimi yoki
+  suzuvchi varaqami — shuni hal qiladi (pastdagi `chatFloating`).
 */
 const { isDesktop, isShortLandscape } = useBreakpoint()
 
 const chatOpen = ref(false)
 const chatUnread = ref(0)
+
+/**
+ * Panelning faol tabi — ILDIZDA saqlanadi, `ChatPanel` ichida emas.
+ *
+ * NIMA UCHUN KO'CHIRILDI: yuqori paneldagi ishtirokchilar soni endi
+ * BOSILADI va to'g'ridan-to'g'ri "Ishtirokchilar" tabini ochadi. Holat
+ * bolada qolganda ota komponent uni almashtira olmasdi va ustoz ro'yxatga
+ * ikki bosishda (avval panel, keyin tab) yetardi — jonli darsda bu ortiqcha.
+ */
+const chatTab = ref<'chat' | 'people'>('chat')
+
+/**
+ * Hozir to'liq ekrandami. `chatFloating` (yuqorida emas, pastda hisoblanadi)
+ * shu qiymatga tayangani uchun e'lon SHU YERDA turadi — aks holda
+ * "e'londan oldin ishlatish" bo'lardi.
+ */
+const isFullscreen = ref(false)
+
 const actionBusy = ref(false)
 const actionError = ref<string | null>(null)
 const nowMs = ref(Date.now())
@@ -340,13 +359,36 @@ const rootSafeAreaStyle = {
 } as const
 
 /*
+  ════════════════════════════════════════════════════════════════════════
+  PANEL SUZUVCHIMI YOKI DOIMIY USTUNMI — BITTA QAROR, BITTA JOYDA
+  ════════════════════════════════════════════════════════════════════════
+
+  🔴 ILGARI BU QAROR CSS'DA EDI (`hidden` + `lg:flex` + `lg:static`) va
+    to'liq ekran holatini BILMASDI. Oqibati: to'liq ekranda katta ekranli
+    ustoz uchun panel ham ko'rinmasdi (u to'liq ekran daraxtidan tashqarida),
+    uni ochadigan tugma ham yo'q edi (`lg:hidden`) — ya'ni ishtirokchilar
+    ro'yxatiga yo'l UMUMAN yo'q edi.
+
+  ★ ENDI QOIDA: panel DOIMIY USTUN bo'ladi faqat katta ekranda VA to'liq
+    ekran bo'lmaganda. Qolgan hamma holatda — suzuvchi varaqa:
+      • telefon/planshet (avvalgidek);
+      • to'liq ekran (yangi) — bu yerda ustun bo'lishi mumkin emas, aks
+        holda to'liq ekranning butun ma'nosi (katta video) yo'qoladi.
+
+  ★ Bitta manba: bu qiymatdan HAM panel ko'rinishi, HAM boshqaruv
+    panelidagi tugma (`canOpenChat`) kelib chiqadi — ular hech qachon
+    ajralib qolmaydi.
+*/
+const chatFloating = computed(() => !isDesktop.value || isFullscreen.value)
+
+/*
   Chat varaqasi `fixed` bo'lganda ildizning padding'i unga TA'SIR QILMAYDI
   (fixed element viewport'ga nisbatan joylashadi) — shuning uchun xabar
-  yozish maydoni yana home indicator ostida qolardi. Desktopda esa panel
-  ildiz ichidagi oddiy ustun, ya'ni inset ikki marta qo'shilmasligi kerak.
+  yozish maydoni yana home indicator ostida qolardi. Doimiy ustunda esa
+  panel ildiz ichida, ya'ni inset ikki marta qo'shilmasligi kerak.
 */
 const chatSheetStyle = computed(() =>
-  isDesktop.value ? undefined : { paddingBottom: 'env(safe-area-inset-bottom, 0px)' },
+  chatFloating.value ? { paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined,
 )
 
 /* -------------------------------- amallar ---------------------------------- */
@@ -420,8 +462,22 @@ function handleRetry(): void {
 }
 
 function openChat(): void {
+  chatTab.value = 'chat'
   chatOpen.value = true
   chatUnread.value = 0
+}
+
+/**
+ * Ishtirokchilar ro'yxatini BIR bosishda ochadi (yuqori paneldagi son).
+ *
+ * ★ `chatUnread` ATAYLAB NOLLANMAYDI: odam suhbatni emas, ro'yxatni ochdi —
+ * o'qilmagan xabarlar o'qilgan bo'lib qolmasligi kerak.
+ * ★ Doimiy ustun holatida ham ishlaydi: `chatOpen` u yerda e'tiborsiz,
+ * tab esa baribir almashadi.
+ */
+function openPeople(): void {
+  chatTab.value = 'people'
+  chatOpen.value = true
 }
 
 /* ------------------------------ to'liq ekran ------------------------------ */
@@ -432,14 +488,31 @@ function openChat(): void {
   ekranini full screenda ko'ra olishi kerak".
   ════════════════════════════════════════════════════════════════════════
 
-  ★ QAMROV — VIDEO + BOSHQARUV PANELI, ya'ni quyidagi `<main>`.
-    Muqobillar ataylab rad etildi:
-      • butun sahifa — chat o'ng ustunda joy egallab turardi va video
-        deyarli kattalashmasdi, ya'ni maqsad bajarilmasdi;
-      • faqat `<video>` elementi — eng katta video, LEKIN u holatda
-        mikrofonni yoqish yoki darsdan chiqish uchun avval to'liq
-        ekrandan chiqish kerak bo'lardi. Dars davomida bu qabul
-        qilib bo'lmaydigan qadam.
+  🔴 QAMROV 2026-09-03 DA BUTUN SAHIFAGA KENGAYTIRILDI. Ilgari bu yerda
+    faqat `<main>` (video + boshqaruv paneli) turardi va sabab shunday
+    yozilgan edi: *"butun sahifa — chat o'ng ustunda joy egallab turardi
+    va video deyarli kattalashmasdi"*. Bu mulohaza BITTA OG'IR OQIBATNI
+    hisobga olmagan edi:
+
+      brauzer to'liq ekranda FAQAT o'sha elementning ostki daraxtini
+      chizadi ("top layer"). `<main>` dan tashqaridagi HAMMA NARSA —
+      ishtirokchilar/suhbat paneli, yuqori panel, holat chiziqlari —
+      ko'rinmay qoladi. Panel `position: fixed` bo'lgani ham yordam
+      bermaydi: u boshqa daraxtda.
+
+    Natijada translyatsiya qilayotgan ustoz to'liq ekranga o'tgach
+    O'QUVCHILAR RO'YXATINI ham, chatni ham UMUMAN ocholmasdi: katta
+    ekranda chat tugmasi `lg:hidden` bilan yashiringan, mobil varaqa
+    esa ochilsa ham chizilmasdi. Ustozlar shikoyati aynan shu edi
+    ("live paytida studentlar ro'yxati ko'rinmayapti"), sinovda esa
+    ko'rinmagan — chunki sinovda hech kim to'liq ekranga o'tmagan.
+
+  ★ ESKI E'TIROZ SHU O'ZGARISH BILAN BIRGA YECHILDI: to'liq ekranda
+    panel doimiy ustundan SUZUVCHI varaqaga aylanadi (`chatFloating`),
+    ya'ni yopiq turganda video BUTUN kenglikni oladi — eski yechimdan
+    ham kengroq. Yuqori panel (~45px) qoladi va bu ataylab: "Yakunlash"
+    tugmasi, ishtirokchilar soni va yozuv indikatori dars davomida
+    yo'qolmasligi kerak.
 
   ★ HAQIQAT MANBAI — `document.fullscreenElement`, bizning bayrog'imiz
     EMAS. Brauzerdan `Esc`, `F11` yoki tizim jesti bilan ham chiqish
@@ -453,7 +526,6 @@ function openChat(): void {
     butun oynani egallaydi, ya'ni yo'qotish katta emas.
 */
 const stageRef = useTemplateRef<HTMLElement>('stageRef')
-const isFullscreen = ref(false)
 
 const canFullscreen =
   typeof document !== 'undefined' && document.fullscreenEnabled === true
@@ -473,12 +545,12 @@ async function toggleFullscreen(): Promise<void> {
     }
 
     /*
-      Chatni YOPAMIZ: mobil varaqa `fixed` bo'lib, to'liq ekranga
-      o'tadigan elementdan TASHQARIDA turadi — ya'ni to'liq ekranda u
-      umuman ko'rinmasdi va foydalanuvchi "chat yo'qoldi" deb o'ylardi.
-      Yopilgani esa ko'rinadigan, tushunarli holat.
+      ★ CHAT ENDI YOPILMAYDI. Ilgari shu yerda `chatOpen = false` turardi,
+      sababi to'liq ekranga o'tadigan element panelni O'Z ICHIGA OLMAS edi
+      va ochiq panel "yo'qolgandek" ko'rinardi. Endi panel to'liq ekran
+      daraxtining ICHIDA (yuqoridagi izoh) — ya'ni ochiq bo'lsa ochiqligicha
+      qoladi va ustoz ro'yxatni yo'qotmaydi.
     */
-    chatOpen.value = false
     await element.requestFullscreen()
   } catch {
     /*
@@ -528,7 +600,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!--
+    ★ TO'LIQ EKRAN ELEMENTI — AYNAN SHU ILDIZ (`stageRef`).
+    Ilgari u `<main>` (faqat video) edi; nima uchun o'zgargani skriptdagi
+    "TO'LIQ EKRAN" izohida batafsil yozilgan — qisqasi, `<main>` dan
+    tashqaridagi ishtirokchilar paneli to'liq ekranda umuman chizilmasdi.
+  -->
   <div
+    ref="stageRef"
     class="flex h-dvh flex-col overflow-hidden bg-ink-950"
     :style="rootSafeAreaStyle"
   >
@@ -622,16 +701,28 @@ onBeforeUnmount(() => {
           {{ countdown }}
         </span>
 
-        <span
-          class="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 tabular-nums ring-1 ring-inset ring-line"
-          title="Ishtirokchilar soni"
+        <!--
+          ISHTIROKCHILAR SONI — ENDI TUGMA (2026-09-03).
+
+          ★ NIMA UCHUN: raqamning o'zi "xonada 14 kishi" deydi, lekin
+          "KIMLAR?" degan savolga javob bermaydi — javob esa yon paneldagi
+          tabda yashiringan edi. Ustozlar shikoyati aynan shu edi: dars
+          paytida o'quvchilar ro'yxatini topib bo'lmayapti. Endi eng
+          ko'zga tashlanadigan raqam to'g'ridan-to'g'ri ro'yxatni ochadi.
+        -->
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 tabular-nums ring-1 ring-inset ring-line transition-colors hover:bg-ink-750 hover:text-slate-100"
+          title="Ishtirokchilar ro‘yxati"
+          @click="openPeople"
         >
           <AppIcon
             name="users"
             :size="14"
           />
           {{ participantCount }}
-        </span>
+          <span class="sr-only">ishtirokchi — ro‘yxatni ochish</span>
+        </button>
 
         <!--
           Yozuvni boshlash/to'xtatish — FAQAT dars egasiga va boshqaruvchiga,
@@ -815,7 +906,6 @@ onBeforeUnmount(() => {
         (pastdagi izohga qarang), shuning uchun tayanch nuqta kerak.
       -->
       <main
-        ref="stageRef"
         class="relative flex min-w-0 flex-1 flex-col bg-ink-950"
         :class="isShortLandscape ? 'p-2' : 'gap-3 p-3'"
       >
@@ -859,6 +949,7 @@ onBeforeUnmount(() => {
             :camera-pending="cameraPending"
             :screen-pending="screenPending"
             :disabled="sessionEnded"
+            :can-open-chat="chatFloating"
             :unread-count="chatUnread"
             :is-fullscreen="isFullscreen"
             :can-fullscreen="canFullscreen"
@@ -874,14 +965,18 @@ onBeforeUnmount(() => {
       </main>
 
       <!--
-        Mobil uchun fon qoplamasi. `bg-black/60` ATAYLAB qoldirildi (yorug'
-        temaga o'tkazilmadi): bu ekran `[data-surface='stage']` ostida —
+        Suzuvchi panel uchun fon qoplamasi. `bg-black/60` ATAYLAB qoldirildi
+        (yorug' temaga o'tkazilmadi): bu ekran `[data-surface='stage']` ostida —
         sahna baribir to'q, ostida esa video oqadi. Yorug' `slate-900/35`
         qatlami u yerda videoni oqartirib, chat panelini "havoda" qoldirardi.
+
+        ★ `lg:hidden` O'RNIGA `chatFloating`: to'liq ekranda katta ekranda ham
+        panel suzuvchi bo'ladi, ya'ni qoplama ham kerak (CSS chegarasi bu
+        holatni bila olmasdi).
       -->
       <div
-        v-if="chatOpen"
-        class="fixed inset-0 z-30 bg-black/60 lg:hidden"
+        v-if="chatFloating && chatOpen"
+        class="fixed inset-0 z-30 bg-black/60"
         aria-hidden="true"
         @click="chatOpen = false"
       />
@@ -895,7 +990,7 @@ onBeforeUnmount(() => {
          • md…lg — O'NG TOMONDAN chiquvchi 380px lik varaqa: chapda video
            KO'RINIB TURADI. Ilgari iPad tik holatida (768px) chat butun
            videoni bosib qolardi, holbuki ekranda ikkalasiga ham joy bor.
-         • ≥ lg (1024px) — oqimdagi doimiy o'ng ustun (o'zgarmadi).
+         • ≥ lg (1024px) — oqimdagi doimiy o'ng ustun.
 
         ★ NEGA md'da DOIMIY USTUN EMAS: yon menyu ham, jadvallar ham `lg:` da
         ochiladi (loyiha egasining 2026-08-13 dagi qarori, `style.css`
@@ -903,20 +998,35 @@ onBeforeUnmount(() => {
         `md` ni ikkinchi "desktop" chegarasiga aylantirardi — o'rniga
         planshet oraliq xulqni oladi: qoplama, lekin YARIM ekranli.
 
+        🔴 USTUN/VARAQA TANLOVI CSS'DAN JS'GA KO'CHIRILDI (2026-09-03).
+        Ilgari u `hidden` + `lg:flex lg:static` bilan qilinardi va TO'LIQ
+        EKRAN holatini bila olmasdi: katta ekranda panel doimiy ustun bo'lib
+        qolar, doimiy ustun esa to'liq ekran daraxtidan tashqarida edi —
+        ya'ni ekranda umuman chizilmasdi. Endi qaror `chatFloating` da
+        (sabab va qoida — uning izohida) va u ikkala shartni ham biladi.
+
         ★ `max-md:` va `md:` — bir-birini ISTISNO qiluvchi media so'rovlar,
-        shuning uchun Tailwind tartibiga bog'liq emas; `lg:` esa ikkalasidan
-        keyin chiqadi va ustunni tiklaydi.
+        shuning uchun Tailwind tartibiga bog'liq emas.
+      -->
+      <!--
+        ⚠️ `v-if` EMAS, `hidden` KLASSI. Panel yopilganda ham DOM'da qoladi:
+        aks holda `ChatPanel` unmount bo'lib, yozilayotgan xabar matni,
+        skroll holati va o'qilmaganlar hisobi yo'qolardi. Mobil varaqa kun
+        davomida o'nlab marta ochilib-yopiladi — bu sezilarli yo'qotish.
       -->
       <div
-        class="min-h-0 border-line bg-ink-900 lg:static lg:inset-auto lg:z-auto lg:flex lg:w-[380px] lg:shrink-0 lg:animate-none lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none xl:w-[420px]"
+        class="min-h-0 flex-col border-line bg-ink-900"
         :class="
-          chatOpen
-            ? 'fixed z-40 flex flex-col shadow-2xl max-md:inset-0 max-md:animate-sheet-up md:inset-y-0 md:right-0 md:w-[380px] md:animate-drawer-in md:border-l'
-            : 'hidden'
+          !chatFloating
+            ? 'flex w-[380px] shrink-0 border-l xl:w-[420px]'
+            : chatOpen
+              ? 'fixed z-40 flex shadow-2xl max-md:inset-0 max-md:animate-sheet-up md:inset-y-0 md:right-0 md:w-[380px] md:animate-drawer-in md:border-l'
+              : 'hidden'
         "
         :style="chatSheetStyle"
       >
         <ChatPanel
+          v-model:tab="chatTab"
           class="w-full flex-1"
           :messages="messages"
           :current-user-id="auth.userId"

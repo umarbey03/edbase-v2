@@ -58,6 +58,13 @@ export interface UseLiveKitRoomResult {
   isMicOn: Ref<boolean>
   isCameraOn: Ref<boolean>
   isScreenSharing: Ref<boolean>
+  /**
+   * Brauzer ekran ulashishni umuman qo'llab-quvvatlaydimi (telefonda — YO'Q).
+   *
+   * `Ref` EMAS, oddiy `boolean`: qiymat sahifa hayoti davomida o'zgarmaydi
+   * (izoh — `SCREEN_SHARE_SUPPORTED` da).
+   */
+  screenShareSupported: boolean
   /** Har bir tugma uchun ALOHIDA — faqat bosilgani kutish holatiga tushadi. */
   micPending: Ref<boolean>
   cameraPending: Ref<boolean>
@@ -89,11 +96,63 @@ function describeMediaError(error: unknown): string {
         return 'Qurilma topilmadi. Mikrofon yoki kamera ulanganini tekshiring.'
       case 'NotReadableError':
         return 'Qurilma band. Uni ishlatayotgan boshqa dasturni yoping.'
+      case 'NotSupportedError':
+        return 'Brauzeringiz bu imkoniyatni qo‘llab-quvvatlamaydi.'
       default:
         break
     }
   }
   return toUserMessage(error)
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ * 🔴 EKRAN ULASHISH TELEFONDA UMUMAN MUMKIN EMAS (2026-09-03)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * `navigator.mediaDevices.getDisplayMedia` — ekran ulashishning YAGONA
+ * yo'li — quyidagilarda MAVJUD EMAS:
+ *   • iOS/iPadOS: hamma brauzerda (Safari, Chrome, Telegram ichidagi
+ *     ko'rinish — hammasi WebKit ustida ishlaydi, ya'ni "Chrome o'rnataman"
+ *     yechim emas);
+ *   • Android: Chrome, Firefox va boshqalarida (Android'da ekran yozib
+ *     olish tizim darajasidagi ruxsat, veb API'da ochilmagan).
+ *
+ * Bu BIZNING kodimizdagi nosozlik emas — platforma cheklovi va uni
+ * frontend'dan aylanib o'tib bo'lmaydi.
+ *
+ * ★ NIMA UCHUN TEKSHIRUV KERAK: tekshiruvsiz LiveKit'ning
+ *   `setScreenShareEnabled()` metodi ichkarida yiqilardi va ustoz
+ *   "navigator.mediaDevices.getDisplayMedia is not a function" degan
+ *   INGLIZCHA texnik matnni ko'rardi. Ustozlar shikoyati aynan shu edi:
+ *   "telefonda ekranni ulashib bo'lmayapti" — sabab hech qayerda
+ *   aytilmagan.
+ *
+ * ★ BIR MARTA HISOBLANADI: brauzer imkoniyati sahifa hayoti davomida
+ *   o'zgarmaydi, ya'ni har bosishda qayta tekshirish keraksiz.
+ */
+const SCREEN_SHARE_SUPPORTED =
+  typeof navigator !== 'undefined' &&
+  navigator.mediaDevices !== undefined &&
+  typeof navigator.mediaDevices.getDisplayMedia === 'function'
+
+/**
+ * Qo'llab-quvvatlanmagan holatda bosilganda ko'rsatiladigan matn.
+ *
+ * ★ IKKI SABAB AJRATILADI. `navigator.mediaDevices` XAVFSIZ BO'LMAGAN
+ * ulanishda (https siz, IP orqali) ham `undefined` bo'ladi — bu qurilma
+ * emas, MANZIL muammosi va yechimi butunlay boshqa. Bitta umumiy matn
+ * yozilsa, http orqali kirgan odam "telefon qo'llab-quvvatlamaydi" degan
+ * NOTO'G'RI javob olardi va sababni hech qachon topmasdi.
+ */
+function screenShareUnsupportedText(): string {
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return 'Ekranni ulashish faqat xavfsiz (https) ulanishda ishlaydi. Saytga rasmiy manzil orqali kiring.'
+  }
+  return (
+    'Telefon va planshet brauzerlari ekranni ulashishni qo‘llab-quvvatlamaydi. ' +
+    'Ekranni ulashish uchun darsga kompyuterdan kiring.'
+  )
 }
 
 /**
@@ -806,6 +865,26 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   function toggleScreenShare(): Promise<void> {
     // Ekranni faqat host ulashadi (tugma ham faqat unda ko'rinadi).
     if (!isHost.value) return Promise.resolve()
+
+    /*
+      ★ TUGMA YASHIRILMAYDI — SABAB AYTILADI. Bu to'liq ekran tugmasidan
+      (`MediaControlBar.canFullscreen`) ATAYLAB farq qiladi:
+
+        • to'liq ekran — qulaylik; qo'llab-quvvatlanmasa tugmani umuman
+          chizmaslik to'g'ri, chunki foydalanuvchi uni qidirmaydi;
+        • ekran ulashish — DARSNING ASOSIY VOSITASI. Tugma jimgina
+          yo'q bo'lsa ustoz uni qidiraveradi, topolmaydi va "ilova buzuq"
+          degan xulosaga keladi. Aynan shu holat 2026-09-03 da
+          ustozlardan shikoyat bo'lib keldi.
+
+      Shuning uchun tugma joyida qoladi va bosilganda ANIQ, o'zbekcha
+      javob beradi: nima uchun mumkin emas va nima qilish kerak.
+    */
+    if (!SCREEN_SHARE_SUPPORTED) {
+      mediaError.value = screenShareUnsupportedText()
+      return Promise.resolve()
+    }
+
     return runToggle(
       isScreenSharing,
       screenPending,
@@ -898,6 +977,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     isMicOn,
     isCameraOn,
     isScreenSharing,
+    screenShareSupported: SCREEN_SHARE_SUPPORTED,
     micPending,
     cameraPending,
     screenPending,
