@@ -43,8 +43,18 @@ const emit = defineEmits<{
   'unread-change': [count: number]
 }>()
 
-type Tab = 'chat' | 'people'
-const tab = ref<Tab>('chat')
+/**
+ * Faol tab — OTA KOMPONENT bilan ikki tomonlama bog'langan (`v-model:tab`).
+ *
+ * NIMA UCHUN ICHKI `ref` EMAS (2026-09-03 da o'zgardi): jonli dars
+ * sahifasidagi yuqori paneldagi ishtirokchilar soni bosilganda ro'yxat
+ * DARHOL ochilishi kerak. Holat shu komponent ichida qolganda ota uni
+ * almashtira olmasdi va ustoz ro'yxatga ikki bosishda yetardi.
+ *
+ * ★ Berilmasa avvalgidek "Suhbat" dan boshlanadi — chaqiruvchi uchun
+ *   hech narsa o'zgarmaydi.
+ */
+const tab = defineModel<'chat' | 'people'>('tab', { default: 'chat' })
 
 const scrollerEl = ref<HTMLElement | null>(null)
 const messagesRef = toRef(props, 'messages')

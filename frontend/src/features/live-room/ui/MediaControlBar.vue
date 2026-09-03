@@ -33,6 +33,21 @@ const props = withDefaults(
     cameraPending?: boolean
     screenPending?: boolean
     disabled?: boolean
+    /**
+     * Suhbat/ishtirokchilar tugmasi chizilsinmi.
+     *
+     * 🔴 ILGARI BU `lg:hidden` CSS KLASSI EDI va aynan shu narsa nosozlikka
+     * olib keldi (2026-09-03, ustozlar shikoyati): katta ekranda panel doimiy
+     * ustun bo'lgani uchun tugma keraksiz — TO'G'RI. Lekin TO'LIQ EKRANDA u
+     * ustun brauzerning "top layer" idan TASHQARIDA qoladi, ya'ni umuman
+     * ko'rinmaydi — va tugma ham yo'q. Natijada translyatsiya qilayotgan
+     * ustoz ishtirokchilar ro'yxatiga ham, chatga ham HECH QANDAY yo'l bilan
+     * kira olmasdi.
+     *
+     * Endi qaror bitta joyda va HOLATGA qarab olinadi: panel suzuvchi
+     * bo'lsa (mobil YOKI to'liq ekran) — tugma bor, aks holda yo'q.
+     */
+    canOpenChat: boolean
     /** Mobil rejimda chat tugmasi ustidagi o'qilmagan xabarlar soni. */
     unreadCount?: number
     /**
@@ -207,11 +222,12 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
       <span class="sr-only">Qo‘l ko‘tarish</span>
     </button>
 
-    <!-- Mobil: chatni ochish -->
+    <!-- Suhbat va ishtirokchilar (mobil YOKI to'liq ekran) -->
     <button
+      v-if="props.canOpenChat"
       type="button"
-      :class="[BASE, 'bg-ink-750 text-slate-100 hover:bg-ink-700 lg:hidden']"
-      title="Suhbat"
+      :class="[BASE, 'bg-ink-750 text-slate-100 hover:bg-ink-700']"
+      title="Suhbat va ishtirokchilar"
       @click="emit('toggle-chat')"
     >
       <AppIcon name="chat" />
@@ -220,7 +236,7 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
         class="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white"
         v-text="props.unreadCount > 99 ? '99+' : String(props.unreadCount)"
       />
-      <span class="sr-only">Suhbat</span>
+      <span class="sr-only">Suhbat va ishtirokchilar</span>
     </button>
 
     <!--
