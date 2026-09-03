@@ -30,10 +30,37 @@ import { AppIcon, BaseButton } from '@/shared/ui'
   ══════════════════════════════════════════════════════════════════════════
 */
 
-const props = defineProps<{
-  /** Tanlash uchun yo'nalishlar (landing kontentidan). */
-  courses: readonly string[]
-}>()
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   IKKI KO'RINISH — TO'LIQ VA QISQA (2026-08-30)
+  ══════════════════════════════════════════════════════════════════════════
+
+  Landing'da forma IKKI joyda turadi: bepul darsdan keyin (qisqa) va
+  sahifa oxirida (to'liq).
+
+  ★ NEGA IKKINCHI FORMA KERAK BO'LDI: ilgari ariza qoldirish imkoni FAQAT
+    sahifa oxirida edi. Odam yuqorida qiziqib qolsa ham, unga to'qqizta
+    bo'limni aylantirib o'tish kerak bo'lardi — va ko'pchilik o'tmaydi.
+
+  🔴 IKKINCHI KOMPONENT YOZILMADI — ATAYLAB. Yuborish mantig'i, telefon
+     niqobi, xato ishlash va takroriy yuborishdan himoya bitta joyda
+     qoladi. Nusxa ko'chirilsa, ular asta-sekin bir-biridan ajralib
+     ketardi va xato faqat bittasida tuzatilardi.
+
+  QISQA KO'RINISHDA nima yo'q: yo'nalish tanlash va izoh. Ikkalasi ham
+  IXTIYORIY maydon edi, ya'ni hech narsa yo'qolmaydi — menejer ularni
+  qo'ng'iroqda baribir so'raydi. Yuqoridagi formaning butun vazifasi —
+  ikki maydonda tugaydigan eng past to'siq.
+*/
+const props = withDefaults(
+  defineProps<{
+    /** Tanlash uchun yo'nalishlar (landing kontentidan). */
+    courses: readonly string[]
+    /** Qisqa ko'rinish: faqat ism va telefon. */
+    compact?: boolean
+  }>(),
+  { compact: false },
+)
 
 const fullName = ref('')
 const phone = ref('')
@@ -88,12 +115,66 @@ async function handleSubmit(): Promise<void> {
     isSubmitting.value = false
   }
 }
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   DARAJA TESTI NATIJASINI FORMAGA QO'YISH (2026-09-03)
+  ══════════════════════════════════════════════════════════════════════════
+
+  Landing'dagi daraja testi tugagach odam «Shu daraja bilan ariza
+  qoldirish» ni bosadi va shu metod chaqiriladi.
+
+  ★ NEGA METOD, PROP EMAS: bu bir martalik HODISA ("natijani ko'chir"),
+    doimiy holat emas. Prop bo'lsa, foydalanuvchi maydonni qo'lda
+    tahrirlagandan keyin ham har qayta chizishda ustidan yozilardi.
+
+  ★ NEGA IZOH USTIGA YOZILMAYDI, QO'SHILADI: odam allaqachon "kechqurungi
+    guruh kerak" deb yozgan bo'lishi mumkin. Uni o'chirish — u yozgan
+    yagona ma'lumotni yo'qotish.
+
+  ⚠️ ESKI TEST SATRI OLIB TASHLANADI: testni ikki marta yechgan odamda
+     ikkita qarama-qarshi daraja qolib ketardi va menejer qaysinisi
+     yangi ekanini bilmasdi.
+*/
+const LEVEL_LINE_PATTERN = /\s*Daraja testi:[\s\S]*$/
+
+function applyLevelResult(payload: { course: string, note: string }): void {
+  // Yuborilgan formani qayta to'ldirish mantiqsiz — ariza allaqachon ketgan.
+  if (isSent.value) return
+
+  if (payload.course.length > 0) course.value = payload.course
+
+  const existing = note.value.replace(LEVEL_LINE_PATTERN, '').trim()
+
+  note.value = existing.length > 0 ? `${existing}\n${payload.note}` : payload.note
+}
+
+defineExpose({ applyLevelResult })
 </script>
 
 <template>
+  <!--
+    ⚠️ 2026-09-03 — TEPADA RANGLI CHIZIQ.
+
+    ★ NIMA UCHUN: landing'da bir nechta oq karta yonma-yon turadi
+      (narx ro'yxati, aloqa qutilari, savollar) va forma ular orasida
+      ajralib turmasdi — holbuki u sahifadagi YAGONA joy, u yerda
+      odam biror narsa YOZADI. Rangli chiziq shu bitta kartani
+      belgilaydi.
+
+    ★ `overflow-hidden` SHART: chiziqsiz u kartaning yumaloq
+      burchaklaridan chiqib, to'rtburchak bo'lib turardi.
+
+    ★ IKKALA KO'RINISHDA HAM (`compact` va to'liq) — forma qayerda
+      turishidan qat'i nazar bir xil tanib olinadi.
+  -->
   <div
-    class="rounded-2xl bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line sm:p-8"
+    class="relative overflow-hidden rounded-2xl bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line sm:p-8"
   >
+    <span
+      class="enrollment-strip absolute inset-x-0 top-0 h-1"
+      aria-hidden="true"
+    />
     <!-- ─────────────────────────────────────── YUBORILGANDAN KEYIN -->
     <div
       v-if="isSent"
@@ -178,7 +259,10 @@ async function handleSubmit(): Promise<void> {
         </label>
       </div>
 
-      <label class="mt-4 block">
+      <label
+        v-if="!props.compact"
+        class="mt-4 block"
+      >
         <span class="mb-1.5 block text-xs font-medium text-slate-400">
           Yo‘nalish <span class="text-slate-600">(ixtiyoriy)</span>
         </span>
@@ -200,7 +284,10 @@ async function handleSubmit(): Promise<void> {
         </select>
       </label>
 
-      <label class="mt-4 block">
+      <label
+        v-if="!props.compact"
+        class="mt-4 block"
+      >
         <span class="mb-1.5 block text-xs font-medium text-slate-400">
           Izoh <span class="text-slate-600">(ixtiyoriy)</span>
         </span>
@@ -239,3 +326,24 @@ async function handleSubmit(): Promise<void> {
     </form>
   </div>
 </template>
+
+<style scoped>
+/*
+  Kartaning tepasidagi chiziq: yashildan sariqqa.
+
+  ★ NEGA GRADIENT, tekis rang emas: tekis yashil chiziq kartaning
+    chegarasi bo'lib ko'rinardi. Gradient esa uni ATAYLAB qo'yilgan
+    belgi qilib ko'rsatadi.
+
+  Tailwind bilan yozilmaydi (uch to'xtashli gradient), shuning uchun
+  bitta qoida.
+*/
+.enrollment-strip {
+  background: linear-gradient(
+    90deg,
+    var(--color-green-800),
+    var(--color-green-400) 50%,
+    var(--color-amber-500)
+  );
+}
+</style>

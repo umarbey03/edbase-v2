@@ -58,7 +58,14 @@ export const BOT_LINK: string | null =
 export const CONTACT = {
   phone: '+998 (78) 777-77-17',
   phoneHref: '+998787777717',
-  workingHours: 'Dushanba – Shanba, 09:00 – 19:00',
+  /*
+    ⚠️ 2026-09-03 — «Du – Sha» EMAS, «Du – Ya» (loyiha egasi aniqlashtirdi).
+
+    Bu — CALL CENTRE ish vaqti, ya'ni menejerlar qo'ng'iroqqa javob
+    beradigan vaqt. U dars jadvali bilan bog'liq EMAS: darslar
+    haftasiga 5 kun (`WEEK_DAYS`), aloqa esa yetti kun.
+  */
+  workingHours: 'Dushanba – Yakshanba, 09:00 – 19:00',
 } as const
 
 /*
@@ -110,14 +117,110 @@ export const SOCIALS: readonly Social[] = [
   norozilikka olib keladi.
 */
 export const HERO = {
+  /*
+    ⚠️ 2026-09-03 — HERO NISHONI VA E'LON PANELI AJRATILDI.
+
+    🔴 MUAMMO: «Yangi guruhga qabul ochiq» endi IKKI joyda edi — eng
+       tepadagi e'lon panelida va uning ostidagi hero nishonida. Bir
+       ekranda ikki marta takrorlangan gap kuchini yo'qotadi va sahifa
+       o'zini takrorlayotgandek ko'rinardi.
+
+    ★ `badge` E'LON PANELIDA QOLDI (u yerda u tanqislik signali),
+      hero'ga esa markazning O'ZI kim ekani chiqdi. Birinchi ekran
+      endi ikki savolga javob beradi: bu kim, va u nima va'da qiladi.
+  */
+  eyebrow: 'Arab tili akademiyasi',
   badge: 'Yangi guruhga qabul ochiq',
-  title: '8 oyda arab tilidagi harakatli kitobni',
+  /*
+    ⚠️ 2026-09-03 — BIRLIKDAN KO'PLIKKA: «kitobni» -> «kitoblarni».
+
+    Loyiha egasining tuzatishi: fonetikani tugatgan o'quvchi BITTA
+    kitobni emas, harakatli kitoblarning HAMMASINI o'qiy oladi.
+    Birlik shakl va'dani o'zi bilmagan holda kichraytirib qo'yardi —
+    odam "qaysi kitob ekan?" deb o'ylardi.
+  */
+  title: '8 oyda arab tilidagi harakatli kitoblarni',
   titleAccent: 'mustaqil o‘qiysiz',
   lead:
     'Quruq grammatika va qoida yodlash emas — darslarning asosi amaliyot. '
     + 'Jonli darslar, support teacher bilan alohida mashg‘ulotlar va barcha '
     + 'kitoblar sizga eng yaqin Uzpost pochtasiga yetkaziladi.',
 } as const
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   HERO VIZUALI — SUZUVCHI KARTALAR (2026-09-03)
+  ══════════════════════════════════════════════════════════════════════════
+
+  ★ NIMA UCHUN QO'SHILDI: hero'ning o'ng yarmi bo'sh edi va birinchi
+    ekran faqat MATNDAN iborat bo'lardi. Bu kartalar kursning to'rtta
+    ajratuvchi tomonini bir qarashda ko'rsatadi — o'qimasdan, ko'z bilan:
+    jonli dars bor, talaffuz tekshiriladi, kitob yo'lda, guruh kichik.
+
+  🔴 KARTALARDA YANGI VA'DA YO'Q. To'rtalasi ham sahifada pastroqda
+     matn bilan aytilgan (`WEEK`, `OUTCOMES`, `BOOKS`, `STATS`). Ular
+     ANONS, ya'ni takror — va aynan shuning uchun ekran o'qigich uchun
+     `aria-hidden` ostida turadi.
+
+  ★ `kind` — kartadagi kichik jonli element turi: avatarlar, tovush
+    to'lqini yoki progress chizig'i. Shakl ma'noga bog'langan
+    (`avatars` = odamlar, `wave` = ovoz, `progress` = yo'ldagi narsa),
+    shuning uchun u ma'lumotda turadi, shablonda emas.
+*/
+export interface HeroCard {
+  title: string
+  text: string
+  kind: 'avatars' | 'wave' | 'progress' | 'plain'
+}
+
+export const HERO_CARDS: readonly HeroCard[] = [
+  {
+    title: 'Jonli dars ketmoqda',
+    text: `Asosiy ustoz · ${COURSE_FACTS.lessonDuration}`,
+    kind: 'avatars',
+  },
+  {
+    title: 'Talaffuz tekshirildi',
+    text: 'Support teacher · audio',
+    kind: 'wave',
+  },
+  {
+    title: 'Kitoblar yo‘lda',
+    text: 'Uzpost · 5–7 kun ichida',
+    kind: 'progress',
+  },
+  {
+    title: `${COURSE_FACTS.groupSize} kishilik guruh`,
+    text: 'Har o‘quvchiga vaqt yetadi',
+    kind: 'plain',
+  },
+]
+
+/*
+  Hero vizualining markazidagi harf.
+
+  ★ NEGA AYNAN «ع»: bepul dars ham shu harf haqida (`FREE_LESSON`).
+    Ya'ni birinchi ekrandagi belgi pastdagi videoga ishora qiladi va
+    ikkisi bir-birini kuchaytiradi.
+*/
+export const HERO_LETTER = {
+  glyph: 'ع',
+  caption: '«Ayn» harfi',
+} as const
+
+/*
+  SAHIFA FONIDAGI XIRA HARFLAR — 2026-09-03.
+
+  ★ NEGA AYNAN «ع ب ن»: ular brend nomining o'zagi (ZIN-NUR emas —
+    «ayn», «bo», «nun» arab alifbosining tanish harflari) va sahifaning
+    mavzusini bir qarashda aytadi. Tasodifiy harflar bo'lsa, bu
+    shunchaki naqsh bo'lib qolardi.
+
+  🔴 SHAFFOFLIK 4.5% — MATNGA XALAQIT BERMASLIGI SHART. Harflar 200px
+     gacha katta va biroz quyuqroq bo'lsa, ular ustidagi tana matnining
+     kontrasti tushib ketardi. Bu qiymatni oshirmang.
+*/
+export const DECOR_LETTERS: readonly string[] = ['ع', 'ب', 'ن']
 
 /*
   RAQAMLAR — sotuv skriptidagi eng kuchli to'rt fakt.
@@ -130,7 +233,7 @@ export const HERO = {
      Sabab `PRICE` izohida: oy — dars soni O'ZGARIB turadigan birlik.
 */
 export const STATS: readonly { value: string, label: string }[] = [
-  { value: COURSE_FACTS.courseDuration, label: 'ATF kursi' },
+  { value: COURSE_FACTS.courseDuration, label: 'Fonetika kursi' },
   { value: COURSE_FACTS.weeklyLessonDays, label: 'haftasiga dars' },
   { value: COURSE_FACTS.groupSize, label: 'kishilik guruh' },
   { value: COURSE_FACTS.price, label: `so‘m / ${COURSE_FACTS.lessonsPerPayment}` },
@@ -187,10 +290,11 @@ export interface Outcome {
 export const OUTCOMES: readonly Outcome[] = [
   {
     icon: 'book',
-    title: 'Harakatli kitobni mustaqil o‘qiysiz',
+    title: 'Harakatli kitoblarni mustaqil o‘qiysiz',
     text:
-      'ATF kursini yakunlaganingizdan keyin arab tilidagi istalgan '
-      + 'harakatli kitobni ochib, uni mustaqil, to‘g‘ri o‘qiy olasiz.',
+      'Fonetika kursini yakunlaganingizdan keyin arab tilidagi harakatli '
+      + 'kitoblarni ochib, ularni mustaqil, to‘g‘ri o‘qiy olasiz — bittasini '
+      + 'emas, hammasini.',
   },
   {
     icon: 'message-circle',
@@ -270,11 +374,68 @@ export const WEEK: readonly WeekBlock[] = [
   },
 ]
 
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   HAFTA KUNLARI — 2026-09-03
+  ══════════════════════════════════════════════════════════════════════════
+
+  ★ NIMA UCHUN `WEEK` YETMADI: yuqoridagi ikki blok haftada NECHTA dars
+    borligini va ular NIMA ekanini aytadi, lekin QAYSI KUNI ekanini
+    aytmaydi. Ishlaydigan yoki o'qiydigan odam uchun aynan shu yetishmas
+    edi — u jadvalni o'z haftasiga sola olmasdi.
+
+  🔴 KUNLAR LOYIHA EGASI TASDIQLASHI KERAK. Ular yangi landing maketidan
+     olindi (`zin-nur-site.vercel.app`), oldingi kontentda kun nomlari
+     UMUMAN yo'q edi. Agar guruhlar turli kunlarda o'qisa — bu ro'yxat
+     noto'g'ri va uni o'chirish kerak (yoki guruhga bog'lash).
+
+  ★ IKKI BLOK O'CHIRILMADI: chizma "qachon" ga, bloklar esa "nima
+    bo'ladi" ga javob beradi. Faqat chizma qolsa, support teacher darsi
+    nimaligi sahifada tushuntirilmay qolardi.
+*/
+export interface WeekDay {
+  /** Qisqartma — chizmada katta harf bilan. */
+  label: string
+  /** Kun turi: asosiy ustoz / support teacher / dam. */
+  kind: 'main' | 'support' | 'off'
+  /** Ikki qatorlik izoh (`\n` bilan bo'linadi). */
+  text: string
+}
+
+export const WEEK_DAYS: readonly WeekDay[] = [
+  { label: 'Du', kind: 'main', text: 'Asosiy ustoz\n1 s 20 daq' },
+  { label: 'Se', kind: 'support', text: 'Support\nteacher' },
+  { label: 'Cho', kind: 'main', text: 'Asosiy ustoz\n1 s 20 daq' },
+  { label: 'Pa', kind: 'support', text: 'Support\nteacher' },
+  { label: 'Ju', kind: 'support', text: 'Support\nteacher' },
+  { label: 'Sha–Ya', kind: 'off', text: 'Mustaqil\nmashq' },
+]
+
 /* ────────────────────── KURS BOSQICHLARI ──────────────────────────── */
 
 export interface CourseModule {
   name: string
+  /*
+    Chizmadagi qisqa nom.
+
+    ★ NEGA `name` DAN KESIB OLINMAYDI: nisbiy chizmadagi eng tor bo'lak
+      (Amaliyot I — 1 oy) atigi ~60px keladi va u yerga to'liq nom
+      SIG'MAYDI. Avtomatik kesish esa "1-modul — Harf mod…" kabi
+      yarim so'z qoldirardi.
+  */
+  short: string
   duration: string
+  /*
+    Davomiylik OYDA, raqam bilan — 2026-09-03 da qo'shildi.
+
+    ★ NEGA `duration` YETMAYDI: sahifada modullar endi nisbiy KENGLIKDA
+      chiziladi (uzun modul — keng bo'lak). Kenglik `duration` matnidan
+      olinsa, uni har safar tahlil qilish kerak bo'lardi — "3 oy" dan
+      raqam ajratish esa matn o'zgarishi bilan darhol sinadi.
+
+    ⚠️ `duration` BILAN MOS TURSIN: matn odam uchun, raqam chizma uchun.
+  */
+  months: number
 }
 
 export interface CourseStage {
@@ -283,6 +444,31 @@ export interface CourseStage {
   text: string
   /** Bosqich ichidagi modullar. Bo'lmasa — bosqich bo'linmaydi. */
   modules?: readonly CourseModule[]
+  /*
+    ══════════════════════════════════════════════════════════════════
+     KURSLARNI AJRATUVCHI FAKTLAR — 2026-09-03
+    ══════════════════════════════════════════════════════════════════
+
+    🔴 MUAMMO: sahifa Fonetika va Grammatika haqida UMUMIY gapirardi —
+       "haftasiga 5 kun dars", "support teacher bor", "test va mashqlar
+       bor". Amalda bu faqat FONETIKA uchun to'g'ri:
+
+         Fonetika   — haftasiga 5 kun, support teacher BOR, test BOR
+         Grammatika — haftasiga 2 kun, support teacher YO'Q, test YO'Q
+
+       Loyiha egasi: "oradagi farq katta". Umumiy gap odamda noto'g'ri
+       kutish yaratardi va u Grammatikaga yozilgach o'zi kutgan
+       narsani topmasdi.
+
+    ★ NEGA `boolean` EMAS, MATN: "yo'q" bilan "hozircha yo'q" bir xil
+      narsa emas. Grammatika testi rejalashtirilgan, lekin hali
+      tayyor emas — buni bayroq bilan ifodalab bo'lmaydi.
+
+    ⚠️ AMALIYOT II DA FAKTLAR YO'Q — ATAYLAB. Uning jadvali loyiha
+       egasi tomonidan aytilmagan; o'ylab topilgan raqam yozishdan
+       ko'ra maydonni bo'sh qoldirish to'g'riroq.
+  */
+  facts?: readonly { label: string, value: string }[]
 }
 
 /*
@@ -307,22 +493,40 @@ export interface CourseStage {
 */
 export const COURSE_PATH: readonly CourseStage[] = [
   {
-    name: 'ATF',
+    /*
+      ⚠️ 2026-09-03 — QISQARTMA OCHIB YOZILDI.
+
+      🔴 SABAB (loyiha egasi): "ATF degan yozuvni ko'pchilik tushuna
+         olmaydi". Qisqartma faqat ICHKARIDA ma'lum va sahifaga
+         birinchi marta kelgan odam uchun u ma'nosiz uch harf edi —
+         holbuki aynan shu kurs sotilmoqda.
+
+      ★ TO'LIQ SHAKL BU YERDA, kursning O'Z kartasida: aynan shu joyda
+        odam "bu nima?" degan savolni beradi. Sahifaning qolgan
+        qismida (FAQ, narx yorlig'i) qisqa «ATF» qoladi — u yergacha
+        odam ma'nosini bilib bo'lgan bo'ladi.
+    */
+    name: 'ATF (Arab tili Fonetika)',
     duration: '8 oy',
     text:
       'Asosiy kurs. Alifbodan boshlanadi va harakatli matnni mustaqil '
       + 'o‘qiy oladigan darajagacha olib boradi.',
     modules: [
-      { name: '1-modul — Harf moduli', duration: '3 oy' },
-      { name: '2-modul — Qoida moduli', duration: '4 oy' },
-      { name: '3-modul — Amaliyot I moduli', duration: '1 oy' },
+      { name: '1-modul — Harf moduli', short: '1-modul · Harf', duration: '3 oy', months: 3 },
+      { name: '2-modul — Qoida moduli', short: '2-modul · Qoida', duration: '4 oy', months: 4 },
+      { name: '3-modul — Amaliyot I moduli', short: '3-modul', duration: '1 oy', months: 1 },
+    ],
+    facts: [
+      { label: 'Haftasiga', value: '5 kun dars' },
+      { label: 'Support teacher', value: 'Bor — haftada 3 kun' },
+      { label: 'Test va mashqlar', value: 'Bor' },
     ],
   },
   {
     name: 'Amaliyot II',
     duration: '3 oy',
     text:
-      'ATF tugagandan keyingi davomi. O‘qish ko‘nikmasi matn ustida '
+      'Fonetika tugagandan keyingi davomi. O‘qish ko‘nikmasi matn ustida '
       + 'muntazam amaliyot bilan mustahkamlanadi.',
   },
   {
@@ -331,6 +535,21 @@ export const COURSE_PATH: readonly CourseStage[] = [
     text:
       'So‘z shakllari va gap qurilishi qoidalari. Arab tilini o‘qish '
       + 'bilan cheklanmasdan, matnni tahlil qila olmoqchi bo‘lganlar uchun.',
+    /*
+      🔴 GRAMMATIKA FONETIKADAN JIDDIY FARQ QILADI — shuning uchun bu
+         uchta qator sahifada ochiq ko'rsatiladi. Ularsiz odam
+         yuqoridagi "haftasiga 5 kun, support bor" degan gaplarni
+         Grammatikaga ham tegishli deb o'ylardi.
+
+      ⚠️ "Hozircha yo'q" — ATAYLAB shunday yozilgan: loyiha egasi
+         testlar keyinchalik tuzilishi mumkinligini aytdi. Test
+         qo'shilsa, shu qatorni yangilang.
+    */
+    facts: [
+      { label: 'Haftasiga', value: '2 kun dars' },
+      { label: 'Support teacher', value: 'Yo‘q' },
+      { label: 'Test va mashqlar', value: 'Hozircha yo‘q' },
+    ],
   },
 ]
 
@@ -358,18 +577,28 @@ export const FEATURES: readonly Feature[] = [
       + 'ustoz har bir o‘quvchiga vaqt ajrata oladi.',
   },
   {
+    /*
+      ⚠️ 2026-09-03 — IKKALA KARTAGA HAM "FONETIKA KURSIDA" QO'SHILDI.
+
+      🔴 SABAB: support teacher ham, testlar ham FAQAT fonetika kursida
+         bor (Grammatikada ikkalasi ham yo'q — `COURSE_PATH` dagi
+         `facts` izohi). Bu kartalar esa "Kursga kiritilgan" bo'limida,
+         ya'ni odam ularni HAR kursga tegishli deb o'qirdi va
+         Grammatikaga yozilgach o'zi kutgan narsani topmasdi.
+    */
     icon: 'user-check',
     title: 'Haftada 3 kun support teacher darsi',
     text:
-      'Asosiy darsdan tashqari shaxsiy yordam. Yarim yo‘lda to‘xtab '
-      + 'qolmaysiz — savolingiz javobsiz qolmaydi.',
+      'Fonetika kursida asosiy darsdan tashqari shaxsiy yordam. Yarim '
+      + 'yo‘lda to‘xtab qolmaysiz — savolingiz javobsiz qolmaydi.',
   },
   {
     icon: 'clipboard',
     title: 'Test va mashqlar',
     text:
-      'Har mavzudan keyin test. Natijangiz saqlanadi, qaysi mavzu '
-      + 'oqsayotgani ustoz va support teacher’ga ko‘rinib turadi.',
+      'Fonetika kursida har mavzudan keyin test. Natijangiz saqlanadi, '
+      + 'qaysi mavzu oqsayotgani ustoz va support teacher’ga ko‘rinib '
+      + 'turadi.',
   },
   {
     icon: 'refresh',
@@ -450,11 +679,40 @@ export const PRICE = {
   currency: 'so‘m',
   period: '8 ta dars',
   perLesson: 'Bitta dars — 67 500 so‘m',
+  /*
+    ⚠️ 2026-09-03 — MATN UCHGA BO'LINDI.
+
+    Ilgari `note` da hammasi bir joyda edi: hisoblash qoidasi, ortiqcha
+    dars va to'lov usullari. Bo'lim endi ikki kartadan iborat va bu
+    uchta gap uch xil joyga tushadi — biri sarlavha ostiga (nima uchun
+    darsga bo'linadi), biri narx kartasiga (qanday hisoblanadi), biri
+    esa alohida chiziqqa (Click/Payme). Bitta uzun abzas hammasini
+    o'qilmaydigan qilib qo'yardi.
+  */
+  lead:
+    'To‘lov oy bo‘yicha emas, dars bo‘yicha hisoblanadi — siz faqat '
+    + 'haqiqiy dars soni uchun to‘laysiz.',
   note:
-    'To‘lov oy bo‘yicha emas, dars bo‘yicha hisoblanadi: 540 000 so‘m — '
-    + 'asosiy ustozning 8 ta darsi. Ba’zi oylarda darslar soni 9 taga '
-    + 'to‘g‘ri keladi va o‘shanda ortiqcha dars alohida qo‘shiladi. '
-    + 'To‘lovni Click yoki Payme orqali amalga oshirasiz.',
+    '540 000 so‘m — asosiy ustozning 8 ta darsi. Ba’zi oylarda darslar '
+    + 'soni 9 taga to‘g‘ri keladi va o‘shanda ortiqcha dars alohida '
+    + 'qo‘shiladi.',
+  /*
+    To'lov usullari — chiziq shaklida.
+
+    ★ NEGA MATNDAN AJRATILDI: «Click» va «Payme» — TANIB OLINADIGAN
+      nomlar. Gap ichida ular oddiy so'z bo'lib qolardi; alohida
+      belgi bo'lganda odam ularni o'qimasdan, ko'z bilan taniydi.
+  */
+  methods: ['Click', 'Payme'],
+  /*
+    Kitob haqidagi eslatma — narx kartasining yonida, sariq blokda.
+
+    🔴 NEGA TAKRORLANADI (`BOOKS` da ham bor): "kitob alohida pul
+       turadimi?" — narxni ko'rgan odamning darhol keyingi savoli.
+       Uni javobsiz qoldirib, javobni ikki bo'lim yuqorida qoldirish
+       aynan to'lov qarori oldida shubha tug'dirardi.
+  */
+  booksNote: 'Kitoblar uchun alohida pul to‘lanmaydi — hammasi shu to‘lov ichida.',
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
     'Haftasiga 3 kun support teacher darsi',
@@ -481,10 +739,70 @@ export const PRICE = {
   ketadi va menejer qo'ng'iroqda aniqlaydi.
 */
 export const COURSE_OPTIONS: readonly string[] = [
-  'ATF — 8 oylik asosiy kurs',
+  'ATF (Arab tili Fonetika) — 8 oylik asosiy kurs',
   'Amaliyot II — 3 oylik kurs',
   'Grammatika',
 ]
+
+/* ────────────────────────── DARAJA TESTI ──────────────────────────── */
+
+/*
+  DARAJA ANIQLASH BO'LIMI — 2026-09-03.
+
+  ★ NIMA UCHUN QO'SHILDI: sahifa narxni va dasturni aytadi, lekin odamning
+    boshidagi savolga — "MEN qaysi joydan boshlayman?" — javob bermasdi.
+    U savolga javobsiz qolgan odam ariza qoldirish o'rniga "keyinroq
+    o'ylab ko'raman" deb ketadi.
+
+  ★ NEGA ARIZADAN OLDIN TURADI: test tugagach natija ariza formasiga
+    O'ZI yoziladi. Ya'ni odam testni yechib bo'lgach forma allaqachon
+    yarim to'ldirilgan bo'ladi va "ariza qoldirish" alohida qaror
+    bo'lmay qoladi — boshlangan ishning davomiga aylanadi.
+
+  🔴 SAVOLLAR BU YERDA EMAS: ular `features/level-test/model/questions.ts`
+     da. Bu yerda faqat sahifada ko'rinadigan MARKETING matni.
+*/
+export const LEVEL_TEST = {
+  eyebrow: 'Daraja aniqlash',
+  title: 'Qaysi moduldan boshlashingizni bilib oling',
+  text:
+    '16 ta savol — alifbodan gap qurilishigacha. Test moslashuvchan: bilim '
+    + 'darajangizga qarab savollar o‘zgaradi, shuning uchun ko‘pchilik uni '
+    + '3 daqiqada tugatadi. Bilmagan savolingizni «Bilmayman» deb '
+    + 'belgilang — daraja shunda aniq chiqadi.',
+  cta: 'Testni boshlash',
+  /*
+    ⚠️ MAVZULAR RO'YXATI `questions.ts` DAGI `BLOCKS` BILAN MOS TURSIN.
+       Ular ataylab nusxa: bu yerda marketing tili ("harflar, harakatlar"),
+       u yerda esa test mantig'i. Blok qo'shilsa — ikkala joyga.
+  */
+  topics: [
+    { name: 'Alifbo va yozuv', hint: 'harflar, harakatlar' },
+    { name: 'Talaffuz', hint: 'tovush hosil bo‘lishi' },
+    { name: 'So‘z tuzilishi', hint: 'artikl, tanvin' },
+    { name: 'So‘z shakllari', hint: 'o‘zak, fe’l shakllari' },
+    { name: 'Gap qurilishi', hint: 'ega, kesim, holatlar' },
+  ],
+  chips: ['3–4 daqiqa', 'Ro‘yxatdan o‘tish shart emas', 'To‘liq bepul'],
+  /*
+    KO'RGAZMA KARTASI — testni ochmasdan turib nimaligini ko'rsatadi.
+
+    ★ NEGA HAQIQIY SAVOL: o'ylab topilgan "namuna" testning haqiqiy
+      qiyinligini yashirardi. Bu — `questions.ts` dagi 2-savolning
+      aynan o'zi.
+  */
+  preview: {
+    stage: '1-bosqich · Alifbo va yozuv',
+    count: 'Savol 2 / 4',
+    question: 'Bu so‘zda nechta harf bor?',
+    arabic: 'مَدْرَسَة',
+    options: [
+      { key: 'A', label: '4 ta', correct: false },
+      { key: 'B', label: '5 ta', correct: true },
+      { key: 'C', label: '6 ta', correct: false },
+    ],
+  },
+} as const
 
 /* ──────────────────────── QANDAY BOSHLANADI ───────────────────────── */
 
@@ -539,23 +857,45 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Arab tilini noldan boshlasam bo‘ladimi?',
     answer:
-      'Ha. ATF kursi alifbodan boshlanadi va 8 oy davomida bosqichma-'
-      + 'bosqich olib boradi. Ariza qoldirganingizdan keyin '
-      + 'menejerlarimiz darajangizni aniqlab, mos guruhni tanlaydi.',
+      'Ha. ATF (Arab tili Fonetika) kursi alifbodan boshlanadi va 8 oy '
+      + 'davomida bosqichma-bosqich olib boradi. Ariza qoldirganingizdan '
+      + 'keyin menejerlarimiz darajangizni aniqlab, mos guruhni tanlaydi.',
   },
   {
     question: 'Kurs qanday bosqichlardan iborat?',
     answer:
-      'Asosiy kurs — ATF, 8 oy va uchta moduldan iborat: Harf moduli '
-      + '(3 oy), Qoida moduli (4 oy) va Amaliyot I moduli. ATF tugagandan '
-      + 'keyin 3 oylik Amaliyot II kursi bor. Alohida Grammatika kursi ham '
-      + 'mavjud.',
+      'Asosiy kurs — ATF (Arab tili Fonetika), 8 oy va uchta moduldan '
+      + 'iborat: Harf moduli (3 oy), Qoida moduli (4 oy) va Amaliyot I '
+      + 'moduli. U tugagandan keyin 3 oylik Amaliyot II kursi bor. '
+      + 'Alohida Grammatika kursi ham mavjud.',
+  },
+  /*
+    ⚠️ 2026-09-03 DA QO'SHILDI — loyiha egasining ko'rsatmasi bo'yicha.
+
+    🔴 SABAB: sahifa ikkala kurs haqida umumiy gapirardi va odam
+       ular bir xil deb o'ylardi. Farq esa katta: dars kunlari,
+       support teacher va testlar. Bu savol farqni BIR joyda,
+       to'g'ridan-to'g'ri aytadi.
+
+    ⚠️ Bu javob `COURSE_PATH` dagi `facts` bilan MOS TURSIN. Jadval
+       o'zgarsa — ikkala joyni ham yangilang.
+  */
+  {
+    question: 'Fonetika va Grammatika kurslarining farqi nima?',
+    answer:
+      'Fonetika (ATF) — arab yozuvini o‘qishni o‘rgatadigan asosiy kurs: '
+      + 'haftasiga 5 kun dars, support teacher bilan alohida mashg‘ulotlar '
+      + 'va har mavzudan keyin test bor. Grammatika esa alohida kurs va '
+      + 'boshqacha quriladi: haftasiga 2 kun dars, support teacher yo‘q va '
+      + 'hozircha testlar ham yo‘q. Grammatika o‘qishni emas, matnni '
+      + 'tahlil qilishni o‘rgatadi.',
   },
   {
     question: 'Bitta dars qancha davom etadi?',
     answer:
-      'Asosiy ustoz bilan jonli dars — 1 soat 20 daqiqa. Haftasiga bunday '
-      + 'dars 2 kun bo‘ladi, qolgan 3 kun esa support teacher darsi.',
+      'Fonetika kursida asosiy ustoz bilan jonli dars — 1 soat 20 daqiqa. '
+      + 'Haftasiga bunday dars 2 kun bo‘ladi, qolgan 3 kun esa support '
+      + 'teacher darsi.',
   },
   {
     question: 'To‘lov qanday hisoblanadi?',
