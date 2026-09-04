@@ -5,8 +5,13 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { queryClient, registerSessionExpiryRedirect, registerTelegramShell } from './app/providers'
 import { setupSentry } from './app/providers/sentry'
+import { registerStaleChunkReload } from './app/providers/stale-chunk-reload'
 import { router } from './app/router'
 import './style.css'
+
+// Yangi build chiqqanda ochiq tab eski chunk nomlarini so'rab yiqilmasin —
+// eng birinchi o'rnatiladi, hatto birinchi lazy-route ham qamrab olinsin.
+registerStaleChunkReload()
 
 const app = createApp(App)
 
