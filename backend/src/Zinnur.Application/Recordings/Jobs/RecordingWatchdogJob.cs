@@ -303,6 +303,41 @@ public sealed class RecordingWatchdogJob(
             return true;
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 🔴 DARS HALI KETYAPTI — TASLIM BO'LISH MUMKIN EMAS (2026-09-04)
+        //
+        // NIMA BO'LGANI. Webhook o'chirilgan holatda `egress_started`
+        // HECH QACHON kelmaydi, ya'ni `StartedAt` bo'sh qoladi. Pastdagi
+        // muhlat esa aynan shu bo'sh maydonga qarab `StartTimeout`
+        // (10 daqiqa) ni tanlardi va o'sha 10 daqiqadan keyin ombordan
+        // so'rardi. Egress esa mp4 ni faqat dars TUGAGACH yuklaydi —
+        // moov atomi oxirida yoziladi. Natijada fayl topilmasdi va qator
+        // `Failed` bo'lardi, `Failed` esa YAKUNIY.
+        //
+        // ⚠️ OQIBATI KATTA EDI: 10 daqiqadan uzun HAR QANDAY dars
+        //    jimgina yo'qolardi. 2026-09-04 da o'lchandi — ATF 135 ning
+        //    yozuvi 14:24 da `Failed` bo'lgan, fayl esa 15:48 da omborga
+        //    tushgan (1.75 GB, joyida turibdi). O'sha oyda muvaffaqiyatli
+        //    yagona yozuv 14 MB lik QISQA dars edi: u 10 daqiqa ichida
+        //    yuklanib ulgurgan. Ya'ni nosozlik darsning UZUNLIGIGA
+        //    bog'liq edi va shuning uchun tasodifiy ko'rinardi.
+        //
+        // ★ QOIDA: dars `Live` ekan va to'xtatish hali so'ralmagan bo'lsa
+        //   — KUTAMIZ, xolos. Qator o'zgarmaydi (`false`).
+        //
+        // ★ ABADIY KUTIB QOLMAYDI — buni yuqoridagi shart kafolatlaydi:
+        //   dars tugashi bilan (`sessionOver`) yoki `MaxDuration` o'tishi
+        //   bilan (`tooLong`) `StopRequestedAt` qo'yiladi va shu paytdan
+        //   `FinalizeGrace` sanala boshlaydi. Ya'ni bu yerdagi qaytish
+        //   yo'lni yopmaydi, faqat KECHIKTIRADI.
+        //
+        // ⚠️ Webhook yoqilgach ham bu shart QOLSIN: u `StartedAt` ga
+        //    umuman tayanmaydi va hodisa yana yo'qolganda tizimni
+        //    o'sha eski nosozlikka qaytarmaydi.
+        // ══════════════════════════════════════════════════════════════
+        if (!sessionOver && recording.StopRequestedAt is null)
+            return false;
+
         // ── Muhlat: hodisa kelishini kutamiz ───────────────────────────
         //
         // `egress_ended` odatda bir necha soniyada keladi. Muhlat esa
