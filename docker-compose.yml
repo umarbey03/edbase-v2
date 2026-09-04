@@ -764,6 +764,8 @@ services:
         VITE_GOOGLE_SITE_VERIFICATION: ${VITE_GOOGLE_SITE_VERIFICATION}
         VITE_YANDEX_VERIFICATION: ${VITE_YANDEX_VERIFICATION}
         VITE_INDEXNOW_KEY: ${VITE_INDEXNOW_KEY}
+        # Bo'sh bo'lsa ham build yiqilmaydi — havola shunchaki chizilmaydi.
+        VITE_TELEGRAM_BOT_USERNAME: ${VITE_TELEGRAM_BOT_USERNAME:-}
     image: zinnur/web:dev
     container_name: zinnur-v2-web
     restart: unless-stopped
