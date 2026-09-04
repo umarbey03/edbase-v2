@@ -9,8 +9,13 @@ public sealed class SessionRecordingConfiguration : IEntityTypeConfiguration<Ses
     /// <summary>
     /// <c>EG_<em>xxxxxxxxxxxx</em></c> ~30 belgi. 100 — zaxira bilan, lekin
     /// cheksiz emas: indeksga kiradigan ustun chegarasiz qolmasin.
+    ///
+    /// ⚠️ <c>internal</c> — <see cref="RecordingTrackConfiguration"/> ham
+    /// AYNI qiymatni ishlatadi (u ham LiveKit egress identifikatorini
+    /// saqlaydi). Ikki nusxa chegara faqat "qaysi biri to'g'ri" degan
+    /// savol tug'dirardi.
     /// </summary>
-    private const int EgressIdMaxLength = 100;
+    internal const int EgressIdMaxLength = 100;
 
     public void Configure(EntityTypeBuilder<SessionRecording> builder)
     {
@@ -83,6 +88,8 @@ public sealed class SessionRecordingConfiguration : IEntityTypeConfiguration<Ses
         builder.Ignore(r => r.IsPlayable);
         builder.Ignore(r => r.IsFinished);
         builder.Ignore(r => r.IsPending);
+        builder.Ignore(r => r.CanRetryComposition);
+        builder.Ignore(r => r.CanResumeComposition);
 
         // Dars o'chirilsa yozuv qatorlari ham ketadi: ularning yakka o'zi
         // hech narsani anglatmaydi (`LiveSessions` -> `Groups` zanjiri ham
@@ -126,5 +133,58 @@ public sealed class SessionRecordingConfiguration : IEntityTypeConfiguration<Ses
         // o'sib boradi.
         builder.HasIndex(r => new { r.Status, r.LastAttemptAt })
             .HasDatabaseName("IX_SessionRecordings_Status_LastAttemptAt");
+
+        /* ═══════════════════════════════════════════════════════════════
+           YOZUV YO'LI VA TUNGI YIG'ISH (yozuv quvuri v2) — QO'SHIMCHA
+
+           Alohida, uzluksiz blok: yuqoridagi hech narsa o'zgarmadi,
+           mavjud ustunlarning turi, nullligi va indekslari AVVALGIDEK.
+           ═══════════════════════════════════════════════════════════════ */
+
+        // Enum BAZADA RAQAM — faylning yuqorisidagi AYNI qoida.
+        //
+        // ⚠️ `HasDefaultValue` ATAYLAB QO'YILMADI, garchi
+        //    `RecordingPipeline.RoomComposite` ham `0` bo'lsa-da.
+        //    `RecordingsVisibleToStudents` dagi sentinel tuzog'i bu yerda
+        //    UMUMAN paydo bo'lmaydi: ustun DEFAULT'i bo'lmasa EF qiymatni
+        //    HAR DOIM oshkor yozadi, ya'ni "tashlab ketilgan ustun"
+        //    holati yo'q. Mavjud qatorlarni esa MIGRATSIYA to'ldiradi
+        //    (`AddColumn ... defaultValue: 0`) — bu bir martalik ish va
+        //    ustun standarti sifatida qolishi shart emas.
+        builder.Property(r => r.Pipeline).HasConversion<int>();
+
+        // Bo'sh (`NULL`) — eski yo'l uchun YAGONA to'g'ri qiymat; sabab
+        // `RecordingCompositionStatus` izohida.
+        builder.Property(r => r.CompositionStatus).HasConversion<int>();
+
+        builder.Property(r => r.CompositionError)
+            .HasMaxLength(SessionRecording.MaxErrorLength);
+
+        // ============================================================
+        // 🔴 "BIR DARSGA, BIR YO'LDAN, BIR VAQTDA BITTA URINISH" —
+        //     ENDI BAZANING QOIDASI, SERVISNING KELISHUVI EMAS.
+        //
+        // Ilgari buni faqat `AutoRecordingScheduler` ta'minlardi: u
+        // yangi qator yaratishdan oldin tugallanmagan qator bor-yo'qligini
+        // tekshirardi. Endi BITTA darsga IKKI yo'l qator yozadi (A/B
+        // solishtirish davri), ya'ni tekshiruv "yo'l bo'yicha" bo'lishi
+        // kerak — va aynan shu joyda kod bilan bazaning tushunchasi
+        // ajralib ketishi mumkin.
+        //
+        // FILTR `"Status" < 3` — "yakuniy emas" degani: `Completed = 3`,
+        // `Failed = 4`. Ya'ni bir darsda bir yo'ldan qancha TUGAGAN
+        // urinish bo'lsa ham mayli (tarix aynan shuning uchun saqlanadi),
+        // lekin AYNI vaqtda ochiq turgani BITTA.
+        //
+        // ⚠️ FILTR RAQAM BILAN YOZILGAN, enum nomi bilan emas — bu SQL,
+        //    u C# ni bilmaydi. `RecordingStatus` raqamlarining
+        //    o'zgarmasligi shu sababdan ham majburiy (izoh o'sha enumda).
+        // ============================================================
+        builder.HasIndex(r => new { r.SessionId, r.Pipeline })
+            .IsUnique()
+            .HasFilter("\"Status\" < 3")
+            .HasDatabaseName("UX_SessionRecordings_SessionId_Pipeline_Active");
+
+        /* ═══════════════════════════════ /yozuv yo'li va tungi yig'ish ═══ */
     }
 }

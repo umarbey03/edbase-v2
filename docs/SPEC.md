@@ -7,6 +7,13 @@
 > infratuzilma) shu nomlarga TAYANADI. Hech kim nom, imzo yoki portni o'zgartirmaydi.
 > O'zgartirish kerak bo'lsa — avval shu fayl yangilanadi.
 
+> **SUBSYSTEM SPECS.** Some subsystems have their own contract file. They are
+> additive to this document and win inside their own scope:
+>
+> - `docs/SPEC-RECORDING-V2.md` — lesson recording pipeline v2 (LiveKit
+>   `TrackEgress` capture + nightly ffmpeg composition). Replaces nothing here;
+>   the existing `RoomCompositeEgress` path stays intact and selectable.
+
 ---
 
 ## 0. TEXNOLOGIYALAR (aniq versiyalar)

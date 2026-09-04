@@ -175,6 +175,25 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<SessionRecording> SessionRecordings { get; }
 
+    /// <summary>
+    /// Yozuvning XOM bo'laklari (trek fayllari va xona ovozi) — izoh
+    /// <see cref="RecordingTrack"/> da.
+    ///
+    /// ★ NIMA UCHUN BU YERDA OCHILADI, garchi bo'laklar foydalanuvchiga
+    /// HECH QACHON ko'rinmasa: ularni Application qatlamidagi ish
+    /// yozadi va o'qiydi — webhook ishlovchisi (qator qo'shadi),
+    /// moslashtiruvchi vazifa (yiqilganini tiklaydi) va tungi yig'ish
+    /// rejasi (vaqt o'qini quradi). Bu <c>TelegramUpdates</c> kabi
+    /// YETKAZIB BERISH jurnali emas: bo'lak — darsning yo'qolishi mumkin
+    /// bo'lgan qismi, va "nega bu darsda ovoz yo'q?" degan savolga javob
+    /// AYNAN shu jadvalda turadi.
+    ///
+    /// ⚠️ Bo'lakning kaliti hech qachon foydalanuvchiga imzolanmaydi va
+    /// yig'ish tugagach fayllar o'chiriladi — jadval qatorlari esa
+    /// qoladi, chunki ular tarixiy javob.
+    /// </summary>
+    DbSet<RecordingTrack> RecordingTracks { get; }
+
     /* ===== R35/R36 · ILOVA ICHIDAGI BILDIRISHNOMA =====
 
        ★ NEGA ALOHIDA BLOK: bu faylga bir necha tarmoq AYNI vaqtda qo'shadi.

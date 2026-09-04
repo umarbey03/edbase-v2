@@ -168,6 +168,30 @@ public class Group : BaseEntity
     /// </summary>
     public bool RecordingsVisibleToStudents { get; set; } = true;
 
+    /// <summary>
+    /// Shu guruhning darslari QAYSI MEXANIZM bilan yoziladi — sabab va
+    /// qiymatlar <see cref="RecordingPipeline"/> izohida.
+    ///
+    /// ★ <see cref="RecordEnabled"/> DAN MUSTAQIL va ularni chalkashtirish
+    /// yuqoridagi ikki bayroqni chalkashtirish kabi jiddiy xato:
+    ///
+    ///   • <c>RecordEnabled</c> — "dars YOZIB OLINSINMI";
+    ///   • bu ustun — "QANDAY yozib olinsin".
+    ///
+    /// Yozuv o'chirilgan guruh bu yerda nima turishidan qat'i nazar
+    /// yozilmaydi.
+    ///
+    /// ★ STANDART <see cref="RecordingPipeline.RoomComposite"/> — bugungi
+    /// xatti-harakat, ya'ni mavjud guruhlarning hammasi migratsiyadan
+    /// keyin ham AVVALGIDEK ishlaydi.
+    ///
+    /// ⚠️ GLOBAL KALIT USTUNROQ: <c>recordings.track_pipeline_enabled</c>
+    /// o'chirilgan bo'lsa bu ustun e'tiborga OLINMAYDI va guruh eski
+    /// yo'lga qaytadi. Bu — deploysiz orqaga qaytish yo'li
+    /// ("eng qattig'i yutadi" — loyihaning umumiy qoidasi).
+    /// </summary>
+    public RecordingPipeline RecordingPipeline { get; set; } = RecordingPipeline.RoomComposite;
+
     /* ===== R33 + R40 · KIM MAS'UL — O'QUV BO'LIMI TANLAYDI =====
 
        Alohida blok — bu faylga bir necha tarmoq parallel tegmoqda.

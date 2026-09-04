@@ -42,6 +42,16 @@ public sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
             .HasDefaultValue(true)
             .HasSentinel(true);
 
+        // ★ YOZUV QAYSI MEXANIZM BILAN OLINADI (yozuv quvuri v2).
+        //
+        // ⚠️ Yuqoridagi juftlik (`HasDefaultValue` + `HasSentinel`) bu
+        //    yerda KERAK EMAS va ATAYLAB YO'Q. Ustun DEFAULT'i
+        //    qo'yilmagani uchun EF qiymatni HAR DOIM oshkor yozadi, ya'ni
+        //    "sentinel = CLR standarti" tuzog'i umuman tug'ilmaydi.
+        //    Mavjud 33 guruhni migratsiya bir marta `0` bilan to'ldiradi
+        //    (= `RoomComposite` = bugungi xatti-harakat).
+        builder.Property(g => g.RecordingPipeline).HasConversion<int>();
+
         /* ===== R33 + R40 · KIM MAS'UL (guruh darajasidagi tanlov) =====
 
            Alohida blok — bu faylga bir necha tarmoq parallel tegmoqda. */

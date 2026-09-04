@@ -115,6 +115,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<SessionRecording> SessionRecordings => Set<SessionRecording>();
 
+    /// <summary>Yozuvning xom bo'laklari — izoh <see cref="RecordingTrack"/> da.</summary>
+    public DbSet<RecordingTrack> RecordingTracks => Set<RecordingTrack>();
+
     /// <summary>
     /// Ish jarayonida o'zgartiriladigan sozlamalar (bloklash chegarasi va
     /// qamrovi). <c>IApplicationDbContext</c> da ATAYLAB YO'Q: Application
