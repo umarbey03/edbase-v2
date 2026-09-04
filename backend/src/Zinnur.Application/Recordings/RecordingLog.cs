@@ -10,7 +10,8 @@ namespace Zinnur.Application.Recordings;
 /// (CA1848). Bundan tashqari modulning barcha xabarlari va ularning
 /// EventId'lari BIR JOYDA turadi — <c>ApiLog</c> ga tegilmaydi.
 ///
-/// EventId makoni: <c>6500–6549</c> (yozuv), <c>6550–6599</c> (watchdog).
+/// EventId makoni: <c>6500–6549</c> (yozuv, shundan <c>6530–6549</c> —
+/// trek quvuri), <c>6550–6599</c> (watchdog).
 /// </summary>
 internal static partial class RecordingLog
 {
@@ -88,6 +89,82 @@ internal static partial class RecordingLog
         Message = "Avtomatik yozuv o'tkazib yuborildi: LiveKit yoki ombor sozlanmagan. "
                   + "dars={SessionId}")]
     internal static partial void AutoSkippedNotConfigured(ILogger logger, long sessionId);
+
+    // ================================================================= trek quvuri (SPEC-RECORDING-V2)
+    //
+    // ★ NIMA UCHUN AYNI SINFDA, ALOHIDA `TrackRecordingLog` EMAS: sinf
+    //   izohidagi sabab — modulning BARCHA xabarlari va EventId'lari bir
+    //   joyda tursin. Ikkinchi sinf ikkinchi EventId makonini boshqarishni
+    //   talab qilardi va ikkalasi bir kun to'qnashardi.
+
+    [LoggerMessage(
+        EventId = 6530,
+        Level = LogLevel.Information,
+        Message = "Dars bo'lagi yangilandi: event={EventName} egress={EgressId} "
+                  + "bo'lak={TrackId} holat={Status}")]
+    internal static partial void TrackWebhookApplied(
+        ILogger logger, string eventName, string egressId, long trackId, string status);
+
+    [LoggerMessage(
+        EventId = 6531,
+        Level = LogLevel.Information,
+        Message = "Dars bo'lagi yozila boshladi: bo'lak={TrackId} yozuv={RecordingId} "
+                  + "tur={Kind} egress={EgressId}")]
+    internal static partial void TrackStarted(
+        ILogger logger, long trackId, long recordingId, string kind, string egressId);
+
+    /// <summary>
+    /// ⚠️ `Error`, lekin YAKUNIY xato EMAS: qator `Requested` da qoladi va
+    /// tiklash vazifasi qayta uradi. Daraja baribir `Error` —
+    /// `RecordingLog.StartFailed` bilan AYNI mulohaza: LiveKit so'rovni
+    /// rad etayotgan bo'lsa, buni dars tugagandan keyin emas, O'SHA ZAHOTI
+    /// bilish kerak.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6532,
+        Level = LogLevel.Error,
+        Message = "Dars bo'lagini boshlab bo'lmadi: bo'lak={TrackId} yozuv={RecordingId} "
+                  + "tur={Kind} urinish={Attempts} sabab={Reason}")]
+    internal static partial void TrackStartFailed(
+        ILogger logger, long trackId, long recordingId, string kind, int attempts, string reason);
+
+    [LoggerMessage(
+        EventId = 6533,
+        Level = LogLevel.Information,
+        Message = "Dars bo'lagini to'xtatish so'raldi: bo'lak={TrackId} yozuv={RecordingId} "
+                  + "egress={EgressId}")]
+    internal static partial void TrackStopRequested(
+        ILogger logger, long trackId, long recordingId, string egressId);
+
+    /// <summary>
+    /// ⚠️ `Warning`, `Error` EMAS — VA BU SPEC (§3.3) NING OSHKOR TALABI.
+    /// LiveKit allaqachon o'zi to'xtatgan egress uchun rad javobini
+    /// qaytaradi va bu darsning ODATIY yakuni: xona yopilganda egress
+    /// o'zi to'xtaydi, biz esa kechikib so'rov yuboramiz.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6534,
+        Level = LogLevel.Warning,
+        Message = "Dars bo'lagini to'xtatish rad etildi (odatda allaqachon to'xtagan): "
+                  + "bo'lak={TrackId} yozuv={RecordingId} egress={EgressId}")]
+    internal static partial void TrackStopRefused(
+        ILogger logger, long trackId, long recordingId, string egressId);
+
+    /// <summary>
+    /// 🔴 BU XABAR PRODUKSIYA DALILI UCHUN: xom faylning kengaytmasi
+    /// `mime_type` dan BASHORAT qilinadi (SPEC §2.8 dagi jadval) va
+    /// bashorat noto'g'ri bo'lsa buni boshqa hech narsa ko'rsatmaydi —
+    /// kalit jimgina to'g'rilanadi va jadval xato bo'lib qolaverardi.
+    /// Birinchi darslardan keyin shu qatorlar bo'yicha jadvalni tuzatish
+    /// kerak.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6535,
+        Level = LogLevel.Warning,
+        Message = "Xom bo'lak kaliti bashoratdan farq qildi: bo'lak={TrackId} "
+                  + "bashorat={Predicted} haqiqiy={Actual}")]
+    internal static partial void TrackObjectKeyDiffers(
+        ILogger logger, long trackId, string predicted, string actual);
 
     // ================================================================= watchdog
 

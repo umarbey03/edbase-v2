@@ -339,6 +339,22 @@ public static class DependencyInjection
         services.AddScoped<IRecordingService, RecordingService>();
         services.AddScoped<IRecordingWebhookHandler, RecordingWebhookHandler>();
 
+        // TREK QUVURI (SPEC-RECORDING-V2, 2026-09-05) — yangi yozuv yo'lining
+        // webhook ishlovchisi. Eski ishlovchi bilan YONMA-YON turadi va
+        // controller ikkalasini ketma-ket chaqiradi: avval trek ishlovchisi,
+        // u `Ignored` qaytarsa — eskisi.
+        //
+        // ★ ALOHIDA PORT, ESKISIGA METOD QO'SHISH EMAS: sabab
+        //   `ITrackRecordingWebhookHandler` izohida (eski ishlovchining
+        //   xatti-harakati o'zgarmasligi SHART — u prod'dagi jonli yo'l).
+        //
+        // ★ SCOPED VA BU MUHIM: ishlovchi takror jurnali yozuvini, bo'lak
+        //   qatorlarini va yozuv holatini AYNI `DbContext` kuzatuvchisida
+        //   to'playdi. Singleton bo'lsa scoped kontekst ushlab qolinardi
+        //   ("captive dependency") va ikkinchi webhook'da allaqachon
+        //   yopilgan kontekstga urinilardi.
+        services.AddScoped<ITrackRecordingWebhookHandler, TrackRecordingWebhookHandler>();
+
         // DARS SIFATI TAHLILI (R29 / R30). Scoped — yuqoridagi AYNI sabab
         // (port orqali `DbContext`).
         //

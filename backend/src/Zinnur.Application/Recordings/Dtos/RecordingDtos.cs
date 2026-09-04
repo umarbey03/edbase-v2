@@ -425,4 +425,26 @@ public enum RecordingWebhookOutcome
 
     /// <summary>Yozuv xato bilan tugadi.</summary>
     Failed = 6,
+
+    /// <summary>
+    /// Hodisa BIZNIKI va qayta ishlandi, lekin yakuniy holatga olib
+    /// kelmadi: to'xtatish so'raldi yoki oraliq egress holati
+    /// (<c>EGRESS_STARTING</c> / <c>EGRESS_ENDING</c>) keldi.
+    ///
+    /// 🔴 NIMA UCHUN BU QIYMAT KERAK BO'LDI — VA NIMA UCHUN
+    /// <see cref="Ignored"/> BU YERDA ISHLAMAYDI. Controller ikki
+    /// ishlovchini KETMA-KET chaqiradi va <see cref="Ignored"/> uning
+    /// uchun "bu hodisa menga tegishli emas, keyingisiga uzat" degan
+    /// SIGNAL (<c>LiveKitWebhookController</c>). Trek ishlovchisi
+    /// egress'ni O'ZINIKI deb tanigan, lekin unga tegmagan holatda
+    /// <see cref="Ignored"/> qaytarsa, hodisa eski ishlovchiga tushardi
+    /// va u har trek egress'i uchun "noma'lum egress" ogohlantirishi
+    /// yozardi — bir kechada yuzlab yolg'on ogohlantirish, ya'ni
+    /// HAQIQIY ogohlantirish ko'rinmay qolardi.
+    ///
+    /// Faqat <c>TrackComposition</c> quvurida uchraydi; eski ishlovchi
+    /// (<c>RecordingWebhookHandler</c>) bu qiymatni HECH QACHON
+    /// qaytarmaydi.
+    /// </summary>
+    Handled = 7,
 }

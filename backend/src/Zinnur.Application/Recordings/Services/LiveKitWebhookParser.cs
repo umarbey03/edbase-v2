@@ -71,16 +71,7 @@ public static class LiveKitWebhookParser
                 return null;
 
             var eventName = Text(root, "event") ?? string.Empty;
-
-            // ★ IDEMPOTENTLIK KALITI. LiveKit `id` beradi (`EV_…`), lekin
-            //   u yo'q bo'lgan holat ham bo'lishi mumkin — o'shanda TANANING
-            //   xeshi ishlatiladi: bir xil tana ikki marta kelsa baribir
-            //   to'siladi. Kalitsiz qolish esa takrorni umuman to'smaslik
-            //   degani bo'lardi.
-            var eventId = Text(root, "id");
-
-            if (string.IsNullOrWhiteSpace(eventId))
-                eventId = "sha256:" + Convert.ToHexString(SHA256.HashData(body)).ToLowerInvariant();
+            var eventId = EventKeyOf(root, body);
 
             var info = Child(root, "egress_info", "egressInfo");
 
@@ -111,6 +102,95 @@ public static class LiveKitWebhookParser
                 EndedAt: endedAt,
                 Error: Text(info.Value, "error"));
         }
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// TREK / XONA HODISASI (yangi yozuv quvuri, SPEC-RECORDING-V2 §3.3)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// <c>room_started</c>, <c>room_finished</c>, <c>track_published</c>,
+    /// <c>track_unpublished</c>, <c>participant_left</c> hodisalarida
+    /// <c>egress_info</c> UMUMAN YO'Q — ular xona, ishtirokchi va trek
+    /// haqida. Shuning uchun ular <see cref="Parse"/> orqali o'qilmaydi:
+    /// o'sha metod <c>egress_info</c> atrofida qurilgan va uning
+    /// iste'molchisi (<see cref="RecordingWebhookHandler"/>) <c>EgressId</c>
+    /// bo'lmagan hodisani chetlab o'tadi — bu uning SHARTNOMASI va u
+    /// o'zgarmasligi kerak.
+    ///
+    /// ★ IKKI METOD BITTA TANANI IKKI MARTA O'QIYDI — bu ONGLI: hodisa
+    /// ~1–3 KB va tahlil bir necha mikrosekund. Muqobil variant (bitta
+    /// ulkan DTO) har maydonga "qaysi hodisada to'ldiriladi?" degan
+    /// izohni talab qilardi va ikkala iste'molchi ham begona maydonlar
+    /// orasidan o'zinikini qidirib yurardi.
+    ///
+    /// ⚠️ MAYDON NOMLARI BU YERDA HAM IKKI XIL bo'lishi mumkin
+    /// (<c>mime_type</c> / <c>mimeType</c>) — sinf izohidagi AYNI sabab.
+    /// <c>room.name</c>, <c>participant.identity</c> va <c>track.sid</c>
+    /// protobuf'da bir so'zli maydonlar, ya'ni ikkala uslubda ham bir xil
+    /// yoziladi.
+    ///
+    /// ★ ENUM QIYMATLARI (<c>track.source</c>) O'ZGARTIRILMASDAN
+    /// uzatiladi: <c>RecordingTrackKind</c> ga xaritalash — qabul
+    /// qiluvchining ishi va u BITTA joyda turadi
+    /// (<see cref="TrackRecordingWebhookHandler"/>).
+    /// </summary>
+    /// <returns>Yaroqsiz JSON — <c>null</c> (<see cref="Parse"/> dagi AYNI qoida).</returns>
+    public static LiveKitTrackEventDto? ParseTrackEvent(ReadOnlySpan<byte> body)
+    {
+        if (body.IsEmpty) return null;
+
+        JsonDocument document;
+
+        try
+        {
+            var reader = new Utf8JsonReader(body);
+            document = JsonDocument.ParseValue(ref reader);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var participant = Child(root, "participant");
+            var track = Child(root, "track");
+
+            return new LiveKitTrackEventDto(
+                EventId: EventKeyOf(root, body),
+                EventName: Text(root, "event") ?? string.Empty,
+                RoomName: RoomNameOf(root),
+                ParticipantIdentity: participant is null ? null : Text(participant.Value, "identity"),
+                TrackSid: track is null ? null : Text(track.Value, "sid"),
+                TrackSource: track is null ? null : Text(track.Value, "source"),
+                MimeType: track is null ? null : Text(track.Value, "mime_type", "mimeType"));
+        }
+    }
+
+    /// <summary>
+    /// ★ IDEMPOTENTLIK KALITI. LiveKit `id` beradi (`EV_…`), lekin u yo'q
+    /// bo'lgan holat ham bo'lishi mumkin — o'shanda TANANING xeshi
+    /// ishlatiladi: bir xil tana ikki marta kelsa baribir to'siladi.
+    /// Kalitsiz qolish esa takrorni umuman to'smaslik degani bo'lardi.
+    ///
+    /// ⚠️ IKKALA TAHLIL YO'LI HAM SHU METODNI CHAQIRADI va bu SHART:
+    /// takror jurnali bitta jadval (<c>RecordingWebhookEvents</c>), ya'ni
+    /// ikki yo'l bitta hodisaga ikki xil kalit yasasa, o'sha hodisa ikki
+    /// marta ishlanardi.
+    /// </summary>
+    private static string EventKeyOf(JsonElement root, ReadOnlySpan<byte> body)
+    {
+        var eventId = Text(root, "id");
+
+        return string.IsNullOrWhiteSpace(eventId)
+            ? "sha256:" + Convert.ToHexString(SHA256.HashData(body)).ToLowerInvariant()
+            : eventId;
     }
 
     /// <summary>Xona nomi konvertda ham bo'lishi mumkin (`room.name`).</summary>

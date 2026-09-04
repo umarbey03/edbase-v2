@@ -98,8 +98,29 @@ public sealed class RecordingWatchdogJob(
         var pending = await db.SessionRecordings
             .AsTracking()
             .Include(r => r.Session)
+            // ══════════════════════════════════════════════════════════
+            // 🔴 FAQAT ESKI OQIM — `TrackComposition` QATORIGA TEGILMAYDI
+            //
+            // Bu vazifa BOSHDAN OXIRIGACHA `RoomComposite` mantig'i:
+            // u `ObjectKey` ni ombordan qidiradi va topolmasa `Failed`
+            // qo'yadi. Yangi oqimda esa o'sha kalit dars tugagach EMAS,
+            // KECHASI montaj tugagach paydo bo'ladi — ya'ni filtr
+            // bo'lmasa har bir yangi yozuv ertalabgacha yetmay o'lardi.
+            //
+            // ⚠️ IKKINCHI, OG'IRROQ OQIBAT (M5 aniqladi). Yangi qator
+            //    `Requested` va `EgressId = null` holda tug'iladi, ya'ni
+            //    watchdog uni `RetryOrGiveUpAsync` ga olib borardi va
+            //    `RecordingStarter` orqali ESKI, Chrome'li
+            //    `StartRoomRecordingAsync` ni ishga tushirardi. Natijada
+            //    arzon bo'lishi kerak bo'lgan yozuv jimgina 1.5 yadroni
+            //    yeb, ustiga bir darsda IKKI xil yozuv ketardi.
+            //
+            // ★ Yangi oqimning o'z qo'riqchisi bor —
+            //   `RecordingTrackReconcileJob` (SPEC §4.1).
+            // ══════════════════════════════════════════════════════════
             .Where(r => r.Status != RecordingStatus.Completed
-                     && r.Status != RecordingStatus.Failed)
+                     && r.Status != RecordingStatus.Failed
+                     && r.Pipeline == RecordingPipeline.RoomComposite)
             .OrderBy(r => r.Id)
             .Take(settings.BatchSize)
             .ToListAsync(ct)

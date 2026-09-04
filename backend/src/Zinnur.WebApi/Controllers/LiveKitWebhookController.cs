@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zinnur.Application.Recordings.Dtos;
 using Zinnur.Application.Recordings.Services;
 
 namespace Zinnur.WebApi.Controllers;
@@ -46,12 +47,23 @@ namespace Zinnur.WebApi.Controllers;
 /// ombordan tekshirish ATAYLAB watchdog'ga qoldirilgan: webhook ichida
 /// sekin tashqi chaqiruv bo'lsa, LiveKit javobni kutolmay hodisani QAYTA
 /// yuborardi va bitta hodisa bir necha marta ishlanardi.
+///
+/// ⚠️ 2026-09-05 DAN BU QOIDANING ONGLI ISTISNOSI BOR (yangi trek quvuri,
+/// SPEC-RECORDING-V2 §3.3): <see cref="ITrackRecordingWebhookHandler"/>
+/// trek egress'ini AYNAN webhook ichida boshlaydi va to'xtatadi.
+/// Yuqoridagi mulohaza ESKI quvurga tegishli bo'lib qoladi va u yerda
+/// hech narsa o'zgarmadi. Istisnoning sababi: yangi quvurda trek
+/// navbatdagi vazifadan kutib turolmaydi — <c>Jobs:TickSeconds</c> (30 s)
+/// har ekran ulashishning boshidan yarim daqiqani qirqardi. Bu yerda
+/// hech kim javobni kutmaydi (LiveKit uni o'qimaydi), Twirp mijozining
+/// esa o'z 10 soniyalik muhlati bor.
 /// </summary>
 [ApiController]
 [Route("api/v1/livekit")]
 [Produces("application/json")]
 public sealed class LiveKitWebhookController(
     ILiveKitWebhookVerifier verifier,
+    ITrackRecordingWebhookHandler trackHandler,
     IRecordingWebhookHandler handler,
     ILogger<LiveKitWebhookController> logger) : ControllerBase
 {
@@ -102,7 +114,29 @@ public sealed class LiveKitWebhookController(
 
         try
         {
-            var outcome = await handler.HandleAsync(body, ct).ConfigureAwait(false);
+            // ══════════════════════════════════════════════════════════
+            // IKKI QUVUR, BITTA KIRISH NUQTASI (SPEC-RECORDING-V2 §3.3)
+            //
+            // Avval YANGI (trek) ishlovchi. U hodisani o'ziniki deb
+            // tanimasa AYNAN `Ignored` qaytaradi — o'shanda hodisa ESKI
+            // ishlovchiga, hech qanday o'zgarishsiz uzatiladi.
+            //
+            // 🔴 TARTIB TESKARI BO'LMASLIGI KERAK. Eski ishlovchi
+            //    `egress_id` bo'lgan HAR hodisani o'ziniki deb qabul
+            //    qiladi (topolmasa "noma'lum egress" deb takror
+            //    jurnaliga yozib qo'yadi) — ya'ni birinchi bo'lib
+            //    yursa, trek egress'larining hodisalari yangi
+            //    ishlovchiga UMUMAN yetib bormasdi.
+            //
+            // ⚠️ ESKI QUVURNING XULQI O'ZGARMAGAN: trek ishlovchisi
+            //    o'ziniki bo'lmagan hodisaga tegmaydi va takror
+            //    jurnalini ham band qilmaydi (shartnoma:
+            //    `ITrackRecordingWebhookHandler`).
+            // ══════════════════════════════════════════════════════════
+            var outcome = await trackHandler.HandleAsync(body, ct).ConfigureAwait(false);
+
+            if (outcome == RecordingWebhookOutcome.Ignored)
+                outcome = await handler.HandleAsync(body, ct).ConfigureAwait(false);
 
             return Ok(new WebhookAck(true, outcome.ToString()));
         }
