@@ -241,6 +241,10 @@ public static class DependencyInjection
         // sinfida.
         services.AddScoped<IPayrollService, PayrollService>();
 
+        // Qoidalarni SOZLASH ALOHIDA servisda — hisobotdan farqli hayot
+        // sikli va sinov yuzasi (izoh `IPayrollRuleService` da).
+        services.AddScoped<IPayrollRuleService, PayrollRuleService>();
+
         // Blok darvozasi ALOHIDA va KICHIK interfeys: uni moliyadan
         // TASHQARIDAGI servislar chaqiradi (jonli darsga kirish, kurs
         // kontenti) — ular butun moliya servisiga bog'lanib qolmasin.

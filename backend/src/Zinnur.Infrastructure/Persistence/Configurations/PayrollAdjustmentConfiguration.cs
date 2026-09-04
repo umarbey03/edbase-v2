@@ -24,7 +24,7 @@ public sealed class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<Pa
             .HasDatabaseName("IX_PayrollAdjustments_UserId_PeriodStart");
 
         // O'CHIRISH: Restrict — moliyaviy TARIX, xodim o'chirilganda kaskad
-        // bilan yo'qolmasin (`TeacherRateConfiguration` dagi bilan AYNI
+        // bilan yo'qolmasin (`PayrollRuleConfiguration` dagi bilan AYNI
         // mulohaza).
         builder.HasOne(a => a.User)
             .WithMany()

@@ -2,8 +2,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
+import GroupPayrollAssignmentsCard from '@/features/payroll-manage/ui/GroupPayrollAssignmentsCard.vue'
 import PayrollDetailDialog from '@/features/payroll-manage/ui/PayrollDetailDialog.vue'
-import TeacherRatesCard from '@/features/payroll-manage/ui/TeacherRatesCard.vue'
+import PayrollRulesCard from '@/features/payroll-manage/ui/PayrollRulesCard.vue'
 import {
   approvePayrollPeriod,
   currentPayrollPeriod,
@@ -30,16 +31,19 @@ import type { IconName } from '@/shared/ui'
 import type { PayrollSummaryRowDto } from '@/shared/types'
 
 /**
- * OYLIK HISOBLASH (Bosqich 4 → 2026-08-16 upgrade) — ustoz/kurator haqi.
- * FAQAT Admin.
+ * OYLIK HISOBLASH — ustoz/kurator haqi. FAQAT Admin.
  *
- * ★ 2026-08-16 — TASDIQLASH/TO'LOV OQIMI qo'shildi (Tutorbase/GetCourse
- * uslubidagi Draft → Approved → Paid): har qator endi "Holat" ustuniga va
- * mos amal tugmasiga ega. Baza oylik/KPI bonusi (kurator uchun) va qo'lda
- * tuzatishlar summasi "Jami"ga kiradi, tafsiloti `PayrollDetailDialog`da.
+ * ★ 2026-08-16 — TASDIQLASH/TO'LOV OQIMI (Draft → Approved → Paid): har
+ * qator "Holat" ustuniga va mos amal tugmasiga ega.
  *
- * `ManageAcademicSettingsPage` dagi tab naqshi bilan AYNI: "Hisobot" va
- * "Stavkalar" — ikkinchisi CRUD, birinchisi faqat o'qish (+ tasdiqlash amali).
+ * ★ 2026-09-04 — QOIDA DVIGATELI: "Stavkalar" tab'i "Qoidalar" ga
+ * almashdi va "Guruh istisnolari" qo'shildi. Hisobot endi qat'iy
+ * ustunlarga (baza oylik / KPI) emas, DINAMIK qatorlarga tayanadi —
+ * yangi hisoblash turi qo'shilganda bu sahifa o'zgarmaydi
+ * (izoh: `PayrollAmountLineDto`).
+ *
+ * `ManageAcademicSettingsPage` dagi tab naqshi bilan AYNI: birinchisi
+ * faqat o'qish (+ tasdiqlash amali), qolganlari CRUD.
  */
 interface Section {
   key: string
@@ -49,7 +53,8 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { key: 'summary', label: 'Hisobot', icon: 'chart' },
-  { key: 'rates', label: 'Stavkalar', icon: 'wallet' },
+  { key: 'rules', label: 'Qoidalar', icon: 'wallet' },
+  { key: 'groups', label: 'Guruh istisnolari', icon: 'users' },
 ]
 
 const active = ref<string>(SECTIONS[0]!.key)
@@ -259,15 +264,15 @@ async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
               </div>
               <p class="mt-1 text-xs text-slate-400">
                 {{ row.sessionCount }} dars · {{ row.totalStudentsAttended }} qatnashgan
-                <span v-if="row.activeStudentCount > 0">· {{ row.activeStudentCount }} faol o‘quvchi (KPI)</span>
+                <span v-if="row.periodAmount !== 0">· oylik qismi {{ formatMoney(row.periodAmount) }}</span>
               </p>
               <div class="mt-1 flex items-center justify-between gap-2">
                 <p class="text-sm font-semibold tabular-nums text-slate-100">
                   {{ formatMoney(row.total) }}
                   <span
-                    v-if="row.sessionsWithoutRate > 0"
+                    v-if="row.sessionsWithoutRule > 0"
                     class="ml-1.5 text-xs font-normal text-amber-400"
-                  >· {{ row.sessionsWithoutRate }} darsga stavka topilmadi</span>
+                  >· {{ row.sessionsWithoutRule }} darsga qoida topilmadi</span>
                 </p>
                 <BaseBadge :tone="payrollApprovalStatusTone(row.approvalStatus)">
                   {{ payrollApprovalStatusLabel(row.approvalStatus) }}
@@ -304,9 +309,9 @@ async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
                   <th>Asosiy</th>
                   <th>Bonus</th>
                   <th
-                    title="Baza oylik + KPI bonusi (kurator)"
+                    title="Oklad, tushumdan foiz, oylik o'quvchi bonusi — darsga bog'liq bo'lmagan qism"
                   >
-                    Baza/KPI
+                    Oylik qismi
                   </th>
                   <th
                     title="Qo'lda qo'shilgan bonus/ushlab qolish"
@@ -345,16 +350,22 @@ async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
                     {{ row.totalStudentsAttended }}
                   </td>
                   <td class="tabular-nums text-slate-300">
-                    {{ formatMoney(row.baseAmount) }}
+                    {{ formatMoney(row.sessionBaseAmount) }}
                   </td>
                   <td class="tabular-nums text-slate-300">
-                    {{ formatMoney(row.bonusAmount) }}
+                    {{ formatMoney(row.sessionBonusAmount) }}
                   </td>
+                  <!--
+                    ★ TAFSILOT `title` DA: davr qoidalari ro'yxati dinamik
+                      (oklad, foiz, o'quvchi bonusi — markazga qarab har xil),
+                      shuning uchun ustunga sig'maydi. To'liq yechim
+                      `PayrollDetailDialog` da.
+                  -->
                   <td
                     class="tabular-nums text-slate-300"
-                    :title="`Baza oylik: ${formatMoney(row.baseSalaryAmount)} · KPI (${row.activeStudentCount} faol o‘quvchi): ${formatMoney(row.kpiBonusAmount)}`"
+                    :title="row.periodLines.map((line) => `${line.ruleName}: ${formatMoney(line.amount)}`).join(' · ')"
                   >
-                    {{ formatMoney(row.baseSalaryAmount + row.kpiBonusAmount) }}
+                    {{ row.periodAmount === 0 ? '—' : formatMoney(row.periodAmount) }}
                   </td>
                   <td
                     class="tabular-nums"
@@ -365,9 +376,9 @@ async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
                   <td class="tabular-nums font-semibold text-slate-100">
                     {{ formatMoney(row.total) }}
                     <span
-                      v-if="row.sessionsWithoutRate > 0"
+                      v-if="row.sessionsWithoutRule > 0"
                       class="ml-1.5 text-xs font-normal text-amber-400"
-                      :title="`${row.sessionsWithoutRate} darsga stavka topilmadi`"
+                      :title="`${row.sessionsWithoutRule} darsga qoida topilmadi`"
                     >
                       <AppIcon
                         name="alert"
@@ -399,7 +410,9 @@ async function askMarkPaid(row: PayrollSummaryRowDto): Promise<void> {
       </DataStatus>
     </div>
 
-    <TeacherRatesCard v-if="active === 'rates'" />
+    <PayrollRulesCard v-if="active === 'rules'" />
+
+    <GroupPayrollAssignmentsCard v-if="active === 'groups'" />
 
     <PayrollDetailDialog
       :open="detailOpen"

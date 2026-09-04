@@ -166,6 +166,25 @@ public sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
         /* ===== /R21b ===== */
 
         // ============================================================
+        // OYLIK — GURUH DARAJASIDAGI TAYINLASH (2026-09-04)
+        // ============================================================
+        //
+        // Sabab `Group.PayrollMode` izohida.
+
+        builder.Property(g => g.PayrollMode).HasConversion<int>();
+
+        // O'CHIRISH: `SetNull` — qoida o'chirilsa guruh "Auto" ga qaytishi
+        // KERAK, lekin FK o'zi rejimni tiklay olmaydi. Shuning uchun
+        // `PayrollRuleService.DeleteAsync` qoidani o'chirishdan OLDIN unga
+        // bog'langan guruhlarni `Auto` ga qaytaradi; bu yerdagi `SetNull`
+        // esa ikkinchi qatlam — to'g'ridan-to'g'ri SQL bilan o'chirilganda
+        // ham guruh "mavjud bo'lmagan qoidaga" ishora qilib qolmasin.
+        builder.HasOne(g => g.PayrollRule)
+            .WithMany()
+            .HasForeignKey(g => g.PayrollRuleId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // ============================================================
         // VIDEO DARSLAR BOSHLANISH NUQTASI -> ModuleLessons(Id)
         // ============================================================
         //

@@ -9,6 +9,7 @@ import {
   payrollApprovalStatusTone,
   payrollPeriodLabel,
   payrollRoleLabel,
+  setPayrollStudentCoefficient,
 } from '@/entities/payroll'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
@@ -56,6 +57,85 @@ const errorMessage = computed(() =>
 )
 
 const isDraft = computed(() => detail.value?.approvalStatus === 'Draft')
+
+/* ------------------------------------------------------ hisob tafsiloti */
+
+/**
+ * Ochilgan dars qatorlari.
+ *
+ * ★ HOLAT SET'DA, DTO'DA EMAS: so'rov qayta yuklanganda (tuzatish
+ * qo'shilgach) ochiq qatorlar YOPILMASLIGI kerak — admin qayerga
+ * qaraganini yo'qotardi.
+ */
+const expanded = ref<Set<number>>(new Set())
+
+function toggleSession(sessionId: number): void {
+  const next = new Set(expanded.value)
+  if (next.has(sessionId)) next.delete(sessionId)
+  else next.add(sessionId)
+  expanded.value = next
+}
+
+/* --------------------------------------------------------- koeffitsient */
+
+/**
+ * ★ BO'LIM FAQAT KERAK BO'LGANDA KO'RINADI: koeffitsient faqat "oylik —
+ * har faol o'quvchi uchun" qoidasiga ta'sir qiladi. Bunday qoidasi yo'q
+ * xodimda uni ko'rsatish adminni hech narsani o'zgartirmaydigan jadvalni
+ * to'ldirishga undardi.
+ */
+const showCoefficients = computed(
+  () => detail.value?.periodLines.some((line) => line.kind === 'MonthlyPerActiveStudent') ?? false,
+)
+
+const coefficientError = ref<string | null>(null)
+const savingStudentId = ref<number | null>(null)
+
+const coefficientMutation = useMutation({
+  mutationFn: (payload: { studentId: number; percent: number }) => {
+    const id = userId.value
+    if (id === null) throw new Error('userId yo‘q.')
+
+    return setPayrollStudentCoefficient({
+      userId: id,
+      studentId: payload.studentId,
+      period: period.value,
+      percent: payload.percent,
+      note: null,
+    })
+  },
+  onSuccess: () => {
+    coefficientError.value = null
+    refreshDetail()
+  },
+  onError: (error: unknown) => {
+    coefficientError.value = toUserMessage(error)
+  },
+  onSettled: () => {
+    savingStudentId.value = null
+  },
+})
+
+/**
+ * Kiritilgan foizni saqlaydi. Noto'g'ri qiymat SAQLANMAYDI va xato
+ * ko'rsatiladi — serverga yuborib 400 kutish adminni javobni kutishga
+ * majbur qilardi.
+ */
+function saveCoefficient(studentId: number, raw: string, current: number): void {
+  const text = raw.trim()
+  const value = text.length === 0 ? 100 : Number(text)
+
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    coefficientError.value = 'Koeffitsient 0..100 oralig‘ida bo‘lishi kerak.'
+    return
+  }
+
+  if (value === current) return
+
+  coefficientError.value = null
+  savingStudentId.value = studentId
+  coefficientMutation.mutate({ studentId, percent: value })
+}
 
 /* ------------------------------------------------------------ tuzatish */
 
@@ -130,18 +210,43 @@ async function askDeleteAdjustment(id: number, reason: string): Promise<void> {
         </BaseBadge>
       </div>
 
-      <!-- Baza oylik / KPI (kurator) — sessiyaga bog'liq emas. -->
+      <!--
+        DAVR QOIDALARI — oklad, tushumdan foiz, oylik o'quvchi bonusi.
+        Sessiyaga BOG'LIQ EMAS, shuning uchun alohida blok. Ro'yxat
+        dinamik: yangi hisoblash turi qo'shilsa bu shablon o'zgarmaydi.
+      -->
       <div
-        v-if="detail.baseSalaryAmount > 0 || detail.kpiBonusAmount > 0"
-        class="mb-3 flex flex-wrap gap-3 rounded-lg border border-line bg-ink-950 p-3 text-xs text-slate-300"
+        v-if="detail.periodLines.length > 0"
+        class="mb-3 rounded-lg border border-line bg-ink-950 p-3"
       >
-        <span v-if="detail.baseSalaryAmount > 0">
-          Baza oylik: <b class="text-slate-100">{{ formatMoney(detail.baseSalaryAmount) }}</b>
-        </span>
-        <span v-if="detail.kpiBonusAmount > 0">
-          KPI ({{ detail.activeStudentCount }} faol o‘quvchi):
-          <b class="text-slate-100">{{ formatMoney(detail.kpiBonusAmount) }}</b>
-        </span>
+        <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Oylik qismi — darsga bog‘liq emas
+        </p>
+        <ul class="space-y-1.5">
+          <li
+            v-for="(line, index) in detail.periodLines"
+            :key="`${line.ruleId ?? 'x'}-${index}`"
+            class="flex flex-wrap items-baseline justify-between gap-2 text-xs"
+          >
+            <span class="min-w-0 text-slate-300">
+              {{ line.ruleName }}
+              <span
+                v-if="line.basis !== null"
+                class="text-slate-500"
+              >
+                · {{ line.basis }}
+              </span>
+            </span>
+            <b class="shrink-0 tabular-nums text-slate-100">{{ formatMoney(line.amount) }}</b>
+          </li>
+        </ul>
+        <p
+          v-if="detail.weightedStudentUnits !== detail.activeStudentCount"
+          class="mt-2 text-[11px] text-amber-400"
+        >
+          {{ detail.activeStudentCount }} faol o‘quvchi, koeffitsientlardan keyin
+          {{ detail.weightedStudentUnits }} ulush.
+        </p>
       </div>
 
       <p
@@ -167,58 +272,182 @@ async function askDeleteAdjustment(id: number, reason: string): Promise<void> {
             </tr>
           </thead>
           <tbody>
-            <tr
+            <template
               v-for="session in detail.sessions"
               :key="session.sessionId"
-              :class="session.excluded ? 'opacity-50' : ''"
             >
-              <td class="text-slate-300">
-                {{ formatDateTime(session.scheduledStart) }}
-              </td>
-              <td class="text-slate-400">
-                {{ session.groupName }}
-              </td>
-              <td class="tabular-nums text-slate-300">
-                {{ session.attendedStudents }}
-              </td>
-              <td class="tabular-nums text-slate-300">
-                {{ formatMoney(session.sessionRate) }}
-                <span
-                  v-if="session.premiumMultiplierApplied !== 1"
-                  class="ml-1 text-[11px] font-normal text-amber-400"
-                  :title="`Dam olish/bayram ustamasi qo'llangan: ×${session.premiumMultiplierApplied}`"
+              <tr :class="session.excluded ? 'opacity-50' : ''">
+                <td class="text-slate-300">
+                  <!--
+                    ★ QATORNI OCHISH — "nega bu dars shuncha?" savoliga
+                      javob: qoidama-qoida tafsilot pastda ochiladi.
+                      Tugma FAQAT tafsilot bo'lganda chiziladi, aks holda
+                      bosilganda hech narsa ochilmasdi.
+                  -->
+                  <button
+                    v-if="session.lines.length > 0"
+                    type="button"
+                    class="mr-1 align-middle text-slate-500 transition-colors hover:text-slate-200"
+                    :title="expanded.has(session.sessionId) ? 'Yopish' : 'Hisob tafsiloti'"
+                    @click="toggleSession(session.sessionId)"
+                  >
+                    <AppIcon
+                      :name="expanded.has(session.sessionId) ? 'chevron-down' : 'chevron-right'"
+                      :size="13"
+                    />
+                  </button>
+                  {{ formatDateTime(session.scheduledStart) }}
+                </td>
+                <td class="text-slate-400">
+                  {{ session.groupName }}
+                </td>
+                <td class="tabular-nums text-slate-300">
+                  {{ session.attendedStudents }}
+                </td>
+                <td class="tabular-nums text-slate-300">
+                  {{ formatMoney(session.sessionRate) }}
+                  <span
+                    v-if="session.premiumMultiplierApplied !== 1"
+                    class="ml-1 text-[11px] font-normal text-amber-400"
+                    :title="`Dam olish/bayram ustamasi qo'llangan: ×${session.premiumMultiplierApplied}`"
+                  >
+                    ×{{ session.premiumMultiplierApplied }}
+                  </span>
+                </td>
+                <td class="tabular-nums text-slate-300">
+                  {{ formatMoney(session.bonusAmount) }}
+                </td>
+                <td class="tabular-nums font-semibold text-slate-100">
+                  <!--
+                    ★ UCH XIL NOL — UCH XIL SABAB, va ular ARALASHTIRILMAYDI:
+                      "qoida yo'q" = SOZLASH kerak (xato),
+                      "oklad ichida" = ONGLI qaror,
+                      "bepul dars" = darsning o'zi bepul.
+                      Bittasini boshqasi bilan ko'rsatish adminni har oy
+                      bor-yo'q muammoni qidirishga majbur qilardi.
+                  -->
+                  <span
+                    v-if="session.ruleMissing"
+                    class="inline-flex items-center gap-1"
+                  >
+                    <AppIcon
+                      name="alert"
+                      :size="13"
+                      class="text-amber-400"
+                    />
+                    <BaseBadge tone="warning">
+                      Qoida yo‘q
+                    </BaseBadge>
+                  </span>
+                  <span
+                    v-else-if="session.excluded"
+                    class="text-xs font-normal text-dim"
+                  >
+                    bepul, haq yo‘q
+                  </span>
+                  <span
+                    v-else-if="session.includedInSalary"
+                    class="text-xs font-normal text-dim"
+                  >
+                    oklad ichida
+                  </span>
+                  <span v-else>{{ formatMoney(session.total) }}</span>
+                </td>
+              </tr>
+
+              <tr v-if="expanded.has(session.sessionId) && session.lines.length > 0">
+                <td
+                  colspan="6"
+                  class="bg-ink-950"
                 >
-                  ×{{ session.premiumMultiplierApplied }}
-                </span>
-              </td>
-              <td class="tabular-nums text-slate-300">
-                {{ formatMoney(session.bonusAmount) }}
-              </td>
-              <td class="tabular-nums font-semibold text-slate-100">
-                <span
-                  v-if="session.rateMissing"
-                  class="inline-flex items-center gap-1"
-                >
-                  <AppIcon
-                    name="alert"
-                    :size="13"
-                    class="text-amber-400"
-                  />
-                  <BaseBadge tone="warning">
-                    Stavka yo‘q
-                  </BaseBadge>
-                </span>
-                <span
-                  v-else-if="session.excluded"
-                  class="text-xs font-normal text-dim"
-                >
-                  bepul, haq yo‘q
-                </span>
-                <span v-else>{{ formatMoney(session.total) }}</span>
-              </td>
-            </tr>
+                  <ul class="space-y-1 py-1">
+                    <li
+                      v-for="(line, index) in session.lines"
+                      :key="`${line.ruleId ?? 'x'}-${index}`"
+                      class="flex flex-wrap items-baseline justify-between gap-2 text-[11px]"
+                    >
+                      <span class="min-w-0 text-slate-400">
+                        {{ line.ruleName }}
+                        <span
+                          v-if="line.basis !== null"
+                          class="text-slate-500"
+                        >
+                          · {{ line.basis }}
+                        </span>
+                      </span>
+                      <b class="shrink-0 tabular-nums text-slate-200">
+                        {{ formatMoney(line.amount) }}
+                      </b>
+                    </li>
+                  </ul>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
+      </div>
+
+      <!--
+        O'QUVCHI KOEFFITSIENTLARI — HolliHop'dagi «Коэффициент» ustuni.
+        Oy o'rtasida qo'shilgan yoki boshqa kuratorga o'tgan o'quvchi
+        uchun ulushni kamaytirish (masalan 50%).
+      -->
+      <div
+        v-if="showCoefficients"
+        class="mt-4"
+      >
+        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.5px] text-slate-400">
+          O‘quvchi koeffitsientlari
+        </p>
+
+        <p class="mb-2 text-[11px] text-slate-500">
+          100% — to‘liq oy. Oy o‘rtasida qo‘shilgan o‘quvchi uchun kamaytiring.
+          <template v-if="!isDraft">
+            Davr tasdiqlangan — o‘zgartirib bo‘lmaydi.
+          </template>
+        </p>
+
+        <p
+          v-if="coefficientError !== null"
+          class="mb-2 text-xs text-rose-400"
+          role="alert"
+          v-text="coefficientError"
+        />
+
+        <p
+          v-if="detail.students.length === 0"
+          class="text-xs text-slate-400"
+        >
+          Bu xodimning faol o‘quvchisi yo‘q.
+        </p>
+
+        <ul
+          v-else
+          class="divide-y divide-line rounded-lg border border-line"
+        >
+          <li
+            v-for="student in detail.students"
+            :key="student.studentId"
+            class="flex items-center gap-2 p-2.5"
+          >
+            <span
+              class="min-w-0 flex-1 truncate text-sm text-slate-200"
+              v-text="student.studentName"
+            />
+            <div class="flex shrink-0 items-center gap-1">
+              <input
+                class="zn-input w-20 tabular-nums text-right"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                :value="student.percent"
+                :disabled="!isDraft || savingStudentId === student.studentId"
+                @change="saveCoefficient(student.studentId, ($event.target as HTMLInputElement).value, student.percent)"
+              >
+              <span class="text-xs text-slate-500">%</span>
+            </div>
+          </li>
+        </ul>
       </div>
 
       <!-- Qo'lda tuzatishlar. -->

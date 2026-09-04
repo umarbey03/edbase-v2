@@ -223,6 +223,31 @@ public class Group : BaseEntity
 
     /* ===== /R33 + R40 ===== */
 
+    // ---------------------------------------------------------------- oylik (2026-09-04)
+
+    /// <summary>
+    /// Bu guruhning darslari xodim oyligiga QANDAY kiradi.
+    ///
+    /// ★ NIMA UCHUN GURUHDA, QOIDADA EMAS: avtomatik moslash (rol/kurs/
+    /// kategoriya) hayotdagi istisnolarni qoplamaydi — "bu bitta guruh
+    /// ustozning okladiga kiradi", "bu guruhga kelishuv bo'yicha boshqa
+    /// stavka" degan holatlar HAR markazda bor. Bu ustunsiz admin butun
+    /// qoida to'plamini bitta guruh uchun buzishga majbur bo'lardi
+    /// (HolliHop'da bu «ставка в карточке УЕ» deb ataladi).
+    ///
+    /// STANDART <see cref="GroupPayrollMode.Auto"/> — mavjud guruhlar
+    /// migratsiyadan keyin AYNAN ilgarigidek hisoblanadi.
+    /// </summary>
+    public GroupPayrollMode PayrollMode { get; set; } = GroupPayrollMode.Auto;
+
+    /// <summary>
+    /// <see cref="GroupPayrollMode.FixedRule"/> da majburlanadigan qoida.
+    /// Boshqa rejimlarda <c>null</c> va e'tiborga olinmaydi.
+    /// </summary>
+    public long? PayrollRuleId { get; set; }
+
+    public PayrollRule? PayrollRule { get; set; }
+
     public ICollection<GroupMember> Members { get; set; } = new List<GroupMember>();
 
     // ---------------------------------------------------------------- hisoblanuvchi

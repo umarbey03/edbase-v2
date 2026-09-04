@@ -103,7 +103,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<LessonCharge> LessonCharges => Set<LessonCharge>();
 
-    public DbSet<TeacherRate> TeacherRates => Set<TeacherRate>();
+    public DbSet<PayrollRule> PayrollRules => Set<PayrollRule>();
+
+    public DbSet<PayrollRuleTier> PayrollRuleTiers => Set<PayrollRuleTier>();
+
+    public DbSet<PayrollStudentCoefficient> PayrollStudentCoefficients =>
+        Set<PayrollStudentCoefficient>();
+
+    public DbSet<SessionPayoutLine> SessionPayoutLines => Set<SessionPayoutLine>();
 
     public DbSet<SessionPayout> SessionPayouts => Set<SessionPayout>();
 

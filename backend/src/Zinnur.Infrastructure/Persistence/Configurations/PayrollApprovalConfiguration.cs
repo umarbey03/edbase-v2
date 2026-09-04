@@ -26,7 +26,7 @@ public sealed class PayrollApprovalConfiguration : IEntityTypeConfiguration<Payr
             .HasDatabaseName("UX_PayrollApprovals_UserId_PeriodStart");
 
         // O'CHIRISH: Restrict — tasdiqlash/to'lov TARIXI, xodim o'chirilganda
-        // kaskad bilan yo'qolmasin (`TeacherRateConfiguration` dagi bilan
+        // kaskad bilan yo'qolmasin (`PayrollRuleConfiguration` dagi bilan
         // AYNI mulohaza).
         builder.HasOne(a => a.User)
             .WithMany()
