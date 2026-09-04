@@ -26,8 +26,12 @@ namespace Zinnur.Infrastructure.Options;
 ///     o'zgartirilsa eski fayllarga yo'l uzilardi (registrdagi sabab).
 ///     ★ U ulanish nuqtasi EMAS, shuning uchun "paneldan boshqarilsin"
 ///     talabiga kirmaydi;
-///   • TimeoutSeconds — registrda umuman yo'q: u `HttpClient` ga ishga
-///     tushishda beriladi va ish jarayonida o'zgartirib bo'lmaydi.
+///   • TimeoutSeconds va LargeUploadTimeoutSeconds — registrda umuman
+///     yo'q, ya'ni FAQAT muhitdan (`Seed`). Ular amalning TURIGA qarab
+///     tanlanadi (`StorageTimeout`), ombor ulanishining bir qismi emas —
+///     shuning uchun "paneldan boshqarilsin" talabiga kirmaydi. Ikkalasi
+///     ham `Compose` da ko'chirilishi SHART: sabab pastda, o'sha qator
+///     ustida.
 /// </summary>
 public sealed class RuntimeStorageOptions(IRuntimeSettings runtime, IOptions<StorageOptions> seed)
     : RuntimeOptions<StorageOptions>(runtime, seed)
@@ -62,6 +66,39 @@ public sealed class RuntimeStorageOptions(IRuntimeSettings runtime, IOptions<Sto
             PublicUrl = snapshot.Value(SettingsRegistry.Keys.StoragePublicUrl) ?? Seed.PublicUrl,
 
             TimeoutSeconds = Seed.TimeoutSeconds,
+
+            // ══════════════════════════════════════════════════════════
+            // 🔴 2026-09-05: BU QATOR TUSHIB QOLGAN EDI
+            //
+            // `Compose` kesimdan YANGI obyekt yasaydi, ya'ni bu yerda
+            // ko'chirilmagan har qanday maydon standart qiymatiga
+            // qaytadi. `LargeUploadTimeoutSeconds` uchun standart — 1800 s,
+            // lekin u KONSTRUKTORDA emas, `Seed` da sozlanadigan qiymat:
+            // muhitda boshqa raqam berilgan bo'lsa, baza kesimi
+            // yuklangan zahoti u JIMGINA yo'qolardi.
+            //
+            // ⚠️ ANIQLIK KIRITISH — SPEC-RECORDING-V2 (5.9-3) da "har safar
+            //    60 soniyalik standartga tushib qolardi" deyilgan. BU
+            //    ANIQ EMAS: tushib qolgan maydon `StorageOptions` dagi
+            //    O'Z standartini (1800 s) oladi, `TimeoutSeconds` ning
+            //    60 sini emas. Haqiqiy nuqson boshqacha va TORROQ:
+            //    muhitda ataylab boshqa raqam berilgan bo'lsa
+            //    (`Storage__LargeUploadTimeoutSeconds`), u baza kesimi
+            //    yuklangan zahoti JIMGINA yo'qolardi — ya'ni operator
+            //    chegarani oshira olmasdi va sabab hech qayerda
+            //    ko'rinmasdi.
+            //
+            //    Nima uchun bu baribir tuzatiladi: tungi yig'uvchi
+            //    o'lchangan 1.75 GB faylni yuklaydi va aynan shu chegarani
+            //    sozlash kerak bo'ladigan yagona yo'l — muhit qiymati.
+            //
+            // ⚠️ QOIDA: `StorageOptions` ga yangi maydon qo'shilsa, u SHU
+            //    YERGA ham yozilishi shart. Aks holda u faqat SOVUQ
+            //    STARTDA ishlaydi va birinchi kesim yuklanishi bilan
+            //    yo'qoladi — takrorlash qiyin, sababi ko'rinmaydigan
+            //    nosozlik.
+            // ══════════════════════════════════════════════════════════
+            LargeUploadTimeoutSeconds = Seed.LargeUploadTimeoutSeconds,
         };
     }
 

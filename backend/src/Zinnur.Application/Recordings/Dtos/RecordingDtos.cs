@@ -155,6 +155,56 @@ public sealed record RecordingLiveStatusDto(bool IsRecording, DateTimeOffset? St
 public sealed record EgressStartRequest(string RoomName, string ObjectKey);
 
 /// <summary>
+/// BITTA TREKNI yozib olish so'rovi (<c>TrackEgress</c>) — port kirishi.
+///
+/// ★ NIMA UCHUN <see cref="EgressStartRequest"/> QAYTA ISHLATILMADI:
+/// so'rov LiveKit'ning BOSHQA metodiga (<c>StartTrackEgress</c>) va
+/// boshqa shakldagi tanaga boradi. Bitta turga "<c>TrackId</c> bo'lsa
+/// trek, bo'lmasa xona" degan qoida qo'ysak, o'sha qoida chaqiruv
+/// joyidan UMUMAN ko'rinmasdi va uni faqat mijoz ichidan o'qib bilardik.
+/// </summary>
+/// <param name="RoomName">LiveKit xona nomi (<c>LiveSession.RoomName</c>).</param>
+/// <param name="TrackId">
+/// LiveKit trek identifikatori (<c>TR_…</c>) — <c>track_published</c>
+/// hodisasidan keladi.
+/// </param>
+/// <param name="ObjectKey">
+/// XOM bo'lakning kaliti (<c>raw/…</c> prefiksi) — uni
+/// <c>IRecordingStorage.BuildRawObjectKey</c> yasaydi va Egress AYNAN
+/// shu yo'lga yozadi.
+///
+/// ⚠️ KENGAYTMA — BASHORAT: u <c>track_published</c> dagi
+/// <c>mime_type</c> dan taxmin qilinadi. Haqiqiy nom <c>egress_ended</c>
+/// javobida keladi va farq qilsa qatordagi kalit O'SHA javob bilan
+/// yangilanadi (yakuniy fayl uchun <c>SessionRecording.MarkCompleted</c>
+/// allaqachon shunday qiladi).
+/// </param>
+public sealed record TrackEgressStartRequest(string RoomName, string TrackId, string ObjectKey);
+
+/// <summary>
+/// BUTUN XONANING ovozini yozib olish so'rovi — FAQAT-OVOZLI
+/// <c>RoomCompositeEgress</c>. Bitta darsga bitta uzluksiz Opus fayl:
+/// ustoz, ekran ovozi va gapirgan har bir o'quvchi.
+///
+/// 🔴 <see cref="EgressStartRequest"/> BILAN MAYDONLARI AYNI, LEKIN
+/// ATAYLAB BOSHQA TUR. Ikkalasi LiveKit'ning AYNI metodiga
+/// (<c>StartRoomCompositeEgress</c>) boradi, tanasi esa boshqacha:
+/// bu yerda <c>layout</c> ham, <c>custom_base_url</c> ham UMUMAN
+/// yuborilmaydi, chunki aynan o'sha ikki maydon Egress'ni brauzer
+/// (Chrome) yo'liga buradi. Bitta tur bo'lsa "bir xil so'rov — bir xil
+/// tana" degan taxmin bir kun albatta paydo bo'lardi va u dars boshiga
+/// JIMGINA 0.3–0.5 yadro qo'shardi.
+/// </summary>
+/// <param name="RoomName">LiveKit xona nomi.</param>
+/// <param name="ObjectKey">
+/// Xom ovoz faylining kaliti — <c>raw/{sessionId}/{recordingId}/ROOM.ogg</c>.
+///
+/// ★ Kengaytma bu yerda BASHORAT EMAS: fayl turini so'rovning O'ZIDA
+/// <c>OGG</c> deb belgilaymiz, ya'ni <c>.ogg</c> — fakt.
+/// </param>
+public sealed record RoomAudioEgressStartRequest(string RoomName, string ObjectKey);
+
+/// <summary>
 /// Egress javobi.
 ///
 /// ★ ISTISNO O'RNIGA NATIJA: yozuvning boshlanmasligi DARSNI to'xtatishi
@@ -166,6 +216,96 @@ public sealed record EgressStartResult(bool Succeeded, string? EgressId, string?
     public static EgressStartResult Ok(string egressId) => new(true, egressId, null);
 
     public static EgressStartResult Fail(string error) => new(false, null, error);
+}
+
+/// <summary>
+/// LiveKit HOZIR ko'rib turgan e'lon qilingan trek (<c>ListParticipants</c>
+/// javobidan). Ishtirokchi × trek — YASSI ro'yxat.
+///
+/// ★ NIMA UCHUN YASSI: chaqiruvchi (tiklash job'i) ishtirokchilar
+/// daraxtini emas, "shu xonada qanday treklar bor va ular kimniki"
+/// degan yagona savolga javob so'raydi. Ichma-ich ro'yxat har chaqiruv
+/// joyida bitta qo'shimcha <c>foreach</c> talab qilardi.
+///
+/// ⚠️ BU <see cref="LiveKitTrackEventDto"/> EMAS va u bilan
+/// birlashtirilmaydi: bu yerda hodisa identifikatori ham, hodisa nomi
+/// ham YO'Q, chunki hech qanday hodisa bo'lgani yo'q — bu shunchaki
+/// LiveKit'ning joriy holati. Ikkalasini bitta turga siqish
+/// "idempotentlik kaliti" ni o'ylab topishga majbur qilardi.
+/// </summary>
+/// <param name="ParticipantIdentity">
+/// LiveKit <c>identity</c> — bizda <c>User.Id</c> ning invariant satri
+/// (<c>LiveSessionService.CreateJoinTokenAsync</c>).
+/// </param>
+/// <param name="TrackSid">Trek identifikatori (<c>TR_…</c>).</param>
+/// <param name="Source">
+/// <c>CAMERA</c>, <c>SCREEN_SHARE</c>, <c>MICROPHONE</c>,
+/// <c>SCREEN_SHARE_AUDIO</c> yoki <c>UNKNOWN</c>. Xaritalash
+/// (<c>RecordingTrackKind</c>) chaqiruvchida — port LiveKit atamasini
+/// o'zgartirmasdan uzatadi.
+/// </param>
+/// <param name="MimeType">
+/// <c>video/vp8</c>, <c>audio/opus</c> va h.k. Kengaytmani bashorat
+/// qilish uchun kerak; LiveKit uni bermasligi ham mumkin.
+/// </param>
+public sealed record LiveKitPublishedTrackDto(
+    string ParticipantIdentity,
+    string TrackSid,
+    string? Source,
+    string? MimeType);
+
+/// <summary>
+/// Xonadagi treklar ro'yxati — YOKI so'rovning muvaffaqiyatsizligi.
+///
+/// 🔴 NIMA UCHUN BO'SH RO'YXAT YETMAYDI: chaqiruvchi uchun "xonada trek
+/// yo'q" va "LiveKit'ga umuman yetib bo'lmadi" IKKI BOSHQA javob.
+/// Ikkalasini ham bo'sh ro'yxat bilan qaytarsak, tarmoq uzilgan
+/// daqiqada job "hech narsa yozilmayapti" deb xulosa chiqarib, mavjud
+/// egress ustiga IKKINCHISINI ishga tushirardi.
+///
+/// ★ SHAKL <see cref="EgressStartResult"/> DAN NUSXA: istisno emas,
+/// natija — sabab o'sha yerda va u bu yerda ham AYNI (tiklash job'i
+/// LiveKit yiqilgani uchun to'xtamasligi kerak).
+/// </summary>
+public sealed record LiveKitTrackListResult(
+    bool Succeeded,
+    IReadOnlyList<LiveKitPublishedTrackDto> Tracks,
+    string? Error)
+{
+    public static LiveKitTrackListResult Ok(IReadOnlyList<LiveKitPublishedTrackDto> tracks) =>
+        new(true, tracks, null);
+
+    public static LiveKitTrackListResult Fail(string error) => new(false, [], error);
+}
+
+/// <summary>LiveKit'da HOZIR mavjud egress (<c>ListEgress</c> javobidan).</summary>
+/// <param name="EgressId">Egress identifikatori (<c>EG_…</c>).</param>
+/// <param name="Status">
+/// <c>EGRESS_ACTIVE</c>, <c>EGRESS_ENDING</c> va h.k. Ro'yxat FAQAT faol
+/// egress'lar uchun so'raladi, lekin holat baribir uzatiladi: "tugayotgan"
+/// va "ishlayotgan" farqi log'da qimmatli.
+/// </param>
+public sealed record LiveKitEgressInfoDto(string EgressId, string? Status);
+
+/// <summary>
+/// Xonadagi FAOL egress'lar ro'yxati — yoki so'rovning
+/// muvaffaqiyatsizligi.
+///
+/// 🔴 <see cref="LiveKitTrackListResult"/> DAGI BILAN AYNI SABAB, LEKIN
+/// OQIBATI OG'IRROQ: bu ro'yxat "mikser hali tirikmi" degan savolga
+/// javob beradi. Xato holatni bo'sh ro'yxat deb ko'rsatish darsning
+/// o'rtasida IKKINCHI mikserni ishga tushirardi — ya'ni bitta darsda ikki
+/// ovoz fayli va tungi yig'ishda ikki karra ovoz.
+/// </summary>
+public sealed record LiveKitEgressListResult(
+    bool Succeeded,
+    IReadOnlyList<LiveKitEgressInfoDto> Items,
+    string? Error)
+{
+    public static LiveKitEgressListResult Ok(IReadOnlyList<LiveKitEgressInfoDto> items) =>
+        new(true, items, null);
+
+    public static LiveKitEgressListResult Fail(string error) => new(false, [], error);
 }
 
 /// <summary>
@@ -203,6 +343,61 @@ public sealed record LiveKitWebhookEventDto(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     string? Error);
+
+/// <summary>
+/// LiveKit webhook hodisasining TREK/XONA qismi — yangi yozuv quvuri
+/// (<c>RecordingPipeline.TrackComposition</c>) uchun.
+///
+/// ★ NIMA UCHUN <see cref="LiveKitWebhookEventDto"/> KENGAYTIRILMADI:
+/// o'sha DTO <c>egress_info</c> ATROFIDA qurilgan va uni ishlatadigan
+/// <c>RecordingWebhookHandler</c> <c>EgressId</c> bo'lmasa hodisani
+/// <c>Ignored</c> deb qaytaradi — bu uning SHARTNOMASI va u
+/// o'zgarmasligi kerak. <c>room_started</c>, <c>track_published</c>,
+/// <c>track_unpublished</c>, <c>participant_left</c> hodisalarida esa
+/// <c>egress_info</c> UMUMAN yo'q: ular xona, ishtirokchi va trek
+/// haqida. Ikkala ma'noni bitta turga siqish har bir maydonni
+/// "qaysi hodisada to'ldiriladi?" degan izohsiz o'qib bo'lmaydigan
+/// holga keltirardi.
+/// </summary>
+/// <param name="EventId">
+/// LiveKit bergan hodisa Id'si (<c>EV_…</c>) — idempotentlik kaliti.
+/// Bo'lmasa tananing xeshi ishlatiladi (<c>LiveKitWebhookParser</c>).
+/// </param>
+/// <param name="EventName">
+/// <c>room_started</c>, <c>room_finished</c>, <c>track_published</c>,
+/// <c>track_unpublished</c>, <c>participant_left</c>.
+/// </param>
+/// <param name="RoomName">
+/// Xona nomi — <c>LiveSession.RoomName</c> bilan solishtiriladi. Bu
+/// hodisalarda yozuv qatorini topishning YAGONA yo'li: egress Id yo'q.
+/// </param>
+/// <param name="ParticipantIdentity">
+/// LiveKit <c>identity</c> = <c>User.Id</c> ning invariant satri.
+/// Ustozniki emasmi — trek yozuvga tushishining birinchi sharti.
+/// </param>
+/// <param name="TrackSid">
+/// Trek identifikatori (<c>TR_…</c>). Xona ovozi qatoriga HECH QACHON
+/// tegishli emas — u LiveKit treki emas
+/// (<c>RecordingTrack.RoomAudioSid</c>).
+/// </param>
+/// <param name="TrackSource">
+/// <c>CAMERA</c>, <c>SCREEN_SHARE</c>, <c>MICROPHONE</c>,
+/// <c>SCREEN_SHARE_AUDIO</c>, <c>UNKNOWN</c> — LiveKit atamasi
+/// O'ZGARTIRILMASDAN uzatiladi. <c>RecordingTrackKind</c> ga xaritalash
+/// qabul qiluvchida, bitta joyda.
+/// </param>
+/// <param name="MimeType">
+/// <c>video/vp8</c>, <c>audio/opus</c>… — xom fayl kengaytmasini
+/// bashorat qilish uchun. LiveKit uni bermasligi ham mumkin.
+/// </param>
+public sealed record LiveKitTrackEventDto(
+    string EventId,
+    string EventName,
+    string? RoomName,
+    string? ParticipantIdentity,
+    string? TrackSid,
+    string? TrackSource,
+    string? MimeType);
 
 /// <summary>
 /// Webhook qayta ishlash natijasi — LOG va qo'lda tekshirish (`curl`) uchun.

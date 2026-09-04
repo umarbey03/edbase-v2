@@ -510,7 +510,18 @@ public static class DependencyInjection
             LiveKitEgressClient.HttpClientName,
             client => client.Timeout = TimeSpan.FromSeconds(10));
 
-        services.AddSingleton<ILiveKitEgress, LiveKitEgressClient>();
+        // Bitta mijoz — IKKI port: biri yozuvni boshqaradi
+        // (`ILiveKitEgress`), ikkinchisi LiveKit holatini faqat O'QIYDI
+        // (`ILiveKitRoomQuery`). Sinf holatsiz, lekin ikkinchi nusxa
+        // yasashning ma'nosi yo'q, shuning uchun AYNI obyekt beriladi.
+        services.AddSingleton<LiveKitEgressClient>();
+
+        services.AddSingleton<ILiveKitEgress>(
+            sp => sp.GetRequiredService<LiveKitEgressClient>());
+
+        services.AddSingleton<ILiveKitRoomQuery>(
+            sp => sp.GetRequiredService<LiveKitEgressClient>());
+
         services.AddSingleton<ILiveKitWebhookVerifier, LiveKitWebhookVerifier>();
         services.AddSingleton<IRecordingStorage, R2RecordingStorage>();
 

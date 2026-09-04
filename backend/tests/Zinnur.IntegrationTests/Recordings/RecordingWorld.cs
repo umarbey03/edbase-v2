@@ -199,6 +199,20 @@ public sealed class EgressSpy : ILiveKitEgress
 
     public List<EgressStartRequest> Started { get; } = [];
 
+    /// <summary>
+    /// Boshlangan TREK yozuvlari (yangi quvur). Xona yozuvlaridan alohida
+    /// ro'yxat: testlar ko'pincha "trek boshlandimi, xona yozuvi
+    /// boshlanmadimi" degan farqni tekshiradi.
+    /// </summary>
+    public List<TrackEgressStartRequest> StartedTracks { get; } = [];
+
+    /// <summary>
+    /// Boshlangan XONA OVOZI (mikser) yozuvlari. 🔴 Odatdagi darsda bu
+    /// ro'yxatda AYNAN bitta element bo'lishi kerak — ikkitasi bo'lsa
+    /// darsda ikki ovoz fayli demakdir.
+    /// </summary>
+    public List<RoomAudioEgressStartRequest> StartedRoomAudio { get; } = [];
+
     public List<string> Stopped { get; } = [];
 
     /// <summary>Oxirgi muvaffaqiyatli urinishda berilgan identifikator.</summary>
@@ -215,15 +229,39 @@ public sealed class EgressSpy : ILiveKitEgress
         if (FailWith is { Length: > 0 } error)
             return Task.FromResult(EgressStartResult.Fail(error));
 
-        // ⚠️ HAR URINISHGA YANGI ID: `UX_SessionRecordings_EgressId`
-        //    unikal, ya'ni takrorlanuvchi qiymat ikkinchi testda
-        //    `SaveChanges` ni 23505 bilan yiqitardi.
-        // Kesish (`[..24]`) `string.Create(...)` DAN TASHQARIDA: ichkarida
-        // qolsa ikkinchi argument interpolatsiya ishlovchisi emas, oddiy satr
-        // bo'lib qoladi va `ref` talab qilinadi (CS1620).
-        LastEgressId = string.Create(
-            CultureInfo.InvariantCulture,
-            $"EG_{Interlocked.Increment(ref _sequence)}_{Guid.NewGuid():N}")[..24];
+        LastEgressId = NextEgressId();
+
+        return Task.FromResult(EgressStartResult.Ok(LastEgressId));
+    }
+
+    /// <inheritdoc />
+    public Task<EgressStartResult> StartTrackRecordingAsync(
+        TrackEgressStartRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        StartedTracks.Add(request);
+
+        if (FailWith is { Length: > 0 } error)
+            return Task.FromResult(EgressStartResult.Fail(error));
+
+        LastEgressId = NextEgressId();
+
+        return Task.FromResult(EgressStartResult.Ok(LastEgressId));
+    }
+
+    /// <inheritdoc />
+    public Task<EgressStartResult> StartRoomAudioRecordingAsync(
+        RoomAudioEgressStartRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        StartedRoomAudio.Add(request);
+
+        if (FailWith is { Length: > 0 } error)
+            return Task.FromResult(EgressStartResult.Fail(error));
+
+        LastEgressId = NextEgressId();
 
         return Task.FromResult(EgressStartResult.Ok(LastEgressId));
     }
@@ -235,6 +273,20 @@ public sealed class EgressSpy : ILiveKitEgress
 
         return Task.FromResult(StopAccepted);
     }
+
+    /// <summary>
+    /// ⚠️ HAR URINISHGA YANGI ID: `UX_SessionRecordings_EgressId` va
+    /// `UX_RecordingTracks_EgressId` unikal, ya'ni takrorlanuvchi qiymat
+    /// ikkinchi testda `SaveChanges` ni 23505 bilan yiqitardi.
+    ///
+    /// Kesish (`[..24]`) `string.Create(...)` DAN TASHQARIDA: ichkarida
+    /// qolsa ikkinchi argument interpolatsiya ishlovchisi emas, oddiy satr
+    /// bo'lib qoladi va `ref` talab qilinadi (CS1620).
+    /// </summary>
+    private string NextEgressId() =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"EG_{Interlocked.Increment(ref _sequence)}_{Guid.NewGuid():N}")[..24];
 }
 
 /// <summary>
