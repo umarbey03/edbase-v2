@@ -35,3 +35,9 @@ export {
   todayIsoDate,
   usesStudentCount,
 } from './model/types'
+export {
+  PAYROLL_GUIDE_SECTIONS,
+  PAYROLL_KIND_GUIDE,
+  payrollKindGuide,
+} from './model/kind-guide'
+export type { PayrollGuideSection, PayrollKindGuideEntry } from './model/kind-guide'

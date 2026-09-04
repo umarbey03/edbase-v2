@@ -12,6 +12,7 @@ import {
   PAYROLL_BASIS_OPTIONS,
   PAYROLL_ROLE_OPTIONS,
   PAYROLL_RULE_KIND_OPTIONS,
+  payrollKindGuide,
   payrollRoleLabel,
   payrollRuleKindHint,
   supportsGroupTargeting,
@@ -99,6 +100,9 @@ const showBasis = computed(() => usesStudentCount(kind.value))
 const showTiers = computed(() => kind.value === 'TieredByAttendance')
 const showAcademicHour = computed(() => kind.value === 'PerAcademicHour')
 const showPlan = computed(() => percentKind.value)
+
+/* Tanlangan tur uchun formula va sonli misol — `kind-guide.ts` dan. */
+const guide = computed(() => payrollKindGuide(kind.value))
 
 const amountLabel = computed(() =>
   percentKind.value ? 'Foiz (%)' : showTiers.value ? 'Asosiy summa (bosqichlar ustun)' : 'Summa (so‘m)',
@@ -529,6 +533,29 @@ async function submit(): Promise<void> {
               placeholder="45"
             >
           </BaseField>
+        </div>
+        <!-- ============================== tanlangan tur izohi -->
+        <div class="rounded-lg border border-line bg-ink-950 p-3">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Qanday hisoblanadi
+          </p>
+          <p
+            class="mt-1 rounded-md border border-line bg-ink-900 px-2.5 py-1.5 font-mono text-xs text-brand-300"
+            v-text="guide.formula"
+          />
+          <ol class="mt-2 space-y-0.5 text-xs text-slate-400">
+            <li
+              v-for="(line, index) in guide.example"
+              :key="index"
+              class="tabular-nums"
+              :class="index === guide.example.length - 1 ? 'font-semibold text-slate-200' : ''"
+              v-text="line"
+            />
+          </ol>
+          <p
+            class="mt-2 text-[11px] text-slate-500"
+            v-text="guide.notes[0]"
+          />
         </div>
       </section>
 

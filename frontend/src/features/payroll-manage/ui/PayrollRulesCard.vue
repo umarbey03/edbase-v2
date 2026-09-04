@@ -6,13 +6,14 @@ import {
   deletePayrollRule,
   fetchPayrollRules,
   isPercentKind,
+  payrollRuleKindHint,
   payrollRuleKindLabel,
   ruleScopeLabel,
 } from '@/entities/payroll'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
-import type { PayrollRuleDto } from '@/shared/types'
+import type { PayrollRuleDto, PayrollRuleKindName } from '@/shared/types'
 import {
   AppIcon,
   BaseBadge,
@@ -22,6 +23,7 @@ import {
   ConfirmDeleteDialog,
 } from '@/shared/ui'
 
+import PayrollKindGuideDrawer from './PayrollKindGuideDrawer.vue'
 import PayrollRuleFormDialog from './PayrollRuleFormDialog.vue'
 
 /**
@@ -39,6 +41,15 @@ const editing = ref<PayrollRuleDto | null>(null)
 const deleting = ref<PayrollRuleDto | null>(null)
 const deleteError = ref<string | null>(null)
 
+/* Qo'llanma drawer'i — `guideKind` berilsa o'sha turga o'tadi. */
+const guideOpen = ref(false)
+const guideKind = ref<PayrollRuleKindName | null>(null)
+
+function openGuide(kind: PayrollRuleKindName | null = null): void {
+  guideKind.value = kind
+  guideOpen.value = true
+}
+
 const rulesQuery = useQuery({
   queryKey: ['payroll', 'rules'],
   queryFn: ({ signal }) => fetchPayrollRules({ signal }),
@@ -48,7 +59,7 @@ const rules = computed(() => rulesQuery.data.value ?? [])
 
 /** Turi bo'yicha guruhlar — tartib backenddagi enum tartibi bilan bir xil. */
 const groupedRules = computed(() => {
-  const buckets = new Map<string, PayrollRuleDto[]>()
+  const buckets = new Map<PayrollRuleKindName, PayrollRuleDto[]>()
 
   for (const rule of rules.value) {
     const key = rule.kind
@@ -59,7 +70,7 @@ const groupedRules = computed(() => {
 
   return [...buckets.entries()].map(([kind, items]) => ({
     kind,
-    label: payrollRuleKindLabel(kind as PayrollRuleDto['kind']),
+    label: payrollRuleKindLabel(kind),
     items,
   }))
 })
@@ -156,6 +167,19 @@ const deleteMessage = computed(() => {
     <template #actions>
       <BaseButton
         size="sm"
+        variant="secondary"
+        @click="openGuide()"
+      >
+        <template #icon>
+          <AppIcon
+            name="book"
+            :size="14"
+          />
+        </template>
+        Qanday hisoblanadi?
+      </BaseButton>
+      <BaseButton
+        size="sm"
         @click="openCreate"
       >
         <template #icon>
@@ -197,10 +221,23 @@ const deleteMessage = computed(() => {
         v-for="group in groupedRules"
         :key="group.kind"
       >
-        <h3
-          class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
-          v-text="group.label"
-        />
+        <div class="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h3
+            class="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+            v-text="group.label"
+          />
+          <p
+            class="text-[11px] text-slate-500"
+            v-text="payrollRuleKindHint(group.kind)"
+          />
+          <button
+            type="button"
+            class="text-[11px] font-medium text-brand-400 hover:text-brand-300"
+            @click="openGuide(group.kind)"
+          >
+            Batafsil
+          </button>
+        </div>
 
         <ul class="divide-y divide-line">
           <li
@@ -293,6 +330,12 @@ const deleteMessage = computed(() => {
       :rule="editing"
       @close="formOpen = false"
       @saved="refresh"
+    />
+
+    <PayrollKindGuideDrawer
+      :open="guideOpen"
+      :focus-kind="guideKind"
+      @close="guideOpen = false"
     />
 
     <ConfirmDeleteDialog
