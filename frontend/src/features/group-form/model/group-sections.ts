@@ -315,6 +315,24 @@ export function changedFieldLabels(
       faqat usulni almashtirgan xodim "saqladim" deb o'ylab qolardi.
     */
     if (next.recordingPipeline !== prev.recordingPipeline) labels.push('Yozib olish usuli')
+    /*
+      🔴 BU IKKISI RO'YXATDAN TUSHIB QOLGAN EDI (2026-09-05 da topildi).
+
+      Oqibati yuqoridagi izohdagi bilan AYNI, lekin u NAZARIY emas, ISHLAB
+      CHIQARISHDA edi: faqat shu ikki maydondan birini o'zgartirgan xodim
+      "Saqlash" ni bosardi, oyna esa "O'zgarish yo'q — saqlash kerak emas"
+      deb javob berardi va serverga UMUMAN bormasdi. Xato ham chiqmasdi,
+      muvaffaqiyat ham bo'lmasdi — o'zgarish jimgina yo'qolardi.
+
+      `buildPayload` ularni allaqachon yuboradi (237–238-qatorlar), ya'ni
+      nosozlik faqat SHU tekshiruvda edi.
+    */
+    if (next.assignmentGraderRole !== prev.assignmentGraderRole) {
+      labels.push('Vazifalarni kim tekshiradi')
+    }
+    if (next.questionResponderRole !== prev.questionResponderRole) {
+      labels.push('Savollarga kim javob beradi')
+    }
     if (next.isActive !== prev.isActive) labels.push('Guruh statusi')
     return labels
   }
