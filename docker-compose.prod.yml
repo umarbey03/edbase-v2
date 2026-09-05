@@ -117,6 +117,35 @@ services:
       # `.env` da SERVER_PUBLIC_IP ni to'ldiring va quyidagi qatorni yoqing:
       #   NODE_IP: ${SERVER_PUBLIC_IP:-}
 
+    # ══════════════════════════════════════════════════════════════════
+    # PROD UCHUN ALOHIDA YAML — WEBHOOK'LAR SHU YERDA YOQILADI
+    # ══════════════════════════════════════════════════════════════════
+    # 🔴 `!override` MAJBURIY. Compose `volumes` ni MANZIL (target) bo'yicha
+    #    birlashtiradi va bu holda almashtirish TO'G'RI ishlagan bo'lardi,
+    #    LEKIN unga tayanmaymiz: `!override` niyatni OSHKORA qiladi va
+    #    `livekit-data` ni ham shu yerda ko'rsatishga majbur qiladi, ya'ni
+    #    "bazaviy faylda yana nima bor edi?" degan savol tug'ilmaydi.
+    #    Usiz `livekit-data` volume'i JIMGINA tushib qolardi.
+    #
+    # NEGA ALOHIDA FAYL, dev faylini tahrirlash o'rniga:
+    #   webhook manzili prod'da `http://127.0.0.1:5080/...` bo'lishi SHART
+    #   (LiveKit `network_mode: host` da — `api` nomi yechilmaydi), dev'da
+    #   esa `http://api:8080/...`. Bitta faylga ikkalasi sig'maydi.
+    #   Sabab va ikkala tuzoq: `infra/livekit/livekit.prod.yaml` sarlavhasi.
+    #
+    # 🔴 `.generated.yaml` — SHABLONDAN YASALADI (`deploy.sh`, 2-qadam),
+    #    chunki `webhook.api_key` `.env` dagi `LIVEKIT_API_KEY` bilan AYNI
+    #    bo'lishi shart va LiveKit yaml ichida `${...}` ni KENGAYTIRMAYDI.
+    #    Fayl `.gitignore` da — sirlar git'ga tushmaydi.
+    #
+    # ⚠️ FAYL YO'Q BO'LSA: Docker uning o'rniga BO'SH PAPKA yaratadi va
+    #    LiveKit "is a directory" bilan yiqiladi. Bu BALAND nosozlik
+    #    (konteyner ko'tarilmaydi), shuning uchun xavfsiz — lekin
+    #    `deploy.sh` uni ko'tarishdan OLDIN tekshiradi.
+    volumes: !override
+      - ./infra/livekit/livekit.prod.generated.yaml:/etc/livekit/livekit.yaml:ro
+      - livekit-data:/data
+
     # ------------------------------------------------------------------
     # NISBIY USTUNLIK — kvotadan MUSTAQIL ikkinchi qatlam
     # ------------------------------------------------------------------
@@ -253,8 +282,8 @@ services:
         # yadro bormi?" deb tekshiradi. Standart narx —
         # `room_composite_cpu_cost: 4`, chunki LiveKit uni 8 vCPU li
         # mashinaga mo'ljallagan. Bizdagi egressga esa `EGRESS_CPUS`
-        # (2.0) beriladi, ya'ni 4 dan KAM — va ishchi har safar
-        # JIMGINA rad etadi.
+        # orqali 4 dan KAM beriladi (`.env` da 2.0 yoki 3.0) — va ishchi
+        # har safar JIMGINA rad etadi.
         #
         # 🔴 NIMA BO'LGANI (2026-09-01): dars yozuvi shu sababdan
         #    ishlamasdi. Tashqaridan bu "timeout" bo'lib ko'rinardi:
@@ -266,18 +295,175 @@ services:
         #    faqat ishga tushish paytidagi ogohlantirish:
         #      `not enough cpu ... {"minimumCpu": 4, "available": 1}`
         #
-        # ★ 1.5 — O'LCHOVGA ASOSLANGAN: dars yozuvi bir vaqtda BITTA
-        #   ketadi (jadvalda tekshirilgan) va 720p room-composite
-        #   amalda ~1–1.5 yadro yeydi. `max_cpu_utilization` standart
-        #   0.8, ya'ni 2.0 yadrodan hisobga ~1.6 olinadi — 1.5 shunga
-        #   sig'adi, 2.0 esa sig'masdi.
+        # ★ O'SHANDA QO'YILGAN QIYMAT — 1.5: dars yozuvi bir vaqtda
+        #   BITTA ketardi (jadvalda tekshirilgan) va 720p
+        #   room-composite amalda ~1-1.5 yadro yeydi.
+        #   `max_cpu_utilization` standart 0.8, ya'ni 2.0 yadrodan
+        #   hisobga ~1.6 olinadi — 1.5 shunga sig'adi, 2.0 esa
+        #   sig'masdi. (2026-09-05 da 1.30 ga tushirildi — sabab
+        #   pastda, `room_composite_cpu_cost` qatorida.)
         #
         # ⚠️ QIYMATNI OSHIRISHDAN OLDIN `EGRESS_CPUS` ni oshiring.
         #    Teskarisi — narx cheklovdan katta bo'lishi — yozuvni
         #    yana JIMGINA o'chiradi va buni faqat konteyner logidagi
         #    `cpu available: X  max cost: Y` qatori ko'rsatadi.
+        #
+        # ══════════════════════════════════════════════════════════════
+        # 2026-09-05 — YANGI QUVUR (SPEC-RECORDING-V2 §3.5) UCHUN
+        #              BUTUN JADVAL QAYTA HISOBLANDI
+        # ══════════════════════════════════════════════════════════════
+        #
+        # 🔴 ENG MUHIMI: `track_cpu_cost` NING STANDARTI — 1.0.
+        #    Yozilmasa, hisobga olinadigan 1.6 yadroga ATIGI BITTA
+        #    `TrackEgress` sig'adi va qolgan hammasi JIMGINA rad
+        #    etiladi — ya'ni 2026-09-01 dagi nosozlik AYNAN takrorlanardi,
+        #    faqat bu safar natija "yozuv yo'q" emas, "video bor, OVOZ
+        #    YO'Q" bo'lardi (ovoz aralashtirgichi oxirgi bo'lib
+        #    so'raladi va aynan u rad etilardi).
+        #
+        # ──────────────── HISOB (o'zgaruvchilar) ───────────────────────
+        #   EGRESS_CPUS = 2.0            <- ENG YOMON HOLAT bo'yicha
+        #   max_cpu_utilization = 0.8
+        #   HISOBGA OLINADIGAN = 2.0 x 0.8 = 1.60
+        #
+        # ⚠️ NEGA 2.0 GA HISOBLANDI: `.env` da bu qiymat 2.0 ham, 3.0 ham
+        #    bo'lishi mumkin (`.env.example` o'z-o'ziga zid edi — matnda
+        #    2.0, qiymatda 3.0). Jadval PASTKISIGA hisoblansa, ikkala
+        #    holatda ham TO'G'RI qoladi. 3.0 da hisobga 2.40 olinadi,
+        #    ya'ni pastdagi hamma "sig'adi" yana ham keng sig'adi va
+        #    hamma "rad etiladi" ham kuchida qoladi (eng qimmati 3.60).
+        #    Serverdagi haqiqiy qiymatni LOG aytadi:
+        #      docker logs zinnur-v2-egress | grep 'cpu available'
+        #
+        # ──────────────── BUDJET JADVALI ──────────────────────────────
+        #   Bitta yangi quvurli dars:
+        #       kamera 0.05 + ekran 0.05 + mikser 0.15  =  0.25
+        #
+        #   | Holat                                      | Narx | 1.60 ga |
+        #   |--------------------------------------------|------|---------|
+        #   | 1 yangi dars                               | 0.25 | sig'adi |
+        #   | 6 parallel yangi dars (o'lchangan cho'qqi) | 1.50 | sig'adi (0.10 zaxira) |
+        #   | 1-FAZA: guruh 7 ning IKKI quvuri birga     | 1.55 | sig'adi (0.05 zaxira) |
+        #   | eski quvur yolg'iz (bugungi holat)         | 1.30 | sig'adi |
+        #   | 2 parallel eski quvur                      | 2.60 | RAD ETILADI (ataylab) |
+        #   | 6 dars, mikser Chrome'ga tushsa (0.5)      | 3.60 | RAD ETILADI (fail-fast) |
+        #
+        #   ⚠️ ENG TOR JOY — 1-faza (0.05). Agar `.env` da EGRESS_CPUS=3.0
+        #      bo'lsa hisobga 2.40 olinadi va bu zaxira 0.85 ga chiqadi.
+        #      Ya'ni jadval eng yomon holatda ham ishlaydi, lekin
+        #      1-fazaning BIRINCHI darsidan keyin egress logini
+        #      TEKSHIRISH SHART (`not enough cpu` bo'lmasin).
+        #
+        # 🔴 SHIFT: bir vaqtda ENG KO'PI 6 ta yangi quvurli dars
+        #    (1.60 / 0.25 = 6.4). Yettinchisi JIMGINA rad etiladi.
+        #    Jadvalda 7-chi paydo bo'lsa — bu yerga qaytib keling.
+        #
+        # 🔴 1-FAZADA JADVAL SHARTI: guruh 7 ning darsi (Du/Pay 10:00)
+        #    paytida BOSHQA yozuvli dars BO'LMASLIGI SHART. Bo'lsa
+        #    1.55 + 1.30 = 2.85 > 1.60 va biri jimgina rad etiladi.
+        #    Hozir jadvalda 10:00 da yolg'iz — tekshirilgan.
+        #
+        # ⚠️ EGRESS_CPUS NI OSHIRISH BILAN "SIG'DIRISH" TAQIQLANADI.
+        #    Server 4 vCPU va unda SFU, api, Postgres, Redis ham
+        #    ishlaydi. Egress oshib ketsa birinchi bo'lib yozuv emas,
+        #    JONLI DARS sinadi (kadr tashlanishi emas — ovoz uzilishi).
+        #
         cpu_cost:
-          room_composite_cpu_cost: 1.5
+          # ── Hisob asosi. Standarti ham 0.8, lekin OSHKORA yozilgan:
+          #    yuqoridagi butun jadval shu songa tayanadi va uni
+          #    "ko'rinmas standart" qilib qoldirish jadvalni tekshirib
+          #    bo'lmaydigan qilardi.
+          max_cpu_utilization: 0.8
+
+          # ── ESKI QUVUR (RoomCompositeEgress + Chrome) ────────────────
+          # 🔴 1.5 DAN 1.30 GA TUSHIRILDI. Bu "arzonlashtirish" EMAS —
+          #    haqiqiy sarf o'zgarmadi (o'lchangan 0.93-1.63 yadro,
+          #    cho'qqi 2.14) va uni pastdagi `cpus:` KVOTASI ushlab
+          #    turadi, bu son EMAS. Bu son faqat "ishchi vazifani
+          #    qabul qiladimi" degan savolga javob beradi.
+          #
+          #    BU SONNING VAZIFASI ikkita, ikkalasi ham saqlanadi:
+          #      a) BITTA Chrome yozuvini qabul qilish
+          #      b) IKKINCHISINI RAD ETISH
+          #
+          #    NEGA KERAK BO'LDI: 1-fazada guruh 7 da IKKALA quvur BIR
+          #    darsda ishlaydi (A/B solishtirish uchun). 1.5 + 0.25 =
+          #    1.75 > 1.60 — ya'ni ESKI QIYMAT BILAN yangi quvurning
+          #    ovoz mikseri JIMGINA rad etilardi va solishtirish uchun
+          #    OVOZSIZ fayl chiqardi. Aynan shuni oldini olamiz.
+          #
+          #    NEGA AYNAN 1.30 (1.25 ham, 1.35 ham emas) — u IKKALA
+          #    `EGRESS_CPUS` qiymatida ham to'g'ri bo'lishi kerak:
+          #
+          #      EGRESS_CPUS=2.0 (hisobga 1.60):
+          #        (a) 1.30 + 0.25 = 1.55 <= 1.60 ✓
+          #        (b) 2 x 1.30 = 2.60 > 1.60      ✓✓
+          #      EGRESS_CPUS=3.0 (hisobga 2.40):
+          #        (a) 1.55 <= 2.40                ✓✓
+          #        (b) 2.60 > 2.40                 ✓  (zaxira 0.20)
+          #
+          #    Ya'ni ruxsat etilgan oraliq 1.20 < R <= 1.35 va 1.30 —
+          #    uning ichida ikkala chetdan ham eng uzoq nuqta.
+          #    1.25 da (b) ning zaxirasi 0.10 ga tushardi, 1.35 da esa
+          #    (a) AYNAN chegarada (1.60 = 1.60) qolardi.
+          room_composite_cpu_cost: 1.30
+
+          # ── YANGI QUVUR ─────────────────────────────────────────────
+          # Passthrough remux: dekodlash ham, kodlash ham YO'Q — faqat
+          # RTP paketlarini konteynerga yozish. O'lchangan ~0.05 yadro.
+          # 🔴 STANDARTI 1.0 — yuqoridagi izohning birinchi bandi.
+          track_cpu_cost: 0.05
+
+          # Ovoz mikseri, SDK manbasi (KUTILGAN yo'l — Chrome YO'Q).
+          # ⚠️ 0.15 — TAXMIN, O'LCHOV EMAS, va u bitta darsning
+          #    narxining 60% i. P3 darvozasi (§3.5): o'lchangan qiymat
+          #    <= 0.20 bo'lsa davom etamiz. 0.20 dan katta bo'lsa BU
+          #    QATOR o'lchangan songa almashtiriladi VA yuqoridagi
+          #    jadval qayta hisoblanadi — masalan 0.20 da bitta dars
+          #    0.30 bo'ladi va shift 6 dan 5 ga tushadi.
+          sdk_audio_room_composite_cpu_cost: 0.15
+
+          # AYNI mikser, LEKIN Chrome orqali (SDK taxmini puchga chiqsa).
+          # ATAYLAB uch barobar qimmat va ATAYLAB "sig'maydigan":
+          # 6 x (0.10 + 0.5) = 3.60 > 1.60, ya'ni ishchi rad eta
+          # boshlaydi. Rad etish — BALAND signal (egress logida
+          # `not enough cpu`), 4 vCPU li serverni jimgina bo'g'ish esa
+          # PAST signal. Shuning uchun bu son "moslashtirilmaydi".
+          audio_room_composite_cpu_cost: 0.5
+
+          # ── BIZ HECH QACHON SO'RAMAYDIGAN TURLAR ────────────────────
+          # 🔴 BULAR NEGA UMUMAN YOZILGAN (TEKSHIRILDI, 2026-09-05):
+          #
+          #    Ishga tushishda egress `cpu available: X  max cost: Y`
+          #    qatorini yozadi va `Y` — BARCHA egress turlari ichidagi
+          #    ENG QIMMATI. `web_cpu_cost` standarti 4.0, ya'ni faqat
+          #    yuqoridagi to'rt qator yozilganda ham log HAR ISHGA
+          #    TUSHISHDA quyidagini beradi:
+          #
+          #      ERROR  not enough cpu for some egress types
+          #             {"minimumCpu": 4, "available": 2}
+          #      INFO   cpu available: 2.000000  max cost: 4.000000
+          #
+          #    O'LCHANDI (livekit/egress:v1.14, `--cpus 2.0`):
+          #      faqat 4 qator  -> max cost: 4.000000  + ERROR
+          #      hammasi        -> max cost: 1.250000  + ERROR YO'Q
+          #    (sinovda 1.25 bilan o'lchandi; yakuniy konfiguratsiyada
+          #     bu son `room_composite_cpu_cost` ga teng — 1.30)
+          #
+          #    OQIBATI agar yozilmasa: deploy'dan keyingi MAJBURIY
+          #    tekshiruv ("X >= Y bo'lsin") HAR DOIM muvaffaqiyatsiz
+          #    ko'rinardi va odam uni e'tiborsiz qoldirishga o'rganardi.
+          #    Aynan shu o'rganish 2026-09-01 ni bir necha kun
+          #    ko'rinmas qilgan edi.
+          #
+          #    XAVFSIZMI: HA. Bu turlarni bizning kodimiz UMUMAN
+          #    so'ramaydi — `LiveKitEgressClient` faqat
+          #    `StartRoomCompositeEgress` va `StartTrackEgress` ni
+          #    chaqiradi. Qiymatlar shunchaki hisobni to'liq qiladi.
+          web_cpu_cost: 1.30                 # Chrome — room_composite bilan ayni ish
+          audio_web_cpu_cost: 0.5            # audio_room_composite bilan ayni ish
+          track_composite_cpu_cost: 1.0      # transkodlaydi — arzon emas
+          participant_cpu_cost: 1.0          # transkodlaydi — arzon emas
 
     # `host.docker.internal` — Docker Desktop'da tayyor, LINUX'da esa
     # ATAYLAB e'lon qilinishi kerak. Busiz nom yechilmaydi va yozuv
@@ -304,6 +490,30 @@ services:
           # ⚠️ 2 DAN KO'P PARALLEL YOZUV REJALASHTIRMANG: chegaraga
           # tegilganda yozuv "sekinlashmaydi" — kadrlar TASHLANADI va
           # video sifati tushadi.
+          #
+          # ══════════════════════════════════════════════════════════
+          # 🔴 BU QIYMAT 2026-09-05 DA ATAYLAB TEGILMADI
+          #
+          # SPEC-RECORDING-V2 §3.5 uni 2.0 dan 3.0 ga OSHIRISHNI so'raydi.
+          # BAJARILMADI, VA BU QASDDAN: server 4 vCPU va unda SFU (jonli
+          # dars), api, Postgres, Redis ham ishlaydi. Egress kvotasini
+          # 3.0 ga ko'tarish "hisob sig'sin" uchun qilinsa, birinchi
+          # bo'lib yozuv emas, JONLI DARS sinardi.
+          #
+          # PASAYTIRILMADI HAM (3.0 -> 2.0 qilinmadi): eski quvurdagi
+          # room-composite o'lchangan cho'qqisi 2.14 yadro. Kvotani 2.0
+          # ga tushirish uni CHEKLARDI — kadrlar tashlanardi. Aynan
+          # 1-fazada esa eski quvur SOLISHTIRISH ETALONI, ya'ni uni
+          # buzish butun A/B sinovini ma'nosiz qilardi.
+          #
+          # ★ QAROR: knopkaga umuman tegilmaydi, YUQORIDAGI BUDJET esa
+          #   ENG YOMON HOLATGA (2.0, ya'ni hisobga 1.60) hisoblangan.
+          #   Shuning uchun jadval `.env` da 2.0 ham, 3.0 ham tursa
+          #   TO'G'RI qoladi — 3.0 da shunchaki zaxira ko'proq (2.40).
+          #
+          # HAQIQATNI SERVERDA TEKSHIRING (fayl emas, LOG aytadi):
+          #   grep '^EGRESS_CPUS=' .env
+          #   docker logs zinnur-v2-egress | grep 'cpu available'
           # ══════════════════════════════════════════════════════════
           cpus: "${EGRESS_CPUS:-3.0}"
           # Chrome + ffmpeg + kadr buferi. 2G dan pastda uzun darsda
@@ -836,6 +1046,79 @@ services:
           # itarilmasin. GC pauzasi paytida swap'dan o'qish latency'ni
           # sakratadi va bu p99 da darhol ko'rinadi.
           memory: ${API_MEM_RESERVATION:-512M}
+
+  # ==========================================================================
+  # COMPOSITOR — tungi yozuv yig'uvchisi (SPEC-RECORDING-V2 §4.2)
+  # ==========================================================================
+  #  Xizmatning O'ZI `docker-compose.yml` da (nima uchun alohida konteyner
+  #  ekani ham o'sha yerda). Bu yerda faqat prod farqlari: resurs
+  #  chegaralari, log rotatsiyasi va LiveKit manzili.
+  compositor:
+    logging: *default-logging
+
+    # `api` bilan AYNI sabab: `/health/ready` LiveKit'ni ham tekshiradi va
+    # bridge tarmog'idan `livekit` nomi PROD'da YECHILMAYDI
+    # (`network_mode: host`). Usiz healthcheck ishlayveradi (LiveKit
+    # nosozligi `Degraded`, ya'ni HTTP 200), lekin log har 30 sekundda
+    # "LiveKit'ga ulanib bo'lmadi" bilan to'lardi va haqiqiy nosozlikni
+    # ko'rinmas qilardi.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      LiveKit__Url: http://host.docker.internal:7880
+
+    # ------------------------------------------------------------------
+    # NISBIY USTUNLIK — kvotadan MUSTAQIL ikkinchi qatlam
+    # ------------------------------------------------------------------
+    # LiveKit'da bu 2048 (standartdan YUQORI), bu yerda esa ATAYLAB
+    # standartdan PAST. Ma'nosi: yadro uchun raqobat bo'lsa kodlovchi
+    # BIRINCHI bo'lib yon beradi.
+    #
+    # NEGA SHUNCHAKI KVOTA YETARLI EMAS: kvota (`cpus:`) bo'sh mashinada
+    # ham to'xtatadi, ya'ni kechasi kodlashni sekinlashtiradi. Shares esa
+    # bo'sh mashinada UMUMAN sezilmaydi va faqat raqobat paytida ishlaydi.
+    # Bizga aynan shu kerak: kechasi tez kodla, kunduzi (yoki oyna xato
+    # sozlangan bo'lsa) darhol yon ber.
+    #
+    # ⚠️ Bu ikkinchi qatlam, BIRINCHISI EMAS. Birinchi himoya — tungi
+    #    oyna (`recordings.compose_window_*`, standart 00:00-09:00) va
+    #    `Composition__StartCutoffMinutes=30`.
+    cpu_shares: ${COMPOSITOR_CPU_SHARES:-256}
+
+    deploy:
+      resources:
+        limits:
+          # ══════════════════════════════════════════════════════════
+          # 🔴 3.0 — SPEC §4.2 DAGI 3.5 DAN PAST, VA BU ATAYLAB
+          #
+          # SPEC 3.5 taklif qiladi. Server esa 4 vCPU va tungi oynada
+          # (00:00-09:00) yolg'iz emas: AYNI oynada `pg_dump` zaxirasi
+          # ham ishlaydi (cron, ~1 yadro) va api/Postgres/Redis ham
+          # tirik. 3.5 + 1.0 = 4.5 > 4.0 — ya'ni zaxira olish kodlash
+          # bilan raqobatga kirardi. Zaxira sekinlashishi esa jimgina
+          # xavf: u kechikkanini hech kim ko'rmaydi.
+          #
+          # x264 uchun 3.0 va 3.5 orasidagi farq deyarli sezilmaydi
+          # (§4.3 budjeti: 9 soatlik oynada 4.5-6 soat kodlash, ya'ni
+          # ~3 soat zaxira bor). Xavfsizlik esa aniq: oyna xato
+          # sozlansa yoki ffmpeg to'xtash signalini o'tkazib yuborsa,
+          # 3.0 + `cpu_shares: 256` bilan jonli dars OMON QOLADI.
+          # ══════════════════════════════════════════════════════════
+          cpus: "${COMPOSITOR_CPUS:-3.0}"
+          # ffmpeg + x264 bufer + S3 yuklash oqimi. O'lchov yo'q, shuning
+          # uchun ATAYLAB keng: 2G da OOM (exit 137) bo'lsa tungi ish
+          # yo'qoladi va buni ertalab hech kim sezmaydi — qator
+          # `Queued` da qolib, keyingi kechada qayta uriniladi
+          # (`CompositionAttempts` oshadi). Ya'ni nosozlik SEKIN va
+          # KO'RINMAS. 2G — SPEC qiymati, o'zgartirilmadi.
+          memory: ${COMPOSITOR_MEM:-2G}
+        reservations:
+          # `memory.low` — kodlash paytida ishchi to'plam swap'ga
+          # itarilmasin. Swap'dan o'qiydigan x264 diskni urib, AYNI
+          # diskdagi Postgres'ni sekinlashtiradi.
+          memory: ${COMPOSITOR_MEM_RESERVATION:-512M}
 
   # ==========================================================================
   # WEB (nginx + statik fayllar)

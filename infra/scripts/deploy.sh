@@ -75,6 +75,51 @@ fi
 
 ok "sirlar almashtirilgan, muhit Production"
 
+# ---------------------------------------------------- 0b. LiveKit prod yaml
+# ═══════════════════════════════════════════════════════════════════════════
+# PROD LiveKit konfiguratsiyasi SHABLONDAN yasaladi.
+#
+# NEGA: `webhook.api_key` `.env` dagi `LIVEKIT_API_KEY` bilan AYNAN bir xil
+# bo'lishi SHART (aks holda LiveKit hodisani imzolay olmaydi va uni JIMGINA
+# tashlab yuboradi), LiveKit esa yaml ichida `${...}` ni KENGAYTIRMAYDI.
+# Qiymatni shablonga qo'lda yozib qo'yish ikki narsani buzardi: sir git'ga
+# tushardi va serverdagi qo'lda tahrir `git pull --ff-only` ni to'xtatardi.
+#
+# ⚠️ BU QADAM `up -d` DAN OLDIN BO'LISHI SHART. Fayl bo'lmasa Docker uning
+#    o'rniga BO'SH PAPKA yaratadi va LiveKit "is a directory" bilan yiqiladi
+#    — ya'ni JONLI DARSLAR to'xtaydi.
+# ═══════════════════════════════════════════════════════════════════════════
+log "LiveKit prod konfiguratsiyasi yasalmoqda"
+
+LK_TEMPLATE="infra/livekit/livekit.prod.yaml"
+LK_GENERATED="infra/livekit/livekit.prod.generated.yaml"
+
+[[ -f "$LK_TEMPLATE" ]] || { fail "$LK_TEMPLATE topilmadi."; exit 1; }
+
+# `.env` ni O'QIYMIZ, lekin faqat shu qadam uchun (subshell EMAS — qiymat
+# kerak). `set -a` bilan hamma o'zgaruvchi eksport bo'ladi; keyin darhol
+# o'chiramiz, aks holda `.env` dagi hamma narsa skript muhitiga oqib ketardi.
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+
+if [[ -z "${LIVEKIT_API_KEY:-}" ]]; then
+    fail ".env da LIVEKIT_API_KEY bo'sh. Usiz webhook imzolanmaydi va"
+    fail "dars yozuvi JIMGINA ishlamaydi (hech qayerda xato chiqmaydi)."
+    exit 1
+fi
+
+sed "s|__LIVEKIT_API_KEY__|${LIVEKIT_API_KEY}|" "$LK_TEMPLATE" > "$LK_GENERATED"
+
+# Shablon almashtirilmay qolgan bo'lsa (masalan kimdir belgini o'zgartirgan)
+# LiveKit ko'tariladi-yu, webhook JIMGINA ishlamasdi. Balandlashtiramiz.
+if grep -q '__LIVEKIT_API_KEY__' "$LK_GENERATED"; then
+    fail "$LK_GENERATED da hali ham __LIVEKIT_API_KEY__ turibdi."
+    exit 1
+fi
+ok "$LK_GENERATED tayyor (webhook api_key = .env dagi LIVEKIT_API_KEY)"
+
 # ---------------------------------------------------------------- 1. Kod
 if [[ "${SKIP_PULL:-0}" != "1" ]]; then
     log "Yangi kod olinmoqda (git pull)"
@@ -120,9 +165,30 @@ fi
 
 # ---------------------------------------------------------------- 3. Qurish
 # 🔴 `api` va `web` BIRGA. Sabab yuqoridagi izohning 1-bandida.
-log "Образlar qurilmoqda (api va web BIRGA — shartnoma bog'liqligi)"
-"${COMPOSE[@]}" build api web
+#
+# 🔴 `compositor` HAM SHU YERDA (2026-09-05 da qo'shildi). U `api` bilan
+#    AYNI manbadan quriladi, faqat boshqa Dockerfile bosqichidan
+#    (`runtime-media` — ffmpeg bilan). Ro'yxatga qo'shilmasa nosozlik
+#    JIMGINA bo'lardi: `up -d` mavjud image'ni QAYTA QURMAYDI, ya'ni
+#    kodlovchi ESKI kod bilan ishlayverardi va buni faqat kechasi,
+#    yig'ish natijasidan bilib olish mumkin bo'lardi.
+log "Образlar qurilmoqda (api, web, compositor)"
+"${COMPOSE[@]}" build api web compositor
 ok "образlar tayyor"
+
+# 🔴 `api` IMAGE'IDA ffmpeg BO'LMASLIGI KERAK (SPEC-RECORDING-V2 §8).
+#
+# `backend/Dockerfile` da `runtime` dan KEYIN `runtime-media` bosqichi bor.
+# `api` ning `build.target: runtime` qatori tushib qolsa Docker OXIRGI
+# bosqichni quradi va internetga ochiq konteyner ichiga ~110 MB media
+# kutubxonasi tushardi. HECH NARSA YIQILMAYDI — shuning uchun tekshiruv
+# aynan shu yerda, avtomatik.
+if docker run --rm --entrypoint sh zinnur/api:dev -c 'command -v ffmpeg' >/dev/null 2>&1; then
+    fail "api image'ida ffmpeg BOR — `docker-compose.yml` dagi"
+    fail "`api.build.target: runtime` tushib qolgan. Deploy TO'XTATILDI."
+    exit 1
+fi
+ok "api image'ida ffmpeg yo'q (target: runtime saqlangan)"
 
 # ---------------------------------------------------------------- 4. Ko'tarish
 log "Xizmatlar ko'tarilmoqda (migratsiyalar avtomatik qo'llanadi)"

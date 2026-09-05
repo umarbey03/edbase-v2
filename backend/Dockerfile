@@ -7,10 +7,19 @@
 #
 #  Yig'ish:  docker compose build api
 #
-#  UCH BOSQICHLI (multi-stage) qurilish:
-#     restore -> build -> runtime
+#  TO'RT BOSQICHLI (multi-stage) qurilish:
+#     restore -> build -> runtime -> runtime-media
 #  Yakuniy image'da SDK ham, manba kod ham, NuGet keshi ham QOLMAYDI.
 #  Natija: ~110 MB (SDK bilan bo'lsa ~800 MB) va hujum yuzasi ancha kichik.
+#
+#  🔴 IKKITA TURLI IMAGE, IKKITA TURLI XIZMAT — `--target` MAJBURIY:
+#     `api`        -> `--target runtime`        (ffmpeg YO'Q, internetga ochiq)
+#     `compositor` -> `--target runtime-media`  (ffmpeg BOR, tashqariga yopiq)
+#
+#     `--target` berilmasa Docker OXIRGI bosqichni quradi — ya'ni
+#     `runtime-media` ni. Shuning uchun `docker-compose.yml` dagi `api`
+#     xizmatida `build.target: runtime` YOZILGAN va uni olib tashlash
+#     api image'iga ffmpeg'ni JIMGINA qo'shib qo'yardi (4-bosqich izohi).
 # =============================================================================
 
 
@@ -174,3 +183,59 @@ USER zinnur
 # ENTRYPOINT (CMD emas): argumentlarni almashtirib yuborish qiyinlashadi,
 # ya'ni konteyner "faqat shu ishni bajaradi".
 ENTRYPOINT ["dotnet", "Zinnur.WebApi.dll"]
+
+
+# =============================================================================
+#  BOSQICH 4 — RUNTIME-MEDIA (FAQAT `compositor` konteyneri uchun)
+# =============================================================================
+#  Bu bosqich `runtime` NING USTIGA ffmpeg + ffprobe qo'shadi va BOSHQA
+#  HECH NARSA qilmaydi. Kod, ENTRYPOINT, foydalanuvchi, HEALTHCHECK —
+#  hammasi `runtime` dan meros.
+#
+#  NIMA UCHUN ALOHIDA IMAGE, api'ga ffmpeg qo'shib qo'ya qolmadikmi:
+#    1) `api` INTERNETGA ochiq konteyner (host nginx orqali). ffmpeg —
+#       katta, tez-tez CVE chiqadigan media kutubxonalar to'plami
+#       (libav*, x264, ...). Uni hujum yuzasiga qo'shishning ma'nosi yo'q:
+#       api hech qachon media kodlamaydi.
+#    2) Image hajmi: ffmpeg + bog'liqliklari ~110 MB. `api` har deploy'da
+#       tortiladi/qayta quriladi, `compositor` esa kamdan-kam.
+#
+#  🔴 BU BOSQICH `runtime` DAN KEYIN TURADI, YA'NI U ENDI OXIRGI BOSQICH.
+#     Docker `--target` berilmasa OXIRGI bosqichni quradi. Shuning uchun
+#     `docker-compose.yml` dagi `api` xizmatiga `target: runtime` YOZILDI
+#     (AYNI KOMMITDA). Usiz `api` JIMGINA shu yerga ko'chib o'tardi:
+#     hech narsa yiqilmaydi, testlar yashil qoladi, api shunchaki ichida
+#     ffmpeg bilan ishlay boshlardi.
+#
+#     TEKSHIRUV (deploy'dan keyin MAJBURIY, docs/SPEC-RECORDING-V2.md §8):
+#       docker run --rm --entrypoint sh zinnur/api:dev -c 'command -v ffmpeg'
+#       -> BO'SH chiqishi va nol bo'lmagan kod qaytishi SHART.
+# =============================================================================
+FROM runtime AS runtime-media
+
+# `apk` root talab qiladi; `runtime` bosqichi allaqachon `USER zinnur` ga
+# o'tgan, shuning uchun vaqtincha root'ga qaytamiz va DARROV tushamiz.
+USER root
+
+# ffmpeg paketi ffprobe'ni HAM olib keladi (alpine'da ular bitta paketda).
+# `FfmpegComposerSettings.Default` ikkalasini PATH dan nom bilan qidiradi
+# ("ffmpeg" / "ffprobe"), shuning uchun qo'shimcha ENV kerak emas.
+#
+# ⚠️ Versiya QOTIRILMAGAN va bu ATAYLAB: alpine base image'i o'zi bilan
+# birga yangilanadi, `apk` esa qotirilgan versiyani bir necha oydan keyin
+# umuman topa olmay qoladi ("unable to select packages") va build JIMGINA
+# yiqiladi. Filtr grafigi ffmpeg 6/7 da bir xil ishlaydi (o'lchandi:
+# `RecordingCompositionPlannerTests` golden satrlari versiyaga bog'liq emas).
+RUN apk add --no-cache ffmpeg
+
+# Ish papkasining ildizi (`Composition__ScratchPath`). Compose bu yerga
+# nomlangan volume ulaydi; volume `zinnur` egaligida bo'lishi uchun papka
+# IMAGE ichida oldindan to'g'ri egalik bilan yaratiladi — aks holda Docker
+# uni root nomidan yaratadi va root'siz jarayon unga YOZA OLMAYDI
+# ("Permission denied", ffmpeg umuman ishga tushmaydi).
+RUN mkdir -p /var/lib/zinnur/compose \
+ && chown -R zinnur:zinnur /var/lib/zinnur
+
+USER zinnur
+
+# ENTRYPOINT/HEALTHCHECK/EXPOSE — `runtime` dan meros, qayta yozilmaydi.

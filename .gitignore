@@ -58,3 +58,10 @@ backups/
 # Prerender oraliq bundle`i (scripts/prerender.mjs uni o`chiradi, lekin
 # build yarim yo`lda uzilsa qolib ketishi mumkin).
 dist-ssg
+
+# ---- Deploy paytida yasaladigan fayllar ----
+# `infra/livekit/livekit.prod.yaml` — SHABLON (git'da).
+# `deploy.sh` undan `__LIVEKIT_API_KEY__` ni `.env` dagi qiymatga
+# almashtirib quyidagi faylni yasaydi va konteynerga AYNAN o'sha ulanadi.
+# U git'ga TUSHMASLIGI kerak: ichida `.env` dan olingan kalit bor.
+infra/livekit/livekit.prod.generated.yaml

@@ -559,6 +559,26 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 `target` NI OLIB TASHLAMANG — BU QATOR HECH NARSANI YIQITMAYDI,
+      #    LEKIN USIZ api IMAGE'I JIMGINA BOSHQA BO'LIB QOLADI.
+      #
+      # `backend/Dockerfile` da `runtime` DAN KEYIN yana bir bosqich bor:
+      # `runtime-media` (ffmpeg bilan, `compositor` uchun). Docker
+      # `--target` berilmasa OXIRGI bosqichni quradi — ya'ni `target`
+      # yozilmasa `api` ham ffmpeg'li image'ga ko'chib o'tardi.
+      #
+      # NEGA BUNI HECH KIM SEZMASDI: build yashil, testlar yashil,
+      # `/health/ready` yashil. Farq faqat shunda: internetga ochiq
+      # konteyner ichida ~110 MB media kutubxonasi (libav*, x264 —
+      # CVE'lari muntazam chiqadigan kod) paydo bo'lardi va api uni
+      # HECH QACHON ishlatmasdi.
+      #
+      # TEKSHIRUV (SPEC-RECORDING-V2 §8, deploy'dan keyin MAJBURIY):
+      #   docker run --rm --entrypoint sh zinnur/api:dev -c 'command -v ffmpeg'
+      #   -> bo'sh chiqish + nol bo'lmagan kod.
+      # ══════════════════════════════════════════════════════════════════
+      target: runtime
     image: zinnur/api:dev
     container_name: zinnur-v2-api
     restart: unless-stopped
@@ -663,6 +683,16 @@ services:
       Telegram__MiniAppUrl: ${TELEGRAM_MINI_APP_URL:-}
       Telegram__BotUsername: ${TELEGRAM_BOT_USERNAME:-}
 
+      # ---- TUNGI YIG'ISH (SPEC-RECORDING-V2 §4.2) -------------------------
+      # 🔴 `api` DA OSHKORA `false`. Standart ham `false`
+      # (`CompositionOptions.Enabled`), lekin bu yerda ATAYLAB QAYTA
+      # yoziladi: yig'ish AYNAN BITTA konteynerda ketishi shart va
+      # "standartga ishonaman" degan yozilmagan kelishuv aynan shunday
+      # buziladi — kimdir `.env` ga `Composition__Enabled=true` qo'shsa
+      # (env_file BARCHA o'zgaruvchini uzatadi) IKKI kodlovchi bitta
+      # obyekt kalitiga yozardi. Bu qator uni to'sadi.
+      Composition__Enabled: "false"
+
       # ---- Notifikatsiya navbati (FAZA 5.2) -------------------------------
       # Telegram global chegarasi 30 xabar/sekund. 25 — ataylab pastroq:
       # chegaraga tegib 429 olgandan ko'ra sal sekin yuborgan afzal.
@@ -748,6 +778,141 @@ services:
     networks: [zinnur-v2-net]
 
   # ===========================================================================
+  #  COMPOSITOR — tungi dars yozuvi yig'uvchisi (SPEC-RECORDING-V2 §4.2)
+  # ===========================================================================
+  #  AYNI KOD, BOSHQA IMAGE, BOSHQA VAZIFA. Bu `api` ning nusxasi emas:
+  #  u `runtime-media` bosqichidan quriladi (ffmpeg bor) va faqat bitta
+  #  fon siklini yuritadi — 00:00-09:00 (Asia/Tashkent) oralig'ida
+  #  `TrackComposition` yozuvlarini bitta mp4 ga yig'adi.
+  #
+  #  NEGA BU ISH `api` ICHIDA BAJARILMAYDI (§4.2, ikkalasi ham halokatli):
+  #    1) `JobRunner.RunAllAsync` navbatdagi vazifalarni KETMA-KET va
+  #       KUTIB bajaradi. 90 daqiqalik ffmpeg `IScheduledJob` ichida
+  #       bo'lsa `SessionAutoCloseJob`, `MonthlyBillingJob`,
+  #       `PenaltyScanJob` va `ChatRetentionJob` 90 daqiqa TO'XTARDI —
+  #       ya'ni darslar avtomatik yopilmay qolardi.
+  #    2) ffmpeg `api` image'ida yo'q va u yerda bo'lishi ham kerak emas
+  #       (`api` internetga ochiq — `backend/Dockerfile`, 4-bosqich).
+  #
+  #  🔴 TASHQARIGA UMUMAN CHIQMAYDI: `ports:` YO'Q va bo'lmasligi ham
+  #     kerak. Bu konteyner bilan hech kim gaplashmaydi — u o'zi bazadan
+  #     ish oladi (`SessionRecordings` qatoridagi ijara, §4.4).
+  compositor:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      # 🔴 `api` DAN YAGONA FARQ SHU YERDA. `runtime-media` = `runtime`
+      #    + ffmpeg/ffprobe. Qolgan hamma qatlam AYNI, shuning uchun
+      #    ikkinchi image deyarli bepul (faqat ffmpeg qatlami qo'shiladi).
+      target: runtime-media
+    image: zinnur/compositor:dev
+    container_name: zinnur-v2-compositor
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      # Konteyner ichida baribir 8080 ni tinglaydi (image'dan meros) —
+      # bu FAQAT healthcheck uchun kerak, tashqariga chiqmaydi.
+      ASPNETCORE_URLS: http://+:8080
+
+      # ---- Baza va Redis: `api` BILAN AYNI QATORLAR --------------------
+      # ⚠️ Bular `api` bloki bilan TAKRORLANADI va bu ATAYLAB: compose
+      # `environment` ni xizmatlar ORASIDA meros qilmaydi. YAML anchor
+      # bilan umumlashtirish mumkin edi, lekin u holda `api` ning
+      # sozlamasini o'zgartirgan odam bilmagan holda `compositor` ni ham
+      # o'zgartirardi — ikkalasi turli ish qiladi, shuning uchun ular
+      # ATAYLAB alohida turadi.
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Maximum Pool Size=${COMPOSITOR_MAX_POOL_SIZE:-10};Timeout=15;Command Timeout=30"
+      ConnectionStrings__Redis: "redis:6379,abortConnect=false,connectTimeout=5000"
+
+      # ---- Nima YOQILADI va nima O'CHIRILADI ---------------------------
+      # 🔴 UCHTA BAYROQ — UCHALASI HAM OSHKORA YOZILGAN. Standartga
+      #    tayanmaymiz: bu yerda "unutilgan bayroq" ning narxi ikki
+      #    kodlovchi yoki ikki rejalashtiruvchi.
+      #
+      #  Composition__Enabled=true  -> tungi sikl FAQAT shu konteynerda.
+      Composition__Enabled: "true"
+      #  Jobs__Enabled=false        -> `JobRunner` bu yerda ISHLAMAYDI.
+      #    Aks holda `SessionAutoCloseJob`, `MonthlyBillingJob` va
+      #    `PenaltyScanJob` IKKI nusxada ketardi. Ular `IJobLock`
+      #    (Postgres advisory lock) bilan himoyalangan, ya'ni ma'lumot
+      #    buzilmasdi — lekin har tikda "LockLost" ogohlantirishlari
+      #    logni to'ldirardi va haqiqiy nosozlikni ko'rinmas qilardi.
+      Jobs__Enabled: "false"
+      #  Notifications__Enabled=false -> outbox dispetcheri FAQAT `api` da.
+      #    Outbox qatorlarni ijaraga oladi, ya'ni takroriy yuborish
+      #    MUMKIN EMAS EDI — bu shunchaki 300 MB behuda ish.
+      Notifications__Enabled: "false"
+
+      # Ishchi papka. Bitta ish ~6 GB egallaydi (§4.7), shuning uchun bu
+      # ALOHIDA volume — konteynerning yozuv qatlami emas (u overlay2 da
+      # va u yerga 6 GB yozish disk to'lishining eng tez yo'li).
+      Composition__ScratchPath: /var/lib/zinnur/compose
+
+      DOTNET_gcServer: "1"
+
+    volumes:
+      - compositor-scratch:/var/lib/zinnur/compose
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # ══════════════════════════════════════════════════════════════════
+      # 🔴 `api: service_healthy` — BU QATOR MIGRATSIYA POYGASINI TO'SADI
+      #
+      # `DbInitializer.InitializeAsync` HAR konteynerda, `app.RunAsync()`
+      # DAN OLDIN ishga tushadi va kutilayotgan EF migratsiyalarini
+      # QO'LLAYDI. Ya'ni `api` va `compositor` bir vaqtda ko'tarilsa
+      # IKKALASI ham `MigrateAsync` chaqiradi.
+      #
+      # EF Core migratsiyani qulflamaydi: ikkinchisi yo "relation already
+      # exists" bilan yiqiladi (konteyner restart halqasiga tushadi), yoki
+      # undan yomoni — `__EFMigrationsHistory` ga yozuv tushmasdan sxema
+      # qisman o'zgargan holatda qoladi. Prod bazada bu tuzatib
+      # bo'lmaydigan holat.
+      #
+      # `service_healthy` ni kutish buni TO'LIQ hal qiladi: `api`
+      # `/health/ready` ga javob bera boshlaganda migratsiya ALLAQACHON
+      # tugagan bo'ladi (u `RunAsync` dan oldin), shuning uchun
+      # `compositor` uchun kutilayotgan migratsiya qolmaydi va u hech
+      # narsa qilmaydi.
+      #
+      # ⚠️ Bu `api` ga FUNKSIONAL bog'liqlik EMAS — compositor api'ga
+      #    birorta so'rov yubormaydi. Bog'liqlik faqat TARTIB uchun.
+      # ══════════════════════════════════════════════════════════════════
+      api:
+        condition: service_healthy
+
+    healthcheck:
+      # Image'dan meros HEALTHCHECK ham xuddi shu, lekin bu yerda OSHKORA
+      # yoziladi: `depends_on` ishlatgan odam qaysi shart tekshirilishini
+      # compose faylining o'zidan ko'rsin.
+      #
+      # ⚠️ Bu "yig'ish ishlayaptimi" ni tekshirmaydi — u kechasi ishlaydi
+      #    va kunduzi UXLAYDI (bu NORMAL holat). Kuzatuv boshqa yo'l
+      #    bilan: docs/DEPLOY_RECORDING_V2.md, 6-bo'lim.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+    # 🔴 `CompositionOptions.StopGraceSeconds` (standart 10 s) DAN KATTA
+    #    BO'LISHI SHART. Ishchi SIGTERM ni oladi, ffmpeg'ga SIGTERM
+    #    yuboradi va 10 s kutib SIGKILL qiladi. Docker bizni 10 s da
+    #    o'ldirsa ffmpeg YETIM qolardi: protsess ishlab turaveradi, ish
+    #    papkasi tozalanmaydi va keyingi restartda ikkinchi ffmpeg
+    #    AYNI kalitga yozishga urinardi.
+    stop_grace_period: 45s
+
+    networks: [zinnur-v2-net]
+
+  # ===========================================================================
   #  WEB — Vue 3 + Vite, nginx orqali statik tarqatiladi
   # ===========================================================================
   web:
@@ -821,3 +986,19 @@ volumes:
   # yuklangan rasmlar har restartda yo'qolib ketmasin.
   minio-data:
     name: zinnur-v2-minio-data
+
+  # Tungi yig'ishning ish papkasi (§4.7). Bitta ish CHO'QQIDA ~6 GB:
+  # xom kirishlar (1.5-2.5 GB) + natija (1-2 GB) + `faststart` uchun
+  # vaqtinchalik nusxa (1-2 GB). Bir vaqtda BITTA ish ketadi va papka
+  # `finally` da tozalanadi, lekin konteyner o'ldirilsa qoldiq qoladi —
+  # shuning uchun ishga tushishda 24 soatdan eski papkalar o'chiriladi
+  # (`Composition__ScratchMaxAgeHours`).
+  #
+  # ⚠️ NOMLANGAN VOLUME, konteynerning yozuv qatlami EMAS: overlay2 ga
+  #    6 GB yozish — diskni to'ldirishning eng tez yo'li va u butun
+  #    serverni (jumladan jonli darsni) to'xtatadi.
+  #
+  # Serverda bu volume `/var/lib/docker/volumes/` da yashaydi. Zaxirasi
+  # KERAK EMAS — ichidagi hamma narsa qayta yaratiladigan oraliq fayl.
+  compositor-scratch:
+    name: zinnur-v2-compositor-scratch

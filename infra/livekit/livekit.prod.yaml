@@ -1,0 +1,200 @@
+# =============================================================================
+#  ZIN-NUR v2 — LiveKit server, PRODUCTION konfiguratsiyasi
+# =============================================================================
+#
+#  🔴 BU FAYL SHABLON. U TO'G'RIDAN-TO'G'RI ULANMAYDI.
+#
+#  Deploy paytida undan `livekit.prod.generated.yaml` yasaladi va konteynerga
+#  AYNAN O'SHA ulanadi (`docker-compose.prod.yml` -> livekit -> volumes).
+#  Yasash buyrug'i (`infra/scripts/deploy.sh` uni o'zi bajaradi):
+#
+#      set -a; . ./.env; set +a
+#      sed "s|__LIVEKIT_API_KEY__|${LIVEKIT_API_KEY}|" \
+#          infra/livekit/livekit.prod.yaml \
+#          > infra/livekit/livekit.prod.generated.yaml
+#
+#  NEGA SHABLON, NEGA QIYMATNI SHU YERGA YOZIB QO'YMADIK:
+#
+#    1) `webhook.api_key` `.env` dagi `LIVEKIT_API_KEY` BILAN AYNI bo'lishi
+#       SHART (sabab pastda). Uni bu yerga qo'lda yozib qo'ysak, kalit
+#       almashtirilganda IKKI joyni tuzatish kerak bo'lardi va ikkinchisi
+#       unutilardi — nosozlik esa JIMGINA (pastdagi 2-tuzoq).
+#
+#    2) Serverdagi faylni qo'lda tahrirlash YO'L QO'YILMAYDI: bu fayl git'da,
+#       `deploy.sh` esa `git pull --ff-only` qiladi va lokal o'zgarish butun
+#       deploy'ni TO'XTATARDI.
+#
+#    3) LiveKit konfiguratsiya faylida `${...}` ni KENGAYTIRMAYDI (env
+#       substitution YO'Q — yaml qanday yozilgan bo'lsa shunday o'qiladi).
+#       TEKSHIRILDI (livekit-server v1.13 binary'sining satrlari): u faqat
+#       `LIVEKIT_CONFIG`, `LIVEKIT_KEYS`, `LIVEKIT_REGION`, `LIVEKIT_TURN_*`,
+#       `LIVEKIT_CPU_REQUEST`, `NODE_IP`, `UDP_PORT`, `REDIS_HOST`,
+#       `REDIS_PASSWORD` ni o'qiydi. `webhook.*` uchun env YO'Q.
+#
+#  ⚠️ `infra/livekit/livekit.yaml` (DEV) GA TEGILMAYDI. Bu fayl uning
+#     YONIDA turadi va prod'da uning O'RNIGA ulanadi. Ikkalasining amaldagi
+#     sozlamalari AYNI bo'lishi kerak — pastdagi `webhook:` blokidan boshqa.
+#
+#     TEKSHIRUV (chiqishda FAQAT `webhook:` bloki qo'shilgan bo'lishi shart):
+#       diff <(grep -vE '^\s*#|^\s*$' infra/livekit/livekit.yaml) \
+#            <(grep -vE '^\s*#|^\s*$' infra/livekit/livekit.prod.yaml)
+# =============================================================================
+
+
+# --- SIGNALLING PORTI ---
+# HTTP/WebSocket. Prod'da konteyner `network_mode: host` da ishlaydi, ya'ni
+# bu port HOST ning 7880 i. Tashqariga host nginx chiqaradi (wss, TLS bilan).
+port: 7880
+
+
+# --- WebRTC ---
+# Bu blok DEV FAYLIDAN BAYTMA-BAYT KO'CHIRILGAN. Sababi: prod'dagi ICE
+# xatti-harakati `network_mode: host` va env orqali boshqariladi
+# (`docker-compose.prod.yml` da dev'ning `NODE_IP` / `LIVEKIT_RTC_*`
+# override'lari `!reset` bilan olib tashlanadi), YAML EMAS.
+rtc:
+  udp_port: 7882
+  tcp_port: 7881
+  allow_tcp_fallback: true
+  use_external_ip: true
+  enable_loopback_candidate: false
+  use_ice_lite: false
+  congestion_control:
+    enabled: true
+    allow_pause: true
+
+
+# --- REDIS ---
+# ⚠️ BU QATOR PROD'DA AMALDA ISHLATILMAYDI va uni o'chirish HAM XATO.
+# `docker-compose.prod.yml` LiveKit'ga `REDIS_HOST=127.0.0.1:6390` env'ini
+# beradi va u YAML dagi `redis.address` NI BEKOR QILADI. Sabab:
+# `network_mode: host` Docker ichki DNS'ini o'chiradi, ya'ni `redis` nomi
+# yechilmaydi. Qator dev fayli bilan bir xil turadi — yuqoridagi `diff`
+# tekshiruvi "faqat webhook qo'shildi" deyishi uchun.
+redis:
+  address: redis:6379
+  db: 0
+
+
+# --- TURN ---
+# Dev fayli bilan AYNI. ⚠️ `domain: localhost` bu yerda ham qoldi va bu
+# BILIB QOLDIRILDI: prod'da TURN allaqachon shu sozlama bilan ishlab turibdi
+# (`tls_port: 0`, ya'ni faqat UDP rele). Uni to'g'rilash — media serverning
+# ulanish yo'lini o'zgartirish, ya'ni ALOHIDA ish va alohida sinov.
+# Yozuv webhook'ini yoqish bilan bir kommitda qilinmaydi.
+turn:
+  enabled: true
+  tls_port: 0
+  udp_port: 3478
+  domain: localhost
+  external_tls: false
+
+
+# --- XONA ---
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 60
+  max_participants: 250
+  max_metadata_size: 4096
+  max_participant_identity_length: 64
+  max_room_name_length: 128
+  enable_remote_unmute: false
+  sync_streams: false
+
+
+# --- CHEGARALAR ---
+limit:
+  subscription_limit_video: 12
+  subscription_limit_audio: 0
+  num_tracks: -1
+  bytes_per_sec: 0
+
+
+# --- OVOZ FAOLLIGI ---
+audio:
+  update_interval: 500
+  active_level: 35
+  smooth_intervals: 4
+
+
+# --- LOGLAR ---
+# Dev fayli bilan AYNI. `json: false` ATAYLAB o'zgartirilmadi: log
+# formatini almashtirish — jonli media serverning chiqishini o'zgartirish,
+# ya'ni `docker compose logs livekit | grep ...` ga tayanadigan hamma
+# tekshiruv (jumladan §3.4b dagi `request validated` darvozasi) qayta
+# yozilishi kerak bo'lardi. Bu ALOHIDA ish, webhook bilan bir kommitda emas.
+logging:
+  level: info
+  pion_level: error
+  json: false
+  sample: false
+
+
+# =============================================================================
+#  WEBHOOK'LAR — PROD'DA YOQILDI (SPEC-RECORDING-V2 §3.3, P0)
+# =============================================================================
+#  Dev faylida bu blok IZOHDA turadi va shunday qoladi.
+#
+#  NIMA UCHUN ENDI KERAK: yangi yozuv quvuri track'larni webhook orqali
+#  TOPADI. `track_published` kelmasa `RecordingTrack` qatori yaratilmaydi,
+#  ya'ni `TrackEgress` UMUMAN boshlanmaydi. Eski quvurda webhook ixtiyoriy
+#  edi (haqiqat manbai ombor + watchdog), yangisida esa MAJBURIY.
+#
+#  Qabul qiluvchi tomon ALLAQACHON TAYYOR va o'zgartirilmaydi:
+#      POST /api/v1/livekit/webhook
+#      -> LiveKitWebhookController + LiveKitWebhookVerifier (imzo tekshiruvi)
+#
+#  ─────────────────────────────────────────────────────────────────────────
+#  🔴 IKKITA TUZOQ. IKKALASI HAM JIMGINA — hech qayerda xato chiqmaydi.
+#  ─────────────────────────────────────────────────────────────────────────
+#
+#  1) MANZIL. Prod'da LiveKit `network_mode: host` da ishlaydi, ya'ni u
+#     bridge tarmog'ida UMUMAN YO'Q va Docker ichki DNS nomi `api`
+#     YECHILMAYDI:
+#
+#         docker exec zinnur-v2-livekit getent hosts api   -> bo'sh
+#
+#     Dev manzili (`http://api:8080/...`) bu yerga ko'chirilsa LiveKit har
+#     hodisada DNS xatosi oladi va uni O'ZI YUTADI (webhook — "yubor va
+#     unut"). Ya'ni api logida HECH NARSA ko'rinmaydi, yozuv esa
+#     boshlanmaydi. To'g'ri manzil — HOST ning loopback'i va api'ning
+#     tashqi porti:
+#
+#         http://127.0.0.1:5080/api/v1/livekit/webhook
+#
+#     (5080 — `docker-compose.prod.yml` dagi `127.0.0.1:5080:8080`.
+#      `network_mode: host` bo'lgani uchun LiveKit host'ning loopback'ini
+#      to'g'ridan-to'g'ri ko'radi. AYNI naqsh Redis'da allaqachon
+#      ishlatilgan: `REDIS_HOST=127.0.0.1:6390`.)
+#
+#     ⚠️ nginx ORQALI YUBORILMAYDI (`https://api.<domen>/...` emas):
+#        keraksiz TLS, keraksiz tashqi marshrut va nginx yiqilsa yozuv ham
+#        yiqilardi. Ichki chaqiruv ichkarida qoladi.
+#
+#  2) `api_key`. LiveKit webhook tanasini SHU KALIT bilan imzolaydi
+#     (`Authorization: <JWT>`, `sha256` da tana xesh'i). Kalit `keys:`
+#     ro'yxatida bo'lmasa LiveKit imzo yasay OLMAYDI va hodisani
+#     JIMGINA TASHLAB YUBORADI.
+#
+#     Kalitlar bu faylda EMAS: `docker-compose.yml` LiveKit'ga
+#     `LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"` beradi va
+#     u fayldagi `keys:` blokini BUTUNLAY almashtiradi. Shuning uchun
+#     quyidagi qiymat `.env` dagi `LIVEKIT_API_KEY` bilan AYNAN bir xil
+#     bo'lishi SHART — `__LIVEKIT_API_KEY__` shablonining butun sababi shu.
+#
+#     TEKSHIRUV (deploy'dan keyin, ikkalasi AYNI satrni bersin):
+#       grep '^LIVEKIT_API_KEY=' .env
+#       grep 'api_key:' infra/livekit/livekit.prod.generated.yaml
+#
+#  ─────────────────────────────────────────────────────────────────────────
+#  QAYTARISH (rollback): bu blokni izohga oling va
+#      docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#        up -d --force-recreate livekit
+#  LiveKit ~5 sekundda ko'tariladi. ⚠️ Bu JONLI DARSLARNI UZADI — faqat
+#  darslar orasida qiling (docs/DEPLOY_RECORDING_V2.md, 8-bo'lim).
+# =============================================================================
+webhook:
+  api_key: __LIVEKIT_API_KEY__
+  urls:
+    - http://127.0.0.1:5080/api/v1/livekit/webhook
