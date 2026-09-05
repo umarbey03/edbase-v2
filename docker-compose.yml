@@ -828,6 +828,44 @@ services:
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Maximum Pool Size=${COMPOSITOR_MAX_POOL_SIZE:-10};Timeout=15;Command Timeout=30"
       ConnectionStrings__Redis: "redis:6379,abortConnect=false,connectTimeout=5000"
 
+      # ---- `api` BILAN AYNI MUHIT --------------------------------------
+      # 🔴 2026-09-05 da birinchi deployda AYNAN SHU YETISHMAY QOLDI va
+      #    konteyner qayta-qayta yiqildi (`Restarting (139)`).
+      #
+      # SABAB: compositor `api` bilan AYNI WebApi binarnikini yurgizadi —
+      # farqi faqat bayroqlarda. Ya'ni `ProductionSecretsGuard` unga ham
+      # to'liq kuchida qo'llanadi va `Jwt__Secret`, `LiveKit__Api*`,
+      # `Cors__*` bo'lmasa ilova ATAYLAB ishga tushmaydi. Compose esa
+      # `environment` ni xizmatlar orasida MEROS QILMAYDI.
+      #
+      # ⚠️ `api` dagi ro'yxat o'zgarsa BU YER HAM o'zgarishi kerak.
+      #    Ikkisi ajralib ketsa alomat aldaydi: `api` sog'lom bo'lib
+      #    turadi, compositor esa faqat KECHASI, hech kim qaramaganda
+      #    yiqiladi va tungi montaj jimgina bajarilmaydi.
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__Secret: ${JWT_SECRET}
+      Jwt__AccessMinutes: ${JWT_ACCESS_MINUTES}
+      Jwt__RefreshDays: ${JWT_REFRESH_DAYS}
+      LiveKit__Url: ${LIVEKIT_INTERNAL_URL}
+      LiveKit__PublicUrl: ${LIVEKIT_PUBLIC_URL}
+      LiveKit__ApiKey: ${LIVEKIT_API_KEY}
+      LiveKit__ApiSecret: ${LIVEKIT_API_SECRET}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN_0}
+      Cors__AllowedOrigins__1: ${CORS_ORIGIN_1}
+      Storage__ServiceUrl: ${STORAGE_SERVICE_URL}
+      Storage__Bucket: ${STORAGE_BUCKET}
+      Storage__AccessKey: ${STORAGE_ACCESS_KEY}
+      Storage__SecretKey: ${STORAGE_SECRET_KEY}
+      Storage__Region: ${STORAGE_REGION}
+      Storage__KeyPrefix: ${STORAGE_KEY_PREFIX}
+      Storage__PublicUrl: ${STORAGE_PUBLIC_URL:-}
+      Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      Telegram__WebhookSecret: ${TELEGRAM_WEBHOOK_SECRET:-}
+      Telegram__MiniAppUrl: ${TELEGRAM_MINI_APP_URL:-}
+      Telegram__BotUsername: ${TELEGRAM_BOT_USERNAME:-}
+      Notifications__RateLimit__PerSecond: ${NOTIFY_RATE_PER_SECOND:-25}
+
       # ---- Nima YOQILADI va nima O'CHIRILADI ---------------------------
       # 🔴 UCHTA BAYROQ — UCHALASI HAM OSHKORA YOZILGAN. Standartga
       #    tayanmaymiz: bu yerda "unutilgan bayroq" ning narxi ikki

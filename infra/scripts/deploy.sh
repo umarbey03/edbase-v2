@@ -54,7 +54,7 @@ log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m  ✓ %s\033[0m\n' "$*"; }
 fail() { printf '\033[1;31m  ✗ %s\033[0m\n' "$*" >&2; }
 
-trap 'fail "Deploy TO'\''XTADI (satr $LINENO). Tizim eski holatida qolgan bo'\''lishi mumkin — `docker compose ps` bilan tekshiring."' ERR
+trap 'fail "Deploy TO'\''XTADI (satr $LINENO). Tizim eski holatida qolgan bo'\''lishi mumkin — docker compose ps bilan tekshiring."' ERR
 
 # ---------------------------------------------------------------- 0. Tekshiruv
 log "Muhit tekshirilmoqda"
@@ -184,13 +184,48 @@ ok "образlar tayyor"
 # kutubxonasi tushardi. HECH NARSA YIQILMAYDI — shuning uchun tekshiruv
 # aynan shu yerda, avtomatik.
 if docker run --rm --entrypoint sh zinnur/api:dev -c 'command -v ffmpeg' >/dev/null 2>&1; then
-    fail "api image'ida ffmpeg BOR — `docker-compose.yml` dagi"
-    fail "`api.build.target: runtime` tushib qolgan. Deploy TO'XTATILDI."
+    fail "api image'ida ffmpeg BOR — docker-compose.yml dagi"
+    fail "api.build.target: runtime tushib qolgan. Deploy TO'XTATILDI."
     exit 1
 fi
 ok "api image'ida ffmpeg yo'q (target: runtime saqlangan)"
 
 # ---------------------------------------------------------------- 4. Ko'tarish
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔴 OXIRGI TO'SIQ — LiveKit KONFIGURATSIYASI HAQIQATAN FAYLMI
+#
+# NIMA BO'LGANI (2026-09-05, birinchi deploy): 0b qadami umuman
+# bajarilmadi — chunki `git pull` ISHLAB TURGAN skriptning O'ZINI
+# almashtirdi, bash esa fayldan bo'lak-bo'lak o'qiydi. Natijada `up -d`
+# yo'q faylni mount qilmoqchi bo'ldi, Docker esa uning o'rniga BO'SH PAPKA
+# yaratdi va LiveKit `read /etc/livekit/livekit.yaml: is a directory` bilan
+# cheksiz qayta ishga tushdi — ya'ni JONLI DARSLAR TO'XTADI.
+#
+# ★ 0b qadamining o'zi yetarli EMAS: u `git pull` dan OLDIN turadi, ya'ni
+#   shablonni o'zgartirgan commit bir deploy KECH ta'sir qiladi. Shuning
+#   uchun tekshiruv AYNAN shu yerda — `up -d` ning oldida — takrorlanadi.
+#
+# ⚠️ Papkani JIMGINA o'chirib qo'ymaymiz: u qayerdan kelganini bilmaymiz
+#    va ichida nimadir bo'lishi mumkin. To'xtaymiz va aniq aytamiz.
+# ═══════════════════════════════════════════════════════════════════════════
+if [[ -d "$LK_GENERATED" ]]; then
+    fail "$LK_GENERATED — PAPKA, fayl emas. Buni Docker yaratgan, chunki"
+    fail "ko'tarish paytida fayl mavjud emas edi. LiveKit shu holda"
+    fail "ishga tusha OLMAYDI va jonli darslar to'xtaydi."
+    fail ""
+    fail "Tuzatish:  rmdir '$LK_GENERATED' && ./infra/scripts/deploy.sh"
+    exit 1
+fi
+
+if [[ ! -s "$LK_GENERATED" ]]; then
+    fail "$LK_GENERATED yo'q yoki bo'sh. 'up -d' uni mount qila olmaydi va"
+    fail "Docker o'rniga bo'sh papka yaratadi — LiveKit yiqiladi."
+    fail "Skriptni qaytadan yurgizing (0b qadami uni yasaydi)."
+    exit 1
+fi
+
+ok "LiveKit konfiguratsiyasi joyida ($(wc -c < "$LK_GENERATED") bayt)"
+
 log "Xizmatlar ko'tarilmoqda (migratsiyalar avtomatik qo'llanadi)"
 "${COMPOSE[@]}" up -d --remove-orphans
 ok "konteynerlar ishga tushdi"
