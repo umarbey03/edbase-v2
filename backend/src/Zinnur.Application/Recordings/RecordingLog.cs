@@ -421,6 +421,20 @@ internal static partial class RecordingLog
     internal static partial void CompositionLeftoverNotRemoved(
         ILogger logger, Exception exception, long recordingId, string objectKey);
 
+    /// <summary>
+    /// 🔴 QATOR `Completed` BO'LGAN, ya'ni fayl bir paytlar OMBORDA EDI.
+    /// Bu xabar ombordagi yo'qotishni ko'rsatadi va uni TEKSHIRISH kerak:
+    /// bir marta uchrasa — hodisa, takrorlansa — ombor sozlamasi yoki
+    /// umr sikli qoidasi bilan bog'liq muammo.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6572,
+        Level = LogLevel.Error,
+        Message = "Xom bo'lak(lar) omborda topilmadi — reja ularsiz qayta quriladi. "
+                  + "yozuv={RecordingId} soni={Count}")]
+    internal static partial void CompositionMissingRaw(
+        ILogger logger, long recordingId, int count);
+
     [LoggerMessage(
         EventId = 6570,
         Level = LogLevel.Information,

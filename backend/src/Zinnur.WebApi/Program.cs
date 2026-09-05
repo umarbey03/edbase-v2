@@ -15,6 +15,7 @@ using Zinnur.Application.Jobs;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Recordings.Jobs;
 using Zinnur.Application.Recordings.Services;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Infrastructure;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.WebApi;
@@ -121,6 +122,47 @@ builder.Services.AddScoped<IScheduledJob>(sp => new RecordingWatchdogJob(
     sp.GetRequiredService<TimeProvider>(),
     RecordingWatchdogSettings.Default,
     sp.GetRequiredService<ILogger<RecordingWatchdogJob>>()));
+
+// TREK QUVURINING MOSLASHTIRUVCHISI (SPEC-RECORDING-V2 §4.1) — yangi
+// yozuv yo'lining qo'riqchisi. Watchdog'ning yangi quvurdagi ekvivalenti
+// EMAS: u boshlanmagan bo'lakni qayta uradi, YO'QOLGAN xona ovozi
+// mikserini tiklaydi, LiveKit holatini solishtiradi va dars tugagach
+// yozuvni tungi navbatga qo'yadi.
+//
+// ★ NIMA UCHUN WATCHDOG YONIDA, ALOHIDA REJALASHTIRUVCHISIZ: u ham
+//   `IScheduledJob`, ya'ni AYNI qulf ostida, AYNI siklda yuradi
+//   (`JobSchedulerWorker`). Yangi rejalashtiruvchi YOZILMADI.
+//
+// 🔴 IKKALASI BIR-BIRIGA TEGMAYDI: watchdog faqat
+//    `Pipeline = RoomComposite` qatorlarini oladi (§5.9-1), bu vazifa
+//    esa faqat `TrackComposition` qatorlarini. Filtr yo'qolsa eski
+//    watchdog yangi qatorni hali MAVJUD BO'LMAGAN yakuniy fayl bo'yicha
+//    qidirib, darsdan 10 daqiqa keyin `Failed` qilib qo'yardi.
+//
+// ⚠️ CHEGARALAR KODDA (`RecordingTrackReconcileSettings.Default`) —
+//    watchdog bilan AYNI holat va AYNI sabab (izoh yuqorida).
+builder.Services.AddScoped<IScheduledJob>(sp => new RecordingTrackReconcileJob(
+    sp.GetRequiredService<IApplicationDbContext>(),
+    sp.GetRequiredService<ILiveKitEgress>(),
+    // 🔴 LiveKit holatini FAQAT O'QIYDIGAN port. Nosozlikni bo'sh
+    //    ro'yxatdan ajratishi SHART — aks holda tarmoq uzilgan daqiqada
+    //    tirik mikser ustiga ikkinchisi yoqilardi (izoh:
+    //    `ILiveKitRoomQuery`).
+    sp.GetRequiredService<ILiveKitRoomQuery>(),
+    sp.GetRequiredService<IRecordingStorage>(),
+    sp.GetRequiredService<ISettingsResolver>(),
+    sp.GetRequiredService<TimeProvider>(),
+    RecordingTrackReconcileSettings.Default,
+    sp.GetRequiredService<ILogger<RecordingTrackReconcileJob>>()));
+
+// TUNGI YIG'ISH (SPEC-RECORDING-V2 §4.2–4.5): xom bo'laklardan bitta mp4.
+//
+// 🔴 FON SIKLI FAQAT `Composition:Enabled=true` BO'LGAN KONTEYNERDA
+//    ISHGA TUSHADI — ishlab chiqarishda bu `compositor`, `api` esa uni
+//    OSHKORA `false` qiladi. Ikkalasida ham yoqilgan bo'lsa ikki
+//    kodlovchi bitta kalitga yozardi. Standart qiymat ham `false`, ya'ni
+//    bayroqni unutish xavfsiz tomonga tushadi (izoh: `CompositionSetup`).
+builder.Services.AddZinnurComposition(builder.Configuration);
 
 // ---------------------------------------------------------------- auth
 var jwtSecret = builder.Configuration["Jwt:Secret"]

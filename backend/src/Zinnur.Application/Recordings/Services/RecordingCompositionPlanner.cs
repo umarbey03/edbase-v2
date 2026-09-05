@@ -150,10 +150,27 @@ public static class RecordingCompositionPlanner
     /// kodlashni yiqitardi (bitta bo'lakni yo'qotish o'rniga).
     /// </param>
     /// <param name="settings">Sozlamalardan kelgan kodlash parametrlari.</param>
+    /// <param name="excludeTrackIds">
+    /// Rejadan CHIQARIB TASHLANADIGAN bo'laklar.
+    ///
+    /// 🔴 NIMA UCHUN BU PARAMETR BOR: xom fayl <c>Completed</c> qatorga
+    /// ega bo'lsa-yu ombordan TOPILMASA (o'chirilgan, prefiks
+    /// almashtirilgan, R2 da yo'qolgan), yig'uvchi uni yuklab ola olmaydi
+    /// va butun kodlash to'xtaydi. Bunda chaqiruvchi rejani O'SHA
+    /// bo'laksiz QAYTA quradi: dars 90 daqiqasidan besh daqiqasini
+    /// yo'qotadi, HAMMASINI emas.
+    ///
+    /// ⚠️ QATORNING HOLATI O'ZGARMAYDI va bu ATAYLAB:
+    /// <c>RecordingTrack.MarkFailed</c> tayyor bo'lakni ATAYLAB orqaga
+    /// qaytarmaydi (kech kelgan hodisa tayyor faylni ro'yxatdan
+    /// o'chirmasin). Ya'ni "fayl yo'qolgani" LOGDA va shu ro'yxatda
+    /// qoladi, bazadagi tarixiy javob esa buzilmaydi.
+    /// </param>
     public static CompositionPlanResult Create(
         SessionRecording recording,
         IEnumerable<RecordingTrack> tracks,
-        CompositionPlanSettings settings)
+        CompositionPlanSettings settings,
+        IReadOnlyCollection<long>? excludeTrackIds = null)
     {
         ArgumentNullException.ThrowIfNull(recording);
         ArgumentNullException.ThrowIfNull(tracks);
@@ -163,7 +180,8 @@ public static class RecordingCompositionPlanner
             .Where(t => t.Status == RecordingStatus.Completed
                      && t.StartedAt is not null
                      && t.EndedAt is not null
-                     && !string.IsNullOrWhiteSpace(t.ObjectKey))
+                     && !string.IsNullOrWhiteSpace(t.ObjectKey)
+                     && excludeTrackIds?.Contains(t.Id) != true)
             .OrderBy(t => t.StartedAt!.Value)
             .ThenBy(t => t.Id)
             .ToList();

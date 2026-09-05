@@ -126,8 +126,10 @@ public sealed class RecordingCompositionRunner(
         if (claim.TookOverExpiredLease)
             await DiscardLeftoverOutputAsync(recording, ct).ConfigureAwait(false);
 
+        var configuration = await ReadPlanSettingsAsync(ct).ConfigureAwait(false);
+
         var planned = RecordingCompositionPlanner.Create(
-            recording, recording.Tracks, await ReadPlanSettingsAsync(ct).ConfigureAwait(false));
+            recording, recording.Tracks, configuration);
 
         if (planned.Plan is not { } plan)
         {
@@ -160,6 +162,38 @@ public sealed class RecordingCompositionRunner(
         try
         {
             result = await composer.ComposeAsync(plan, ct).ConfigureAwait(false);
+
+            // ══════════════════════════════════════════════════════════
+            // 🔴 YO'QOLGAN XOM BO'LAK BUTUN DARSNI YIQITMAYDI
+            //
+            // Bo'lak `Completed` bo'lgan, ya'ni fayl bir paytlar OMBORDA
+            // EDI. Endi yo'q bo'lsa (o'chirilgan, prefiks almashtirilgan,
+            // R2 da yo'qolgan) — bu bitta bo'lakning yo'qolishi, butun
+            // darsning emas. Reja O'SHA ZAHOTI, AYNI kechada, o'sha
+            // bo'laksiz qayta quriladi.
+            //
+            // ★ ARZON: yo'qolgan obyekt YUKLAB OLISH bosqichida
+            //   aniqlanadi, ya'ni birinchi urinishda kodlash UMUMAN
+            //   boshlanmagan bo'ladi.
+            //
+            // ⚠️ FAQAT BIR MARTA: ikkinchi urinishda ham yo'qolgan bo'lak
+            //    chiqsa, bu ombor bilan bog'liq kattaroq muammo va u
+            //    yashirilmasligi kerak.
+            // ══════════════════════════════════════════════════════════
+            if (!result.Succeeded && result.MissingTrackIds.Count > 0)
+            {
+                RecordingLog.CompositionMissingRaw(
+                    logger, recording.Id, result.MissingTrackIds.Count);
+
+                var reduced = RecordingCompositionPlanner.Create(
+                    recording, recording.Tracks, configuration, result.MissingTrackIds);
+
+                if (reduced.Plan is { } fallback)
+                {
+                    plan = fallback;
+                    result = await composer.ComposeAsync(plan, ct).ConfigureAwait(false);
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -229,16 +263,6 @@ public sealed class RecordingCompositionRunner(
     {
         var now = clock.GetUtcNow();
         var reason = result.Error is { Length: > 0 } error ? error : "Yig'ish yiqildi.";
-
-        // Yo'qolgan xom bo'laklar YOPILADI, aks holda keyingi urinish ham
-        // AYNAN shu joyda yiqilardi. Ular yopilgach reja ularsiz quriladi:
-        // dars bir bo'lagini yo'qotadi, hammasini emas.
-        foreach (var trackId in result.MissingTrackIds)
-        {
-            recording.Tracks
-                .FirstOrDefault(t => t.Id == trackId)?
-                .MarkFailed("Xom bo'lak omborda topilmadi.", now);
-        }
 
         // ⚠️ TARTIB MUHIM: avval hisoblagich oshadi, KEYIN chegara
         //    tekshiriladi (`SessionRecording.CanRetryComposition` izohi).
