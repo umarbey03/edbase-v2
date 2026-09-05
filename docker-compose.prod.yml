@@ -1069,6 +1069,25 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       LiveKit__Url: http://host.docker.internal:7880
 
+      # ---- OMBOR: R2 — `api` dagi bilan AYNI qayta yozish -------------
+      # 🔴 2026-09-05 deployda YETISHMAY QOLDI. Bazaviy compose'da
+      #    `Storage__*` DEV MinIO'ga ishora qiladi va prod overlay'i uni
+      #    faqat `api` uchun qayta yozardi — compositor esa
+      #    `http://minio:9000` bilan qolib, ProductionSecretsGuard uni
+      #    ishga tushirmasdi.
+      #
+      # ⚠️ Compositor uchun bu SHUNCHAKI qo'riqchini tinchitish emas:
+      #    tungi montaj xom bo'laklarni AYNAN shu ombordan yuklab oladi
+      #    va yakuniy mp4 ni AYNAN shu yerga qaytaradi. Noto'g'ri manzil
+      #    bilan u ishga tushsa ham hech narsa topa olmasdi.
+      Storage__ServiceUrl: ${R2_SERVICE_URL:-}
+      Storage__Bucket: ${R2_BUCKET:-}
+      Storage__AccessKey: ${R2_ACCESS_KEY:-}
+      Storage__SecretKey: ${R2_SECRET_KEY:-}
+      Storage__Region: ${R2_REGION:-auto}
+      Storage__KeyPrefix: ${R2_KEY_PREFIX:-submissions}
+      Storage__PublicUrl: ${R2_PUBLIC_URL:-}
+
     # ------------------------------------------------------------------
     # NISBIY USTUNLIK — kvotadan MUSTAQIL ikkinchi qatlam
     # ------------------------------------------------------------------
