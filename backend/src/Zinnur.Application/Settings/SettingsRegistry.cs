@@ -708,6 +708,215 @@ public static class SettingsRegistry
             DefaultValue = "true",
         },
 
+        /* ================================================================
+           YOZUV QUVURI v2 — TREK TUTIB OLISH + TUNGI MONTAJ
+           (SPEC-RECORDING-V2 §2.7)
+
+           ★ NIMA UCHUN HAMMASI `Database`: yoyish rejasi (SPEC §5.10)
+             BOSQICHMA-BOSQICH va uning har bir qadami — deploysiz
+             o'zgarish. Bittasi ham muhitga bog'lansa, "guruh 7 ni yoqib
+             ko'ramiz" degan qadam reliz kutishga aylanardi va orqaga
+             qaytish yo'li ham (kalitni o'chirish) shu bilan yo'qolardi.
+
+           ★ HAMMASI `Content` guruhida: bu O'QUV qarorlari (qaysi guruh
+             qaysi mexanizm bilan yoziladi, sifat qanday), OMBOR yoki
+             LIVEKIT ulanish sozlamalari emas. `lesson.video_max_mb`
+             uchun yozilgan AYNI mulohaza. */
+
+        new()
+        {
+            Key = "recordings.track_pipeline_enabled",
+            Group = SettingGroup.Content,
+            DisplayName = "Yangi yozuv quvuri (tungi montaj) yoqilgan",
+            Description =
+                "Dars davomida faqat ARZON tutib olish (video treklar + bitta "
+                + "aralashtirilgan ovoz), og'ir kodlash esa KECHASI bajariladi. "
+                + "🔴 BU — FAVQULODDA TORMOZ. O'chirilsa yangi usuldagi yozuv UMUMAN "
+                + "yaratilmaydi va tungi montaj yangi ish olmaydi — guruh sozlamasida "
+                + "nima turgani AHAMIYATSIZ. Guruhlar keyingi darsdan boshlab eski "
+                + "usulga qaytadi (deploy ham, migratsiya ham kerak emas). "
+                + "⚠️ Yoqish o'z-o'zidan hech narsani o'zgartirmaydi: guruh ham "
+                + "tanlangan bo'lishi kerak (guruh tahriridagi \"Yozuv usuli\" yoki "
+                + "pastdagi solishtiruv ro'yxati).",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+
+            // 🔴 STANDART — O'CHIQ, VA BU MAJBURIY (SPEC §5.10, P1/P2).
+            //    Quvur "o'rnatilgan, lekin o'chiq" holatda yetkaziladi:
+            //    migratsiya prod'ga chiqqan kuni hech bir darsning yozuvi
+            //    o'zgarmaydi. `chat.retention_enabled` dagi AYNI mulohaza.
+            DefaultValue = "false",
+        },
+
+        new()
+        {
+            Key = "recordings.track_pipeline_shadow_groups",
+            Group = SettingGroup.Content,
+            DisplayName = "Ikkala usulda yoziladigan guruhlar (solishtiruv)",
+            Description =
+                "Vergul bilan ajratilgan guruh Id'lari — bu guruhlarning darsi "
+                + "BIR VAQTDA ikkala usulda ham yoziladi va bitta darsdan IKKITA "
+                + "yozuv qatori chiqadi. Maqsad — eski va yangi faylni yonma-yon "
+                + "solishtirish. Bo'sh bo'lsa hech kim (odatiy holat). "
+                + "⚠️ Ro'yxat guruh sozlamasidan USTUN: bu yerda turgan guruh "
+                + "\"Yozuv usuli\" da nima tanlanganidan qat'i nazar ikkala faylni "
+                + "ham oladi. Yuqoridagi kalit o'chiq bo'lsa ro'yxat ishlamaydi. "
+                + "★ Solishtiruv tugagach ro'yxatni BO'SHATING: aks holda o'sha "
+                + "guruh mangu ikki barobar joy va protsessor sarflaydi.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+
+            // ★ BO'SH — "hech kim". Yaroqsiz yoki mavjud bo'lmagan Id
+            //   e'tiborsiz qoldiriladi (log'da ogohlantirish bilan), ya'ni
+            //   bu maydonga tushib qolgan probel yoki qo'sh vergul hech
+            //   qachon dars boshlashni yiqita olmaydi.
+            DefaultValue = "",
+
+            // 100 belgi — SPEC §2.7 dagi chegara. Bu ~20 ta guruh Id'si,
+            // ya'ni "vaqtinchalik solishtiruv ro'yxati" uchun yetarlicha
+            // ko'p va "butun markazni shu yerdan boshqarish" uchun ataylab
+            // kam: doimiy tanlov guruh USTUNIDA turishi kerak.
+            MaxLength = 100,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_window_start",
+            Group = SettingGroup.Content,
+            DisplayName = "Tungi montaj oynasi — boshlanishi (HH:mm)",
+            Description =
+                "Yig'ish AYNAN shu vaqtdan boshlab ishlaydi (mahalliy vaqt — "
+                + "jadval zonasi bilan bir xil). Kodlash protsessorni to'liq band "
+                + "qiladi, shuning uchun u dars vaqtiga tushmasligi kerak.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            DefaultValue = "00:00",
+
+            // Shakl QAT'IY `HH:mm` (`RecordingCompositionWindow.Parse`):
+            // "9:00" o'qilmaydi va jimgina standartga tushardi. Uzunlik
+            // chegarasi buni SAQLASH paytida, xodim ko'z o'ngida ushlaydi.
+            MinLength = 5,
+            MaxLength = 5,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_window_end",
+            Group = SettingGroup.Content,
+            DisplayName = "Tungi montaj oynasi — tugashi (HH:mm)",
+            Description =
+                "🔴 QAT'IY TO'XTASH: shu vaqtda ishlayotgan kodlash UZILADI va "
+                + "yozuv keyingi kechaga qoladi (ish yo'qolmaydi, eng eskisi "
+                + "birinchi bo'lib olinadi). Oxiriga 30 daqiqa qolganda yangi ish "
+                + "umuman boshlanmaydi. "
+                + "⚠️ Boshlanish bilan TENG qo'yilsa oyna YOPIQ hisoblanadi va "
+                + "hech narsa yig'ilmaydi — \"sutka bo'yi\" degani EMAS.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            DefaultValue = "09:00",
+            MinLength = 5,
+            MaxLength = 5,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_preset",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj tezligi (x264 preset)",
+            Description =
+                "Sekinroq preset AYNI sifatda kichikroq fayl beradi, lekin kodlash "
+                + "uzoqroq davom etadi. "
+                + "⚠️ `slow` bir kechada sig'maslik xavfini tug'diradi: 9 soatlik "
+                + "manba uchun ~8.6 soat kerak bo'ladi va oynada zaxira qolmaydi. "
+                + "Uni faqat haqiqiy kodlash tezligi o'lchangandan KEYIN qo'ying.",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+
+            // SPEC §10, Qaror 2 (loyiha egasi qabul qilgan): standart
+            // `slow` EMAS, `medium` — arifmetika `slow` ni tungi oynaga
+            // sig'dirmaydi. Ro'yxat SEKINLASHISH tartibida.
+            Choices = ["veryfast", "faster", "fast", "medium", "slow"],
+            DefaultValue = "medium",
+        },
+
+        new()
+        {
+            Key = "recordings.compose_crf",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj sifati (x264 CRF)",
+            Description =
+                "Kichik raqam — yaxshiroq sifat va KATTA fayl; katta raqam — "
+                + "aksincha. 21 — dars videosi uchun ko'zga sezilmaydigan sifat. "
+                + "Har 6 birlik taxminan fayl hajmini ikki barobar o'zgartiradi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "21",
+
+            // 🔴 CHEGARALAR — HALOKATGA QARSHI TO'SIQ, "aql bovar qilmaydigan
+            //    qiymat" filtri EMAS. `crf=0` yo'qotishsiz kodlash, ya'ni
+            //    bitta darsdan o'nlab gigabayt va to'lgan disk; 28 dan
+            //    yuqorisi esa slayddagi matnni o'qib bo'lmaydigan qiladi,
+            //    ya'ni yozuvni maqsadidan mahrum etadi.
+            //
+            // ⚠️ Chegara IKKI joyda: bu yerda (yozishda 400) va
+            //    `RecordingCompositionRunner` da (`Math.Clamp`). Nusxa
+            //    ataylab — qiymatni `AppSettings` jadvaliga qo'lda yozib
+            //    qo'yish mumkin, ffmpeg esa buni tekshirmaydi.
+            Minimum = 16m,
+            Maximum = 28m,
+        },
+
+        new()
+        {
+            Key = "recordings.audio_capture_mode",
+            Group = SettingGroup.Content,
+            DisplayName = "Ovozni tutib olish usuli",
+            Description =
+                "`RoomComposite` — XONANING ARALASHTIRILGAN ovozi: ustoz, ekran "
+                + "ovozi VA O'QUVCHILAR bitta uzluksiz faylda (odatiy holat). "
+                + "`TeacherTrack` — faqat ustozning mikrofoni va ekran ovozi, "
+                + "o'quvchilar ESHITILMAYDI. "
+                + "🔴 Ikkinchisi — ZAXIRA yo'l: uni faqat xona mikseri kutilganidan "
+                + "qimmatga tushgani o'lchangan bo'lsa qo'ying. O'zgarish keyingi "
+                + "darsdan kuchga kiradi, deploy kerak emas. "
+                + "⚠️ Ikkala manba HECH QACHON birga ishlamaydi: aralashtirilgan "
+                + "faylda ustoz allaqachon bor va uning mikrofonini ustiga qo'shish "
+                + "ovozni buzilgan mikrofondek eshittirardi.",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+
+            // ⚠️ Qiymatlar `RecordingPipeline` enum'i EMAS: ular ovoz
+            //    MANBASINI bildiradi va ataylab o'qishga qulay satr
+            //    bo'lib qoladi. O'quvchilarni yozib olish qarori loyiha
+            //    egasiniki (SPEC §10, D1), shuning uchun standart —
+            //    `RoomComposite`.
+            Choices = ["RoomComposite", "TeacherTrack"],
+            DefaultValue = "RoomComposite",
+        },
+
+        new()
+        {
+            Key = "recordings.compose_audio_offset_ms",
+            Group = SettingGroup.Content,
+            DisplayName = "Ovoz siljishini to'g'rilash (ms)",
+            Description =
+                "Montajda ovozga qo'shiladigan doimiy tuzatish. Musbat qiymat "
+                + "ovozni KECHIKTIRADI, manfiy — TEZLASHTIRADI. "
+                + "★ Bu — quvurning DOIMIY kechikishini to'g'rilaydigan bitta "
+                + "raqam. Agar siljish dars davomida O'SIB borsa, bu boshqa "
+                + "nosozlik va uni bu maydon bilan yopib bo'lmaydi. "
+                + "⚠️ O'lchov qilinmaguncha 0 da qoldiring.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "0",
+
+            // ±2 soniya — inson eshitadigan eng katta "hali ham shu dars"
+            // siljishi. Undan kattasi tuzatish emas, boshqa nosozlikni
+            // yashirish bo'lardi.
+            Minimum = -2000m,
+            Maximum = 2000m,
+        },
+
         // ================================================================ GURUH CHATI
         //
         // 🔴 BU IKKI KALIT MA'LUMOTNI DOIMIY O'CHIRADI. Registrdagi boshqa
@@ -1040,6 +1249,37 @@ public static class SettingsRegistry
         //   kiradi. Aks holda "saqlandi" deyilib, o'quvchilarda hech nima
         //   o'zgarmasdi.
         public const string RecordingsVisibleToStudents = "recordings.visible_to_students";
+
+        // ---------------------------------------------------------------- YOZUV QUVURI v2 (SPEC-RECORDING-V2 §2.7)
+        //
+        // ★ NIMA UCHUN HAMMASI SHU YERDA, GARCHI ULARNI TURLI QATLAMLAR
+        //   O'QISA HAM: registrga kalit qo'shish — bitta joyda bo'lishi
+        //   SHART bo'lgan amal (takroriy `Key` ilovani ISHGA TUSHISHDA
+        //   yiqitadi, sabab sinf izohida). Konstantalar ham shu yerda
+        //   tursa, "bu kalitni kim o'qiydi?" savoliga javob bitta
+        //   qidiruv bilan topiladi.
+        //
+        // ⚠️ HAR YURISHDA QAYTA O'QILADI (`ISettingsResolver` keshi
+        //   orqali), ishga tushishda emas — yoyish rejasining butun
+        //   ma'nosi shunda: kalit paneldan yoqiladi va KEYINGI dars
+        //   allaqachon yangi usulda yoziladi.
+
+        /// <summary>Favqulodda tormoz — o'chiq bo'lsa yangi usul UMUMAN ishlamaydi.</summary>
+        public const string RecordingsTrackPipelineEnabled = "recordings.track_pipeline_enabled";
+
+        /// <summary>Ikkala usulda yoziladigan guruhlar (vergul bilan) — A/B solishtiruv.</summary>
+        public const string RecordingsTrackPipelineShadowGroups =
+            "recordings.track_pipeline_shadow_groups";
+
+        public const string RecordingsComposeWindowStart = "recordings.compose_window_start";
+        public const string RecordingsComposeWindowEnd = "recordings.compose_window_end";
+        public const string RecordingsComposePreset = "recordings.compose_preset";
+        public const string RecordingsComposeCrf = "recordings.compose_crf";
+
+        /// <summary>Xona ovozi (o'quvchilar bilan) yoki faqat ustoz treki.</summary>
+        public const string RecordingsAudioCaptureMode = "recordings.audio_capture_mode";
+
+        public const string RecordingsComposeAudioOffsetMs = "recordings.compose_audio_offset_ms";
     }
 
     /// <summary>

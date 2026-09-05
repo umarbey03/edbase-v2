@@ -99,6 +99,22 @@ public sealed record GroupDto(
     /// </summary>
     bool RecordingsVisibleToStudents,
 
+    /// <summary>
+    /// Bu guruhning darslari QAYSI mexanizm bilan yoziladi (JSON'da SATR:
+    /// <c>"RoomComposite"</c> / <c>"TrackComposition"</c>). Standart
+    /// <c>RoomComposite</c> — bugungi xatti-harakat.
+    ///
+    /// ⚠️ <paramref name="RecordEnabled"/> BILAN ARALASHTIRILMASIN: u
+    /// "yozilsinmi", bu esa "QANDAY yozilsin". Yozuvi o'chiq guruh bu
+    /// yerda nima turishidan qat'i nazar yozilmaydi.
+    ///
+    /// 🔴 GLOBAL KALIT USTUNROQ: <c>recordings.track_pipeline_enabled</c>
+    /// o'chiq bo'lsa bu tanlov E'TIBORGA OLINMAYDI va guruh eski yo'lga
+    /// qaytadi. Interfeys buni ko'rsatishi kerak, aks holda o'quv bo'limi
+    /// "tanladim, lekin ishlamadi" degan holatga tushadi.
+    /// </summary>
+    RecordingPipeline RecordingPipeline,
+
     /* ===== R33 + R40 · KIM MAS'UL ===== */
 
     /// <summary>
@@ -183,6 +199,13 @@ public sealed record CreateGroupRequest(
     bool RecordingsVisibleToStudents = true,
 
     /// <summary>
+    /// Yozuv mexanizmi. 🔴 STANDART <c>RoomComposite</c> VA BU MAJBURIY:
+    /// bu bugungi xatti-harakat, ya'ni maydonni yubormagan klient guruhni
+    /// jimgina tajriba quvuriga o'tkazib yubora olmaydi.
+    /// </summary>
+    RecordingPipeline RecordingPipeline = RecordingPipeline.RoomComposite,
+
+    /// <summary>
     /// R33 — tekshiruvchi. 🔴 STANDART <c>Both</c> VA BU MAJBURIY: bu
     /// bugungi xatti-harakat, ya'ni maydonni yubormagan klient hech
     /// narsani o'zgartirmaydi.
@@ -246,6 +269,19 @@ public sealed record UpdateGroupRequest(
     /// so'ramagan bo'lardi.
     /// </summary>
     bool RecordingsVisibleToStudents = true,
+
+    /// <summary>
+    /// Yozuv mexanizmi. Standart <c>RoomComposite</c> = bugungi
+    /// xatti-harakat.
+    ///
+    /// 🔴 PUT semantikasi bu yerda ham amal qiladi: maydonni yubormagan
+    /// klient guruhni ESKI yo'lga qaytarib qo'yadi. Standart ataylab
+    /// shunday tanlangan — teskarisi (yangi quvur) bo'lganda har tahrir
+    /// guruhni hech kim so'ramagan holda tajriba yo'liga o'tkazardi.
+    /// Tahrirlash formasi joriy qiymatni yuklab, qaytarib yuboradi
+    /// (`buildPayload` naqshi).
+    /// </summary>
+    RecordingPipeline RecordingPipeline = RecordingPipeline.RoomComposite,
 
     /// <summary>R33 — tekshiruvchi. Standart <c>Both</c> = bugungi xatti-harakat.</summary>
     GroupStaffRole AssignmentGraderRole = GroupStaffRole.Both,

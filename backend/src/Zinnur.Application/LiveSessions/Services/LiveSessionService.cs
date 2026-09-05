@@ -386,10 +386,73 @@ public sealed class LiveSessionService(
         //   tranzaksiyada.
         await penalties.DetectLateStartAsync(session, ct);
 
-        await db.SaveChangesAsync(ct);
+        // ═══════════════════════════════════════════════════════════════
+        // 🔴 BIR VAQTDA KELGAN IKKI "BOSHLASH" SO'ROVI (2026-09-05)
+        //
+        // ★ NIMA UCHUN BU YERDA PAYDO BO'LDI: yozuv navbatining
+        //   idempotentlik tekshiruvi (`IAutoRecordingScheduler`) —
+        //   `SELECT`, qator yozilishi esa quyidagi `SaveChanges` da. Ikki
+        //   so'rov bir vaqtda kelsa IKKALASI ham "qator yo'q" deb xulosa
+        //   qiladi. Ilgari natija JIMGINA ikkinchi qator bo'lardi; endi
+        //   baza uni unikal indeks bilan to'sadi
+        //   (`UX_SessionRecordings_SessionId_Pipeline_Active`) va
+        //   yutqazgan tranzaksiya yiqiladi.
+        //
+        // ★ TRANZAKSIYANING TO'LIQ ORQAGA QAYTISHI — TO'G'RI NATIJA,
+        //   "yo'qotish" emas. Dars ALLAQACHON jonli (yutgan so'rov uni
+        //   yozib bo'lgan), yutqazgan so'rovning qolgan yozuvlari esa
+        //   TAKROR bo'lardi: o'quvchilarga ikkinchi "dars boshlandi"
+        //   xabari va ikkinchi kechikish jarimasi. Ya'ni indeks bu yerda
+        //   yozuv qatorini emas, BUTUN takroriy amalni to'sib turibdi.
+        //
+        // ⚠️ FAQAT YOZUV QATORI TO'QNAShUVI TUTILADI (`Entries` da
+        //    qo'shilayotgan `SessionRecording` bor). Boshqa har qanday
+        //    `DbUpdateException` — bizning xatomiz va u 500 bo'lib
+        //    ko'rinishi KERAK; uni ham 409 qilib yashirish nosozlikni
+        //    "foydalanuvchi noto'g'ri bosdi" ga aylantirardi.
+        // ═══════════════════════════════════════════════════════════════
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (HasAddedRecording(ex))
+        {
+            // ⚠️ `Entries` YIQILGAN TO'PLAMNING HAMMASINI beradi, ya'ni
+            //    "ichida yozuv qatori bor" degani hali "aynan u yiqildi"
+            //    degani emas. Shuning uchun xulosa BAZADAN tasdiqlanadi:
+            //    raqib qator HAQIQATAN paydo bo'lganmi. Bo'lmasa — bu
+            //    boshqa nosozlik va u YASHIRILMAYDI.
+            var lostTheRace = await db.SessionRecordings
+                .AsNoTracking()
+                .AnyAsync(
+                    r => r.SessionId == session.Id
+                      && r.Status != RecordingStatus.Completed
+                      && r.Status != RecordingStatus.Failed,
+                    ct);
+
+            if (!lostTheRace)
+                throw;
+
+            throw new ConflictException(
+                "Bu dars boshqa so'rov bilan bir vaqtda boshlandi. Sahifani yangilang.");
+        }
 
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
+
+    /// <summary>
+    /// Yiqilgan saqlash AYNAN takroriy yozuv qatoridanmi.
+    ///
+    /// ★ NIMA UCHUN INDEKS NOMI BO'YICHA EMAS: nom Infrastructure
+    /// qatlamida (EF konfiguratsiyasi) va uni bu yerda satr sifatida
+    /// takrorlash ikkita bir-birini bilmaydigan nusxa yasardi. Bundan
+    /// tashqari matn Postgres drayveridan keladi va u versiyaga bog'liq.
+    /// `Entries` esa EF ning O'Z ma'lumoti: yiqilgan to'plamda yangi
+    /// yozuv qatori bo'lganini u aniq aytadi.
+    /// </summary>
+    private static bool HasAddedRecording(DbUpdateException exception) =>
+        exception.Entries.Any(entry =>
+            entry.Entity is SessionRecording && entry.State == EntityState.Added);
 
     public async Task<LiveSessionDto> EndAsync(long sessionId, long userId, CancellationToken ct = default)
     {

@@ -129,6 +129,7 @@ public sealed class GroupService(
             DurationMinutes = request.DurationMinutes,
             RecordEnabled = request.RecordEnabled,
             RecordingsVisibleToStudents = request.RecordingsVisibleToStudents,
+            RecordingPipeline = request.RecordingPipeline,
             AssignmentGraderRole = request.AssignmentGraderRole,
             QuestionResponderRole = request.QuestionResponderRole,
             IsActive = request.IsActive,
@@ -259,6 +260,13 @@ public sealed class GroupService(
         group.DurationMinutes = request.DurationMinutes;
         group.RecordEnabled = request.RecordEnabled;
         group.RecordingsVisibleToStudents = request.RecordingsVisibleToStudents;
+
+        // Yozuv MEXANIZMI (SPEC-RECORDING-V2 §2.6) — `RecordEnabled` dan
+        // MUSTAQIL ustun va u ham AYNI PUT qoidasiga bo'ysunadi:
+        // yuborilmasa `RoomComposite` ga, ya'ni bugungi xatti-harakatga
+        // qaytadi. Jadvalga ta'siri YO'Q, shuning uchun
+        // `ScheduleRuleDiffersFrom` ga kirmaydi.
+        group.RecordingPipeline = request.RecordingPipeline;
 
         // 🔴 R33 + R40 · PUT = TO'LIQ ALMASHTIRISH — yuqoridagi `categoryId`
         // bilan AYNI tuzoq. Ikkala maydonning standartlari ATAYLAB bugungi
@@ -1467,6 +1475,7 @@ public sealed class GroupService(
             g.IsActive,
             g.RecordEnabled,
             g.RecordingsVisibleToStudents,
+            g.RecordingPipeline,
 
             // R33 + R40 — guruh ustunlari (izohi `Group` entity'sida).
             g.AssignmentGraderRole,
@@ -1549,6 +1558,7 @@ public sealed class GroupService(
         p.IsActive,
         p.RecordEnabled,
         p.RecordingsVisibleToStudents,
+        p.RecordingPipeline,
 
         // ★ NOMLI ARGUMENT — `CategoryId` dagi bilan AYNI sabab: bu yerda
         // ketma-ket IKKI `GroupStaffRole` turadi va ularni almashtirib
@@ -1618,6 +1628,7 @@ public sealed class GroupService(
         bool IsActive,
         bool RecordEnabled,
         bool RecordingsVisibleToStudents,
+        RecordingPipeline RecordingPipeline,
         GroupStaffRole AssignmentGraderRole,
         GroupStaffRole QuestionResponderRole,
         int MemberCount,

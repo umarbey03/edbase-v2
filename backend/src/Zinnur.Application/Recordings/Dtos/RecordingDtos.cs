@@ -42,6 +42,33 @@ namespace Zinnur.Application.Recordings.Dtos;
 /// yoki <c>null</c> — tahlil yo'q. Eski ilovadagi uch holatli nishon
 /// AYNAN shu ikki maydondan tiklanadi.
 /// </param>
+/// <param name="Pipeline">
+/// Bu qatorni QAYSI mexanizm yaratgan: <c>RoomComposite</c> (dars
+/// davomida jonli kodlash) yoki <c>TrackComposition</c> (arzon tutib
+/// olish + tungi montaj).
+///
+/// ATAYLAB SATR — <paramref name="Status"/> bilan AYNI sabab: enum raqami
+/// klientga hech narsa anglatmaydi va tartib o'zgarsa jimgina noto'g'ri
+/// yorliq chiqardi.
+///
+/// ★ NIMA UCHUN BU MAYDON KERAK BO'LDI: solishtiruv bosqichida bitta
+/// darsda IKKITA yozuv qatori bo'ladi va ular xodimga bir xil ko'rinsa
+/// nosozlikka o'xshardi. Yorliq ularni ajratadi va o'quv bo'limi
+/// solishtirish uchun aynan qaysi faylni ochayotganini biladi.
+/// </param>
+/// <param name="CompositionStatus">
+/// Tungi montaj qayerda turibdi: <c>Collecting</c> / <c>Queued</c> /
+/// <c>Running</c> / <c>Completed</c> / <c>Failed</c>.
+///
+/// 🔴 <c>null</c> — ESKI quvur (<c>Pipeline == "RoomComposite"</c>): u
+/// yerda montaj bosqichi UMUMAN yo'q. Bu "hali boshlanmagan" degani EMAS.
+///
+/// ⚠️ <paramref name="Status"/> NI ALMASHTIRMAYDI. Ular ikki xil savolga
+/// javob beradi: <c>Status</c> — "faylni ochib bo'ladimi" (o'quvchiga ham
+/// tegishli), bu esa — "ishlab chiqarish qayerda" (xodim uchun). Yangi
+/// quvurda dars tugagach ham <c>Status</c> hali <c>Active</c> bo'lib
+/// qolaveradi, chunki fayl ertalab tayyor bo'ladi.
+/// </param>
 public sealed record RecordingDto(
     long Id,
     long SessionId,
@@ -56,7 +83,9 @@ public sealed record RecordingDto(
     DateTimeOffset CreatedAt,
     bool IsVisibleToStudents,
     bool HasReview,
-    string? ReviewStatus);
+    string? ReviewStatus,
+    string Pipeline,
+    string? CompositionStatus);
 
 /// <summary>
 /// Yozuvning o'quvchilarga ko'rinishini o'zgartirish (R5).

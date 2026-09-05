@@ -609,7 +609,14 @@ public sealed class RecordingService(
         r.CreatedAt,
         r.IsVisibleToStudents,
         verdict is not null,
-        verdict?.ToString());
+        verdict?.ToString(),
+
+        // ★ FAQAT PROYEKSIYA — hech qanday mantiq yo'q. Ikkala qiymat ham
+        //   qatorda allaqachon turibdi, ya'ni qo'shimcha so'rov ketmaydi.
+        //   `CompositionStatus` eski quvurda `null` bo'ladi va bu YAGONA
+        //   to'g'ri qiymat (izoh: `RecordingCompositionStatus`).
+        r.Pipeline.ToString(),
+        r.CompositionStatus?.ToString());
 
     private static RecordingDto Map(
         SessionRecording r,

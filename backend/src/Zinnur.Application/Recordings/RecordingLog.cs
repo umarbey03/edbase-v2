@@ -91,6 +91,39 @@ internal static partial class RecordingLog
                   + "dars={SessionId}")]
     internal static partial void AutoSkippedNotConfigured(ILogger logger, long sessionId);
 
+    /// <summary>
+    /// ★ ESKI QATOR (<c>6520</c>) BILAN ALOHIDA, VA BU ATAYLAB: yangi
+    /// quvurdagi qatorning yakuniy fayli dars tugagach EMAS, ERTALAB
+    /// paydo bo'ladi. Ya'ni "yozuv navbatga qo'yildi" xabari bu ikki
+    /// holatda BOSHQA-BOSHQA narsani va'da qiladi va ularni bitta
+    /// EventId ostida qo'shib yuborish log'ni o'qiyotgan odamni
+    /// chalg'itardi.
+    ///
+    /// <c>Solishtiruv</c> — qator guruh USTUNIDAN emas, solishtiruv
+    /// RO'YXATIDAN kelganini bildiradi. Yoyishning 3-bosqichida aynan shu
+    /// bayroq "nega bu darsda ikkita yozuv bor?" savoliga javob beradi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6522,
+        Level = LogLevel.Information,
+        Message = "Avtomatik yozuv navbatga qo'yildi (YANGI quvur, tungi montaj). "
+                  + "dars={SessionId} solishtiruv={ViaShadowList}")]
+    internal static partial void AutoQueuedTrackPipeline(
+        ILogger logger, long sessionId, bool viaShadowList);
+
+    /// <summary>
+    /// ⚠️ <c>Warning</c>: sozlama o'qildi, lekin uning BIR QISMI tashlab
+    /// yuborildi. Ya'ni administrator ro'yxatga guruh qo'shgan deb
+    /// o'ylayotgan bo'lishi mumkin, amalda esa u guruh solishtiruvga
+    /// tushmagan — va buni boshqa hech narsa ko'rsatmaydi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6523,
+        Level = LogLevel.Warning,
+        Message = "Solishtiruv ro'yxatida o'qib bo'lmaydigan qiymat(lar) bor va ular "
+                  + "e'tiborsiz qoldirildi: {Invalid}")]
+    internal static partial void AutoShadowListMalformed(ILogger logger, string invalid);
+
     // ================================================================= trek quvuri (SPEC-RECORDING-V2)
     //
     // ★ NIMA UCHUN AYNI SINFDA, ALOHIDA `TrackRecordingLog` EMAS: sinf
