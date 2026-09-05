@@ -1,7 +1,9 @@
 import { lookup } from '@/shared/lib/lookup'
 import type {
+  RecordingCompositionStatusName,
   RecordingDto,
   RecordingListItemDto,
+  RecordingPipelineName,
   RecordingStatusName,
   SessionReviewVerdictName,
 } from '@/shared/types'
@@ -46,6 +48,165 @@ export function recordingStatusLabel(status: string | null): string {
 export function recordingStatusTone(status: string | null): RecordingTone {
   if (status === null) return 'neutral'
   return lookup(STATUS_TONES, status, 'neutral')
+}
+
+/* ==========================================================================
+   YOZUV QUVURI VA TUNGI MONTAJ (`RecordingPipeline`,
+   `RecordingCompositionStatus`)
+   ==========================================================================
+
+   Ikki yangi maydon IKKI XIL savolga javob beradi va ular aralashtirilmasin:
+
+     • `pipeline`          — yozuv QANDAY olingan (jonli kodlash / tungi montaj);
+     • `compositionStatus` — tungi montaj QAYERDA turibdi (faqat yangi quvurda).
+
+   🔴 ENG MUHIM MATN QOIDASI. `Queued` va `Running` — XATO EMAS. Dars tugagan,
+   fayl hali yo'q, lekin u ERTALAB paydo bo'ladi. Agar bu holat "xato" yoki
+   hatto neytral "tayyor emas" bo'lib ko'rinsa, xodim yozuvni yo'qolgan deb
+   hisoblab qo'llab-quvvatlashga murojaat qiladi — butun bu ish AYNAN o'sha
+   shikoyatni tugatish uchun qilingan. Shuning uchun matnlar QACHON tayyor
+   bo'lishini aytadi, "muvaffaqiyatsiz" degan ma'no bermaydi. */
+
+/**
+ * Quvur nishonining matni.
+ *
+ * ★ `RoomComposite` uchun BO'SH SATR VA BU ATAYLAB: u — standart yo'l va
+ * 33 ta guruhning hammasi shunday. Har kartochkaga "Standart" deb yozib
+ * qo'yilsa nishon shovqinga aylanardi va HAQIQIY farqni (tungi montaj)
+ * ko'rsatmasdi. Bo'sh satr = nishon umuman chizilmaydi.
+ */
+const PIPELINE_LABELS: Record<RecordingPipelineName, string> = {
+  RoomComposite: '',
+  TrackComposition: 'Tungi montaj',
+}
+
+/**
+ * Nishon ohangi. `accent` — bu "diqqat" emas, "boshqacha": qator xato ham,
+ * ogohlantirish ham emas, shunchaki BOSHQA usulda olingan.
+ */
+const PIPELINE_TONES: Record<RecordingPipelineName, RecordingTone> = {
+  RoomComposite: 'neutral',
+  TrackComposition: 'accent',
+}
+
+/** Nishon matni. Bo'sh satr — nishon chizilmaydi (sabab yuqorida). */
+export function recordingPipelineLabel(pipeline: string | null): string {
+  if (pipeline === null) return ''
+  return lookup(PIPELINE_LABELS, pipeline, '')
+}
+
+export function recordingPipelineTone(pipeline: string | null): RecordingTone {
+  if (pipeline === null) return 'neutral'
+  return lookup(PIPELINE_TONES, pipeline, 'neutral')
+}
+
+/**
+ * Nishon UMUMAN chiziladimi. `pipeline` serverda hech qachon `null` emas,
+ * lekin noma'lum qiymat kelsa ham (backend yangi quvur qo'shsa) yorliqsiz
+ * bo'sh rozetka chizilmasin.
+ */
+export function hasPipelineBadge(recording: Recording): boolean {
+  return recordingPipelineLabel(recording.pipeline).length > 0
+}
+
+/** SPEC 7.1-jadvali — matnlar AYNAN o'sha yerdagidek. */
+const COMPOSITION_LABELS: Record<RecordingCompositionStatusName, string> = {
+  Collecting: 'Yozilmoqda',
+  Queued: 'Tungi montaj navbatida',
+  Running: 'Montaj qilinmoqda',
+  Completed: 'Tayyor',
+  Failed: 'Xato',
+}
+
+const COMPOSITION_TONES: Record<RecordingCompositionStatusName, RecordingTone> = {
+  // Dars ketyapti — efirdagi qizil nuqta bilan bir xil ma'no (`Active` dek).
+  Collecting: 'live',
+  /*
+    🔴 `Queued` VA `Running` — `accent`, `warning` EMAS VA `danger` EMAS.
+    Sariq/qizil ohang "biror narsa noto'g'ri" degan ma'no beradi, bu yerda
+    esa hammasi rejadagidek: navbat — bu KUTISH, xato emas.
+  */
+  Queued: 'accent',
+  Running: 'accent',
+  Completed: 'success',
+  Failed: 'danger',
+}
+
+export function recordingCompositionLabel(status: string | null): string {
+  if (status === null) return ''
+  return lookup(COMPOSITION_LABELS, status, status)
+}
+
+export function recordingCompositionTone(status: string | null): RecordingTone {
+  if (status === null) return 'neutral'
+  return lookup(COMPOSITION_TONES, status, 'neutral')
+}
+
+/**
+ * "Fayl qani?" degan savolga BIR GAPLIK javob — nishon yonidagi izoh uchun.
+ *
+ * ⚠️ `Failed` uchun ATAYLAB BO'SH: xato sababini server `error` maydonida
+ * o'zbekcha yozib beradi va kartochka uni allaqachon ko'rsatadi. Bu yerda
+ * o'zimizdan "xato yuz berdi" deb yozsak, xodim IKKI xil tushuntirish
+ * ko'rardi va aniqrog'i (serverniki) ikkinchi darajaga tushardi.
+ *
+ * `Collecting` ham bo'sh: dars hozir ketyapti va "Yozilmoqda" nishonining
+ * o'zi yetarli — bu holat eski quvurda ham bor va u haqda hech kim
+ * so'ramagan.
+ */
+const COMPOSITION_NOTES: Record<RecordingCompositionStatusName, string> = {
+  Collecting: '',
+  Queued: 'Dars yozib olindi. Video kechasi montaj qilinadi — ertalab tayyor bo‘ladi.',
+  Running: 'Video hozir montaj qilinmoqda. Tayyor bo‘lgach o‘zi ochiladi.',
+  Completed: '',
+  Failed: '',
+}
+
+export function recordingCompositionNote(status: string | null): string {
+  if (status === null) return ''
+  return lookup(COMPOSITION_NOTES, status, '')
+}
+
+/**
+ * KARTOCHKADA KO'RSATILADIGAN holat yorlig'i.
+ *
+ * 🔴 SPEC 7.1: `compositionStatus` bor va u `Completed` EMAS bo'lsa, xom
+ * `status` O'RNIGA montaj holati ko'rsatiladi. Sabab: yangi quvurda dars
+ * tugagach ham `status` `'Active'` bo'lib qolaveradi (fayl ertalab
+ * yakunlanadi), ya'ni olti soat oldin tugagan dars ro'yxatda "Yozilmoqda"
+ * bo'lib turardi — bu shunchaki YOLG'ON.
+ *
+ * `Completed` da esa xom `status` ishlatiladi: montaj tugagan bo'lsa ham
+ * fayl yuklanishi/tekshirilishi qolgan bo'lishi mumkin va o'sha payt
+ * "Tayyor" deb yozish "Ko'rish" tugmasi ishlamasligi bilan zid kelardi
+ * (tugma `isPlayable` ga bog'liq, u esa `status` dan chiqadi).
+ */
+export function recordingDisplayStatusLabel(recording: Recording): string {
+  const composition = recording.compositionStatus
+  if (composition !== null && composition !== 'Completed') {
+    return recordingCompositionLabel(composition)
+  }
+  return recordingStatusLabel(recording.status)
+}
+
+export function recordingDisplayStatusTone(recording: Recording): RecordingTone {
+  const composition = recording.compositionStatus
+  if (composition !== null && composition !== 'Completed') {
+    return recordingCompositionTone(composition)
+  }
+  return recordingStatusTone(recording.status)
+}
+
+/**
+ * Yozuv tungi montajni KUTYAPTIMI (ya'ni "fayl hali yo'q, lekin bo'ladi").
+ *
+ * Bu "xato" dan ATAYLAB ajratilgan: ikkalasida ham fayl yo'q, lekin
+ * birinchisida qilinadigan ish — ertaga qarash, ikkinchisida — sababni
+ * o'qish.
+ */
+export function isAwaitingComposition(recording: Recording): boolean {
+  const composition = recording.compositionStatus
+  return composition === 'Queued' || composition === 'Running'
 }
 
 /* ==========================================================================

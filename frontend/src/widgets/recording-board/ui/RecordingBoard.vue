@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { RecordingCard, recordingItemTitle, updateRecordingVisibility } from '@/entities/recording'
+import {
+  isAwaitingComposition,
+  RecordingCard,
+  recordingItemTitle,
+  updateRecordingVisibility,
+} from '@/entities/recording'
 import { useRecordingList } from '@/features/recording-list/model/useRecordingList'
 import RecordingPlayerModal from '@/features/recording-player/ui/RecordingPlayerModal.vue'
 import { SessionReviewModal } from '@/features/session-review'
@@ -57,6 +62,41 @@ function play(recordingId: number): void {
 function closePlayer(): void {
   playingId.value = null
 }
+
+/* ==========================================================================
+   TUNGI MONTAJ — RO'YXAT DARAJASIDAGI TUSHUNTIRISH
+   ==========================================================================
+
+   🔴 NIMA UCHUN BU BLOK BOR (kartochkadagi nishon YETMAYDI). Yangi quvur
+   ikkita narsani ko'rsatadiki, ularning IKKALASI ham "nosozlik" ga
+   o'xshaydi va ikkalasi ham ONGLI:
+
+     1. Dars tugagan, lekin video hali yo'q — u KECHASI tayyorlanadi.
+        Kartochkada bu "Tungi montaj navbatida" deb turadi; izohsiz xodim
+        buni "yozuv ishlamabdi" deb o'qiydi.
+     2. Solishtiruv bosqichida BITTA darsning IKKITA qatori ro'yxatda
+        yonma-yon turadi (bir xil nom, bir xil sana, ikki xil usul).
+
+   Blok FAQAT ro'yxatda tungi montaj qatori bo'lganda chiziladi: 33 ta
+   guruhning hammasi standart quvurda ekan, doimiy izoh shunchaki
+   shovqin bo'lardi. */
+
+/** Joriy (filtrlangan) ro'yxatda tungi montaj qatori bormi. */
+const hasNightPipeline = computed(() =>
+  list.items.value.some((item) => item.recording.pipeline === 'TrackComposition'),
+)
+
+/**
+ * Montaj NAVBATIDA yoki montaj JARAYONIDA turgan yozuvlar soni.
+ *
+ * ⚠️ ATAYLAB "tayyor emas" DEB SANALMAYDI: `Collecting` (dars hozir
+ * ketyapti) va `Failed` (haqiqiy xato) bu songa kirmaydi — birinchisi eski
+ * quvurda ham bor, ikkinchisi esa BOSHQA amal talab qiladi (sababni o'qish,
+ * kutish emas).
+ */
+const awaitingCompositionCount = computed(
+  () => list.items.value.filter((item) => isAwaitingComposition(item.recording)).length,
+)
 
 /* ==========================================================================
    R29 — SIFAT TAHLILI
@@ -340,6 +380,29 @@ async function bulkSetVisibility(visible: boolean): Promise<void> {
       empty-text="Tanlangan oraliqda yozib olingan dars topilmadi."
       @retry="list.refetch()"
     >
+      <!--
+        Tungi montaj izohi — FAQAT ro'yxatda shunday qator bo'lganda.
+        Sabab va matnning ohangi skriptdagi izohda: bu OGOHLANTIRISH emas,
+        shuning uchun sariq/qizil emas, brend rangida.
+      -->
+      <div
+        v-if="hasNightPipeline"
+        class="mb-4 rounded-xl border border-brand-500/25 bg-brand-500/10 px-4 py-3 text-xs leading-relaxed text-brand-300"
+      >
+        <p>
+          <span class="font-semibold">«Tungi montaj»</span> nishoni qo‘yilgan darslarning
+          videosi dars tugashi bilan emas, kechasi tayyorlanadi va ertalab ochiladi.
+          <template v-if="awaitingCompositionCount > 0">
+            Hozir {{ awaitingCompositionCount }} ta yozuv shu navbatda — bu xato emas,
+            ularni ertalab qayta tekshiring.
+          </template>
+        </p>
+        <p class="mt-1.5 text-dim">
+          Usullarni solishtirish uchun bitta darsda ikkita yozuv bo‘lishi mumkin: biri
+          standart, biri tungi montaj. Ular nishoni bilan farqlanadi.
+        </p>
+      </div>
+
       <!-- Setka eski ilovadagidek: `minmax(290px, 1fr)`. -->
       <div class="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-5">
         <RecordingCard

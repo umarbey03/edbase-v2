@@ -5,6 +5,7 @@ import type {
   GroupStaffRoleName,
   GroupTypeName,
   GroupWriteRequest,
+  RecordingPipelineName,
 } from '@/shared/types'
 
 /**
@@ -57,6 +58,14 @@ export interface BasicSectionForm {
    * OLINSINMI", bu esa "yozilgan fayl o'quvchiga KO'RSATILSINMI".
    */
   recordingsVisibleToStudents: boolean
+  /**
+   * Yozib olish USULI. Standart `'RoomComposite'` — bugungi xatti-harakat.
+   *
+   * ★ NEGA `basic` BO'LIMIDA: u `recordEnabled` ning DAVOMI ("yozilsinmi"
+   * -> "qanday yozilsin") va o'sha kalitdan ajratilsa tanlov ma'nosini
+   * yo'qotardi. Yozuvi o'chiq guruhda tanlagich o'chirilgan bo'ladi.
+   */
+  recordingPipeline: RecordingPipelineName
   /* ===== R33 + R40 · KIM MAS'UL =====
 
      ★ NEGA `basic` BO'LIMIDA: ikkala tanlov ham SHTATGA tegishli va
@@ -138,6 +147,12 @@ export function basicFrom(group: GroupDto | null): BasicSectionForm {
     //    holda yopiq bo'lardi (server standarti ham `true`).
     recordingsVisibleToStudents: group?.recordingsVisibleToStudents ?? true,
 
+    // 🔴 STANDART `'RoomComposite'` — YANGI guruhda ham, DTO'siz holatda
+    //    ham. Teskarisi (tajriba quvuri) bo'lganda har yangi guruh hech kim
+    //    so'ramagan holda yangi yo'lga tushardi. `??` — server enum'i
+    //    nullable emas, lekin eski keshdan `undefined` kelishi mumkin.
+    recordingPipeline: group?.recordingPipeline ?? 'RoomComposite',
+
     // 🔴 STANDARTLAR SERVERNIKI BILAN AYNAN BIR XIL va ular ATAYLAB
     //    HAR XIL: `Both` — baholashning bugungi holati (ustoz ham,
     //    kurator ham), `Assistant` — savollarning bugungi holati (faqat
@@ -196,6 +211,23 @@ export function buildPayload(forms: GroupSectionForms): GroupWriteRequest {
     curatorGroupId: forms.basic.curatorGroupId,
     recordEnabled: forms.basic.recordEnabled,
     recordingsVisibleToStudents: forms.basic.recordingsVisibleToStudents,
+
+    /*
+      🔴 `categoryId` BILAN AYNI TUZOQ, faqat JIMROQ: bu PUT, ya'ni maydon
+      yuborilmasa server standartni (`RoomComposite`) yozadi va guruh tungi
+      montaj quvuridan JIMGINA tushib qoladi. Hech kim buni saqlash paytida
+      sezmasdi — faqat keyingi dars boshqa shakldagi yozuv berganda
+      bilinardi. Shuning uchun joriy qiymat HAR DOIM qaytariladi.
+
+      ⚠️ `null` YUBORILMAYDI: server tomonda enum nullable emas va `null`
+      **400** beradi. Tur ham shuning uchun nullable emas —
+      `basicFrom` bo'sh holatda ham `'RoomComposite'` beradi.
+
+      ⚠️ `recordEnabled` `false` bo'lsa ham qiymat yuboriladi: tanlagich
+      o'chirilgan bo'lishi mumkin, lekin guruhdagi SAQLANGAN tanlov
+      yo'qolmasligi kerak — yozuv qayta yoqilganda u tiklanadi.
+    */
+    recordingPipeline: forms.basic.recordingPipeline,
 
     // 🔴 R33 + R40 — `categoryId` bilan AYNI tuzoq: yuborilmasa server
     //    standartni yozadi. `questionResponderRole` da bu ayniqsa
@@ -277,6 +309,12 @@ export function changedFieldLabels(
     if (next.recordingsVisibleToStudents !== prev.recordingsVisibleToStudents) {
       labels.push('Yozuvlar o‘quvchilarga ochiq')
     }
+    /*
+      🔴 SHU QATORSIZ TANLOVNI SAQLAB BO'LMASDI: `saveSection` bu ro'yxat
+      bo'sh bo'lsa "O'zgarish yo'q" deb serverga UMUMAN bormaydi. Ya'ni
+      faqat usulni almashtirgan xodim "saqladim" deb o'ylab qolardi.
+    */
+    if (next.recordingPipeline !== prev.recordingPipeline) labels.push('Yozib olish usuli')
     if (next.isActive !== prev.isActive) labels.push('Guruh statusi')
     return labels
   }

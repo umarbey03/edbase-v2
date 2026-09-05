@@ -561,6 +561,21 @@ export interface GroupDto {
    * bo'lsa yozuv baribir olinadi va o'quv bo'limi uni ko'raveradi.
    */
   recordingsVisibleToStudents: boolean
+  /**
+   * Bu guruhning darslari QAYSI mexanizm bilan yoziladi. Standart
+   * `'RoomComposite'` = bugungi xatti-harakat (33 ta mavjud guruhning
+   * hammasi shunday).
+   *
+   * ⚠️ `recordEnabled` BILAN ARALASHTIRILMASIN: u "yozilsinmi", bu esa
+   * "QANDAY yozilsin". Yozuvi o'chiq guruh bu yerda nima turishidan
+   * qat'i nazar yozilmaydi.
+   *
+   * 🔴 GLOBAL KALIT USTUNROQ: `recordings.track_pipeline_enabled` sozlamasi
+   * o'chiq bo'lsa bu tanlov E'TIBORGA OLINMAYDI va guruh eski yo'lda
+   * qolaveradi. Shuning uchun tanlagich yonida shu haqda izoh turadi —
+   * aks holda o'quv bo'limi "tanladim, lekin ishlamadi" holatiga tushardi.
+   */
+  recordingPipeline: RecordingPipelineName
   /* ===== R33 + R40 · KIM MAS'UL ===== */
   /**
    * R33 — bu guruhning topshirilgan ishlarini KIM tekshiradi.
@@ -1245,6 +1260,18 @@ export interface GroupWriteRequest {
    * safar kalitni `true` ga qaytarardi.
    */
   recordingsVisibleToStudents: boolean
+  /**
+   * Yozib olish USULI. 🔴 HAR DOIM JORIY QIYMAT YUBORILSIN — `categoryId`
+   * bilan AYNI tuzoq, lekin jimroq: bu PUT, ya'ni maydonni yubormagan
+   * klient guruhni har tahrirda `'RoomComposite'` ga QAYTARIB qo'yadi.
+   * Guruh yangi quvurdan jimgina tushib qolardi va buni faqat yozuvlar
+   * shakli o'zgargandan keyin sezishardi.
+   *
+   * ⚠️ `null` YUBORILMAYDI: serverda maydon nullable EMAS va `null`
+   * **400** beradi. `undefined` (umuman yubormaslik) esa server
+   * standartiga tushadi — shuning uchun tur ham majburiy va nullable emas.
+   */
+  recordingPipeline: RecordingPipelineName
   /**
    * R33 — tekshiruvchi. 🔴 HAR DOIM YUBORILSIN (PUT semantikasi).
    * Server standarti `'Both'` = bugungi xatti-harakat.
@@ -2473,6 +2500,46 @@ export interface MarkGroupChatReadRequest {
  */
 export type RecordingStatusName = 'Requested' | 'Starting' | 'Active' | 'Completed' | 'Failed'
 
+/**
+ * Yozuv QAYSI mexanizm bilan olinadi (`RecordingPipeline`, JSON'da SATR).
+ *
+ *   • `RoomComposite`    — dars davomida jonli kodlash (bugungi, standart yo'l);
+ *   • `TrackComposition` — arzon tutib olish + TUNGI montaj.
+ *
+ * ⚠️ SERVER TOMONDA BU ENUM `null` EMAS — na `RecordingDto.pipeline` da, na
+ * guruh DTO'larida. Guruh yozish so'rovida `null` yuborilsa server **400**
+ * qaytaradi; maydonni umuman yubormaslik esa boshqa narsa (u holda
+ * `RoomComposite` yoziladi). "Yubormaslik" va "`null` yuborish" bu yerda
+ * IKKI XIL amal.
+ *
+ * ★ Ikkala joyda ham AYNI tur ishlatiladi (`GroupDto.recordingPipeline` —
+ * "guruh qaysi usulda yoziladi", `RecordingDto.pipeline` — "shu qatorni qaysi
+ * usul yaratgan"), chunki qiymatlar to'plami serverda ham bitta enum.
+ */
+export type RecordingPipelineName = 'RoomComposite' | 'TrackComposition'
+
+/**
+ * Tungi montaj qayerda turibdi (`RecordingCompositionStatus`, JSON'da SATR).
+ *
+ *   • `Collecting` — dars ketyapti (yoki endi tugadi), treklar hali yig'ilmoqda;
+ *   • `Queued`     — hamma trek yopildi, tungi oynani KUTYAPTI;
+ *   • `Running`    — montaj hozir bajarilmoqda;
+ *   • `Completed`  — yakuniy fayl yuklandi;
+ *   • `Failed`     — montaj yiqildi, sababi `RecordingDto.error` da.
+ *
+ * 🔴 `Queued` VA `Running` — XATO EMAS. Fayl HAQIQATAN hali yo'q, lekin u
+ * kutilgan holat: dars tugagach video darhol tayyor bo'lmaydi, ertalabga
+ * tayyor bo'ladi. Interfeys buni "kutilmoqda" deb ko'rsatishi shart, aks
+ * holda xodim yozuvni "yo'qolgan" deb hisoblaydi — bu quvurni yozishdagi
+ * asosiy shikoyat aynan shu edi.
+ */
+export type RecordingCompositionStatusName =
+  | 'Collecting'
+  | 'Queued'
+  | 'Running'
+  | 'Completed'
+  | 'Failed'
+
 /** `RecordingDto` — swagger sxemasi bilan bir xil, nullable maydonlar `| null`. */
 export interface RecordingDto {
   id: number
@@ -2509,6 +2576,27 @@ export interface RecordingDto {
   hasReview: boolean
   /** Tahlil xulosasi yoki `null` — tahlil yo'q. */
   reviewStatus: SessionReviewVerdictName | null
+  /**
+   * Bu qatorni QAYSI mexanizm yaratgan. Serverda maydon `null` BO'LMAYDI —
+   * eski qatorlar ham `"RoomComposite"` bilan keladi (bazadagi standart `0`).
+   *
+   * ★ NEGA KLIENTGA KERAK: solishtiruv bosqichida BITTA darsda IKKITA yozuv
+   * qatori bo'ladi (bir xil dars, ikki xil usul). Nishonsiz ular xodimga
+   * bir xil ko'rinadi va u buni NOSOZLIK deb xabar qiladi.
+   */
+  pipeline: RecordingPipelineName
+  /**
+   * Tungi montaj bosqichi yoki `null`.
+   *
+   * 🔴 `null` — ESKI quvur (`pipeline === 'RoomComposite'`): u yerda montaj
+   * bosqichi UMUMAN yo'q. Bu "hali boshlanmagan" DEGANI EMAS.
+   *
+   * ⚠️ `status` NI ALMASHTIRMAYDI, ikkalasi ikki xil savolga javob beradi:
+   * `status` — "faylni ochib bo'ladimi", bu esa — "ishlab chiqarish
+   * qayerda". Yangi quvurda dars tugagach ham `status` `'Active'` bo'lib
+   * qolaveradi, chunki fayl ERTALAB tayyor bo'ladi.
+   */
+  compositionStatus: RecordingCompositionStatusName | null
 }
 
 /**

@@ -5,6 +5,7 @@ import type { ComputedRef, Ref } from 'vue'
 import {
   defaultRecordingRange,
   fetchRecordings,
+  isAwaitingComposition,
   isRecordingInProgress,
   recordingItemTitle,
   validateRecordingRange,
@@ -85,8 +86,25 @@ export function useRecordingList(options: UseRecordingListOptions = {}): UseReco
       Hech narsa yozilmayotgan bo'lsa taymer umuman ishlamaydi — ochiq turgan
       sahifa serverni bekorga bezovta qilmaydi.
     */
+    /*
+      🔴 TUNGI MONTAJ KUTAYOTGAN QATOR "KETAYOTGAN" EMAS.
+
+      `TrackComposition` qatori dars tugagach ham `Active` bo'lib turadi —
+      xom bo'laklar yozilgan, lekin yakuniy fayl faqat KECHASI yig'iladi.
+      Bu holat soatlab davom etadi, ya'ni `isRecordingInProgress` yolg'iz
+      qolsa ochiq turgan sahifa butun tun bo'yi har 15 soniyada so'rov
+      yuborardi — ertalabgacha ~2000 ta, va ularning birortasi ham hech
+      narsani o'zgartira olmaydi, chunki qator tong otguncha qotib turadi.
+
+      Shuning uchun montaj navbatidagi qator taymerdan ATAYLAB chiqariladi.
+      U yangilanganini foydalanuvchi ertasi kuni sahifani ochganda ko'radi —
+      bu yerda real vaqt kerak emas.
+    */
     refetchInterval: (query) =>
-      (query.state.data ?? []).some((item) => isRecordingInProgress(item.recording))
+      (query.state.data ?? []).some(
+        (item) =>
+          isRecordingInProgress(item.recording) && !isAwaitingComposition(item.recording),
+      )
         ? IN_PROGRESS_REFETCH_MS
         : false,
   })

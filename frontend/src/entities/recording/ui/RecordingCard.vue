@@ -7,8 +7,12 @@ import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 import {
   formatRecordingDuration,
   formatRecordingSize,
-  recordingStatusLabel,
-  recordingStatusTone,
+  hasPipelineBadge,
+  recordingCompositionNote,
+  recordingDisplayStatusLabel,
+  recordingDisplayStatusTone,
+  recordingPipelineLabel,
+  recordingPipelineTone,
   reviewVerdictLabel,
   reviewVerdictTone,
 } from '../model/types'
@@ -43,6 +47,12 @@ import type { Recording } from '../model/types'
  *    TEXNIK holat nishoni ("Yozilmoqda", "Xato") HAM QOLADI: u boshqa
  *    savolga javob beradi ("fayl bormi?"), sifat nishoni esa
  *    ("dars qanday o'tdi?"). Ikkalasi bir vaqtda ma'noli.
+ *
+ * ★★ QO'SHILDI (yozuv quvuri v2): «Tungi montaj» nishoni va montaj holati.
+ *    Holat nishoni endi `recordingDisplayStatusLabel` dan chiqadi, xom
+ *    `status` dan emas — yangi quvurda dars tugagach ham `status`
+ *    `'Active'` bo'lib qolaveradi va kartochka ertalabgacha "Yozilmoqda"
+ *    deb turardi. Sabab va jadval `model/types.ts` da.
  *
  * ▶ tugmasi ichidagi ikonka `text-on-brand` — brend fonidagi matn rangi
  * tokenda turadi (hozir oq, indigo fonda 5.9:1). `text-white` yozib
@@ -96,6 +106,40 @@ const dateLabel = computed(() =>
 
 const playable = computed(() => props.recording.isPlayable)
 
+/**
+ * Holat nishoni — MONTAJNI HISOBGA OLGAN holda (SPEC 7.1).
+ *
+ * 🔴 Xom `recording.status` TO'G'RIDAN-TO'G'RI ISHLATILMAYDI: tungi montaj
+ * quvurida dars tugagach ham u `'Active'` bo'lib qolaveradi (fayl ertalab
+ * yakunlanadi), ya'ni ertalab soat 8 da olti soat oldin tugagan dars
+ * "Yozilmoqda" deb turardi. Qoida bitta joyda — `model/types.ts`.
+ */
+const statusLabel = computed(() => recordingDisplayStatusLabel(props.recording))
+const statusTone = computed(() => recordingDisplayStatusTone(props.recording))
+
+/*
+  QUVUR NISHONI. Standart quvur (`RoomComposite`) uchun yorliq BO'SH bo'ladi
+  va nishon umuman chizilmaydi — 33 ta guruhning hammasi standart, ya'ni
+  "Standart" yozuvi har kartochkada takrorlanib shovqin bo'lardi.
+
+  ★ NIMA UCHUN BU KERAK: solishtiruv bosqichida BITTA darsning IKKITA yozuvi
+  ro'yxatda yonma-yon turadi (bir xil nom, bir xil sana). Nishonsiz bu
+  takrorlanish NOSOZLIKKA o'xshaydi.
+*/
+const showPipeline = computed(() => hasPipelineBadge(props.recording))
+const pipelineLabel = computed(() => recordingPipelineLabel(props.recording.pipeline))
+const pipelineTone = computed(() => recordingPipelineTone(props.recording.pipeline))
+
+/**
+ * "Fayl qani?" izohi — faqat KUTISH holatlarida (`Queued`, `Running`).
+ *
+ * ⚠️ XATO BLOKIDAN ALOHIDA VA BOSHQA RANGDA: bu yerda hech narsa
+ * buzilmagan, shunchaki video ertalabga tayyor bo'ladi. Ikkalasini bitta
+ * qizil blokka qo'shish aynan o'sha "yozuv yo'qolibdi" degan noto'g'ri
+ * xulosani keltirib chiqarardi.
+ */
+const compositionNote = computed(() => recordingCompositionNote(props.recording.compositionStatus))
+
 /** Xato matni serverdan keladi (masalan egress rad etgani) — o'zimiz yozmaymiz. */
 const errorText = computed(() => props.recording.error ?? '')
 
@@ -132,7 +176,7 @@ const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus
       type="button"
       class="group relative flex h-[150px] w-full items-center justify-center bg-gradient-to-br from-ink-800 to-ink-750 disabled:cursor-default"
       :disabled="!playable"
-      :title="playable ? 'Yozuvni ko‘rish' : recordingStatusLabel(recording.status)"
+      :title="playable ? 'Yozuvni ko‘rish' : statusLabel"
       @click="play"
     >
       <!--
@@ -165,12 +209,31 @@ const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus
         v-text="groupName"
       />
 
-      <BaseBadge
-        class="absolute right-3 top-3 z-10"
-        :tone="recordingStatusTone(recording.status)"
-      >
-        {{ recordingStatusLabel(recording.status) }}
-      </BaseBadge>
+      <!--
+        Ikki nishon USTMA-UST, yonma-yon EMAS: chapda guruh nishoni turadi
+        (`max-w-[60%]`) va uch element bitta qatorga sig'masdi — 290px li
+        kartochkada ular bir-birining ustiga chiqardi.
+      -->
+      <span class="absolute right-3 top-3 z-10 flex flex-col items-end gap-1">
+        <BaseBadge :tone="statusTone">
+          {{ statusLabel }}
+        </BaseBadge>
+        <!--
+          Quvur nishoni. `RoomComposite` da `showPipeline` `false` — standart
+          yo'l ATAYLAB jimgina qoladi (sabab skriptdagi izohda).
+
+          `title` O'RAB TURGAN `span` DA: `BaseBadge` `title` propini
+          e'lon qilmaydi va `vue-tsc` uni noma'lum prop deb rad etadi.
+        -->
+        <span
+          v-if="showPipeline"
+          title="Bu yozuv dars davomida emas, kechasi montaj qilinadi. Bitta darsning ikkita yozuvi bo‘lsa — ular solishtirish uchun."
+        >
+          <BaseBadge :tone="pipelineTone">
+            {{ pipelineLabel }}
+          </BaseBadge>
+        </span>
+      </span>
 
       <span
         v-if="playable"
@@ -220,6 +283,28 @@ const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus
             <span v-text="size" />
           </template>
         </p>
+
+        <!--
+          ══════════════════════════════════════════════════════════════
+           TUNGI MONTAJ IZOHI — "hali yo'q", "yiqildi" EMAS
+          ══════════════════════════════════════════════════════════════
+
+          🔴 PASTDAGI XATO BLOKIDAN ATAYLAB BOSHQACHA: qizil emas, brend
+             rangida va matni QACHON tayyor bo'lishini aytadi. Ikkalasi
+             bir xil ko'rinsa xodim kutilayotgan yozuvni "yiqilgan" deb
+             o'qirdi va aynan shu — bu quvurni yozishga sabab bo'lgan
+             shikoyatning o'zi.
+
+          Ikkalasi bir vaqtda chiqishi NAZARIY jihatdan mumkin (kutish
+          holatida ham `error` da eski, o'tib ketgan xato qolgan bo'lsa).
+          Bu holda ikkalasi ham ko'rsatiladi va bu TO'G'RI: serverning xato
+          matnini yashirish undan ko'ra yomonroq bo'lardi.
+        -->
+        <p
+          v-if="compositionNote.length > 0"
+          class="mt-2.5 rounded-md border-l-2 border-brand-500 bg-brand-500/10 px-2 py-1.5 text-[11px] leading-relaxed text-brand-300"
+          v-text="compositionNote"
+        />
 
         <!--
           Xato matni ATAYLAB to'liq ko'rsatiladi: "Yozuv xizmati rad etdi: …"

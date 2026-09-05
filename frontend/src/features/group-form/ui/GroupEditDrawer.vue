@@ -917,6 +917,52 @@ const serverVideoStartLabel = computed(() => {
           </label>
         </div>
 
+        <!--
+          ============================================================
+          YOZIB OLISH USULI (yozuv quvuri v2)
+          ============================================================
+
+          ★ AYNAN `recordEnabled` YONIDA: bu o'sha kalitning DAVOMI —
+            "yozilsinmi" dan keyingi "qanday yozilsin". Boshqa kartaga
+            qo'yilsa bog'liqlik ko'rinmasdi.
+
+          🔴 YOZUV O'CHIQ BO'LSA TANLAGICH HAM O'CHIQ: yozilmaydigan
+             guruhda usul tanlash hech narsa qilmaydi va xodim uni
+             "yoqdim" deb tushunardi. Saqlangan qiymat esa YO'QOLMAYDI —
+             `buildPayload` uni baribir qaytaradi (izoh o'sha faylda).
+
+          🔴 GLOBAL KALIT USTUNROQ: `recordings.track_pipeline_enabled`
+             sozlamasi o'chiq bo'lsa bu tanlov e'tiborga olinmaydi va
+             guruh standart yo'lda qolaveradi. Shuning uchun izoh matni
+             buni ochiq aytadi — aks holda "tanladim, lekin ishlamadi"
+             degan savol paydo bo'lardi. Sozlamaning O'ZI bu yerdan
+             o'qilmaydi: u "Sozlamalar" sahifasida turadi va uni har
+             guruh panelida so'rash ortiqcha so'rov bo'lardi.
+        -->
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <BaseField
+            label="Yozib olish usuli"
+            :hint="
+              forms.basic.recordEnabled
+                ? '“Tungi montaj” sifatliroq: video kechasi tayyorlanadi va ertalab ochiladi. Global sozlama o‘chiq bo‘lsa standart usul ishlaydi.'
+                : 'Avval “Darslarni yozib olish”ni yoqing.'
+            "
+          >
+            <select
+              v-model="forms.basic.recordingPipeline"
+              class="zn-input"
+              :disabled="!forms.basic.recordEnabled"
+            >
+              <option value="RoomComposite">
+                Standart (jonli montaj)
+              </option>
+              <option value="TrackComposition">
+                Tungi montaj (sifatliroq)
+              </option>
+            </select>
+          </BaseField>
+        </div>
+
         <div
           v-if="isEdit"
           class="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3.5"
