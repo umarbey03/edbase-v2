@@ -10,8 +10,9 @@ namespace Zinnur.Application.Recordings;
 /// (CA1848). Bundan tashqari modulning barcha xabarlari va ularning
 /// EventId'lari BIR JOYDA turadi — <c>ApiLog</c> ga tegilmaydi.
 ///
-/// EventId makoni: <c>6500–6549</c> (yozuv, shundan <c>6530–6549</c> —
-/// trek quvuri), <c>6550–6599</c> (watchdog).
+/// EventId makoni: <c>6500–6529</c> (yozuv), <c>6530–6535</c> (trek
+/// webhook'i), <c>6536–6549</c> (trek moslashtiruvchisi),
+/// <c>6550–6559</c> (watchdog), <c>6560–6579</c> (tungi yig'ish).
 /// </summary>
 internal static partial class RecordingLog
 {
@@ -222,4 +223,222 @@ internal static partial class RecordingLog
                   + "boshlanadi. yozuv={RecordingId}")]
     internal static partial void WatchdogPresenceUnavailable(
         ILogger logger, Exception exception, long recordingId);
+
+    // ================================================================= trek moslashtiruvchisi (§4.1)
+    //
+    // ★ Bu vazifa YO'QOLGAN webhook'larning zaxira yo'li. Uning har bir
+    //   xabari "biror hodisa yetib kelmagan" degani, ya'ni ularning
+    //   ko'payishi webhook kanalida muammo borligini bildiradi. Shuning
+    //   uchun daraja `Debug` emas.
+
+    [LoggerMessage(
+        EventId = 6536,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: bo'lak boshlanmagan, qayta urinamiz. "
+                  + "bo'lak={TrackId} yozuv={RecordingId} urinish={Attempts}")]
+    internal static partial void ReconcileTrackRetry(
+        ILogger logger, long trackId, long recordingId, int attempts);
+
+    [LoggerMessage(
+        EventId = 6537,
+        Level = LogLevel.Error,
+        Message = "Moslashtiruvchi: bo'lak YAKUNIY xato deb belgilandi. "
+                  + "bo'lak={TrackId} yozuv={RecordingId} sabab={Reason}")]
+    internal static partial void ReconcileTrackGaveUp(
+        ILogger logger, long trackId, long recordingId, string reason);
+
+    [LoggerMessage(
+        EventId = 6538,
+        Level = LogLevel.Information,
+        Message = "Moslashtiruvchi: bo'lak fayli ombordan topildi. "
+                  + "bo'lak={TrackId} yozuv={RecordingId} hajm={SizeBytes}")]
+    internal static partial void ReconcileTrackRecovered(
+        ILogger logger, long trackId, long recordingId, long? sizeBytes);
+
+    /// <summary>
+    /// 🔴 Bu vazifadagi ENG QIMMATLI qadam: yo'qolgan video bo'lak bir
+    /// necha daqiqalik tasvirni yo'qotadi, yo'qolgan mikser esa BUTUN
+    /// DARSNING OVOZINI.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6539,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: xona ovozi qatori yo'q edi, mikser yoqildi. "
+                  + "yozuv={RecordingId} sentinel={TrackSid}")]
+    internal static partial void ReconcileMixerEnsured(
+        ILogger logger, long recordingId, string trackSid);
+
+    [LoggerMessage(
+        EventId = 6540,
+        Level = LogLevel.Error,
+        Message = "Moslashtiruvchi: xona ovozi mikseri LiveKit'da topilmadi — o'rniga "
+                  + "yangisi qo'yiladi. yozuv={RecordingId} bo'lak={TrackId} egress={EgressId}")]
+    internal static partial void ReconcileMixerDead(
+        ILogger logger, long recordingId, long trackId, string egressId);
+
+    [LoggerMessage(
+        EventId = 6541,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: LiveKit'da bizga noma'lum trek topildi (webhook "
+                  + "yo'qolgan). yozuv={RecordingId} trek={TrackSid} tur={Kind}")]
+    internal static partial void ReconcileTrackDiscovered(
+        ILogger logger, long recordingId, string trackSid, string kind);
+
+    [LoggerMessage(
+        EventId = 6542,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: xona ovozi juda uzoq yozilmoqda, to'xtatildi. "
+                  + "yozuv={RecordingId} bo'lak={TrackId}")]
+    internal static partial void ReconcileMixerOverlong(
+        ILogger logger, long recordingId, long trackId);
+
+    [LoggerMessage(
+        EventId = 6543,
+        Level = LogLevel.Information,
+        Message = "Moslashtiruvchi: yozuv tungi navbatga tushdi. "
+                  + "yozuv={RecordingId} tayyor_bo'lak={Completed}")]
+    internal static partial void ReconcileQueued(
+        ILogger logger, long recordingId, int completed);
+
+    [LoggerMessage(
+        EventId = 6544,
+        Level = LogLevel.Error,
+        Message = "Moslashtiruvchi: darsdan bironta ham bo'lak chiqmadi. yozuv={RecordingId}")]
+    internal static partial void ReconcileNoTracks(ILogger logger, long recordingId);
+
+    /// <summary>
+    /// 🔴 LIVEKIT JAVOB BERMASA HECH QANDAY XULOSA CHIQARILMAYDI. Bo'sh
+    /// ro'yxatni "mikser o'lgan" deb tushunish tirik mikser ustiga
+    /// ikkinchisini yoqardi — bitta darsda ikki ovoz fayli va montajda
+    /// har ovoz ikki marta.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6545,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: LiveKit holatini o'qib bo'lmadi, xulosa chiqarilmadi. "
+                  + "yozuv={RecordingId} sabab={Reason}")]
+    internal static partial void ReconcileLiveKitUnavailable(
+        ILogger logger, long recordingId, string reason);
+
+    [LoggerMessage(
+        EventId = 6546,
+        Level = LogLevel.Warning,
+        Message = "Moslashtiruvchi: ombor javob bermadi, bo'lak keyingi yurishga qoldirildi. "
+                  + "bo'lak={TrackId}")]
+    internal static partial void ReconcileStorageUnavailable(
+        ILogger logger, Exception exception, long trackId);
+
+    // ================================================================= tungi yig'ish (§4.3–4.5)
+
+    [LoggerMessage(
+        EventId = 6560,
+        Level = LogLevel.Information,
+        Message = "Tungi yig'ish boshlandi: yozuv={RecordingId} uzilgan_ishdan={TookOver}")]
+    internal static partial void CompositionClaimed(
+        ILogger logger, long recordingId, bool tookOver);
+
+    [LoggerMessage(
+        EventId = 6561,
+        Level = LogLevel.Information,
+        Message = "Tungi yig'ish yakunlandi: yozuv={RecordingId} hajm={SizeBytes} "
+                  + "uzunlik={DurationSeconds}s")]
+    internal static partial void CompositionCompleted(
+        ILogger logger, long recordingId, long sizeBytes, int durationSeconds);
+
+    [LoggerMessage(
+        EventId = 6562,
+        Level = LogLevel.Warning,
+        Message = "Tungi yig'ish yiqildi, navbatga qaytarildi: yozuv={RecordingId} "
+                  + "urinish={Attempts} sabab={Reason}")]
+    internal static partial void CompositionRetrying(
+        ILogger logger, long recordingId, int attempts, string reason);
+
+    [LoggerMessage(
+        EventId = 6563,
+        Level = LogLevel.Error,
+        Message = "Tungi yig'ish YAKUNIY xato: yozuv={RecordingId} sabab={Reason}")]
+    internal static partial void CompositionFailed(
+        ILogger logger, long recordingId, string reason);
+
+    /// <summary>
+    /// ★ `Information` — bu NOSOZLIK EMAS. Uzilish "navbat kechadan uzun
+    /// bo'ldi" degani va u kutilgan hol. Yakuniy taslim bo'lish esa
+    /// alohida `CompositionFailed` qatori bilan yoziladi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6564,
+        Level = LogLevel.Information,
+        Message = "Tungi oyna tugadi, yig'ish keyingi kechaga qoldirildi: "
+                  + "yozuv={RecordingId} uzilish={Interruptions} yakuniy={Final}")]
+    internal static partial void CompositionInterrupted(
+        ILogger logger, long recordingId, int interruptions, bool final);
+
+    /// <summary>
+    /// 🔴 §9.1 NING YAGONA AVTOMATIK O'LCHOVI. Xona ovozi qatoridagi farq
+    /// ayniqsa muhim: u vaqt o'qining O'ZI, ya'ni uning siljishi butun
+    /// yozuvning siljishi. O'n darsdan keyin bu qatorlar bo'yicha siljish
+    /// TEZLIGI hisoblanadi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6565,
+        Level = LogLevel.Warning,
+        Message = "Xom bo'lakning uzunligi kutilganidan farq qildi: yozuv={RecordingId} "
+                  + "bo'lak={TrackId} tur={Kind} kutilgan={ExpectedMs}ms o'lchangan={ProbedMs}ms")]
+    internal static partial void CompositionDrift(
+        ILogger logger, long recordingId, long trackId, string kind, int expectedMs, int probedMs);
+
+    /// <summary>
+    /// 🔴 IKKI KODLOVCHI BITTA KALITGA YOZAYOTGANINING YAGONA ALOMATI.
+    /// Bu qator chiqsa — ijara sozlamalari (muddat va uzaytirish oralig'i)
+    /// qayta ko'rib chiqilishi kerak.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6566,
+        Level = LogLevel.Error,
+        Message = "Yig'ish ijarasi yo'qoldi — qatorni boshqa ishchi olgan bo'lishi mumkin. "
+                  + "yozuv={RecordingId}")]
+    internal static partial void CompositionLeaseLost(ILogger logger, long recordingId);
+
+    [LoggerMessage(
+        EventId = 6567,
+        Level = LogLevel.Warning,
+        Message = "Yig'ish ijarasini uzaytirib bo'lmadi. yozuv={RecordingId}")]
+    internal static partial void CompositionLeaseRenewFailed(
+        ILogger logger, Exception exception, long recordingId);
+
+    [LoggerMessage(
+        EventId = 6568,
+        Level = LogLevel.Error,
+        Message = "Tungi yig'ishda kutilmagan xato. yozuv={RecordingId}")]
+    internal static partial void CompositionCrashed(
+        ILogger logger, Exception exception, long recordingId);
+
+    [LoggerMessage(
+        EventId = 6569,
+        Level = LogLevel.Warning,
+        Message = "Oldingi urinishdan qolgan yakuniy faylni o'chirib bo'lmadi. "
+                  + "yozuv={RecordingId} kalit={ObjectKey}")]
+    internal static partial void CompositionLeftoverNotRemoved(
+        ILogger logger, Exception exception, long recordingId, string objectKey);
+
+    [LoggerMessage(
+        EventId = 6570,
+        Level = LogLevel.Information,
+        Message = "Xom bo'laklar ombordan o'chirildi: yozuv={RecordingId} soni={Count}")]
+    internal static partial void RawPurged(ILogger logger, long recordingId, int count);
+
+    /// <summary>
+    /// ⚠️ `Warning`, `Error` EMAS — VA BU SPEC (§4.5-9) NING OSHKOR
+    /// TALABI: o'chirishning yiqilishi yig'ishning nosozligi EMAS.
+    /// `RawPurgedAt` bo'sh qoladi va keyingi kecha qayta uriniladi.
+    /// Yetim xom fayl PUL turadi, orqaga qaytarilgan sog'lom yozuv esa
+    /// BUTUN DARSNI.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6571,
+        Level = LogLevel.Warning,
+        Message = "Xom bo'lakni o'chirib bo'lmadi, keyingi kecha qayta uriniladi. "
+                  + "yozuv={RecordingId} kalit={ObjectKey}")]
+    internal static partial void RawPurgeFailed(
+        ILogger logger, Exception exception, long recordingId, string objectKey);
 }
