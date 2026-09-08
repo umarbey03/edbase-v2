@@ -72,6 +72,7 @@ internal static class JobsSetup
             services.AddScoped<IScheduledJob>(sp => new SessionAutoCloseJob(
                 sp.GetRequiredService<IApplicationDbContext>(),
                 sp.GetRequiredService<ILiveSessionService>(),
+                sp.GetRequiredService<IPresenceService>(),
                 sp.GetRequiredService<TimeProvider>(),
                 options.SessionAutoClose,
                 sp.GetRequiredService<ILogger<SessionAutoCloseJob>>()));

@@ -52,6 +52,23 @@ internal sealed class JobsOptions
     /// </summary>
     public int SessionGraceMinutes { get; private init; } = 60;
 
+    /// <summary>
+    /// XONA BO'SH bo'lganda <c>EndsAt</c> dan keyin qancha kutiladi.
+    ///
+    /// Katta <see cref="SessionGraceMinutes"/> ning butun vazifasi — hali
+    /// o'qitayotgan ustozni uzib qo'ymaslik. Xonada hech kim bo'lmasa
+    /// uzadigan odamning O'ZI yo'q, shuning uchun bu chegara ancha kichik
+    /// (sabab va shikoyat tarixi — <see cref="SessionAutoCloseJob"/>).
+    /// </summary>
+    public int SessionEmptyRoomGraceMinutes { get; private init; } = 5;
+
+    /// <summary>
+    /// Xona bo'sh chiqqach, yopishdan oldin qancha kutib QAYTA o'lchanadi.
+    /// 30 soniya — sahifa yangilanishi (F5) va qisqa tarmoq sakrashidan
+    /// uzunroq, lekin ustozni kuttirmaydigan darajada qisqa.
+    /// </summary>
+    public int SessionEmptyRoomConfirmSeconds { get; private init; } = 30;
+
     /// <summary>Bir yurishda ko'pi bilan nechta dars.</summary>
     public int SessionBatchSize { get; private init; } = 100;
 
@@ -98,6 +115,17 @@ internal sealed class JobsOptions
 
     public SessionAutoCloseSettings SessionAutoClose => new(
         Grace: TimeSpan.FromMinutes(SessionGraceMinutes),
+
+        // ⚠️ `Math.Min` — SHARTNOMA, sozlash emas: bo'sh xona mo'hlati
+        // to'liq mo'hlatdan katta bo'lsa, vazifaning qo'pol SQL filtri
+        // shartsiz yopiladigan darslarni TASHLAB KETARDI (izoh:
+        // `SessionAutoCloseSettings.EmptyRoomGrace`). Konfiguratsiyadagi
+        // xato butun avto-yakunlashni jimgina o'chirib qo'ymasin.
+        EmptyRoomGrace: TimeSpan.FromMinutes(
+            Math.Min(SessionEmptyRoomGraceMinutes, SessionGraceMinutes)),
+
+        EmptyRoomConfirmDelay: TimeSpan.FromSeconds(SessionEmptyRoomConfirmSeconds),
+
         BatchSize: SessionBatchSize,
         Interval: TimeSpan.FromSeconds(SessionIntervalSeconds));
 
@@ -144,6 +172,22 @@ internal sealed class JobsOptions
             SessionGraceMinutes = Number(
                 configuration, $"{SectionName}:SessionAutoClose:GraceMinutes",
                 defaults.SessionGraceMinutes, 5, 1440),
+
+            // ★ PASTKI CHEGARA 1 DAQIQA: nol qiymat darsni ruxsat etilgan
+            // tugash payti bilan BIR ONDA yopardi — o'sha daqiqada xonaga
+            // qaytib kirayotgan ustoz uchun poyga holati. Bir daqiqa
+            // presence yangilanishiga ham yetadi.
+            SessionEmptyRoomGraceMinutes = Number(
+                configuration, $"{SectionName}:SessionAutoClose:EmptyRoomGraceMinutes",
+                defaults.SessionEmptyRoomGraceMinutes, 1, 1440),
+
+            // ★ NOL RUXSAT ETILADI — u "tasdiqlashsiz" degani va faqat
+            // testlarda ma'noli (ular soatni o'zi boshqaradi). Yuqori
+            // chegara 300: vazifa qulf ostida turadi, undan uzoq kutish
+            // boshqa fon vazifalarini keraksiz kechiktirardi.
+            SessionEmptyRoomConfirmSeconds = Number(
+                configuration, $"{SectionName}:SessionAutoClose:EmptyRoomConfirmSeconds",
+                defaults.SessionEmptyRoomConfirmSeconds, 0, 300),
 
             SessionBatchSize = Number(
                 configuration, $"{SectionName}:SessionAutoClose:BatchSize",

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Models;
 using Zinnur.Application.Jobs;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -59,6 +60,21 @@ public class JobFactory : ZinnurApiFactory
                 sp.GetRequiredService<LiveSessionNotifierSpy>());
         });
     }
+
+    /// <summary>
+    /// ★ TASDIQLASH KUTISHI TESTLARDA NOL.
+    ///
+    /// Prod'da xona bo'sh chiqqach vazifa 30 soniya kutib QAYTA o'lchaydi
+    /// (sahifa yangilanishiga tushib qolmaslik uchun). Test esa haqiqiy
+    /// soatda ishlaydi — har "bo'sh xona" testi 30 soniya kutib turardi.
+    ///
+    /// ⚠️ IKKI O'LCHOV BARIBIR BAJARILADI, faqat orasida kutish yo'q:
+    /// mantiq (birinchi bo'sh -> ikkinchi to'la -> tegilmaydi) aynan
+    /// shu tufayli <see cref="ScriptedPresenceJobFactory"/> bilan
+    /// deterministik sinaladi.
+    /// </summary>
+    protected override IEnumerable<KeyValuePair<string, string>> ExtraSettings() =>
+        [new("Jobs:SessionAutoClose:EmptyRoomConfirmSeconds", "0")];
 
     /// <summary>Scope ichida vazifa servislari bilan ishlash.</summary>
     public async Task<T> WithScopeAsync<T>(Func<IServiceProvider, Task<T>> action)
@@ -303,4 +319,81 @@ public sealed class BillingJobFactory : JobFactory
 
             return (student.Id, group.Id);
         });
+}
+
+
+/// <summary>
+/// Xonadagilar sonini SCENARIY bo'yicha qaytaradigan presence.
+///
+/// ★ NIMA UCHUN HAQIQIY REDIS EMAS: tekshiriladigan qoida — "birinchi
+/// o'lchovda bo'sh, ikkinchisida to'la" ketma-ketligi. Haqiqiy Redis
+/// bilan buni chiqarish uchun ikki o'lchov ORASIDA yozuv qo'shish kerak
+/// bo'lardi, ya'ni test vaqtga bog'lanib qolardi (flaky). Bu yerda
+/// ketma-ketlik OLDINDAN yoziladi va natija har safar bir xil.
+/// </summary>
+public sealed class ScriptedPresenceService : IPresenceService
+{
+    private readonly Queue<int> _counts = new();
+
+    /// <summary>Scenariy tugagach qaytariladigan qiymat.</summary>
+    public int DefaultCount { get; set; }
+
+    /// <summary><c>CountAsync</c> chaqiruvlari shu qiymatlarni qaytaradi.</summary>
+    public void Script(params int[] counts)
+    {
+        foreach (var count in counts)
+            _counts.Enqueue(count);
+    }
+
+    /// <inheritdoc />
+    public Task<int> CountAsync(long sessionId, CancellationToken ct = default) =>
+        Task.FromResult(_counts.Count > 0 ? _counts.Dequeue() : DefaultCount);
+
+    // ── Qolganlari bu testlarda ishlatilmaydi ────────────────────────────
+
+    /// <inheritdoc />
+    public Task AddAsync(long sessionId, PresenceEntry entry, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task RemoveAsync(long sessionId, long userId, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<PresenceEntry>> ListAsync(
+        long sessionId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PresenceEntry>>([]);
+
+    /// <inheritdoc />
+    public Task SetHandRaisedAsync(
+        long sessionId, long userId, bool raised, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task ClearAsync(long sessionId, CancellationToken ct = default) =>
+        Task.CompletedTask;
+}
+
+/// <summary>
+/// Presence'i scenariy bilan boshqariladigan API — avto-yakunlashning
+/// "ikki marta o'lchash" himoyasini sinash uchun.
+/// </summary>
+public sealed class ScriptedPresenceJobFactory : JobFactory
+{
+    public ScriptedPresenceService Presence { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ConfigureServices(services =>
+        {
+            // Haqiqiy (Redis) implementatsiya OLIB TASHLANADI — aks holda
+            // qaysi biri ishlashini ro'yxat tartibi hal qilardi.
+            services.RemoveAll<IPresenceService>();
+            services.AddSingleton<IPresenceService>(Presence);
+        });
+    }
 }

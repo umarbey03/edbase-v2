@@ -159,6 +159,31 @@ internal static partial class JobLog
         Message = "Darsni avto-yakunlab bo'lmadi, o'tkazib yuborildi: id={SessionId} sabab={Reason}")]
     internal static partial void SessionSkipped(ILogger logger, long sessionId, string reason);
 
+    /// <summary>
+    /// Presence (Redis) o'qilmadi — xona bo'sh deb HISOBLANMAYDI va dars
+    /// to'liq mo'hlatni kutadi (`SessionAutoCloseJob.IsRoomEmptyAsync`).
+    /// Ogohlantirish darajasi ATAYLAB: bu jimgina yurmasligi kerak —
+    /// Redis uzilib qolgan bo'lsa, darslar yana bir soat "jonli" turadi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6412,
+        Level = LogLevel.Warning,
+        Message = "Xonadagilar sonini olib bo'lmadi (presence), dars to'liq "
+                  + "mo'hlatni kutadi: id={SessionId}")]
+    internal static partial void PresenceUnavailable(
+        ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>
+    /// Birinchi o'lchovda xona bo'sh edi, tasdiqlashda esa odam paydo
+    /// bo'ldi — dars tegilmadi. Odatiy hol emas, lekin nosozlik ham emas:
+    /// ustoz sahifani yangilagan bo'lishi mumkin.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6413,
+        Level = LogLevel.Information,
+        Message = "Xonaga qaytib kirishdi, dars yopilmadi: id={SessionId}")]
+    internal static partial void RoomRefilled(ILogger logger, long sessionId);
+
     // ---------------------------------------------------------------- moliya
 
     [LoggerMessage(

@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Common.Models;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -18,6 +21,12 @@ namespace Zinnur.IntegrationTests.Jobs;
 ///  • 🔴 ERTA YOPILISH: hali davom etayotgan darsni yopish o'quvchilar
 ///    ekranidan videoni o'chiradi. Shuning uchun mo'hlat (grace) va uning
 ///    HURMAT QILINISHI alohida test bilan qulflanadi.
+///
+///  • KECH YOPILISH (2026-09-08): ustozlar "Yakunlash"ni bosmaydi va dars
+///    bir soatcha "Hozir efirda" bo'lib turardi. Endi XONA BO'SH bo'lsa
+///    dars qisqa mo'hlatdan keyin yopiladi — pastdagi "BO'SH XONA"
+///    bo'limi ikkala yo'nalishni ham qulflaydi: bo'sh xona TEZ yopiladi,
+///    odam turgan xona esa to'liq mo'hlatni kutadi.
 /// </summary>
 public sealed class SessionAutoCloseJobTests(JobFactory factory) : IClassFixture<JobFactory>
 {
@@ -55,26 +64,106 @@ public sealed class SessionAutoCloseJobTests(JobFactory factory) : IClassFixture
     }
 
     /// <summary>
-    /// 🔴 ENG MUHIM XAVFSIZLIK TESTI: muddati o'tgan bo'lsa ham, MO'HLAT
-    /// tugamaguncha darsga TEGILMAYDI.
+    /// 🔴 ENG MUHIM XAVFSIZLIK TESTI: XONADA ODAM BO'LSA, muddati o'tgan
+    /// bo'lsa ham MO'HLAT tugamaguncha darsga TEGILMAYDI.
     ///
     /// Dars 100 daqiqa oldin boshlangan (rejada 80), ya'ni <c>EndsAt</c>
     /// 20 daqiqa oldin o'tgan. Standart mo'hlat 60 daqiqa — demak dars hali
     /// YOPILMASLIGI kerak. Bu qoida buzilsa, hali o'qitayotgan ustozning
     /// darsi uzilib qolardi.
+    ///
+    /// ⚠️ XONAGA ATAYLAB ODAM QO'YILADI (2026-09-08): vaqt bo'yicha bu
+    /// dars endi qisqa mo'hlatning ham nomzodi, ya'ni uni faqat XONADAGI
+    /// ODAM qutqarib qoladi. Presence qo'yilmasa test tekshirmoqchi
+    /// bo'lgan himoyaga umuman yetib bormasdi.
     /// </summary>
     [Fact]
-    public async Task LiveSession_PastEndButWithinGrace_IsLeftAlone()
+    public async Task LiveSession_PastEndButRoomIsBusy_IsLeftAloneUntilFullGrace()
     {
         var sessionId = await CreateSessionAsync(
             SessionStatus.Live, ago: TimeSpan.FromMinutes(100));
 
+        await EnterRoomAsync(sessionId);
+
         await factory.RunSessionJobAsync();
 
         (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Live,
-            "mo'hlat tugamaguncha jonli darsga tegilmaydi");
+            "xonada odam bor ekan, to'liq mo'hlat tugamaguncha darsga tegilmaydi");
 
         factory.Notifier.Ended.Should().NotContain(sessionId);
+    }
+
+    // ================================================================= 1b) BO'SH XONA
+
+    /// <summary>
+    /// ★ AYNAN SHIKOYAT QILINGAN HOLAT (2026-09-08): ustoz darsni o'tib
+    /// bo'ldi va oynani yopdi — "Yakunlash"ni bosmadi. Xona BO'SH, dars
+    /// esa rejadagi tugash paytidan o'tgan. Ilgari bunday dars TO'LIQ
+    /// mo'hlat (60 daqiqa) davomida "Hozir efirda" bo'lib turardi.
+    ///
+    /// Dars 100 daqiqa oldin boshlangan (rejada 80) -> <c>EndsAt</c> 20
+    /// daqiqa oldin o'tgan: bo'sh xona mo'hlatidan (5 daqiqa) ko'p, to'liq
+    /// mo'hlatdan (60 daqiqa) esa ANCHA kam. Ya'ni test faqat YANGI qoida
+    /// tufayli o'tadi.
+    /// </summary>
+    [Fact]
+    public async Task LiveSession_PastEndAndRoomIsEmpty_IsClosedWithoutWaitingFullGrace()
+    {
+        var sessionId = await CreateSessionAsync(
+            SessionStatus.Live, ago: TimeSpan.FromMinutes(100));
+
+        await LeaveRoomEmptyAsync(sessionId);
+
+        await factory.RunSessionJobAsync();
+
+        (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Ended,
+            "xonada hech kim yo'q ekan, uzib qo'yiladigan odamning o'zi yo'q");
+
+        factory.Notifier.Ended.Should().Contain(sessionId,
+            "bosh sahifadagi 'Hozir efirda' ham darhol yangilanishi kerak");
+    }
+
+    /// <summary>
+    /// BO'SH XONA HAM DARHOL YOPILMAYDI: <c>EndsAt</c> dan keyin qisqa
+    /// mo'hlat baribir kutiladi.
+    ///
+    /// Dars 81 daqiqa oldin boshlangan (rejada 80), ya'ni <c>EndsAt</c>
+    /// bor-yo'g'i 1 daqiqa oldin o'tgan — bo'sh xona mo'hlati (5 daqiqa)
+    /// hali tugamagan. Sabab: ustoz o'sha daqiqada xonaga qaytib
+    /// kirayotgan bo'lishi mumkin va presence hali yangilanmagan.
+    /// </summary>
+    [Fact]
+    public async Task LiveSession_JustPastEndAndEmpty_IsLeftAlone_WithinEmptyRoomGrace()
+    {
+        var sessionId = await CreateSessionAsync(
+            SessionStatus.Live, ago: TimeSpan.FromMinutes(81));
+
+        await LeaveRoomEmptyAsync(sessionId);
+
+        await factory.RunSessionJobAsync();
+
+        (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Live,
+            "bo'sh xona mo'hlati tugamaguncha dars jonli qoladi");
+    }
+
+    /// <summary>
+    /// 🔴 TO'LIQ MO'HLAT SHARTSIZ: xonada odam bo'lsa ham, <c>Grace</c>
+    /// o'tgach dars YOPILADI. Bu — eski xatti-harakat va u SAQLANADI:
+    /// aks holda xonada unutilgan bitta ulanish darsni abadiy "jonli"
+    /// holda ushlab turardi (davomat yakunlanmaydi, hisobotga tushmaydi).
+    /// </summary>
+    [Fact]
+    public async Task LiveSession_PastFullGrace_IsClosedEvenWhenRoomIsBusy()
+    {
+        var sessionId = await CreateSessionAsync(
+            SessionStatus.Live, ago: TimeSpan.FromHours(5));
+
+        await EnterRoomAsync(sessionId);
+
+        await factory.RunSessionJobAsync();
+
+        (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Ended,
+            "to'liq mo'hlatdan keyin xonadagi odam ham darsni ushlab tura olmaydi");
     }
 
     /// <summary>Rejada davom etayotgan dars (hali tugamagan) ham tegilmaydi.</summary>
@@ -310,6 +399,33 @@ public sealed class SessionAutoCloseJobTests(JobFactory factory) : IClassFixture
         });
     }
 
+    /// <summary>Presence — Redis'dagi "xonada kim bor" ro'yxati (singleton).</summary>
+    private IPresenceService Presence => factory.Services.GetRequiredService<IPresenceService>();
+
+    /// <summary>
+    /// Xonaga bitta ishtirokchi qo'yadi — ya'ni dars HAQIQATAN davom
+    /// etyapti va uni yopish odamlarni uzib qo'yardi.
+    /// </summary>
+    private async Task EnterRoomAsync(long sessionId)
+    {
+        var studentId = await factory.SeededStudentIdAsync();
+
+        await Presence.AddAsync(sessionId, new PresenceEntry(
+            studentId, "Test o'quvchi", "Student", HandRaised: false, DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Xonani ATAYLAB bo'shatadi.
+    ///
+    /// ★ NIMA UCHUN BU KERAK, GARCHI DARS ENDIGINA YARATILGAN BO'LSA-DA:
+    /// presence kaliti (`presence:{sessionId}`) Redis'da test bazasining
+    /// prefiksisiz yashaydi, Redis esa dev stack'i va boshqa test
+    /// sinflari bilan BAHAM KO'RILADI. Boshqa sinfdagi AYNI raqamli
+    /// darsdan qolgan yozuv bu testni tasodifiy (flaky) qilardi — va
+    /// aynan "bo'sh xona" testlari jimgina o'tib ketardi.
+    /// </summary>
+    private Task LeaveRoomEmptyAsync(long sessionId) => Presence.ClearAsync(sessionId);
+
     private Task<Attendance> LoadAttendanceAsync(long id) =>
         factory.WithDbAsync(db => db.Attendances.AsNoTracking().FirstAsync(a => a.Id == id));
 
@@ -325,5 +441,102 @@ public sealed class SessionAutoCloseJobTests(JobFactory factory) : IClassFixture
             .AsNoTracking()
             .Where(s => s.Id == sessionId)
             .Select(s => s.ActualEnd)
+            .FirstAsync());
+}
+
+
+/// <summary>
+/// ════════════════════════════════════════════════════════════════════════
+/// BO'SH XONA IKKI MARTA O'LCHANADI (2026-09-08)
+/// ════════════════════════════════════════════════════════════════════════
+///
+/// 🔴 HIMOYA QILINAYOTGAN XAVF: ustoz sahifani YANGILAGAN lahzada (F5,
+/// tarmoq sakrashi, telefonda ilova fonga o'tishi) presence bir necha
+/// soniyaga NOLGA tushadi. Bitta o'lchov bilan aynan o'sha soniyaga
+/// tushib qolgan dars uzilib qolardi — va uni QAYTA OCHIB BO'LMAYDI
+/// (<c>LiveSession.Start</c> yakunlangan darsni rad etadi), ya'ni ustoz
+/// dars o'rtasida quvvatsiz qolardi.
+///
+/// ★ NIMA UCHUN ALOHIDA SINF: bu yerda presence HAQIQIY Redis emas,
+/// scenariy (<see cref="ScriptedPresenceService"/>) — aks holda "birinchi
+/// o'lchov bo'sh, ikkinchisi to'la" holatini vaqtga bog'liq (flaky)
+/// hiylalarsiz yasab bo'lmasdi.
+/// </summary>
+public sealed class SessionAutoCloseEmptyRoomConfirmTests(ScriptedPresenceJobFactory factory)
+    : IClassFixture<ScriptedPresenceJobFactory>
+{
+    private static readonly TimeSpan Lesson = TimeSpan.FromMinutes(80);
+
+    /// <summary>
+    /// Birinchi o'lchovda bo'sh, tasdiqlashda ODAM BOR -> dars TEGILMAYDI.
+    /// </summary>
+    [Fact]
+    public async Task RoomThatRefillsBeforeTheSecondCheck_IsLeftAlone()
+    {
+        var sessionId = await CreateLiveSessionAsync(ago: TimeSpan.FromMinutes(100));
+
+        // 1-o'lchov: bo'sh. 2-o'lchov: ustoz qaytib keldi.
+        factory.Presence.DefaultCount = 1;
+        factory.Presence.Script(0, 1);
+
+        await factory.RunSessionJobAsync();
+
+        (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Live,
+            "sahifa yangilanishiga tushib qolgan dars uzilmasligi kerak");
+
+        factory.Notifier.Ended.Should().NotContain(sessionId);
+    }
+
+    /// <summary>
+    /// IKKALA o'lchovda ham bo'sh -> dars yopiladi. Bu — himoyaning
+    /// darsni umuman yopmaydigan holga keltirmaganini isbotlaydi.
+    /// </summary>
+    [Fact]
+    public async Task RoomEmptyOnBothChecks_IsClosed()
+    {
+        var sessionId = await CreateLiveSessionAsync(ago: TimeSpan.FromMinutes(100));
+
+        factory.Presence.DefaultCount = 0;
+        factory.Presence.Script(0, 0);
+
+        await factory.RunSessionJobAsync();
+
+        (await StatusOfAsync(sessionId)).Should().Be(SessionStatus.Ended);
+        factory.Notifier.Ended.Should().Contain(sessionId);
+    }
+
+    // ------------------------------------------------------------------ yordamchi
+
+    private async Task<long> CreateLiveSessionAsync(TimeSpan ago)
+    {
+        var groupId = await factory.SeededGroupIdAsync();
+        var start = DateTimeOffset.UtcNow - ago;
+
+        return await factory.WithDbAsync(async db =>
+        {
+            var session = new LiveSession
+            {
+                GroupId = groupId,
+                Title = "Tasdiqlash testi",
+                Type = SessionType.Teacher,
+                Status = SessionStatus.Live,
+                ScheduledStart = start,
+                ScheduledEnd = start + Lesson,
+                ActualStart = start,
+                RoomName = LiveSession.GenerateRoomName(),
+            };
+
+            db.LiveSessions.Add(session);
+            await db.SaveChangesAsync();
+
+            return session.Id;
+        });
+    }
+
+    private Task<SessionStatus> StatusOfAsync(long sessionId) =>
+        factory.WithDbAsync(db => db.LiveSessions
+            .AsNoTracking()
+            .Where(s => s.Id == sessionId)
+            .Select(s => s.Status)
             .FirstAsync());
 }
