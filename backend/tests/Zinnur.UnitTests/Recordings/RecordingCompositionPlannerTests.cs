@@ -263,6 +263,11 @@ public sealed class RecordingCompositionPlannerTests
     /// Ustoz kamerani UMUMAN yoqmagan dars — bu MUVAFFAQIYAT, nosozlik
     /// emas (§4.1-6). O'quv bo'limi tushuntirish sifatini baholaydi va u
     /// OVOZDA.
+    ///
+    /// ★ FON 5 fps (2026-09-08): ko'radigan harakat yo'q ekan, 30 fps
+    /// bilan 90 daqiqalik qora kadr kodlash tungi oynani sof isrof
+    /// qilardi. Sabab va o'lchov —
+    /// <c>RecordingCompositionPlanner.StillCanvasFps</c>.
     /// </summary>
     [Fact]
     public void AudioOnly_RendersABlackCanvasForTheWholeLesson()
@@ -270,10 +275,25 @@ public sealed class RecordingCompositionPlannerTests
         var plan = Plan(Audio(1, 0, 4800));
 
         plan.FilterGraph.Should().Be(string.Join(';',
-            "color=c=black:s=1920x1080:r=30:d=4800[v]",
+            "color=c=black:s=1920x1080:r=5:d=4800[v]",
             $"[0:a]adelay=0|0,{Tail}[a]"));
 
         plan.Warning.Should().BeNull("ovoz bor, ya'ni ogohlantiradigan narsa yo'q");
+    }
+
+    /// <summary>
+    /// 🔴 TASVIR BOR DARSDA KADR CHASTOTASI O'ZGARMAYDI — 30 fps.
+    ///
+    /// Past chastota faqat "ko'radigan harakat yo'q" holatiga tegishli.
+    /// Bu test uni qulflaydi: kimdir tejashni butun quvurga yoysa,
+    /// ustozning harakati silkinib qolardi (D3).
+    /// </summary>
+    [Fact]
+    public void LessonWithVideo_KeepsTheFullFrameRate()
+    {
+        var plan = Plan(Audio(1, 0, 1800), Camera(2, 0, 1800));
+
+        plan.FilterGraph.Should().Contain("color=c=black:s=1920x1080:r=30:d=1800[bg]");
     }
 
     /// <summary>

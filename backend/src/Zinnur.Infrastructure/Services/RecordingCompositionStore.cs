@@ -31,6 +31,35 @@ public sealed class RecordingCompositionStore(ApplicationDbContext db, TimeProvi
     /// SPEC ning oshkor talabi: tungi oynaga sig'magan ish keyingi kechada
     /// o'zidan keyin kelganlardan OLDIN olinadi.
     ///
+    /// ── 🔴 QIYNALGAN YOZUV NAVBAT BOSHIDA TURIB QOLMAYDI (2026-09-08) ──
+    ///
+    /// SPEC dagi sof FIFO ning aniqlangan narxi: 2026-09-05 dagi 144-yozuv
+    /// uchun ffmpeg xotira chegarasiga urилиб (exit 137) yiqildi va u
+    /// navbatning BOSHIDA turgani uchun UCH kecha ketma-ket butun tungi
+    /// oynani (har kecha ~9 soat) o'ziga oldi. Shu uch kechada boshqa
+    /// darslardan atigi IKKITASI yig'ildi, o'nga yaqini esa "Tungi montaj
+    /// navbatida" holida qoldi — ya'ni BITTA nosoz yozuv butun xizmatni
+    /// to'xtatib qo'ydi.
+    ///
+    /// Shuning uchun tartibda BIRINCHI mezon — "bu yozuv allaqachon bir
+    /// kechani yeganmi":
+    ///
+    ///   • <c>CompositionAttempts &gt;= 1</c> — HAQIQIY nosozlik bo'lgan
+    ///     (ffmpeg yiqildi / tekshiruv o'tmadi / yuklash yiqildi). Bunday
+    ///     yozuv keyingi urinishda ham AYNI joyda yiqilishi ehtimoli
+    ///     yuqori, ya'ni uni sog'lom darslardan oldinga qo'yish — o'sha
+    ///     darslarni yo'qotish.
+    ///   • <c>CompositionInterruptions &gt;= 2</c> — ikki kecha ketma-ket
+    ///     oynaga SIG'MADI. Bitta uzilish hali normal (uzun dars kech
+    ///     boshlangan bo'lishi mumkin) va u SPEC talab qilganidek keyingi
+    ///     kechada birinchi bo'lib olinadi; ikkitasi esa "bu ish bir
+    ///     kechaga sig'maydi" degani va u endi navbatni to'sib turmaydi.
+    ///
+    /// ⚠️ HECH NARSA TASHLAB YUBORILMAYDI — faqat TARTIB o'zgaradi.
+    /// Qiynalgan yozuv navbatning oxiriga o'tadi va sog'lom darslar
+    /// yig'ilib bo'lgach o'z navbatida yana uriniladi. Urinishlar va
+    /// uzilishlar chegarasi (3 va 10) o'zgarmagan.
+    ///
     /// Shartlar: navbatdagi (<c>1 = Queued</c>) YOKI ijarasi ESKIRGAN
     /// ishlayotgan (<c>2 = Running</c>) qator. Ikkinchisi — QULAGAN
     /// ISHCHIDAN qolgan ish.
@@ -77,7 +106,11 @@ public sealed class RecordingCompositionStore(ApplicationDbContext db, TimeProvi
             WHERE "Pipeline" = 1
               AND ( "CompositionStatus" = 1
                  OR ("CompositionStatus" = 2 AND "CompositionLeaseUntil" < @now) )
-            ORDER BY "CreatedAt" ASC, "Id" ASC
+            ORDER BY CASE WHEN "CompositionAttempts" >= 1
+                            OR "CompositionInterruptions" >= 2
+                          THEN 1 ELSE 0 END ASC,
+                     "CreatedAt" ASC,
+                     "Id" ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         ) AS c

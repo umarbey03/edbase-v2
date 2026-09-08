@@ -114,6 +114,101 @@ public sealed class CompositionQueueTests(CompositionFactory factory)
         order.Should().Equal(oldest, middle, newest);
     }
 
+    // ═════════════════════════════════════════ 2b) qiynalgan yozuv navbat oxirida
+
+    /// <summary>
+    /// 🔴 BIR MARTA YIQILGAN YOZUV SOG'LOM DARSLARNI TO'SIB TURMAYDI
+    /// (2026-09-08).
+    ///
+    /// Haqiqiy nosozlik: 144-yozuvda ffmpeg xotira chegarasiga urilib
+    /// yiqildi (exit 137), lekin u navbatning ENG ESKISI edi va sof FIFO
+    /// tufayli UCH kecha ketma-ket butun tungi oynani o'ziga oldi. O'sha
+    /// uch kechada boshqa darslardan atigi ikkitasi yig'ildi.
+    ///
+    /// Endi <c>CompositionAttempts &gt;= 1</c> bo'lgan yozuv — qanchalik
+    /// eski bo'lmasin — hali bir marta ham yiqilmagan darslardan KEYIN
+    /// olinadi. U tashlanmaydi, faqat navbatning oxiriga o'tadi.
+    /// </summary>
+    [Fact]
+    public async Task Claim_PutsAPreviouslyFailedRowBehindHealthyOnes()
+    {
+        await NewSessionAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Eng eskisi, LEKIN allaqachon bir marta yiqilgan.
+        var poisoned = await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(),
+            createdAt: now.AddDays(-3), attempts: 1);
+
+        var healthy = await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(), createdAt: now.AddDays(-1));
+
+        var order = new List<long?>
+        {
+            (await factory.ClaimAsync(Lease))?.RecordingId,
+            (await factory.ClaimAsync(Lease))?.RecordingId,
+        };
+
+        // Yiqilgan yozuv butun tungi oynani yeb, sog'lom darslarni
+        // navbatda ushlab turmasligi kerak.
+        order.Should().Equal(healthy, poisoned);
+    }
+
+    /// <summary>
+    /// BITTA UZILISH — HALI NAVBAT OXIRIGA EMAS. Bu SPEC ning talabi
+    /// (*"tungi oynaga sig'magan ish keyingi kechada birinchi olinadi"*)
+    /// va u SAQLANADI: uzun dars kech boshlangani uchun bir marta
+    /// sig'masligi butunlay normal.
+    ///
+    /// Faqat IKKINCHI uzilishdan keyin ("bu ish bir kechaga sig'maydi")
+    /// u boshqalarga yo'l beradi — buni keyingi test qulflaydi.
+    /// </summary>
+    [Fact]
+    public async Task Claim_StillPrefersARowInterruptedOnlyOnce()
+    {
+        await NewSessionAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var interruptedOnce = await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(),
+            createdAt: now.AddDays(-3), interruptions: 1);
+
+        await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(), createdAt: now.AddDays(-1));
+
+        (await factory.ClaimAsync(Lease))?.RecordingId.Should().Be(interruptedOnce);
+    }
+
+    /// <summary>
+    /// IKKI KECHA KETMA-KET SIG'MAGAN ISH navbat oxiriga o'tadi: aks
+    /// holda u har kecha oynani to'liq yeb, hech qachon tugamas va
+    /// o'zidan keyingi barcha darslarni ham ushlab turardi.
+    /// </summary>
+    [Fact]
+    public async Task Claim_PutsARowInterruptedTwiceBehindHealthyOnes()
+    {
+        await NewSessionAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var stuck = await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(),
+            createdAt: now.AddDays(-3), interruptions: 2);
+
+        var healthy = await CompositionWorld.AddRecordingAsync(
+            factory, await AnotherSessionAsync(), createdAt: now.AddDays(-1));
+
+        var order = new List<long?>
+        {
+            (await factory.ClaimAsync(Lease))?.RecordingId,
+            (await factory.ClaimAsync(Lease))?.RecordingId,
+        };
+
+        order.Should().Equal(healthy, stuck);
+    }
+
     // ═══════════════════════════════════════════════════ 3) ijara
 
     /// <summary>

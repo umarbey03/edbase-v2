@@ -86,6 +86,29 @@ public static class RecordingCompositionPlanner
     /// </summary>
     public const int CanvasFps = 30;
 
+    /// <summary>
+    /// TASVIRSIZ dars uchun fon kadr chastotasi (2026-09-08).
+    ///
+    /// ★ NIMA UCHUN ALOHIDA VA NIMA UCHUN SHUNCHA PAST: ustoz kamerani ham,
+    /// ekranni ham yoqmagan darsda natija — BOSHDAN OXIR QORA kadr. Uni
+    /// 30 fps bilan kodlash 90 daqiqalik darsda ~162 000 ta bir xil kadr
+    /// degani va o'lchangan narxi kichik emas: shunday yozuvlardan biri
+    /// (146) tungi oynadan 29 daqiqa oldi — SOF isrof, chunki ko'radigan
+    /// harakatning O'ZI yo'q.
+    ///
+    /// 🔴 BU O'LCHOV EMAS, TAXMIN EMAS: 2026-09-07 kechasi navbatdagi 13
+    /// yozuvdan 7 tasida umuman video treki yo'q edi. Ya'ni tungi oynaning
+    /// yarmi qora kadr kodlashga ketardi va shu sababdan HAQIQIY video
+    /// yozuvlar oynaga sig'may qolardi.
+    ///
+    /// ⚠️ NOL YOKI 1 EMAS: <c>-g 60</c> bilan kalit kadr har 60 kadrda
+    /// qo'yiladi, ya'ni 1 fps da orqaga/oldinga o'tish qadami 60 soniya
+    /// bo'lib qolardi. 5 fps da u 12 soniya — ovozli yozuvda qidirish
+    /// uchun yetarli. Tasvir bor darsda esa <see cref="CanvasFps"/>
+    /// O'ZGARMAYDI: u yerda har kadr haqiqiy harakat.
+    /// </summary>
+    public const int StillCanvasFps = 5;
+
     /// <summary>Kichik oynaning (kamera) kengligi; balandligi nisbatdan.</summary>
     public const int InsetWidth = 480;
 
@@ -350,8 +373,13 @@ public static class RecordingCompositionPlanner
         // ⚠️ `d=` SHART: fon manbai cheksiz, `overlay` esa ASOSIY kirish
         //    tugaguncha ishlaydi. Uzunliksiz fon bilan ffmpeg abadiy
         //    kodlab turardi (SPEC §4.6 dagi namunada bu tushib qolgan).
-        var background =
-            $"color=c=black:s={CanvasWidth}x{CanvasHeight}:r={CanvasFps}:d={Num(timeline)}";
+        //
+        // ★ KADR CHASTOTASI CHAQIRUV JOYIDA TANLANADI: tasvir bo'lmasa
+        //   `StillCanvasFps` (izoh o'sha konstantada), aks holda odatiy
+        //   `CanvasFps`.
+        string Background(int fps) => string.Create(
+            CultureInfo.InvariantCulture,
+            $"color=c=black:s={CanvasWidth}x{CanvasHeight}:r={fps}:d={Num(timeline)}");
 
         var steps = new List<(string Source, string Filter, string Enable)>();
 
@@ -389,12 +417,12 @@ public static class RecordingCompositionPlanner
             // Tasvirsiz dars — QORA fon butun davomiylikka. Bu MUVAFFAQIYAT,
             // nosozlik emas: ustoz kamerani yoqmagan bo'lsa ham darsning
             // tushuntirishi ovozda va u to'liq saqlangan (§4.1-6).
-            Add(graph, $"{background}{CompositionPlan.VideoLabel}");
+            Add(graph, $"{Background(StillCanvasFps)}{CompositionPlan.VideoLabel}");
 
             return;
         }
 
-        Add(graph, $"{background}[bg]");
+        Add(graph, $"{Background(CanvasFps)}[bg]");
 
         var previous = "[bg]";
 

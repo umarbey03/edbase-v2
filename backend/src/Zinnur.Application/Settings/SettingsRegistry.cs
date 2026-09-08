@@ -826,17 +826,39 @@ public static class SettingsRegistry
             Description =
                 "Sekinroq preset AYNI sifatda kichikroq fayl beradi, lekin kodlash "
                 + "uzoqroq davom etadi. "
-                + "⚠️ `slow` bir kechada sig'maslik xavfini tug'diradi: 9 soatlik "
-                + "manba uchun ~8.6 soat kerak bo'ladi va oynada zaxira qolmaydi. "
-                + "Uni faqat haqiqiy kodlash tezligi o'lchangandan KEYIN qo'ying.",
+                + "⚠️ Bu serverda O'LCHANGAN (2026-09-07 kechasi): `medium` bilan "
+                + "kunlik ~9.5 soatlik manba 9 soatlik tungi oynaga SIG'MAYDI. "
+                + "Sifatni oshirishdan oldin oynaning haqiqatan bo'shligiga ishonch "
+                + "hosil qiling — aks holda darslar montajsiz qoladi.",
             Kind = SettingValueKind.Choice,
             Source = SettingSource.Database,
 
-            // SPEC §10, Qaror 2 (loyiha egasi qabul qilgan): standart
-            // `slow` EMAS, `medium` — arifmetika `slow` ni tungi oynaga
-            // sig'dirmaydi. Ro'yxat SEKINLASHISH tartibida.
+            // ── STANDART `medium` EMAS, `veryfast` (2026-09-08) ──────────
+            //
+            // SPEC §10, Qaror 2 `medium` ni tanlagan edi va sabab
+            // ARIFMETIK edi: `slow` tungi oynaga sig'maydi. O'sha
+            // arifmetika endi O'LCHOV bilan almashdi va u `medium` ni ham
+            // rad etadi:
+            //
+            //   • 88 daqiqalik yozuv (146) `medium` da 29 daqiqa oldi —
+            //     va u ENG ARZON holat edi (tasvirsiz, qora fon);
+            //   • ekran ulashilgan 65 daqiqalik yozuv (147) ikki soatdan
+            //     ko'p ishlab, oyna yopilguncha TUGAMADI;
+            //   • kunlik manba ~9.5 soat, oyna esa 9 soat.
+            //
+            // Ya'ni `medium` bilan navbat HAR KUNI ortda qoladi va bu
+            // 2026-09-05..08 da aynan shunday bo'ldi. `veryfast` ~3-5
+            // barobar tez; narxi — fayl ~30% kattaroq (88 daqiqa uchun
+            // 93 MB o'rniga ~125 MB), CRF esa o'zgarmagani uchun ko'zga
+            // ko'rinadigan sifat farqi darс videosida sezilmaydi.
+            //
+            // ⚠️ BU FAQAT STANDART: paneldagi tanlov DOIM ustun turadi.
+            // Server kuchaytirilsa yoki oyna kengaytirilsa, sifatni
+            // paneldan ko'tarish mumkin — kod o'zgartirilmaydi.
+            //
+            // Ro'yxat SEKINLASHISH tartibida.
             Choices = ["veryfast", "faster", "fast", "medium", "slow"],
-            DefaultValue = "medium",
+            DefaultValue = "veryfast",
         },
 
         new()

@@ -165,9 +165,15 @@ public class RecordingPipelineSettingsTests
     }
 
     /// <summary>
-    /// Kodlash standartlari — loyiha egasining qarori (SPEC §10, D2):
-    /// <c>medium</c> / CRF 21, <c>slow</c> esa faqat tanlov sifatida
-    /// mavjud.
+    /// Kodlash standartlari: preset <c>veryfast</c>, CRF 21.
+    ///
+    /// ★ PRESET 2026-09-08 DA `medium` DAN O'ZGARTIRILDI. SPEC §10 D2
+    /// `medium` ni ARIFMETIK taxmin bilan tanlagan edi; o'lchov uni rad
+    /// etdi — `medium` bilan kunlik manba tungi oynaga sig'may, darslar
+    /// uch kecha montajsiz qoldi. Sabab va raqamlar
+    /// <c>SettingsRegistry</c> dagi izohda.
+    ///
+    /// ⚠️ CRF O'ZGARMADI (21): tezlik presetdan olinadi, sifatdan emas.
     /// </summary>
     [Fact]
     public void EncodingDefaults_FollowTheOwnersDecision()
@@ -177,7 +183,7 @@ public class RecordingPipelineSettingsTests
 
         preset.Kind.Should().Be(SettingValueKind.Choice);
         preset.DefaultValue.Should().Be(
-            "medium", "`slow` tungi oynaga sig'maydi (SPEC §10, Qaror 2)");
+            "veryfast", "`medium` kunlik manbani tungi oynaga sig'dirmadi (o'lchov, 2026-09-07)");
 
         preset.Choices.Should().ContainInOrder("veryfast", "faster", "fast", "medium", "slow");
 
