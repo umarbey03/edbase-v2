@@ -145,7 +145,7 @@ public sealed class AuthService(
     // `Phone` — XOM ustun (`PhoneNormalized` emas): foydalanuvchi o'zining
     // odatiy ko'rinishdagi raqamini ko'radi. Sabab va cheklov `UserDto` da.
     private static UserDto Map(User u) =>
-        new(u.Id, u.FullName, u.Email, u.Phone, u.Role.ToString(), AvatarStamp(u));
+        new(u.Id, u.FullName, u.Phone, u.Role.ToString(), AvatarStamp(u));
 
     /// <summary>
     /// Avatar vaqt tamg'asi — RASM BOR bo'lgandagina.

@@ -14,7 +14,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasKey(u => u.Id);
 
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(200);
-        builder.Property(u => u.Email).IsRequired().HasMaxLength(256);
 
         // BCrypt hash'i doim 60 belgi; 120 zaxira bilan (algoritm almashsa).
         builder.Property(u => u.PasswordHash).IsRequired().HasMaxLength(120);
@@ -76,10 +75,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // ustunni to'ldirishi shart.
         builder.Property<bool>("PaymentExempt")
             .HasDefaultValue(false);
-
-        builder.HasIndex(u => u.Email)
-            .IsUnique()
-            .HasDatabaseName("IX_Users_Email");
 
         // FILTRLI UNIKAL INDEKS: PhoneNormalized/TelegramId — nullable.
         // Postgres'da unikal indeks bir nechta NULL'ga ruxsat beradi, lekin

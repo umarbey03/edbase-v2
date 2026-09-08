@@ -449,7 +449,7 @@ public sealed class SettingsEndpointsTests(ZinnurApiFactory factory)
         using var admin = await AdminAsync();
 
         var user = await WorldBuilder.CreateUserAsync(admin, role, prefix);
-        var tokens = await factory.LoginAsync(user.Email);
+        var tokens = await factory.LoginAsync(user.Id);
 
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }

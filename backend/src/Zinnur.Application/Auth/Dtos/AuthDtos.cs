@@ -91,7 +91,6 @@ public sealed record RefreshRequest(string RefreshToken);
 public sealed record UserDto(
     long Id,
     string FullName,
-    string Email,
     string? Phone,
     string Role,
     DateTimeOffset? AvatarUpdatedAt = null);

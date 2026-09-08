@@ -46,7 +46,6 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const confirm = useConfirm()
 
 const fullName = ref('')
-const email = ref('')
 const phone = ref('')
 const role = ref<UserRoleName>('Student')
 const isActive = ref(true)
@@ -99,7 +98,6 @@ function resetForm(): void {
   const user = props.user
   const rawRole = user?.role ?? null
   fullName.value = user?.fullName ?? ''
-  email.value = user?.email ?? ''
   // Serverdagi qiymat `+998901234567` — maydonga formatlangan holda
   // tushadi, ya'ni tahrirlash oynasi ochilishi bilanoq yangi hisob
   // yaratish oynasi bilan BIR XIL ko'rinadi.
@@ -115,7 +113,6 @@ const createMutation = useMutation({
   mutationFn: () =>
     createUser({
       fullName: fullName.value.trim(),
-      email: email.value.trim(),
       role: role.value,
       phone: phonePayload.value,
       isActive: isActive.value,
@@ -133,7 +130,6 @@ const updateMutation = useMutation({
   mutationFn: (id: number) =>
     updateUser(id, {
       fullName: fullName.value.trim(),
-      email: email.value.trim(),
       phone: phonePayload.value,
       role: role.value,
     }),
@@ -149,7 +145,6 @@ const updateMutation = useMutation({
 const isPending = computed(() => createMutation.isPending.value || updateMutation.isPending.value)
 const canSubmit = computed(
   () => fullName.value.trim().length > 0
-    && email.value.trim().length > 0
     && !phoneMissing.value
     && !isPending.value,
 )
@@ -160,7 +155,7 @@ const canSubmit = computed(
  * ★ NEGA HAR SAQLASH EMAS: xodim oynani ataylab ochib, "Saqlash" ni ataylab
  * bosdi — ism yoki telefonni tuzatishga ikkinchi bosish qo'shish himoya emas,
  * ishqalanish (yozib qo'yilgan qoida: tasodifiy ZARARdan himoya, har amalga
- * qadam qo'shish emas). Ism/telefon/email xatosi bir zumda qaytariladi.
+ * qadam qo'shish emas). Ism/telefon xatosi bir zumda qaytariladi.
  *
  * ★ ROL ESA BOSHQA GAP: u — RUXSAT. "Ustoz" ni "Administrator" ga aylantirish
  * butun moliya va sozlamalarni ochadi; teskarisi esa odamni o'z paneliDAN
@@ -220,18 +215,6 @@ async function handleSubmit(): Promise<void> {
           required
         >
       </BaseField>
-
-      <div class="mt-3">
-        <BaseField label="Elektron pochta">
-          <input
-            v-model="email"
-            class="zn-input"
-            type="email"
-            autocomplete="email"
-            required
-          >
-        </BaseField>
-      </div>
 
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
         <!--

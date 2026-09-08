@@ -19,9 +19,6 @@ namespace Zinnur.Infrastructure.Persistence;
 /// </summary>
 public static class DbInitializer
 {
-    /// <summary>Birinchi ishga tushirishdagi admin (kontakt/identifikator sifatida).</summary>
-    public const string AdminEmail = "admin@zinnur.uz";
-
     /// <summary>
     /// ⚠️ ENDI KIRISH VOSITASI EMAS. 2026-08-13 dan email va parol bilan
     /// kirish olib tashlandi; bu qiymat faqat <c>PasswordHash</c>
@@ -36,7 +33,7 @@ public static class DbInitializer
     // ════════════════════════════════════════════════════════════════════
     // 🔴 BOSHLANG'ICH ADMIN TELEFONI — YANGI O'RNATISHNING YAGONA KALITI
     //
-    // Email va parol bilan kirish olib tashlangach, telefonsiz va
+    // Parol bilan kirish olib tashlangach, telefonsiz va
     // Telegram'siz yaratilgan admin BUTUNLAY ERISHIB BO'LMAYDIGAN bo'lib
     // qoladi: kirish uchun raqam kerak, raqamni kiritish uchun esa
     // tizimga kirish kerak. Ya'ni bo'sh bazaga qurilgan yangi deploy
@@ -168,7 +165,6 @@ public static class DbInitializer
         var admin = new User
         {
             FullName = "Bosh administrator",
-            Email = AdminEmail,
             PasswordHash = adminHash,
             Role = UserRole.Admin,
         };
@@ -213,7 +209,7 @@ public static class DbInitializer
             db.Users.Add(admin);
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-            DbInitializerLog.Seeded(logger, AdminEmail, bootstrap.AdminPhone ?? "-");
+            DbInitializerLog.Seeded(logger, bootstrap.AdminPhone ?? "-");
             return;
         }
 
@@ -224,7 +220,6 @@ public static class DbInitializer
         var teacher = new User
         {
             FullName = "Demo Ustoz",
-            Email = "teacher@zinnur.uz",
             PasswordHash = demoHash,
             Role = UserRole.Teacher,
         };
@@ -234,7 +229,6 @@ public static class DbInitializer
         var student = new User
         {
             FullName = "Demo O'quvchi",
-            Email = "student@zinnur.uz",
             PasswordHash = demoHash,
             Role = UserRole.Student,
         };
@@ -305,7 +299,7 @@ public static class DbInitializer
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        DbInitializerLog.Seeded(logger, AdminEmail, bootstrap.AdminPhone ?? "-");
+        DbInitializerLog.Seeded(logger, bootstrap.AdminPhone ?? "-");
     }
 }
 
@@ -338,7 +332,7 @@ internal static partial class DbInitializerLog
     [LoggerMessage(
         EventId = 1002,
         Level = LogLevel.Warning,
-        Message = "Boshlang'ich ma'lumotlar yozildi. Admin: {Email}, telefon: {Phone}. "
+        Message = "Boshlang'ich ma'lumotlar yozildi. Admin telefoni: {Phone}. "
                   + "Kirish uchun shu raqamni botga ulang (docs/DEPLOY_UBUNTU.md).")]
-    internal static partial void Seeded(ILogger logger, string email, string phone);
+    internal static partial void Seeded(ILogger logger, string phone);
 }

@@ -383,7 +383,7 @@ public sealed class SettingsRuntimeTests(StorageBackedApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(TestUser user)
     {
-        var tokens = await factory.LoginAsync(user.Email);
+        var tokens = await factory.LoginAsync(user.Id);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

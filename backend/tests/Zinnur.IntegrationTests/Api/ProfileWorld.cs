@@ -199,19 +199,17 @@ internal static class ProfileWorldBuilder
     /// har doim yashil bo'lardi — javobda umuman bo'lmagan satrni izlash
     /// hech narsa isbotlamaydi. Shuning uchun aynan HAQIQIY qiymat olinadi.
     /// </summary>
-    internal static Task<(string Email, string? Phone)> ContactOfAsync(
+    internal static Task<string?> ContactOfAsync(
         ZinnurApiFactory factory, long userId)
     {
         ArgumentNullException.ThrowIfNull(factory);
 
         return factory.WithDbAsync(async db =>
         {
-            var row = await db.Users.AsNoTracking()
+            return await db.Users.AsNoTracking()
                 .Where(u => u.Id == userId)
-                .Select(u => new { u.Email, u.Phone })
+                .Select(u => u.Phone)
                 .FirstAsync();
-
-            return (row.Email, row.Phone);
         });
     }
 
@@ -263,14 +261,12 @@ internal sealed record ProfileResponse(
     List<NoteResponse>? Notes);
 
 /// <summary>
-/// ★ <c>Email</c> — <c>string?</c>: ustoz javobida u <c>null</c> bo'ladi
-/// (talab R27). Bazada ustun majburiy, ya'ni bo'shlik faqat serverning
-/// kesganidan darak beradi.
+/// ★ <c>Phone</c> — <c>string?</c>: ustoz javobida u <c>null</c> bo'ladi
+/// (talab R27) yoki raqam umuman kiritilmagan.
 /// </summary>
 internal sealed record ProfileUser(
     long Id,
     string FullName,
-    string? Email,
     string? Phone,
     long? TelegramId,
     string? TelegramUsername,

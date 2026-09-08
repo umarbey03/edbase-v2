@@ -40,7 +40,7 @@ internal enum StudentAudience
 
     /// <summary>
     /// O'z guruhining USTOZI — moliya ham, KONTAKT ham yuborilmaydi
-    /// (email, telefon, Telegram id va nomi).
+    /// (telefon, Telegram id va nomi).
     /// </summary>
     Teacher,
 
@@ -72,7 +72,7 @@ internal static class StudentAudienceRules
         audience is StudentAudience.Teacher or StudentAudience.Curator;
 
     /// <summary>
-    /// Kontakt (email, telefon, Telegram id/nomi) yuboriladimi.
+    /// Kontakt (telefon, Telegram id/nomi) yuboriladimi.
     ///
     /// 🔴 Bu SERVER tomondagi kesish: maydon <c>null</c> bo'lib javobga
     /// tushadi. Frontendda yashirish yetarli EMAS — javob oddiy JSON va
@@ -232,7 +232,6 @@ internal static class StudentAccess
             .Select(u => new StudentSubject(
                 u.Id,
                 u.FullName,
-                u.Email,
                 u.Phone,
                 u.TelegramId,
                 u.TelegramUsername,
@@ -257,7 +256,6 @@ internal sealed record ActorInfo(long Id, UserRole Role, bool IsActive);
 internal sealed record StudentSubject(
     long Id,
     string FullName,
-    string Email,
     string? Phone,
     long? TelegramId,
     string? TelegramUsername,

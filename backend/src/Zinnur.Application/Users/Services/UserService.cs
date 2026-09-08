@@ -56,7 +56,7 @@ public sealed class UserService(
             .Take(pageSize)
             // PasswordHash BAZADAN UMUMAN OLINMAYDI — faqat kerakli ustunlar.
             .Select(u => new Projection(
-                u.Id, u.FullName, u.Email, u.Phone, u.TelegramId, u.TelegramUsername,
+                u.Id, u.FullName, u.Phone, u.TelegramId, u.TelegramUsername,
                 u.Role, u.IsActive, u.CreatedAt, u.UpdatedAt))
             .ToListAsync(ct);
 
@@ -87,16 +87,13 @@ public sealed class UserService(
         EnsureCanManage(actor, target: null, newRole: request.Role);
 
         var fullName = RequireFullName(request.FullName);
-        var email = RequireEmail(request.Email);
         var phone = RequirePhoneForStaff(request.Phone, request.Role);
 
-        await EnsureEmailFreeAsync(email, exceptUserId: null, ct);
         await EnsurePhoneFreeAsync(phone, exceptUserId: null, ct);
 
         var user = new User
         {
             FullName = fullName,
-            Email = email,
 
             // 🔴 O'LIK USTUNNI TO'LDIRISH — KIRISH MA'LUMOTI EMAS.
             //    Sabab `PlaceholderPasswordHashAsync` izohida.
@@ -125,7 +122,6 @@ public sealed class UserService(
         EnsureCanManage(actor, user, newRole: request.Role);
 
         var fullName = RequireFullName(request.FullName);
-        var email = RequireEmail(request.Email);
 
         // ★ TEKSHIRUV YANGI ROL BO'YICHA (rol berilmasa — hozirgisi
         //   bo'yicha). O'quvchini ustozga aylantirayotgan so'rov ham
@@ -134,11 +130,9 @@ public sealed class UserService(
         //   hech qayerda ko'rinmasdi.
         var phone = RequirePhoneForStaff(request.Phone, request.Role ?? user.Role);
 
-        await EnsureEmailFreeAsync(email, exceptUserId: user.Id, ct);
         await EnsurePhoneFreeAsync(phone, exceptUserId: user.Id, ct);
 
         user.FullName = fullName;
-        user.Email = email;
         user.SetPhone(request.Phone);
 
         // ChangeRole ichida InvalidateTokens() bor — rol o'zgarsa eski tokendagi
@@ -298,30 +292,22 @@ public sealed class UserService(
     private async Task<int> ImportBatchAsync(
         List<ImportRow> batch, List<UserImportIssue> issues, CancellationToken ct)
     {
-        // 1) Bazadagi band email/telefonlarni BITTA indeksli so'rovda aniqlaymiz.
-        var emails = batch.ConvertAll(r => r.Email);
+        // 1) Bazadagi band telefonlarni BITTA indeksli so'rovda aniqlaymiz.
         var phones = batch.Where(r => r.Phone is not null).Select(r => r.Phone!).ToList();
 
-        var taken = await db.Users
+        var takenPhones = await db.Users
             .AsNoTracking()
-            .Where(u => emails.Contains(u.Email)
-                     || (u.PhoneNormalized != null && phones.Contains(u.PhoneNormalized)))
-            .Select(u => new { u.Email, u.PhoneNormalized })
+            .Where(u => u.PhoneNormalized != null && phones.Contains(u.PhoneNormalized))
+            .Select(u => u.PhoneNormalized!)
             .ToListAsync(ct);
 
-        var takenEmails = taken.Select(t => t.Email).ToHashSet(StringComparer.Ordinal);
-        var takenPhones = taken
-            .Where(t => t.PhoneNormalized is not null)
-            .Select(t => t.PhoneNormalized!)
-            .ToHashSet(StringComparer.Ordinal);
+        var taken = takenPhones.ToHashSet(StringComparer.Ordinal);
 
         var accepted = new List<ImportRow>(batch.Count);
 
         foreach (var row in batch)
         {
-            if (takenEmails.Contains(row.Email))
-                issues.Add(new UserImportIssue(row.Line, "Bu email allaqachon ro'yxatda."));
-            else if (row.Phone is not null && takenPhones.Contains(row.Phone))
+            if (row.Phone is not null && taken.Contains(row.Phone))
                 issues.Add(new UserImportIssue(row.Line, "Bu telefon raqam allaqachon ro'yxatda."));
             else
                 accepted.Add(row);
@@ -354,7 +340,6 @@ public sealed class UserService(
             var user = new User
             {
                 FullName = row.FullName,
-                Email = row.Email,
                 PasswordHash = hashes[i],
                 Role = row.Role,
             };
@@ -409,7 +394,7 @@ public sealed class UserService(
             {
                 db.Users.Remove(entities[i]);
                 issues.Add(new UserImportIssue(
-                    accepted[i].Line, "Bazaga yozib bo'lmadi (takroriy email yoki telefon)."));
+                    accepted[i].Line, "Bazaga yozib bo'lmadi (takroriy telefon)."));
             }
         }
 
@@ -427,7 +412,6 @@ public sealed class UserService(
         var issues = new List<UserImportIssue>();
 
         // Fayl ICHIDAGI takrorlarni ham ushlaymiz (baza indeksigacha yetib bormaydi).
-        var seenEmails = new HashSet<string>(StringComparer.Ordinal);
         var seenPhones = new HashSet<string>(StringComparer.Ordinal);
 
         using var reader = new StreamReader(csv, leaveOpen: true);
@@ -451,7 +435,6 @@ public sealed class UserService(
             var fields = SplitCsvLine(raw);
 
             var fullName = Field(fields, columns.FullName);
-            var email = Field(fields, columns.Email);
             var rawPhone = Field(fields, columns.Phone);
             var rawRole = Field(fields, columns.Role);
 
@@ -480,14 +463,6 @@ public sealed class UserService(
                 continue;
             }
 
-            var normalizedEmail = NormalizeEmail(email);
-
-            if (!IsValidEmail(normalizedEmail))
-            {
-                issues.Add(new UserImportIssue(line, "Email noto'g'ri: '" + email + "'."));
-                continue;
-            }
-
             var phone = User.NormalizePhone(rawPhone);
 
             // 🔴 CSV — XODIM UCHUN TELEFON QOIDASINING IKKINCHI ESHIGI.
@@ -508,19 +483,13 @@ public sealed class UserService(
                 continue;
             }
 
-            if (!seenEmails.Add(normalizedEmail))
-            {
-                issues.Add(new UserImportIssue(line, "Fayl ichida email takrorlangan."));
-                continue;
-            }
-
             if (phone is not null && !seenPhones.Add(phone))
             {
                 issues.Add(new UserImportIssue(line, "Fayl ichida telefon takrorlangan."));
                 continue;
             }
 
-            rows.Add(new ImportRow(line, fullName.Trim(), normalizedEmail, phone, rawPhone, role));
+            rows.Add(new ImportRow(line, fullName.Trim(), phone, rawPhone, role));
         }
 
         return (rows, issues);
@@ -680,7 +649,7 @@ public sealed class UserService(
         };
 
     /// <summary>
-    /// Qidiruv: F.I.Sh. / email / telefon bo'yicha qism-satr.
+    /// Qidiruv: F.I.Sh. / telefon bo'yicha qism-satr.
     ///
     /// <c>LIKE '%...%'</c> B-tree indeksdan FOYDALANA OLMAYDI, shuning uchun
     /// migratsiyada <c>pg_trgm</c> GIN ifoda-indekslari qo'yilgan:
@@ -715,17 +684,12 @@ public sealed class UserService(
         // globalizatsiya analizatori shu blokda ataylab o'chirilgan.
 #pragma warning disable CA1304, CA1311
         if (digits.Length < MinSearchLength)
-        {
-            return rows.Where(u =>
-                EF.Functions.Like(u.FullName.ToLower(), term) ||
-                EF.Functions.Like(u.Email, term));
-        }
+            return rows.Where(u => EF.Functions.Like(u.FullName.ToLower(), term));
 
         var phoneTerm = "%" + digits + "%";
 
         return rows.Where(u =>
             EF.Functions.Like(u.FullName.ToLower(), term) ||
-            EF.Functions.Like(u.Email, term) ||
             (u.PhoneNormalized != null && EF.Functions.Like(u.PhoneNormalized, phoneTerm)));
 #pragma warning restore CA1304, CA1311
     }
@@ -735,17 +699,6 @@ public sealed class UserService(
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
              .Replace("%", "\\%", StringComparison.Ordinal)
              .Replace("_", "\\_", StringComparison.Ordinal);
-
-    /// <summary>Email bandligini BITTA indeksli so'rov bilan tekshiradi.</summary>
-    private async Task EnsureEmailFreeAsync(string email, long? exceptUserId, CancellationToken ct)
-    {
-        var taken = await db.Users
-            .AsNoTracking()
-            .AnyAsync(u => u.Email == email && (exceptUserId == null || u.Id != exceptUserId), ct);
-
-        if (taken)
-            throw new ConflictException("Bu email allaqachon ro'yxatda.");
-    }
 
     /// <summary>
     /// Telefon bandligini BITTA indeksli so'rov bilan tekshiradi.
@@ -782,7 +735,7 @@ public sealed class UserService(
         catch (DbUpdateException)
         {
             throw new ConflictException(
-                "Bu email yoki telefon raqam allaqachon band. Qaytadan urinib ko'ring.");
+                "Bu telefon raqam allaqachon band. Qaytadan urinib ko'ring.");
         }
     }
 
@@ -797,33 +750,6 @@ public sealed class UserService(
             throw Invalid(nameof(User.FullName), "F.I.Sh. juda uzun.");
 
         return value;
-    }
-
-    private static string RequireEmail(string? email)
-    {
-        var value = NormalizeEmail(email);
-
-        return IsValidEmail(value)
-            ? value
-            : throw Invalid(nameof(User.Email), "Email noto'g'ri.");
-    }
-
-    private static string NormalizeEmail(string? email) =>
-        (email ?? string.Empty).Trim().ToLowerInvariant();
-
-    /// <summary>Yengil tekshiruv: bitta '@', bo'shliqsiz, domenida nuqta bor.</summary>
-    private static bool IsValidEmail(string email)
-    {
-        if (email.Length is 0 or > MaxEmailLength) return false;
-        if (email.Contains(' ')) return false;
-
-        var at = email.IndexOf('@');
-
-        return at > 0
-            && at < email.Length - 1
-            && email.IndexOf('@', at + 1) < 0
-            && email.LastIndexOf('.') > at + 1
-            && email[^1] != '.';
     }
 
     /// <summary>
@@ -890,11 +816,11 @@ public sealed class UserService(
         new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
 
     private static UserDetailsDto Map(User u) => new(
-        u.Id, u.FullName, u.Email, u.Phone, u.TelegramId, u.TelegramUsername,
+        u.Id, u.FullName, u.Phone, u.TelegramId, u.TelegramUsername,
         u.Role.ToString(), u.IsActive, u.CreatedAt, u.UpdatedAt);
 
     private static UserDetailsDto Map(Projection p) => new(
-        p.Id, p.FullName, p.Email, p.Phone, p.TelegramId, p.TelegramUsername,
+        p.Id, p.FullName, p.Phone, p.TelegramId, p.TelegramUsername,
         p.Role.ToString(), p.IsActive, p.CreatedAt, p.UpdatedAt);
 
     // ---------------------------------------------------------------- CSV yordamchi
@@ -915,7 +841,6 @@ public sealed class UserService(
         return new ImportColumns(
             Require(index, "full_name"),
             Require(index, "phone"),
-            Require(index, "email"),
             Require(index, "role"));
 
         static int Require(Dictionary<string, int> index, string column) =>
@@ -923,7 +848,7 @@ public sealed class UserService(
                 ? i
                 : throw Invalid("file",
                     "CSV sarlavhasida '" + column + "' ustuni yo'q. "
-                    + "Kutilayotgan ustunlar: full_name,phone,email,role");
+                    + "Kutilayotgan ustunlar: full_name,phone,role");
     }
 
     /// <summary>
@@ -994,7 +919,6 @@ public sealed class UserService(
     private const int MaxPageSize = 100;
     private const int MinSearchLength = 3;
     private const int MaxFullNameLength = 200;
-    private const int MaxEmailLength = 256;
     /// <summary>
     /// O'lik <c>PasswordHash</c> ustunini to'ldiradigan tasodifiy qiymat
     /// uzunligi (<see cref="PlaceholderPasswordHashAsync"/>).
@@ -1019,12 +943,12 @@ public sealed class UserService(
 
     /// <summary>Ro'yxat so'rovi uchun ustunlar to'plami — <c>PasswordHash</c> olinmaydi.</summary>
     private sealed record Projection(
-        long Id, string FullName, string Email, string? Phone, long? TelegramId,
+        long Id, string FullName, string? Phone, long? TelegramId,
         string? TelegramUsername, UserRole Role, bool IsActive,
         DateTimeOffset CreatedAt, DateTimeOffset? UpdatedAt);
 
-    private sealed record ImportColumns(int FullName, int Phone, int Email, int Role);
+    private sealed record ImportColumns(int FullName, int Phone, int Role);
 
     private sealed record ImportRow(
-        int Line, string FullName, string Email, string? Phone, string? RawPhone, UserRole Role);
+        int Line, string FullName, string? Phone, string? RawPhone, UserRole Role);
 }

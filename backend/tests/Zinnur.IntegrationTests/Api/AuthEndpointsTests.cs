@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Zinnur.Domain.Enums;
 using Zinnur.IntegrationTests.Infrastructure;
 
 namespace Zinnur.IntegrationTests.Api;
@@ -40,7 +41,7 @@ public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "admin@zinnur.uz", password = "Admin!2345" });
+            new { phone = "+998901234567", password = "Admin!2345" });
 
         response.StatusCode.Should().BeOneOf(
             HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
@@ -66,7 +67,8 @@ public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
 
         var user = await client.GetFromJsonAsync<AuthUser>("/api/v1/auth/me");
 
-        user!.Email.Should().Be("admin@zinnur.uz");
+        user!.Role.Should().Be("Admin");
+        user.FullName.Should().Be("Bosh administrator");
     }
 
     /// <summary>
@@ -114,7 +116,8 @@ public sealed class AuthEndpointsTests(ZinnurApiFactory factory)
 
         var expected = await factory.WithDbAsync(db => db.Users
             .AsNoTracking()
-            .Where(u => u.Email == "admin@zinnur.uz")
+            .Where(u => u.Role == UserRole.Admin)
+            .OrderBy(u => u.Id)
             .Select(u => u.Phone)
             .FirstAsync());
 

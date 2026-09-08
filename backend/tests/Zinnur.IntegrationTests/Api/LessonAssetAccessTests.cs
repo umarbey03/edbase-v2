@@ -71,7 +71,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-ustoz");
 
-        using var teacher = await ClientAsync(world.TeacherEmail);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         // Ikkinchi dars O'QUVCHI uchun QULFLANGAN (ustoz sur'ati 0), lekin
         // ustoz uchun ochiq.
@@ -87,7 +87,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-ochiq");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(AssetUri(world.FirstAssetId));
 
@@ -114,7 +114,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-qulf");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(AssetUri(world.LockedAssetId));
 
@@ -136,7 +136,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-qarz", makeDebtor: true);
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(AssetUri(world.FirstAssetId));
 
@@ -157,7 +157,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         var mine = await NewCourseWorldAsync("ruxsat-mening");
         var stranger = await NewCourseWorldAsync("ruxsat-begona");
 
-        using var student = await ClientAsync(stranger.StudentEmail);
+        using var student = await ClientAsync(stranger.StudentId);
 
         var response = await student.GetAsync(AssetUri(mine.FirstAssetId));
 
@@ -187,7 +187,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-yuklash");
 
-        using var teacher = await ClientAsync(world.TeacherEmail);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         var response = await teacher.PostAsync(
             AssetsUri(world.FirstLessonId), Multipart("a.mp4", "video/mp4", RandomVideo(512)));
@@ -201,7 +201,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("ruxsat-tahrir");
 
-        using var teacher = await ClientAsync(world.TeacherEmail);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         (await teacher.DeleteAsync(AssetUri(world.FirstAssetId))).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
@@ -231,7 +231,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("daraxt-qulf");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var tree = await student.GetFromJsonAsync<TreeRow>(CourseUri(world.CourseId));
 
@@ -278,9 +278,9 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -354,7 +354,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
 
         return new CourseWorld(
             courseId, firstLesson, lockedLesson, firstAsset, lockedAsset,
-            teacher.Email, student.Email);
+            teacher.Id, student.Id);
     }
 
     /// <summary>
@@ -424,13 +424,10 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
     private static async Task<CreatedUser> CreateUserAsync(
         HttpClient admin, UserRole role, string prefix)
     {
-        var email = $"{prefix[..Math.Min(prefix.Length, 8)]}-{Guid.NewGuid():N}"[..20]
-                    + "@zinnur.uz";
 
         var response = await admin.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = $"{role} {prefix}",
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -441,7 +438,7 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         // Javob shakli: `{ "user": { "id": … } }` — `WorldBuilder` bilan AYNI.
         var created = (await response.Content.ReadFromJsonAsync<CreatedUserRow>())!;
 
-        return new CreatedUser(created.User.Id, email);
+        return new CreatedUser(created.User.Id);
     }
 
     private static byte[] RandomVideo(int totalBytes)
@@ -485,10 +482,10 @@ public sealed class LessonAssetAccessTests(StorageBackedApiFactory factory)
         long LockedLessonId,
         long FirstAssetId,
         long LockedAssetId,
-        string TeacherEmail,
-        string StudentEmail);
+        long TeacherId,
+        long StudentId);
 
-    private sealed record CreatedUser(long Id, string Email);
+    private sealed record CreatedUser(long Id);
 
     private sealed record CreatedUserRow(IdRow User);
 

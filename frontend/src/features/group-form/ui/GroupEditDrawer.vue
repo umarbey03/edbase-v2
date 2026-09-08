@@ -786,7 +786,7 @@ const serverVideoStartLabel = computed(() => {
                 :key="item.id"
                 :value="item.id"
               >
-                {{ item.fullName ?? item.email }}
+                {{ item.fullName ?? '—' }}
               </option>
             </select>
           </BaseField>
@@ -803,7 +803,7 @@ const serverVideoStartLabel = computed(() => {
                 :key="item.id"
                 :value="item.id"
               >
-                {{ item.fullName ?? item.email }}
+                {{ item.fullName ?? '—' }}
               </option>
             </select>
           </BaseField>

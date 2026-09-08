@@ -160,7 +160,7 @@ public sealed class UsersController(
     //      • `POST /{id}/telegram/unlink` — kirish imkoniyatini ham yopadi
     //                                        va audit iziga yozadi.
 
-    /// <summary>CSV import: <c>full_name,phone,email,role</c>. Xato qatorlar hisobotda qaytadi.</summary>
+    /// <summary>CSV import: <c>full_name,phone,role</c>. Xato qatorlar hisobotda qaytadi.</summary>
     [HttpPost("import")]
     [Authorize(Roles = ManageRoles)]
     [Consumes("multipart/form-data")]

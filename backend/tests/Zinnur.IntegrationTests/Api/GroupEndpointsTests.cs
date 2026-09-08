@@ -411,7 +411,7 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await WorldBuilder.CreateAsync(factory, "azo-kontakt");
 
-        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
+        var phone = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
         phone.Should().NotBeNullOrEmpty("dunyo quruvchi o'quvchiga ham raqam beradi");
 
         var uri = $"/api/v1/groups/{world.GroupId}/members";
@@ -423,13 +423,11 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
             var json = await raw.Content.ReadAsStringAsync();
 
             raw.StatusCode.Should().Be(HttpStatusCode.OK, json);
-            json.Should().NotContain(email, "email ustoz javobiga tushmasligi kerak");
             json.Should().NotContain(phone!, "telefon ustoz javobiga tushmasligi kerak");
 
             var members = await teacher.GetFromJsonAsync<List<MemberResponse>>(uri);
             var row = members!.Single(m => m.StudentId == world.Student.Id);
 
-            row.Email.Should().BeNull();
             row.Phone.Should().BeNull();
             row.FullName.Should().NotBeNullOrEmpty("ism qoladi — jurnal ishlashi kerak");
         }
@@ -440,7 +438,6 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
             var members = await curator.GetFromJsonAsync<List<MemberResponse>>(uri);
             var row = members!.Single(m => m.StudentId == world.Student.Id);
 
-            row.Email.Should().Be(email);
             row.Phone.Should().Be(phone);
         }
 
@@ -450,7 +447,6 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
             var members = await admin.GetFromJsonAsync<List<MemberResponse>>(uri);
             var row = members!.Single(m => m.StudentId == world.Student.Id);
 
-            row.Email.Should().Be(email);
             row.Phone.Should().Be(phone);
         }
     }
@@ -550,9 +546,9 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
     public async Task Create_AsTeacher_ReturnsForbidden()
     {
         using var admin = await AdminClientAsync();
-        var (email, password) = await CreateStaffWithLoginAsync(admin, UserRole.Teacher);
+        var teacherId = await CreateStaffAsync(admin, UserRole.Teacher);
 
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(teacherId);
         using var teacherClient = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var response = await teacherClient.PostAsJsonAsync("/api/v1/groups",
@@ -571,17 +567,14 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
     {
         using var admin = await AdminClientAsync();
 
-        var (email, password) = await CreateStaffWithLoginAsync(admin, UserRole.Teacher);
-        var ownerId = await factory.WithDbAsync(db =>
-            db.Users.Where(u => u.Email == email).Select(u => u.Id).FirstAsync());
-
+        var ownerId = await CreateStaffAsync(admin, UserRole.Teacher);
         var strangerId = await CreateStaffAsync(admin, UserRole.Teacher);
 
         var startDate = FutureStart(DayOfWeek.Monday);
         var mine = await CreateGroupAsync(admin, Payload("IT-mening", startDate, ownerId));
         var theirs = await CreateGroupAsync(admin, Payload("IT-begona", startDate, strangerId));
 
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(ownerId);
         using var teacherClient = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var page = await teacherClient.GetFromJsonAsync<PagedGroups>("/api/v1/groups?pageSize=100");
@@ -749,7 +742,6 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName,
-            email = $"ig-{Guid.NewGuid():N}"[..16] + "@zinnur.uz",
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -849,25 +841,13 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
     }
 
     private static async Task<long> CreateStaffAsync(HttpClient client, UserRole role) =>
-        (await CreateUserAsync(client, role)).Id;
+        await CreateUserAsync(client, role);
 
-    private static async Task<(string Email, string Password)> CreateStaffWithLoginAsync(
-        HttpClient client, UserRole role)
+    private static async Task<long> CreateUserAsync(HttpClient client, UserRole role)
     {
-        var created = await CreateUserAsync(client, role);
-        return (created.Email, created.Password);
-    }
-
-    private static async Task<(long Id, string Email, string Password)> CreateUserAsync(
-        HttpClient client, UserRole role)
-    {
-        var email = $"ig-{Guid.NewGuid():N}"[..16] + "@zinnur.uz";
-        const string password = "Guruh!2345";
-
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = "Test " + role.ToString(),
-            email,
             role = role.ToString(),
 
             // 🔴 Xodim uchun telefon MAJBURIY (2026-08-13) — izoh `TestPhones` da.
@@ -877,7 +857,7 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(response, HttpStatusCode.Created);
 
         var created = await response.Content.ReadFromJsonAsync<CreatedUserResponse>();
-        return (created!.User.Id, email, password);
+        return created!.User.Id;
     }
 
     private Task<long> FirstCourseIdAsync() =>
@@ -941,15 +921,13 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
         string RoomName);
 
     /// <summary>
-    /// ★ <c>Email</c>/<c>Phone</c> — <c>string?</c>: ustoz javobida ikkalasi
-    /// ham <c>null</c> (talab R27). Email bazada MAJBURIY, ya'ni bo'shlik
-    /// faqat serverning kesganidan darak beradi.
+    /// ★ <c>Phone</c> — <c>string?</c>: ustoz javobida u <c>null</c>
+    /// bo'ladi (talab R27) yoki raqam umuman kiritilmagan.
     /// </summary>
     private sealed record MemberResponse(
         long Id,
         long StudentId,
         string FullName,
-        string? Email,
         string? Phone,
         string Status,
         DateOnly? PausedUntil,

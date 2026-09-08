@@ -72,7 +72,7 @@ public sealed class UserProfileService(
 
         // 🔴 USTOZGA KONTAKT YUBORILMAYDI (talab R27).
         //    Moliya bloki bilan AYNI printsip: maydon javobda `null` bo'ladi,
-        //    ya'ni email/telefon/Telegram simdan UMUMAN o'tmaydi. Ism, guruh,
+        //    ya'ni telefon/Telegram simdan UMUMAN o'tmaydi. Ism, guruh,
         //    davomat va natijalar ochiq qoladi — ustozga ish uchun aynan
         //    shular kerak.
         //
@@ -84,7 +84,6 @@ public sealed class UserProfileService(
             new UserDetailsDto(
                 student.Id,
                 student.FullName,
-                seesContact ? student.Email : null,
                 seesContact ? student.Phone : null,
                 seesContact ? student.TelegramId : null,
                 seesContact ? student.TelegramUsername : null,

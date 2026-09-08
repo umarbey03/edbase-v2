@@ -47,7 +47,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync("video-ochiq");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.PostAsync(WatchedUri(world.FirstLessonId), content: null);
 
@@ -74,7 +74,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync("video-takror");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         (await student.PostAsync(WatchedUri(world.FirstLessonId), content: null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
@@ -121,7 +121,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         before.Completed.Should().BeFalse(
             "video ko'rilmagan -> dars TUGATILMAGAN (ilgari bu yerda `true` edi)");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         (await student.PostAsync(WatchedUri(world.FirstLessonId), content: null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
@@ -171,7 +171,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync("video-qulf");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.PostAsync(WatchedUri(world.LockedLessonId), content: null);
 
@@ -188,7 +188,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         var mine = await NewWorldAsync("video-mening");
         var stranger = await NewWorldAsync("video-begona");
 
-        using var student = await ClientAsync(stranger.StudentEmail);
+        using var student = await ClientAsync(stranger.StudentId);
 
         var response = await student.PostAsync(WatchedUri(mine.FirstLessonId), content: null);
 
@@ -245,9 +245,9 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -313,7 +313,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
         // (`CourseEndpointsTests.GateAsync` dagi AYNI ehtiyot chorasi).
         await InvalidateGateAsync(student.Id);
 
-        return new World(firstLesson, lockedLesson, student.Id, student.Email);
+        return new World(firstLesson, lockedLesson, student.Id);
     }
 
     private async Task InvalidateGateAsync(long studentId)
@@ -380,13 +380,10 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
     private static async Task<CreatedUser> CreateUserAsync(
         HttpClient admin, UserRole role, string prefix)
     {
-        var email = $"{prefix[..Math.Min(prefix.Length, 8)]}-{Guid.NewGuid():N}"[..20]
-                    + "@zinnur.uz";
 
         var response = await admin.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = $"{role} {prefix}",
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -396,7 +393,7 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
 
         var created = (await response.Content.ReadFromJsonAsync<CreatedUserRow>())!;
 
-        return new CreatedUser(created.User.Id, email);
+        return new CreatedUser(created.User.Id);
     }
 
     private static Uri WatchedUri(long lessonId) =>
@@ -405,11 +402,11 @@ public sealed class LessonVideoWatchedTests(ZinnurApiFactory factory)
             UriKind.Relative);
 
     private sealed record World(
-        long FirstLessonId, long LockedLessonId, long StudentId, string StudentEmail);
+        long FirstLessonId, long LockedLessonId, long StudentId);
 
     private sealed record GateRow(long LessonId, bool Unlocked, bool Completed, bool VideoWatched);
 
-    private sealed record CreatedUser(long Id, string Email);
+    private sealed record CreatedUser(long Id);
 
     private sealed record CreatedUserRow(IdRow User);
 

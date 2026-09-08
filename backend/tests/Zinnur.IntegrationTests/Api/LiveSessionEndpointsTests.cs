@@ -102,9 +102,9 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task CreateToken_AsOutsiderStudent_ReturnsForbidden()
     {
-        var (email, password) = await CreateStudentOutsideAnyGroupAsync();
+        var outsiderId = await CreateStudentOutsideAnyGroupAsync();
 
-        var studentTokens = await factory.LoginAsync(email);
+        var studentTokens = await factory.LoginAsync(outsiderId);
         using var studentClient = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var adminTokens = await factory.LoginAsAdminAsync();
@@ -123,8 +123,8 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Start_AsStudent_ReturnsForbidden()
     {
-        var (email, password) = await CreateStudentOutsideAnyGroupAsync();
-        var studentTokens = await factory.LoginAsync(email);
+        var outsiderId = await CreateStudentOutsideAnyGroupAsync();
+        var studentTokens = await factory.LoginAsync(outsiderId);
         using var studentClient = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var adminTokens = await factory.LoginAsAdminAsync();
@@ -167,26 +167,27 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     }
 
     /// <summary>Hech qanday guruhga a'zo bo'lmagan o'quvchi yaratadi.</summary>
-    private async Task<(string Email, string Password)> CreateStudentOutsideAnyGroupAsync()
+    private async Task<long> CreateStudentOutsideAnyGroupAsync()
     {
         const string password = "Student!2345";
-        var email = $"begona-{Guid.NewGuid():N}"[..20] + "@zinnur.uz";
 
-        await factory.WithDbAsync(async db =>
+        return await factory.WithDbAsync(async db =>
         {
             var hasher = new HasherProxy(factory);
-            db.Users.Add(new User
+
+            var user = new User
             {
                 FullName = "Begona O'quvchi",
-                Email = email,
                 PasswordHash = await hasher.HashAsync(password),
                 Role = UserRole.Student,
                 IsActive = true,
-            });
-            return await db.SaveChangesAsync();
-        });
+            };
 
-        return (email, password);
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            return user.Id;
+        });
     }
 
     private static string DecodeJwtPayload(string segment)

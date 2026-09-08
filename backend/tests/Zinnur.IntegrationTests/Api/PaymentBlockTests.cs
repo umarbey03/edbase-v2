@@ -48,7 +48,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         var world = await NewDebtorAsync();
         var courseId = await FirstCourseIdAsync();
 
-        using var student = await ClientAsync(world.Email, world.Password);
+        using var student = await ClientAsync(world.StudentId);
         var courseUri = new Uri($"/api/v1/courses/{courseId}", UriKind.Relative);
 
         var blocked = await student.GetAsync(courseUri);
@@ -87,7 +87,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         var world = await NewDebtorAsync();
         var sessionId = await StartedSessionAsync(world.GroupId);
 
-        using var student = await ClientAsync(world.Email, world.Password);
+        using var student = await ClientAsync(world.StudentId);
         var tokenUri = new Uri($"/api/v1/live-sessions/{sessionId}/token", UriKind.Relative);
 
         // 1) Qamrov = Video -> jonli dars YOPILMAYDI.
@@ -120,7 +120,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         var world = await NewDebtorAsync();
         var courseId = await FirstCourseIdAsync();
 
-        using var student = await ClientAsync(world.Email, world.Password);
+        using var student = await ClientAsync(world.StudentId);
         var courseUri = new Uri($"/api/v1/courses/{courseId}", UriKind.Relative);
 
         var before = await student.GetAsync(courseUri);
@@ -156,7 +156,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
 
         exempt.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using var student = await ClientAsync(world.Email, world.Password);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(new Uri($"/api/v1/courses/{courseId}", UriKind.Relative));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -180,7 +180,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
 
         var world = await NewDebtorAsync();
 
-        using var student = await ClientAsync(world.Email, world.Password);
+        using var student = await ClientAsync(world.StudentId);
 
         var status = await student.GetFromJsonAsync<BlockResponse>(
             $"/api/v1/payments/students/{world.StudentId}/block?scope=Video");
@@ -198,7 +198,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
     {
         var world = await NewDebtorAsync();
 
-        using var teacher = await ClientAsync(world.TeacherEmail, world.Password);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         var read = await teacher.GetAsync(new Uri("/api/v1/payments/settings", UriKind.Relative));
         read.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -224,8 +224,8 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
     {
         using var admin = await AdminClientAsync();
 
-        var teacher = await CreateUserAsync(admin, UserRole.Teacher);
-        var student = await CreateUserAsync(admin, UserRole.Student);
+        var teacherId = await CreateUserAsync(admin, UserRole.Teacher);
+        var studentId = await CreateUserAsync(admin, UserRole.Student);
 
         var courseId = await FirstCourseIdAsync();
 
@@ -236,7 +236,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
             weekdays = new[] { "Monday", "Wednesday" },
             startTime = "19:00:00",
             courseId,
-            teacherId = teacher.Id,
+            teacherId,
 
             // 1 oy — jadval qisqa bo'lsin (test tezligi uchun).
             courseMonths = 1,
@@ -247,7 +247,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         var group = (await groupResponse.Content.ReadFromJsonAsync<CreateGroupResponse>())!;
 
         var member = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{group.Group.Id}/members", new { studentId = student.Id });
+            $"/api/v1/groups/{group.Group.Id}/members", new { studentId });
 
         member.StatusCode.Should().Be(HttpStatusCode.Created);
 
@@ -275,7 +275,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         await factory.WithDbAsync(async db =>
         {
             var payment = await db.Payments.FirstAsync(p =>
-                p.StudentId == student.Id && p.GroupId == group.Group.Id && p.Period == Period);
+                p.StudentId == studentId && p.GroupId == group.Group.Id && p.Period == Period);
 
             payment.Accrue(DebtAmount, 0m, DateTimeOffset.UtcNow);
             payment.Validate();
@@ -283,8 +283,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
             return await db.SaveChangesAsync();
         });
 
-        return new DebtorWorld(
-            student.Id, student.Email, student.Password, teacher.Email, group.Group.Id);
+        return new DebtorWorld(studentId, teacherId, group.Group.Id);
     }
 
     private async Task SetSettingsAsync(decimal threshold, PaymentBlockScope scope)
@@ -337,16 +336,11 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
     private Task<long> FirstCourseIdAsync() =>
         factory.WithDbAsync(db => db.Courses.OrderBy(c => c.Id).Select(c => c.Id).FirstAsync());
 
-    private static async Task<(long Id, string Email, string Password)> CreateUserAsync(
-        HttpClient client, UserRole role)
+    private static async Task<long> CreateUserAsync(HttpClient client, UserRole role)
     {
-        var email = $"blk-{Guid.NewGuid():N}"[..16] + "@zinnur.uz";
-        const string password = "Blok!2345";
-
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = "Blok " + role.ToString(),
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -354,7 +348,7 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var created = await response.Content.ReadFromJsonAsync<CreatedUserResponse>();
-        return (created!.User.Id, email, password);
+        return created!.User.Id;
     }
 
     private async Task<HttpClient> AdminClientAsync()
@@ -363,18 +357,13 @@ public sealed class PaymentBlockTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private sealed record DebtorWorld(
-        long StudentId,
-        string Email,
-        string Password,
-        string TeacherEmail,
-        long GroupId);
+    private sealed record DebtorWorld(long StudentId, long TeacherId, long GroupId);
 
     private sealed record CreateGroupResponse(GroupRef Group);
 
@@ -437,7 +426,8 @@ public sealed class PaymentSoftModeTests(SoftModePaymentFactory factory)
         opened.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var studentId = await factory.WithDbAsync(db => db.Users
-            .Where(u => u.Email == "student@zinnur.uz")
+            .Where(u => u.Role == UserRole.Student)
+            .OrderBy(u => u.Id)
             .Select(u => u.Id)
             .FirstAsync());
 
@@ -459,7 +449,7 @@ public sealed class PaymentSoftModeTests(SoftModePaymentFactory factory)
         var courseId = await factory.WithDbAsync(db => db.Courses
             .OrderBy(c => c.Id).Select(c => c.Id).FirstAsync());
 
-        var studentTokens = await factory.LoginAsync("student@zinnur.uz");
+        var studentTokens = await factory.LoginAsync(studentId);
         using var student = factory.CreateAuthorizedClient(studentTokens.AccessToken);
 
         var response = await student.GetAsync(new Uri($"/api/v1/courses/{courseId}", UriKind.Relative));

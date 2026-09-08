@@ -123,7 +123,7 @@ const canManageMoney = computed(() => isAdminRole(auth.role ?? ''))
 
 /*
   🔴 KONTAKT USTOZDAN KESILGAN (talab R27) — bu YO'QLIK, "yashirish" emas:
-  `profile.user.phone/email` va `profile.telegram.telegramId/username`
+  `profile.user.phone` va `profile.telegram.telegramId/username`
   serverdan `null` bo'lib keladi (moliya bloki bilan aynan bir printsip).
 
   Bu yerdagi shart faqat SABABNI to'g'ri yozish uchun ("Ko'rsatilmaydi",

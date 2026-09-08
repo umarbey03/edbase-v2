@@ -10,7 +10,7 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
 /**
  * 1-BO'LIM: SHAXSIY MA'LUMOTLAR + Telegram holati.
  *
- * Tartib loyiha egasi bergan ro'yxatdan: ism · telefon · email · Telegram
+ * Tartib loyiha egasi bergan ro'yxatdan: ism · telefon · Telegram
  * (nom va id) · ulanish holati.
  *
  * 🔴 TELEGRAM NOMI FAQAT HAVOLA (13-bo'lim, 35-tuzoq): bo'shatilgan nom
@@ -21,7 +21,7 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard } from '@/shared/ui'
  * ════════════════════════════════════════════════════════════════════════
  * 🔴 USTOZ UCHUN KONTAKT SERVERDA KESILGAN (talab R27)
  *
- * Telefon, email, Telegram id va nomi `null` bo'lib keladi. Ular "—" bilan
+ * Telefon, Telegram id va nomi `null` bo'lib keladi. Ular "—" bilan
  * chizilsa xodim ma'lumot KIRITILMAGAN deb o'ylardi va o'quv bo'limiga
  * "raqamni to'ldiring" deb murojaat qilardi. Shu sababli sabab OSHKORA
  * yoziladi: "Ko'rsatilmaydi".
@@ -57,7 +57,6 @@ const rows = computed(() => [
   // shuning uchun ularda `textOrDash` ning "Ko'rsatilmaydi" tarmog'i yurmaydi.
   { label: 'F.I.Sh.', value: props.user.fullName ?? '—' },
   { label: 'Telefon', value: textOrDash(formatPhone(props.user.phone)) },
-  { label: 'Email', value: textOrDash(props.user.email) },
   {
     label: 'Telegram ID',
     value:

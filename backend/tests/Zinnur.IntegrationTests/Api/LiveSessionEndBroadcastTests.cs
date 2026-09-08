@@ -80,8 +80,8 @@ public sealed class LiveSessionEndBroadcastTests(NotifierSpyFactory factory)
     public async Task End_WhenForbidden_DoesNotNotify()
     {
         var sessionId = await CreateScheduledSessionAsync();
-        var (email, password) = await CreateOutsiderStudentAsync();
-        var tokens = await factory.LoginAsync(email);
+        var outsiderId = await CreateOutsiderStudentAsync();
+        var tokens = await factory.LoginAsync(outsiderId);
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
 
         var response = await client.PostAsync(
@@ -121,28 +121,29 @@ public sealed class LiveSessionEndBroadcastTests(NotifierSpyFactory factory)
             return session.Id;
         });
 
-    private async Task<(string Email, string Password)> CreateOutsiderStudentAsync()
+    /// <summary>Guruhga kirmagan o'quvchi yaratadi va Id'sini qaytaradi.</summary>
+    private async Task<long> CreateOutsiderStudentAsync()
     {
         const string password = "Student!2345";
-        var email = $"broadcast-{Guid.NewGuid():N}"[..22] + "@zinnur.uz";
 
-        await factory.WithDbAsync(async db =>
+        return await factory.WithDbAsync(async db =>
         {
             using var scope = factory.Services.CreateScope();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-            db.Users.Add(new User
+            var user = new User
             {
                 FullName = "Begona O'quvchi",
-                Email = email,
                 PasswordHash = await hasher.HashAsync(password),
                 Role = UserRole.Student,
                 IsActive = true,
-            });
-            return await db.SaveChangesAsync();
-        });
+            };
 
-        return (email, password);
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            return user.Id;
+        });
     }
 }
 

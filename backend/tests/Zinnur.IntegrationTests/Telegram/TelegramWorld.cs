@@ -72,7 +72,6 @@ public class TelegramApiFactory : ZinnurApiFactory
             var user = new User
             {
                 FullName = fullName ?? $"Test {role}",
-                Email = $"tg-{Guid.NewGuid():N}@zinnur.test",
 
                 // Haqiqiy ko'rinishdagi BCrypt hash (parol bilan kirish bu
                 // testlarda kerak emas).

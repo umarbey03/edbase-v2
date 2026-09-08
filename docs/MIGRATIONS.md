@@ -163,7 +163,6 @@ Bu constraint'lar eski tizimdagi haqiqiy nosozliklardan kelib chiqqan:
 | `UX_LiveSessions_RoomName` (unique) | Xona nomi to'qnashganda ikki dars bitta LiveKit xonasiga tushardi va davomat butunlay to'xtardi |
 | `UX_Attendances_SessionId_StudentId` | Bir o'quvchiga bir darsda ikkita davomat yozuvi bo'lmasin |
 | `UX_GroupMembers_GroupId_StudentId` | Takroriy a'zolik |
-| `IX_Users_Email` (unique) | — |
 | `IX_Users_Phone` (unique, `WHERE Phone IS NOT NULL`) | Telefonsiz foydalanuvchilar ko'p bo'lishi mumkin — filtrsiz unikal indeks ularni bloklardi |
 | `IX_Users_TelegramId` (unique, filtrlangan) | Xuddi shu sabab |
 

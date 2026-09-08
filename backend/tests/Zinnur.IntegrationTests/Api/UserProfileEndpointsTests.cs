@@ -188,7 +188,7 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
     }
 
     /// <summary>
-    /// 🔴 R27: USTOZ JAVOBIDA KONTAKT YO'Q — email, telefon, Telegram id
+    /// 🔴 R27: USTOZ JAVOBIDA KONTAKT YO'Q — telefon, Telegram id
     /// va Telegram nomi.
     ///
     /// Moliya testi bilan AYNI naqsh (xom JSON + tiplangan javob) va AYNI
@@ -210,7 +210,7 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
         await ProfileWorldBuilder.LinkTelegramAsync(
             factory, world.Student.Id, telegramId, "maxfiy_nom");
 
-        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
+        var phone = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
         phone.Should().NotBeNullOrEmpty("dunyo quruvchi o'quvchiga ham raqam beradi");
 
         using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
@@ -219,7 +219,6 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
 
         status.Should().Be(HttpStatusCode.OK, json);
 
-        json.Should().NotContain(email, "o'quvchi emaili ustoz javobiga tushmasligi kerak");
         json.Should().NotContain(phone!, "o'quvchi telefoni ustoz javobiga tushmasligi kerak");
         json.Should().NotContain("maxfiy_nom", "Telegram nomi ham kontakt — u orqali yozib bo'ladi");
         json.Should().NotContain(
@@ -228,7 +227,6 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
 
         var profile = await ProfileWorldBuilder.GetProfileAsync(teacher, world.Student.Id);
 
-        profile.User.Email.Should().BeNull();
         profile.User.Phone.Should().BeNull();
         profile.User.TelegramId.Should().BeNull();
         profile.User.TelegramUsername.Should().BeNull();
@@ -257,7 +255,7 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await ProfileWorldBuilder.CreateWithFinanceAsync(factory, "prof-kurator");
 
-        var (email, phone) = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
+        var phone = await ProfileWorldBuilder.ContactOfAsync(factory, world.Student.Id);
 
         using var curator = await WorldBuilder.ClientAsync(factory, world.Curator);
 
@@ -266,7 +264,6 @@ public sealed class UserProfileEndpointsTests(ZinnurApiFactory factory)
         profile.User.Id.Should().Be(world.Student.Id);
         profile.Finance.Should().BeNull();
 
-        profile.User.Email.Should().Be(email);
         profile.User.Phone.Should().Be(phone, "kuratorning ASOSIY amali — qo'ng'iroq");
     }
 

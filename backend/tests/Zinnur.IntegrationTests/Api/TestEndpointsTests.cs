@@ -20,7 +20,6 @@ namespace Zinnur.IntegrationTests.Api;
 public sealed class TestEndpointsTests(ZinnurApiFactory factory)
     : IClassFixture<ZinnurApiFactory>
 {
-    private const string StudentEmail = "student@zinnur.uz";
     private const string StudentPassword = "Demo!2345";
 
     // ================================================================== /take maxfiyligi
@@ -589,12 +588,16 @@ public sealed class TestEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> StudentClientAsync()
     {
-        var tokens = await factory.LoginAsync(StudentEmail);
+        var tokens = await factory.LoginAsync(await StudentIdAsync());
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
+    /// <summary>Seed qilingan demo o'quvchi (bazada bitta o'quvchi bor).</summary>
     private Task<long> StudentIdAsync() => factory.WithDbAsync(db =>
-        db.Users.Where(u => u.Email == StudentEmail).Select(u => u.Id).FirstAsync());
+        db.Users.Where(u => u.Role == UserRole.Student)
+            .OrderBy(u => u.Id)
+            .Select(u => u.Id)
+            .FirstAsync());
 
     /// <summary>Ikkinchi guruh — KURSSIZ, shuning uchun gating'ga ta'sir qilmaydi.</summary>
     private async Task AddToExtraGroupAsync(long studentId, string groupName)

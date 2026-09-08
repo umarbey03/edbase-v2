@@ -25,7 +25,7 @@ public sealed class GroupCategoryConfiguration : IEntityTypeConfiguration<GroupC
         // ishlamayapti deb o'ylardi (ro'yxat bo'sh emas, faqat NOTO'LIQ).
         //
         // 🔴 INDEKS `lower("Name")` USTIDA EMAS, oddiy ustun ustida — bu
-        // ATAYLAB va `Users.Email` bilan AYNI naqsh: funksional indeksni EF
+        // ATAYLAB va `Users.PhoneNormalized` bilan AYNI naqsh: funksional indeksni EF
         // model differ'i qayta o'qiy olmaydi va `has-pending-model-changes`
         // abadiy "o'zgarish bor" deb qolardi. Registrsiz ("ielts" va "IELTS")
         // takror servisda tutiladi (`GroupCategoryService.EnsureNameFreeAsync`)

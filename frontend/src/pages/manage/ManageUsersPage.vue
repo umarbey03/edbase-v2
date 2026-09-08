@@ -662,7 +662,7 @@ async function bulkSetActive(active: boolean): Promise<void> {
         <input
           v-model="search"
           class="zn-input pl-9"
-          placeholder="Ism yoki email bo‘yicha qidirish"
+          placeholder="Ism yoki telefon bo‘yicha qidirish"
         >
         <p
           v-if="searchTooShort"
@@ -870,10 +870,6 @@ async function bulkSetActive(active: boolean): Promise<void> {
               </BaseBadge>
             </div>
             <p
-              class="mt-1 truncate text-xs text-slate-400"
-              v-text="user.email ?? '—'"
-            />
-            <p
               v-if="user.phone !== null"
               class="text-xs text-dim"
               v-text="formatPhone(user.phone)"
@@ -936,7 +932,6 @@ async function bulkSetActive(active: boolean): Promise<void> {
                   <span class="sr-only">№</span>
                 </th>
                 <th>Ism</th>
-                <th>Email</th>
                 <th>Telefon</th>
                 <th>Telegram</th>
                 <th>Rol</th>
@@ -979,10 +974,6 @@ async function bulkSetActive(active: boolean): Promise<void> {
                 <td
                   class="font-medium text-slate-100"
                   v-text="user.fullName ?? '—'"
-                />
-                <td
-                  class="text-slate-400"
-                  v-text="user.email ?? '—'"
                 />
                 <td
                   class="text-slate-400"

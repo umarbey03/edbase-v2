@@ -48,7 +48,7 @@ public interface IUserService
         long id, TelegramUnlinkRequest request, long actorId, CancellationToken ct = default);
 
     /// <summary>
-    /// CSV import: <c>full_name,phone,email,role</c>.
+    /// CSV import: <c>full_name,phone,role</c>.
     /// Paketlab yoziladi, xato qatorlar butun importni to'xtatmaydi.
     /// </summary>
     Task<UserImportResponse> ImportCsvAsync(

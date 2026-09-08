@@ -86,8 +86,8 @@ const auth = useAuthStore()
 /**
  * 🔴 KONTAKT USTUNLARI USTOZGA UMUMAN CHIZILMAYDI (talab R27).
  *
- * Server ustoz javobida `email` va `phone` ni `null` qilib yuboradi, ya'ni
- * ustunlar QOLDIRILSA butun jadval bo'ylab "—" ustuni turardi — bu "ma'lumot
+ * Server ustoz javobida `phone` ni `null` qilib yuboradi, ya'ni ustun
+ * QOLDIRILSA butun jadval bo'ylab "—" ustuni turardi — bu "ma'lumot
  * yo'q/ilova buzilgan" degan taassurot berardi. Ustunni umuman chizmaslik
  * rostroq: ustoz uchun bu ma'lumot MAVJUD emas.
  *
@@ -360,11 +360,6 @@ function isHistorical(member: GroupMemberDto): boolean {
               </BaseBadge>
             </div>
             <p
-              v-if="showContact"
-              class="mt-1 truncate text-xs text-slate-400"
-              v-text="member.email ?? '—'"
-            />
-            <p
               v-if="member.phone !== null"
               class="text-xs text-dim"
               v-text="formatPhone(member.phone)"
@@ -385,7 +380,7 @@ function isHistorical(member: GroupMemberDto): boolean {
               ★ TELEFONDA HAM BESHTASI QATORDA QOLADI, "..." menyusiga
               yig'ilmaydi. O'lchov: 5 × 36px + 4 × 12px = 228px, 320px
               ekranda kartochka ichida ~260px joy bor. Amallar ALOHIDA
-              qatorda (ism/email tepada) — ya'ni jadval katagidagi siqiq
+              qatorda (ism tepada) — ya'ni jadval katagidagi siqiq
               holat bu yerda yo'q. Yashirin menyu qo'shilsa u ochilganda
               kartochkadan tashqariga chiqib qirqilardi va yana bitta
               fokus-tuzoq mantig'i paydo bo'lardi.
@@ -454,9 +449,6 @@ function isHistorical(member: GroupMemberDto): boolean {
                 </th>
                 <th>Ism</th>
                 <th v-if="showContact">
-                  Email
-                </th>
-                <th v-if="showContact">
                   Telefon
                 </th>
                 <th>Holat</th>
@@ -478,11 +470,6 @@ function isHistorical(member: GroupMemberDto): boolean {
                 <td
                   class="font-medium text-slate-100"
                   v-text="member.fullName ?? '—'"
-                />
-                <td
-                  v-if="showContact"
-                  class="text-slate-400"
-                  v-text="member.email ?? '—'"
                 />
                 <td
                   v-if="showContact"

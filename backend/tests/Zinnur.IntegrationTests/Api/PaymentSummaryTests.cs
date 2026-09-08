@@ -157,16 +157,16 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         (await admin.GetAsync(SummaryUri())).StatusCode
             .Should().Be(HttpStatusCode.OK, "admin hisobotni ko'radi");
 
-        var academic = await CreateUserAsync(admin, UserRole.Academic);
-        using var academicClient = await ClientAsync(academic.Email, academic.Password);
+        var academicId = await CreateUserAsync(admin, UserRole.Academic);
+        using var academicClient = await ClientAsync(academicId);
         (await academicClient.GetAsync(SummaryUri())).StatusCode
             .Should().Be(HttpStatusCode.OK, "o'quv bo'limi hisobotni ko'radi");
 
-        using var teacher = await ClientAsync(world.TeacherEmail, world.TeacherPassword);
+        using var teacher = await ClientAsync(world.TeacherId);
         (await teacher.GetAsync(SummaryUri())).StatusCode
             .Should().Be(HttpStatusCode.Forbidden, "ustoz moliyaga kira olmaydi");
 
-        using var student = await ClientAsync(world.StudentEmail, world.StudentPassword);
+        using var student = await ClientAsync(world.StudentId);
         (await student.GetAsync(SummaryUri())).StatusCode
             .Should().Be(HttpStatusCode.Forbidden, "o'quvchi butun markaz moliyasini ko'ra olmaydi");
 
@@ -430,8 +430,8 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
     {
         using var admin = await AdminClientAsync();
 
-        var teacher = await CreateUserAsync(admin, UserRole.Teacher);
-        var student = await CreateUserAsync(admin, UserRole.Student);
+        var teacherId = await CreateUserAsync(admin, UserRole.Teacher);
+        var studentId = await CreateUserAsync(admin, UserRole.Student);
 
         var courseId = await FirstCourseIdAsync();
 
@@ -442,7 +442,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
             weekdays = new[] { "Monday", "Wednesday" },
             startTime = "19:00:00",
             courseId,
-            teacherId = teacher.Id,
+            teacherId,
             courseMonths = 8,
         });
 
@@ -451,7 +451,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         var group = (await groupResponse.Content.ReadFromJsonAsync<CreateGroupResponse>())!;
 
         var member = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{group.Group.Id}/members", new { studentId = student.Id });
+            $"/api/v1/groups/{group.Group.Id}/members", new { studentId });
 
         await EnsureStatusAsync(member, HttpStatusCode.Created);
 
@@ -468,8 +468,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(tariff, HttpStatusCode.Created);
 
         return new World(
-            student.Id, student.Email, student.Password,
-            teacher.Email, teacher.Password,
+            studentId, teacherId,
             group.Group.Id);
     }
 
@@ -537,9 +536,9 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -547,16 +546,12 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         factory.WithDbAsync(db => Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
             .FirstAsync(db.Courses.OrderBy(c => c.Id).Select(c => c.Id)));
 
-    private static async Task<(long Id, string Email, string Password)> CreateUserAsync(
+    private static async Task<long> CreateUserAsync(
         HttpClient client, UserRole role)
     {
-        var email = $"sum-{Guid.NewGuid():N}"[..16] + "@zinnur.uz";
-        const string password = "Hisobot!2345";
-
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = "Hisobot " + role.ToString(),
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -564,7 +559,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(response, HttpStatusCode.Created);
 
         var created = await response.Content.ReadFromJsonAsync<CreatedUserResponse>();
-        return (created!.User.Id, email, password);
+        return created!.User.Id;
     }
 
     /// <summary>Holatni tekshiradi va xato bo'lsa JAVOB TANASINI ko'rsatadi.</summary>
@@ -582,13 +577,7 @@ public sealed class PaymentSummaryTests(ZinnurApiFactory factory)
 
     // ---------------------------------------------------------------- javob shakllari
 
-    private sealed record World(
-        long StudentId,
-        string StudentEmail,
-        string StudentPassword,
-        string TeacherEmail,
-        string TeacherPassword,
-        long GroupId);
+    private sealed record World(long StudentId, long TeacherId, long GroupId);
 
     private sealed record CreateGroupResponse(GroupRef Group);
 

@@ -315,13 +315,9 @@ public sealed record UpdateGroupResponse(
 /// Guruh a'zosi (o'quvchi).
 /// </summary>
 /// <param name="Id">A'zolik yozuvining Id'si (o'quvchining Id'si emas).</param>
-/// <param name="Email">
-/// 🔴 <c>null</c> — so'rovchi USTOZ (talab R27). Bazada ustun majburiy,
-/// ya'ni bo'shlik faqat SERVER kesganidan darak beradi. Kesish
-/// <c>GroupService.ProjectMembers</c> da, KURATOR bundan mustasno.
-/// </param>
 /// <param name="Phone">
-/// <c>null</c> — raqam kiritilmagan YOKI so'rovchi ustoz (yuqoriga qarang).
+/// 🔴 <c>null</c> — raqam kiritilmagan YOKI so'rovchi USTOZ (talab R27).
+/// Kesish <c>GroupService.ProjectMembers</c> da, KURATOR bundan mustasno.
 /// Interfeys ikkalasini ajrata olmaydi, shuning uchun "Telefon kiritilmagan"
 /// matni ustozga KO'RSATILMAYDI — u yolg'on bo'lardi.
 /// </param>
@@ -345,7 +341,6 @@ public sealed record GroupMemberDto(
     long Id,
     long StudentId,
     string FullName,
-    string? Email,
     string? Phone,
     MemberStatus Status,
     DateTimeOffset JoinedAt,

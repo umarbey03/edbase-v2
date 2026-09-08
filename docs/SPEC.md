@@ -86,7 +86,7 @@ public abstract class BaseEntity
 
 | Entity | Maydonlar (aniq nomlar) |
 |---|---|
-| **User** | `FullName:string`, `Email:string`(unique), `PasswordHash:string`, `Phone:string?`(unique), `TelegramId:long?`(unique), `Role:UserRole`, `IsActive:bool=true`, `TokenVersion:int=0` |
+| **User** | `FullName:string`, `PasswordHash:string`, `Phone:string?`(unique), `TelegramId:long?`(unique), `Role:UserRole`, `IsActive:bool=true`, `TokenVersion:int=0` — ⚠️ `Email` 2026-09-08 da OLIB TASHLANDI (markazda ishlatilmagan; kirish telefon + Telegram orqali) |
 | **Course** | `Name:string`, `Description:string?`, `IsActive:bool=true`, `Position:int` |
 | **CourseModule** | `CourseId:long`, `Course:Course?`, `Name:string`, `Position:int` |
 | **ModuleLesson** | `ModuleId:long`, `Module:CourseModule?`, `Name:string`, `Description:string?`, `Position:int`, `DurationMin:int?` |
@@ -201,9 +201,10 @@ Baza yo'l: `/api/v1`. Autentifikatsiya: `Authorization: Bearer <accessToken>`.
 **DTO'lar** (`namespace Zinnur.WebApi.Contracts;` yoki Application/Dtos):
 
 ```csharp
-public sealed record LoginRequest(string Email, string Password);
+// ⚠️ `LoginRequest` (email + parol) 2026-08-13 da OLIB TASHLANDI —
+//    kirish faqat telefon + Telegram kodi orqali.
 public sealed record AuthResponse(string AccessToken, string RefreshToken, UserDto User);
-public sealed record UserDto(long Id, string FullName, string Email, string Role);
+public sealed record UserDto(long Id, string FullName, string? Phone, string Role);
 
 public sealed record LiveSessionDto(
     long Id, long GroupId, string GroupName, string? Title,

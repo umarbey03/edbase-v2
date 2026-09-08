@@ -325,7 +325,7 @@ public sealed class GroupCategoryEndpointsTests(ZinnurApiFactory factory)
 
     private async Task<HttpClient> ClientAsync(TestUserRef user)
     {
-        var tokens = await factory.LoginAsync(user.Email);
+        var tokens = await factory.LoginAsync(user.Id);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -414,12 +414,9 @@ public sealed class GroupCategoryEndpointsTests(ZinnurApiFactory factory)
 
     private static async Task<TestUserRef> CreateUserAsync(HttpClient client, UserRole role)
     {
-        var email = $"gc-{Guid.NewGuid():N}"[..16] + "@zinnur.uz";
-
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = "Kategoriya " + role.ToString(),
-            email,
             role = role.ToString(),
 
             // 🔴 Xodim uchun telefon MAJBURIY (2026-08-13) — izoh `TestPhones` da.
@@ -430,7 +427,7 @@ public sealed class GroupCategoryEndpointsTests(ZinnurApiFactory factory)
             HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
 
         var created = (await response.Content.ReadFromJsonAsync<CreatedUserResponse>())!;
-        return new TestUserRef(created.User.Id, email);
+        return new TestUserRef(created.User.Id);
     }
 
     // ---------------------------------------------------------------- javob shakllari
@@ -450,5 +447,5 @@ public sealed class GroupCategoryEndpointsTests(ZinnurApiFactory factory)
 
     private sealed record UserRef(long Id);
 
-    private sealed record TestUserRef(long Id, string Email);
+    private sealed record TestUserRef(long Id);
 }

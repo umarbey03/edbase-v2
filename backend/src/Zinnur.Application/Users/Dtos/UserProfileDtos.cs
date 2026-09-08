@@ -15,7 +15,7 @@ namespace Zinnur.Application.Users.Dtos;
 //   Academic/Admin -> hammasi;
 //   Assistant (kurator) -> faqat O'Z guruhidagi o'quvchi, `Finance` = null;
 //   Teacher (ustoz)     -> yuqoridagining USTIGA KONTAKT ham kesiladi —
-//                          `User.Email/Phone/TelegramId/TelegramUsername` va
+//                          `User.Phone/TelegramId/TelegramUsername` va
 //                          `Telegram.TelegramId/Username` = null (talab R27);
 //   Student -> faqat o'zi, `Notes` = null va `Finance.Transactions` = null.
 // Qoida `UserProfileService` da BITTA joyda, auditoriya `StudentAudience` da.

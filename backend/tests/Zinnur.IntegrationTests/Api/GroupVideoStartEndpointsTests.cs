@@ -360,12 +360,12 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
     {
         var (courseId, _, lessons) = await CourseWithLessonsAsync(3);
 
-        var (email, password, studentId) =
+        var studentId =
             await StudentWithLoginInGroupAsync(courseId, videoStartLessonId: lessons[1]);
 
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var tree = await student.GetFromJsonAsync<TreeRow>($"/api/v1/courses/{courseId}");
 
@@ -514,15 +514,15 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
     private Task<long> AdminIdAsync() =>
         factory.WithDbAsync(db => db.Users
-            .Where(u => u.Email == "admin@zinnur.uz")
+            .Where(u => u.Role == UserRole.Admin)
             .Select(u => u.Id)
             .FirstAsync());
 
@@ -617,15 +617,14 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
     /// </summary>
     private async Task<long> StudentInGroupAsync(long courseId, long? videoStartLessonId)
     {
-        var (_, _, studentId) = await StudentWithLoginInGroupAsync(courseId, videoStartLessonId);
-        return studentId;
+        return await StudentWithLoginInGroupAsync(courseId, videoStartLessonId);
     }
 
-    private async Task<(string Email, string Password, long StudentId)> StudentWithLoginInGroupAsync(
+    /// <summary>Guruhga qo'shilgan o'quvchi yaratadi va Id'sini qaytaradi.</summary>
+    private async Task<long> StudentWithLoginInGroupAsync(
         long courseId, long? videoStartLessonId)
     {
         const string password = "Student!2345";
-        var email = $"vs-{Guid.NewGuid():N}"[..18] + "@zinnur.uz";
 
         var hash = await new HasherProxy(factory).HashAsync(password);
 
@@ -634,7 +633,6 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
             var student = new User
             {
                 FullName = "Video Start O'quvchisi",
-                Email = email,
                 PasswordHash = hash,
                 Role = UserRole.Student,
                 IsActive = true,
@@ -664,7 +662,7 @@ public sealed class GroupVideoStartEndpointsTests(ZinnurApiFactory factory)
             return student.Id;
         });
 
-        return (email, password, studentId);
+        return studentId;
     }
 
     /// <summary>Gating keshini tozalab, daraxtni QAYTA hisoblaydi.</summary>

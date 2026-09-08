@@ -63,7 +63,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-ochiq");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var ticket = await IssueTicketAsync(student, world.FirstAssetId);
 
@@ -93,7 +93,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-range");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var ticket = await IssueTicketAsync(student, world.FirstAssetId);
 
@@ -139,7 +139,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-qulf");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(TicketUri(world.LockedAssetId));
 
@@ -153,7 +153,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-qarz", makeDebtor: true);
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(TicketUri(world.FirstAssetId));
 
@@ -170,7 +170,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
         var mine = await NewCourseWorldAsync("chipta-mening");
         var stranger = await NewCourseWorldAsync("chipta-begona");
 
-        using var student = await ClientAsync(stranger.StudentEmail);
+        using var student = await ClientAsync(stranger.StudentId);
 
         var response = await student.GetAsync(TicketUri(mine.FirstAssetId));
 
@@ -216,7 +216,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-bekor");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var ticket = await IssueTicketAsync(student, world.FirstAssetId);
 
@@ -300,7 +300,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     {
         var world = await NewCourseWorldAsync("chipta-buzilgan");
 
-        using var student = await ClientAsync(world.StudentEmail);
+        using var student = await ClientAsync(world.StudentId);
 
         var ticket = await IssueTicketAsync(student, world.FirstAssetId);
 
@@ -353,9 +353,9 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -422,7 +422,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
 
         return new CourseWorld(
             courseId, groupId, firstLesson, lockedLesson,
-            firstAsset, lockedAsset, student.Id, student.Email);
+            firstAsset, lockedAsset, student.Id);
     }
 
     private async Task MakeDebtorAsync(HttpClient admin, long groupId)
@@ -493,13 +493,10 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
     private static async Task<CreatedUser> CreateUserAsync(
         HttpClient admin, UserRole role, string prefix)
     {
-        var email = $"{prefix[..Math.Min(prefix.Length, 8)]}-{Guid.NewGuid():N}"[..20]
-                    + "@zinnur.uz";
 
         var response = await admin.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = $"{role} {prefix}",
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -509,7 +506,7 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
 
         var created = (await response.Content.ReadFromJsonAsync<CreatedUserRow>())!;
 
-        return new CreatedUser(created.User.Id, email);
+        return new CreatedUser(created.User.Id);
     }
 
     private static byte[] RandomVideo(int totalBytes)
@@ -538,12 +535,11 @@ public sealed class LessonAssetTicketTests(StorageBackedApiFactory factory)
         long LockedLessonId,
         long FirstAssetId,
         long LockedAssetId,
-        long StudentId,
-        string StudentEmail);
+        long StudentId);
 
     private sealed record TicketRow(string Token, DateTimeOffset ExpiresAt);
 
-    private sealed record CreatedUser(long Id, string Email);
+    private sealed record CreatedUser(long Id);
 
     private sealed record CreatedUserRow(IdRow User);
 

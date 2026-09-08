@@ -5,7 +5,7 @@ namespace Zinnur.Application.Students.Dtos;
 /// bosilganda ochiladigan modal. Telegram "chat info" ekraniga o'xshash:
 /// guruh nomi, ustoz/kurator ismi va guruhdoshlar ro'yxati.
 ///
-/// ⚠️ FAQAT ISM-FAMILIYA — telefon, email yoki Telegram username BU
+/// ⚠️ FAQAT ISM-FAMILIYA — telefon yoki Telegram username BU
 /// YERDA YO'Q. O'quvchilar bir-birining kontaktini ko'rmaydi (bu
 /// o'quv bo'limi/kurator vositasi emas, shunchaki "kim bilan
 /// o'qiyapman" degan savolga javob).

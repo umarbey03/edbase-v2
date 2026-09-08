@@ -24,9 +24,6 @@ namespace Zinnur.IntegrationTests.Api;
 public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     : IClassFixture<ZinnurApiFactory>
 {
-    private const string StudentEmail = "student@zinnur.uz";
-    private const string TeacherEmail = "teacher@zinnur.uz";
-    private const string DemoPassword = "Demo!2345";
 
     // ================================================================== TARTIB
 
@@ -288,7 +285,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         await admin.PostAsJsonAsync(ModuleReorderUri(courseId),
             new { orderedIds = new[] { moduleTwo, moduleOne } });
 
-        var (_, _, studentId) = await CreateStudentInCourseAsync(courseId);
+        var studentId = await CreateStudentInCourseAsync(courseId);
 
         var gate = await GateAsync(studentId);
 
@@ -394,7 +391,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Create_AsTeacher_ReturnsForbidden()
     {
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var response = await teacher.PostAsJsonAsync(
             new Uri("/api/v1/courses", UriKind.Relative),
@@ -411,7 +408,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var a = await CreateLessonAsync(courseId, moduleId, "A");
         var b = await CreateLessonAsync(courseId, moduleId, "B");
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var response = await teacher.PostAsJsonAsync(
             LessonReorderUri(courseId, moduleId), new { orderedIds = new[] { b, a } });
@@ -428,7 +425,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     {
         var courseId = await CreateCourseAsync("Ustoz o'chira olmaydi");
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var response = await teacher.DeleteAsync(CourseUri(courseId));
 
@@ -445,7 +442,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var (courseId, moduleId) = await NewCourseWithModuleAsync();
         await CreateLessonAsync(courseId, moduleId, "Ko'rinadigan dars", "Mazmun bor");
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var tree = await TreeAsync(teacher, courseId);
 
@@ -458,7 +455,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Create_AsStudent_ReturnsForbidden()
     {
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsJsonAsync(
             new Uri("/api/v1/courses", UriKind.Relative),
@@ -484,10 +481,10 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         await CreateLessonAsync(courseId, moduleId, "Ochiq dars", "Birinchi mazmun");
         await CreateLessonAsync(courseId, moduleId, "Yopiq dars", "Sir mazmun");
 
-        var (email, password, studentId) = await CreateStudentInCourseAsync(courseId);
+        var studentId = await CreateStudentInCourseAsync(courseId);
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var tree = await TreeAsync(student, courseId);
         var lessons = tree.Modules.Single().Lessons;
@@ -533,7 +530,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var (courseId, moduleId) = await NewCourseWithModuleAsync();
         var lessonId = await CreateLessonAsync(courseId, moduleId, "Vazifali dars", "Mazmun");
 
-        var (email, password, studentId) = await CreateStudentInCourseAsync(courseId);
+        var studentId = await CreateStudentInCourseAsync(courseId);
 
         using var admin = await AdminClientAsync();
 
@@ -548,7 +545,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
 
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var before = (await TreeAsync(student, courseId)).Modules.Single().Lessons.Single();
 
@@ -591,10 +588,10 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var (courseId, moduleId) = await NewCourseWithModuleAsync();
         await CreateLessonAsync(courseId, moduleId, "Talabsiz dars", "Mazmun");
 
-        var (email, password, studentId) = await CreateStudentInCourseAsync(courseId);
+        var studentId = await CreateStudentInCourseAsync(courseId);
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var lesson = (await TreeAsync(student, courseId)).Modules.Single().Lessons.Single();
 
@@ -614,7 +611,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var (courseId, moduleId) = await NewCourseWithModuleAsync();
         await CreateLessonAsync(courseId, moduleId, "Xodim ko'radigan dars", "Mazmun");
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var lesson = (await TreeAsync(teacher, courseId)).Modules.Single().Lessons.Single();
 
@@ -628,12 +625,12 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     {
         var (courseId, _) = await NewCourseWithModuleAsync();
 
-        var (email, password, _) = await CreateStudentInCourseAsync(courseId);
+        var studentId = await CreateStudentInCourseAsync(courseId);
 
         // Begona kurs — ro'yxatda CHIQMASLIGI kerak.
         await CreateCourseAsync("Begona kurs");
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var page = await student.GetFromJsonAsync<PagedRows>("/api/v1/courses");
 
@@ -648,9 +645,9 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         var (ownCourseId, _) = await NewCourseWithModuleAsync();
         var foreignCourseId = await CreateCourseAsync("Begona daraxt");
 
-        var (email, password, _) = await CreateStudentInCourseAsync(ownCourseId);
+        var studentId = await CreateStudentInCourseAsync(ownCourseId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var response = await student.GetAsync(CourseUri(foreignCourseId));
 
@@ -713,11 +710,25 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
+
+    /// <summary>Seed qilingan demo o'quvchining Id'si (bazada bittasi bor).</summary>
+    private Task<long> SeededStudentIdAsync() => factory.WithDbAsync(db => db.Users
+        .Where(u => u.Role == UserRole.Student)
+        .OrderBy(u => u.Id)
+        .Select(u => u.Id)
+        .FirstAsync());
+
+    /// <summary>Seed qilingan demo ustozning Id'si.</summary>
+    private Task<long> SeededTeacherIdAsync() => factory.WithDbAsync(db => db.Users
+        .Where(u => u.Role == UserRole.Teacher)
+        .OrderBy(u => u.Id)
+        .Select(u => u.Id)
+        .FirstAsync());
 
     private async Task<long> CreateCourseAsync(string name)
     {
@@ -786,11 +797,10 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
     /// Kursga biriktirilgan YANGI guruhdagi yangi o'quvchi
     /// (`AssignmentEndpointsTests` dagi naqsh bilan bir xil).
     /// </summary>
-    private async Task<(string Email, string Password, long StudentId)> CreateStudentInCourseAsync(
+    private async Task<long> CreateStudentInCourseAsync(
         long courseId)
     {
         const string password = "Student!2345";
-        var email = $"course-{Guid.NewGuid():N}"[..18] + "@zinnur.uz";
 
         var hasher = new HasherProxy(factory);
         var hash = await hasher.HashAsync(password);
@@ -800,7 +810,6 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
             var student = new User
             {
                 FullName = "Kurs O'quvchisi",
-                Email = email,
                 PasswordHash = hash,
                 Role = UserRole.Student,
                 IsActive = true,
@@ -829,7 +838,7 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
             return student.Id;
         });
 
-        return (email, password, studentId);
+        return studentId;
     }
 
     /// <summary>
@@ -858,7 +867,8 @@ public sealed class CourseEndpointsTests(ZinnurApiFactory factory)
         await factory.WithDbAsync(async db =>
         {
             var studentId = await db.Users
-                .Where(u => u.Email == StudentEmail)
+                .Where(u => u.Role == UserRole.Student)
+                .OrderBy(u => u.Id)
                 .Select(u => u.Id)
                 .FirstAsync();
 

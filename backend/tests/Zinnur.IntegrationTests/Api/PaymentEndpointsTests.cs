@@ -492,7 +492,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         await OpenPeriodAsync(world, Period);
         await AccrueAsync(world, Period, MonthlyPrice);
 
-        using var student = await ClientAsync(world.StudentEmail, world.StudentPassword);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(
             new Uri($"/api/v1/payments/students/{world.StudentId}", UriKind.Relative));
@@ -510,7 +510,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         var world = await NewWorldAsync();
         var other = await NewWorldAsync();
 
-        using var student = await ClientAsync(world.StudentEmail, world.StudentPassword);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.GetAsync(
             new Uri($"/api/v1/payments/students/{other.StudentId}", UriKind.Relative));
@@ -528,7 +528,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
 
-        using var teacher = await ClientAsync(world.TeacherEmail, world.TeacherPassword);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         var read = await teacher.GetAsync(
             new Uri($"/api/v1/payments/students/{world.StudentId}", UriKind.Relative));
@@ -554,7 +554,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         var world = await NewWorldAsync();
 
-        using var student = await ClientAsync(world.StudentEmail, world.StudentPassword);
+        using var student = await ClientAsync(world.StudentId);
 
         var response = await student.PostAsJsonAsync("/api/v1/payments", new
         {
@@ -669,8 +669,8 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
     {
         using var admin = await AdminClientAsync();
 
-        var teacher = await CreateUserAsync(admin, UserRole.Teacher);
-        var student = await CreateUserAsync(admin, UserRole.Student);
+        var teacherId = await CreateUserAsync(admin, UserRole.Teacher);
+        var studentId = await CreateUserAsync(admin, UserRole.Student);
 
         var courseId = await FirstCourseIdAsync();
 
@@ -681,7 +681,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
             weekdays = new[] { "Monday", "Wednesday" },
             startTime = "19:00:00",
             courseId,
-            teacherId = teacher.Id,
+            teacherId,
             courseMonths = 8,
         });
 
@@ -690,14 +690,11 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         var group = (await groupResponse.Content.ReadFromJsonAsync<CreateGroupResponse>())!;
 
         var member = await admin.PostAsJsonAsync(
-            $"/api/v1/groups/{group.Group.Id}/members", new { studentId = student.Id });
+            $"/api/v1/groups/{group.Group.Id}/members", new { studentId });
 
         await EnsureStatusAsync(member, HttpStatusCode.Created);
 
-        var world = new World(
-            student.Id, student.Email, student.Password,
-            teacher.Email, teacher.Password,
-            group.Group.Id);
+        var world = new World(studentId, teacherId, group.Group.Id);
 
         if (createTariff)
         {
@@ -798,25 +795,20 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
     private Task<long> FirstCourseIdAsync() =>
         factory.WithDbAsync(db => db.Courses.OrderBy(c => c.Id).Select(c => c.Id).FirstAsync());
 
-    private static async Task<(long Id, string Email, string Password)> CreateUserAsync(
-        HttpClient client, UserRole role)
+    private static async Task<long> CreateUserAsync(HttpClient client, UserRole role)
     {
-        var email = $"fin-{Guid.NewGuid():N}"[..16] + "@zinnur.uz";
-        const string password = "Moliya!2345";
-
         var response = await client.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = "Moliya " + role.ToString(),
-            email,
             role = role.ToString(),
             phone = TestPhones.Next(),
         });
@@ -824,7 +816,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
         await EnsureStatusAsync(response, HttpStatusCode.Created);
 
         var created = await response.Content.ReadFromJsonAsync<CreatedUserResponse>();
-        return (created!.User.Id, email, password);
+        return created!.User.Id;
     }
 
     /// <summary>
@@ -846,13 +838,7 @@ public sealed class PaymentEndpointsTests(ZinnurApiFactory factory)
 
     // ---------------------------------------------------------------- javob shakllari
 
-    private sealed record World(
-        long StudentId,
-        string StudentEmail,
-        string StudentPassword,
-        string TeacherEmail,
-        string TeacherPassword,
-        long GroupId);
+    private sealed record World(long StudentId, long TeacherId, long GroupId);
 
     private sealed record CreateGroupResponse(GroupRef Group);
 

@@ -20,7 +20,7 @@ export interface ProblemDetails {
   status?: number
   detail?: string
   traceId?: string
-  /** ASP.NET validatsiya xatolari: { "Email": ["..."] } */
+  /** ASP.NET validatsiya xatolari: { "Phone": ["..."] } */
   errors?: Record<string, string[]>
 }
 
@@ -218,7 +218,6 @@ export interface UpdateEnrollmentApplicationRequest {
 export interface UserDto {
   id: number
   fullName: string
-  email: string
   /**
    * 🔴 SUV BELGISI UCHUN YAGONA RUXSAT ETILGAN MANBA (R8).
    *
@@ -606,16 +605,14 @@ export interface GroupDto {
  * `GET /api/v1/groups/{id}/members` elementi.
  *
  * 🔴 KONTAKT ROLGA QARAB KESILADI (R27, `GroupService.ProjectMembers`):
- * so'rovchi USTOZ bo'lsa `email` va `phone` — `null`. Kurator, o'quv bo'limi
- * va admin uchun to'liq keladi (kuratorga raqam kerak: qo'ng'iroq — uning
+ * so'rovchi USTOZ bo'lsa `phone` — `null`. Kurator, o'quv bo'limi va
+ * admin uchun to'liq keladi (kuratorga raqam kerak: qo'ng'iroq — uning
  * asosiy amali).
  */
 export interface GroupMemberDto {
   id: number
   studentId: number
   fullName: string | null
-  /** `null` — so'rovchi ustoz (serverda kesilgan). Bazada ustun MAJBURIY. */
-  email: string | null
   /** `null` — raqam kiritilmagan YOKI so'rovchi ustoz. Ikkisi farqlanmaydi. */
   phone: string | null
   status: MemberStatusName
@@ -1141,15 +1138,14 @@ export interface SubmitTestRequest {
  * `GET /api/v1/users` elementi. `role` backendda `string` (enum nomi).
  *
  * 🔴 `GET /users/{id}/profile` ICHIDA kelganda kontakt ROLGA qarab kesiladi
- * (R27): so'rovchi USTOZ bo'lsa `email`, `phone`, `telegramId` va
+ * (R27): so'rovchi USTOZ bo'lsa `phone`, `telegramId` va
  * `telegramUsername` — hammasi `null`. `/api/v1/users` ro'yxati esa faqat
  * o'quv bo'limi/adminga ochiq, ya'ni u yerda kesish yo'q.
  */
 export interface UserDetailsDto {
   id: number
   fullName: string | null
-  /** `null` — so'rovchi ustoz (kesilgan). Bazada ustun MAJBURIY. */
-  email: string | null
+  /** `null` — so'rovchi ustoz (kesilgan) YOKI raqam kiritilmagan. */
   phone: string | null
   telegramId: number | null
   /**
@@ -1168,7 +1164,6 @@ export interface UserDetailsDto {
 
 export interface CreateUserRequest {
   fullName: string
-  email: string
   role: UserRoleName
   /**
    * 🔴 XODIM ROLLARI UCHUN MAJBURIY (`Student` dan tashqari hammasi) —
@@ -1194,7 +1189,6 @@ export interface CreateUserResponse {
 
 export interface UpdateUserRequest {
   fullName: string
-  email: string
   phone?: string | null
   role: UserRoleName
 }
@@ -3127,7 +3121,7 @@ export interface AvatarUploadedDto {
 
 /* ===== 2026-08-17 · "MENING GURUHIM" OYNASI ===== */
 
-/** Guruhdosh — faqat ism-familiya (telefon/email/Telegram YO'Q). */
+/** Guruhdosh — faqat ism-familiya (telefon/Telegram YO'Q). */
 export interface ClassroomMemberDto {
   id: number
   fullName: string

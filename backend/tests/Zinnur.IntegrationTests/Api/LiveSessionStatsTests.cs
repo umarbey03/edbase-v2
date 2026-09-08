@@ -44,7 +44,7 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     {
         var world = await CreateWorldAsync();
 
-        using var teacher = await ClientAsync(world.TeacherEmail);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         var page = await teacher.GetFromJsonAsync<PagedSessions>(
             "/api/v1/live-sessions/stats?status=Ended&pageSize=100");
@@ -82,7 +82,7 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     {
         var world = await CreateWorldAsync();
 
-        using var teacher = await ClientAsync(world.TeacherEmail);
+        using var teacher = await ClientAsync(world.TeacherId);
 
         var page = await teacher.GetFromJsonAsync<PagedSessions>(
             "/api/v1/live-sessions/stats?status=Scheduled&pageSize=100");
@@ -103,9 +103,9 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     public async Task Stats_AsForeignTeacher_DoesNotLeakOtherGroupsSessions()
     {
         var world = await CreateWorldAsync();
-        var strangerEmail = await CreateStaffAsync(UserRole.Teacher, "Begona Ustoz");
+        var strangerId = await CreateStaffAsync(UserRole.Teacher, "Begona Ustoz");
 
-        using var stranger = await ClientAsync(strangerEmail);
+        using var stranger = await ClientAsync(strangerId);
 
         var page = await stranger.GetFromJsonAsync<PagedSessions>(
             "/api/v1/live-sessions/stats?pageSize=100");
@@ -122,7 +122,7 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     {
         var world = await CreateWorldAsync();
 
-        using var student = await ClientAsync(world.PresentStudentEmail);
+        using var student = await ClientAsync(world.PresentStudentId);
 
         var response = await student.GetAsync(
             new Uri("/api/v1/live-sessions/stats", UriKind.Relative));
@@ -132,24 +132,22 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
 
     // ================================================================= yordamchi
 
-    private async Task<HttpClient> ClientAsync(string email)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<string> CreateStaffAsync(UserRole role, string fullName)
-    {
-        var email = Unique("st") + "@zinnur.uz";
-
+    private async Task<long> CreateStaffAsync(UserRole role, string fullName) =>
         await factory.WithDbAsync(async db =>
         {
-            db.Users.Add(NewUser(fullName, email, role));
-            return await db.SaveChangesAsync();
-        });
+            var user = NewUser(fullName, role);
 
-        return email;
-    }
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            return user.Id;
+        });
 
     /// <summary>
     /// Bitta ustoz, to'rtta FAOL o'quvchi, bitta CHIQARILGAN o'quvchi,
@@ -174,24 +172,13 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     {
         var groupName = "R31-" + Guid.NewGuid().ToString("N")[..8];
 
-        var teacherEmail = Unique("t31") + "@zinnur.uz";
-        var emails = new[]
-        {
-            Unique("s1") + "@zinnur.uz",
-            Unique("s2") + "@zinnur.uz",
-            Unique("s3") + "@zinnur.uz",
-            Unique("s4") + "@zinnur.uz",
-            Unique("s5") + "@zinnur.uz",
-        };
-
         return await factory.WithDbAsync(async db =>
         {
-            var teacher = NewUser("R31 Ustoz", teacherEmail, UserRole.Teacher);
+            var teacher = NewUser("R31 Ustoz", UserRole.Teacher);
 
-            var students = emails
-                .Select((email, i) => NewUser(
-                    "R31 O'quvchi " + (i + 1).ToString(CultureInfo.InvariantCulture),
-                    email,
+            var students = Enumerable.Range(1, 5)
+                .Select(i => NewUser(
+                    "R31 O'quvchi " + i.ToString(CultureInfo.InvariantCulture),
                     UserRole.Student))
                 .ToList();
 
@@ -277,7 +264,7 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
             await db.SaveChangesAsync();
 
             return new World(
-                group.Id, groupName, ended.Id, future.Id, teacherEmail, emails[0]);
+                group.Id, groupName, ended.Id, future.Id, teacher.Id, students[0].Id);
         });
     }
 
@@ -286,25 +273,21 @@ public sealed class LiveSessionStatsTests(ZinnurApiFactory factory)
     /// MAJBURIY — shuning uchun testda o'rin egallovchi qiymat yoziladi
     /// (`LoginAsync` tokenni to'g'ridan-to'g'ri yasaydi, parolga tegmaydi).
     /// </summary>
-    private static User NewUser(string fullName, string email, UserRole role) => new()
+    private static User NewUser(string fullName, UserRole role) => new()
     {
         FullName = fullName,
-        Email = email,
         PasswordHash = "test-only-placeholder",
         Role = role,
         IsActive = true,
     };
-
-    private static string Unique(string prefix) =>
-        prefix + Guid.NewGuid().ToString("N")[..10];
 
     private sealed record World(
         long GroupId,
         string GroupName,
         long SessionId,
         long FutureSessionId,
-        string TeacherEmail,
-        string PresentStudentEmail);
+        long TeacherId,
+        long PresentStudentId);
 
     private sealed record PagedSessions(List<StatsRow> Items, int Page, int Total);
 

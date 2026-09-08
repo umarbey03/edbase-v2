@@ -24,9 +24,6 @@ namespace Zinnur.IntegrationTests.Api;
 public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     : IClassFixture<ZinnurApiFactory>
 {
-    private const string StudentEmail = "student@zinnur.uz";
-    private const string TeacherEmail = "teacher@zinnur.uz";
-    private const string DemoPassword = "Demo!2345";
 
     /// <summary>PNG sehrli baytlari — haqiqiy rasm sifatida tanilishi uchun.</summary>
     private static readonly byte[] PngMagic =
@@ -95,7 +92,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Create_AsTeacher_ForCourseLesson_ReturnsForbidden()
     {
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var response = await teacher.PostAsJsonAsync(
             new Uri("/api/v1/assignments", UriKind.Relative),
@@ -119,7 +116,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Create_AsTeacher_ForOwnGroup_ReturnsForbidden()
     {
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var response = await teacher.PostAsJsonAsync(
             new Uri("/api/v1/assignments", UriKind.Relative),
@@ -142,7 +139,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("O'quv bo'limi bergan vazifa");
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var visible = await teacher.GetAsync(
             new Uri($"/api/v1/assignments/{assignmentId}", UriKind.Relative));
@@ -161,7 +158,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     [Fact]
     public async Task Create_AsStudent_ReturnsForbidden()
     {
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsJsonAsync(
             new Uri("/api/v1/assignments", UriKind.Relative),
@@ -177,7 +174,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Matnli javob");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Mening javobim"));
 
@@ -202,7 +199,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Bo'sh javob");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "   "));
 
@@ -215,7 +212,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Ikki marta topshirish");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var first = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Birinchi"));
         first.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -234,8 +231,8 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Qayta topshirish oqimi");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var submitted = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Birinchi"));
         var submission = await submitted.Content.ReadFromJsonAsync<StudentSubmissionDto>();
@@ -277,8 +274,8 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Baho chegarasi", maxScore: 5m);
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var submitted = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
         var submission = await submitted.Content.ReadFromJsonAsync<StudentSubmissionDto>();
@@ -294,10 +291,10 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Baholash ro'yxati");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
         await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
 
-        using var teacher = await ClientAsync(TeacherEmail, DemoPassword);
+        using var teacher = await ClientAsync(await SeededTeacherIdAsync());
 
         var rows = await teacher.GetFromJsonAsync<List<SubmissionDto>>(
             $"/api/v1/assignments/{assignmentId}/submissions");
@@ -311,7 +308,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("O'chirilmaydigan");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
         await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
 
         using var admin = await AdminClientAsync();
@@ -350,7 +347,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Katta rasm");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var oversized = FakeImage(6 * 1024 * 1024);
 
@@ -372,7 +369,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Soxta tur");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var notAnImage = System.Text.Encoding.UTF8.GetBytes("#!/bin/sh\nrm -rf /\n");
 
@@ -401,7 +398,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Ombor yo'q");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsync(
             SubmitUri(assignmentId),
@@ -425,7 +422,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Faqat matn", formats: "Text");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsync(
             SubmitUri(assignmentId),
@@ -443,7 +440,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     {
         var assignmentId = await CreateGroupAssignmentAsync("Ko'p fayl");
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var files = Enumerable.Range(0, Submission.MaxAttachments + 1)
             .Select(i => (
@@ -472,10 +469,10 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
         var secondLessonId = await CreateSecondLessonAsync();
         var assignmentId = await CreateCourseAssignmentAsync("Yopiq dars vazifasi", secondLessonId);
 
-        var (email, password, studentId) = await CreateStudentInCourseGroupAsync();
+        var studentId = await CreateStudentInCourseGroupAsync();
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var response = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
 
@@ -492,10 +489,10 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
         var firstLessonId = await FirstLessonIdAsync();
         var assignmentId = await CreateCourseAssignmentAsync("Birinchi dars vazifasi", firstLessonId);
 
-        var (email, password, studentId) = await CreateStudentInCourseGroupAsync();
+        var studentId = await CreateStudentInCourseGroupAsync();
         await InvalidateGateAsync(studentId);
 
-        using var student = await ClientAsync(email, password);
+        using var student = await ClientAsync(studentId);
 
         var response = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
 
@@ -523,7 +520,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
 
         var assignmentId = await CreateGroupAssignmentAsync("Begona vazifa", groupId: foreignGroupId);
 
-        using var student = await ClientAsync(StudentEmail, DemoPassword);
+        using var student = await ClientAsync(await SeededStudentIdAsync());
 
         var response = await student.PostAsync(SubmitUri(assignmentId), Multipart(text: "Javob"));
 
@@ -538,11 +535,25 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
-    private async Task<HttpClient> ClientAsync(string email, string password)
+    private async Task<HttpClient> ClientAsync(long userId)
     {
-        var tokens = await factory.LoginAsync(email);
+        var tokens = await factory.LoginAsync(userId);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
+
+    /// <summary>Seed qilingan demo o'quvchining Id'si (bazada bittasi bor).</summary>
+    private Task<long> SeededStudentIdAsync() => factory.WithDbAsync(db => db.Users
+        .Where(u => u.Role == UserRole.Student)
+        .OrderBy(u => u.Id)
+        .Select(u => u.Id)
+        .FirstAsync());
+
+    /// <summary>Seed qilingan demo ustozning Id'si.</summary>
+    private Task<long> SeededTeacherIdAsync() => factory.WithDbAsync(db => db.Users
+        .Where(u => u.Role == UserRole.Teacher)
+        .OrderBy(u => u.Id)
+        .Select(u => u.Id)
+        .FirstAsync());
 
     private Task<long> SeededGroupIdAsync() => factory.WithDbAsync(db =>
         db.Groups.Where(g => g.CourseId != null).OrderBy(g => g.Id).Select(g => g.Id).FirstAsync());
@@ -569,10 +580,9 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
     });
 
     /// <summary>Kursga biriktirilgan YANGI guruhdagi yangi o'quvchi.</summary>
-    private async Task<(string Email, string Password, long StudentId)> CreateStudentInCourseGroupAsync()
+    private async Task<long> CreateStudentInCourseGroupAsync()
     {
         const string password = "Student!2345";
-        var email = $"gating-{Guid.NewGuid():N}"[..18] + "@zinnur.uz";
 
         var hasher = new HasherProxy(factory);
         var hash = await hasher.HashAsync(password);
@@ -584,7 +594,6 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
             var student = new User
             {
                 FullName = "Gating O'quvchi",
-                Email = email,
                 PasswordHash = hash,
                 Role = UserRole.Student,
                 IsActive = true,
@@ -613,7 +622,7 @@ public sealed class AssignmentEndpointsTests(ZinnurApiFactory factory)
             return student.Id;
         });
 
-        return (email, password, studentId);
+        return studentId;
     }
 
     /// <summary>

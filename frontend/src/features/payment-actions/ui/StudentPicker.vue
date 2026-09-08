@@ -54,8 +54,8 @@ const errorMessage = computed(() =>
   studentsQuery.error.value !== null ? toUserMessage(studentsQuery.error.value) : null,
 )
 
-function choose(student: { id: number; fullName: string | null; email: string | null }): void {
-  emit('update:modelValue', { id: student.id, name: student.fullName ?? student.email ?? '—' })
+function choose(student: { id: number; fullName: string | null }): void {
+  emit('update:modelValue', { id: student.id, name: student.fullName ?? '—' })
 }
 
 function clear(): void {
@@ -109,7 +109,7 @@ function clear(): void {
         <input
           v-model="search"
           class="zn-input pl-9"
-          placeholder="Ism, telefon yoki email bo‘yicha qidirish"
+          placeholder="Ism yoki telefon bo‘yicha qidirish"
         >
       </div>
 
@@ -157,11 +157,11 @@ function clear(): void {
           >
             <span
               class="text-sm text-slate-100"
-              v-text="student.fullName ?? student.email ?? '—'"
+              v-text="student.fullName ?? '—'"
             />
             <span
               class="text-[11px] text-dim"
-              v-text="formatPhone(student.phone) || student.email || ''"
+              v-text="formatPhone(student.phone) || ''"
             />
           </button>
         </li>

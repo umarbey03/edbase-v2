@@ -124,8 +124,6 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
     ///   Bu markaz jadvalining yana bir qoidasini isbotlaydi: guruhsiz
     ///   o'quvchi reytingdan CHIQARILMAYDI.
     ///
-    /// ★ EMAIL PREFIKSI TASODIFIY — sinf o'z bazasini olsa ham, unikal
-    ///   indeks bilan to'qnashish ehtimoli qolmasin.
     /// </summary>
     private async Task AddScoredStudentsAsync() =>
         await factory.WithDbAsync(async db =>
@@ -151,7 +149,6 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
                 students.Add(new User
                 {
                     FullName = $"Ommaviy {index}",
-                    Email = $"bulk-{suffix}-{index}@zinnur.uz",
                     // Bu hisoblar hech qachon KIRMAYDI — hash faqat
                     // ustunni to'ldirish uchun.
                     PasswordHash = "x",

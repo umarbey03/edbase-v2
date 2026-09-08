@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Domain.Enums;
 using Zinnur.Infrastructure.Persistence;
 using Zinnur.IntegrationTests.Infrastructure;
 
@@ -231,7 +232,8 @@ public sealed class UserProfileQueryCountTests(ZinnurApiFactory factory)
 
         var admin = await db.Users
             .AsNoTracking()
-            .FirstAsync(u => u.Email == DbInitializer.AdminEmail);
+            .OrderBy(u => u.Id)
+            .FirstAsync(u => u.Role == UserRole.Admin);
 
         return jwt.CreateAccessToken(admin);
     }

@@ -64,7 +64,7 @@ docker compose exec -T postgres psql -U zinnur -d zinnur -c \
 # C) Telegram'ni qo'lda bog'lash (eng tez yo'l dev uchun):
 docker compose exec -T postgres psql -U zinnur -d zinnur -c \
   "UPDATE \"Users\" SET \"TelegramId\"=111111111, \"TelegramLinkedAt\"=now() \
-   WHERE \"Email\"='admin@zinnur.uz';"
+   WHERE \"Role\"=4;"
 ```
 
 Testlarda kirish HTTP orqali EMAS — `ZinnurApiFactory.LoginAsAdminAsync()`

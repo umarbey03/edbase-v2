@@ -62,7 +62,7 @@ export function isAdminRole(role: string): boolean {
 }
 
 /**
- * O'quvchining KONTAKT ma'lumoti (email, telefon, Telegram) shu rolga
+ * O'quvchining KONTAKT ma'lumoti (telefon, Telegram) shu rolga
  * yuboriladimi — talab R27.
  *
  * ⚠️ BU XAVFSIZLIK TEKSHIRUVI EMAS va bo'la olmaydi: kesish SERVERDA

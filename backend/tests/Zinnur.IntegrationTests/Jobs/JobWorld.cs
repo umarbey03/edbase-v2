@@ -289,7 +289,6 @@ public sealed class BillingJobFactory : JobFactory
             var student = new User
             {
                 FullName = $"To'lovchi {suffix}",
-                Email = $"{prefix}-{suffix}@zinnur.uz",
                 PasswordHash = "not-used-in-this-test",
                 Role = UserRole.Student,
                 IsActive = true,

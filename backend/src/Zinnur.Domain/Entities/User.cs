@@ -9,9 +9,6 @@ public class User : BaseEntity
 {
     public required string FullName { get; set; }
 
-    /// <summary>Unikal. Har doim kichik harflarda saqlanadi.</summary>
-    public required string Email { get; set; }
-
     /// <summary>
     /// ════════════════════════════════════════════════════════════════
     /// 🔴 O'LIK USTUN — HECH KIM O'QIMAYDI (2026-08-13 dan)

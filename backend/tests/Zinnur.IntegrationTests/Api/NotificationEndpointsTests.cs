@@ -648,7 +648,6 @@ internal sealed class NotificationWorld
 
     public long SubmissionId { get; private set; }
 
-    private string StudentEmail => $"{_prefix}-student@zinnur.uz";
 
     private string _prefix = string.Empty;
 
@@ -672,7 +671,6 @@ internal sealed class NotificationWorld
         var teacher = new User
         {
             FullName = $"{_prefix} ustoz",
-            Email = $"{_prefix}-teacher@zinnur.uz",
             Phone = TestPhones.Next(),
             Role = UserRole.Teacher,
             IsActive = true,
@@ -687,7 +685,6 @@ internal sealed class NotificationWorld
         var student = new User
         {
             FullName = $"{_prefix} o'quvchi",
-            Email = StudentEmail,
             Phone = TestPhones.Next(),
             Role = UserRole.Student,
             IsActive = true,
@@ -757,13 +754,13 @@ internal sealed class NotificationWorld
 
     public async Task<HttpClient> StudentClientAsync()
     {
-        var tokens = await _factory.LoginAsync(StudentEmail);
+        var tokens = await _factory.LoginAsync(StudentId);
         return _factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
     private async Task<HttpClient> TeacherClientAsync()
     {
-        var tokens = await _factory.LoginAsync($"{_prefix}-teacher@zinnur.uz");
+        var tokens = await _factory.LoginAsync(TeacherId);
         return _factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 

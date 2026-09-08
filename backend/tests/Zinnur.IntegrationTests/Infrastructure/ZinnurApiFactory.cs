@@ -261,19 +261,36 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     //   etadi.
     // ════════════════════════════════════════════════════════════════════
 
-    /// <summary>Seed qilingan admin uchun sessiya (token to'g'ridan-to'g'ri yasaladi).</summary>
-    public Task<AuthTokens> LoginAsAdminAsync() => LoginAsync(DbInitializer.AdminEmail);
+    /// <summary>
+    /// Seed qilingan admin uchun sessiya (token to'g'ridan-to'g'ri yasaladi).
+    ///
+    /// ★ ROL BO'YICHA IZLANADI, identifikator bo'yicha emas: seed bitta
+    ///   admin yaratadi va aynan u kerak. Ilgari bu yerda
+    ///   <c>DbInitializer.AdminEmail</c> turardi — email ustuni olib
+    ///   tashlangach (2026-09-08) o'rnini rol egalladi.
+    /// </summary>
+    public async Task<AuthTokens> LoginAsAdminAsync()
+    {
+        var adminId = await WithDbAsync(db => db.Users
+            .AsNoTracking()
+            .Where(u => u.Role == Zinnur.Domain.Enums.UserRole.Admin)
+            .OrderBy(u => u.Id)
+            .Select(u => u.Id)
+            .FirstAsync());
+
+        return await LoginAsync(adminId);
+    }
 
     /// <summary>
-    /// Email bo'yicha foydalanuvchi topib, unga sessiya tokenlarini beradi.
+    /// Foydalanuvchi Id'si bo'yicha sessiya tokenlarini beradi.
     ///
-    /// ★ EMAIL — endi KIRISH ma'lumoti emas, shunchaki testdagi
-    ///   IDENTIFIKATOR: u har test foydalanuvchisida unikal va yordamchi
-    ///   funksiyalarda allaqachon mavjud. Telefon bo'yicha izlash
-    ///   testlarni raqam yasashga majbur qilardi va hech qanday foyda
-    ///   bermasdi.
+    /// ★ NIMA UCHUN Id (ilgari EMAIL edi): email ustuni 2026-09-08 da
+    ///   butunlay olib tashlandi. Id — testda allaqachon mavjud bo'lgan
+    ///   yagona barqaror identifikator (<c>TestUser.Id</c>); telefon
+    ///   bo'yicha izlash esa har testni raqam o'ylab topishga majbur
+    ///   qilardi va hech qanday foyda bermasdi.
     /// </summary>
-    public async Task<AuthTokens> LoginAsync(string email)
+    public async Task<AuthTokens> LoginAsync(long userId)
     {
         using var scope = Services.CreateScope();
 
@@ -282,14 +299,14 @@ public class ZinnurApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         var user = await db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == email)
+            .FirstOrDefaultAsync(u => u.Id == userId)
             ?? throw new InvalidOperationException(
-                $"Test uchun '{email}' emaili bo'yicha foydalanuvchi topilmadi.");
+                $"Test uchun {userId} raqamli foydalanuvchi topilmadi.");
 
         return new AuthTokens(
             jwt.CreateAccessToken(user),
             jwt.CreateRefreshToken(user),
-            new AuthUser(user.Id, user.FullName, user.Email, user.Phone, user.Role.ToString()));
+            new AuthUser(user.Id, user.FullName, user.Phone, user.Role.ToString()));
     }
 
     /// <summary>Berilgan token bilan avtorizatsiyalangan HTTP klient.</summary>
@@ -331,4 +348,4 @@ public sealed record AuthTokens(string AccessToken, string RefreshToken, AuthUse
 /// <c>null</c> — raqam kiritilmagan.
 /// </param>
 public sealed record AuthUser(
-    long Id, string FullName, string Email, string? Phone, string Role);
+    long Id, string FullName, string? Phone, string Role);

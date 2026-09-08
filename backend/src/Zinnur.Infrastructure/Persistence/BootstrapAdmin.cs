@@ -11,7 +11,7 @@ namespace Zinnur.Infrastructure.Persistence;
 ///
 /// 🔴 NIMA UCHUN BU SINF UMUMAN PAYDO BO'LDI (2026-08-13)
 ///
-/// Email va parol bilan kirish olib tashlangach, kirishning yagona yo'li —
+/// Parol bilan kirish olib tashlangach, kirishning yagona yo'li —
 /// telefon raqami + o'sha raqamga bog'langan Telegram hisobiga keladigan
 /// kod. Ilgari <c>DbInitializer</c> administratorni TELEFONSIZ va
 /// TELEGRAM'SIZ yaratardi.
@@ -128,7 +128,7 @@ public sealed record BootstrapAdmin(
             $"""
             Bo'sh bazaga birinchi administrator yozilmoqda, lekin uning TELEFON RAQAMI yo'q.
 
-            2026-08-13 dan tizimga kirish FAQAT telefon raqami orqali bo'ladi (email va parol
+            2026-08-13 dan tizimga kirish FAQAT telefon raqami orqali bo'ladi (parol
             olib tashlangan). Raqamsiz administrator yaratilsa, u hech qachon kira olmaydi va
             o'rnatishni faqat `psql` bilan tuzatish mumkin bo'ladi.
 

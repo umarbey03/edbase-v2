@@ -23,7 +23,7 @@ internal sealed record StudentWorld(
     TestUser Teacher,
     TestUser Curator);
 
-internal sealed record TestUser(long Id, string Email, string Password);
+internal sealed record TestUser(long Id, string Password);
 
 internal static class WorldBuilder
 {
@@ -284,7 +284,7 @@ internal static class WorldBuilder
 
     public static async Task<HttpClient> ClientAsync(ZinnurApiFactory factory, TestUser user)
     {
-        var tokens = await factory.LoginAsync(user.Email);
+        var tokens = await factory.LoginAsync(user.Id);
         return factory.CreateAuthorizedClient(tokens.AccessToken);
     }
 
@@ -297,31 +297,9 @@ internal static class WorldBuilder
     public static async Task<TestUser> CreateUserAsync(
         HttpClient admin, UserRole role, string prefix)
     {
-        /*
-          🔴 KESISH PREFIKSGA QO'LLANADI, TASODIFIY QISMGA EMAS.
-
-          Ilgari bu qator `$"{prefix}-{Guid...}"[..20]` edi — ya'ni 20 belgi
-          prefiks BILAN BIRGA sanalardi. Uzun prefiksli testda ("izoh-…",
-          "staff-responsibility-…") tasodifiy qismdan atigi 2–3 belgi qolardi
-          va umumiy dev bazasida yozuvlar to'plangach email TO'QNASHARDI:
-          `POST /users` → 409 "Bu email allaqachon ro'yxatda", test esa 201
-          kutardi.
-
-          ★ Bu "flaky test" bo'lib ko'rinardi — ba'zi yurishlarda o'tib,
-          ba'zisida yiqilardi — chunki natija baza tarixiga bog'liq edi.
-          Sabab kodda emas, AYNAN shu kesishda.
-
-          Endi prefiks 8 belgigacha qisqaradi va GUID'dan doim 11 belgi
-          qoladi (16^11 ≈ 1.7·10^13 variant), ya'ni to'qnashuv amalda
-          bo'lmaydi. Email uzunligi o'zgarmadi — 20 + domen.
-        */
-        var slug = prefix.Length <= 8 ? prefix : prefix[..8];
-        var email = $"{slug}-{Guid.NewGuid():N}"[..20] + "@zinnur.uz";
-
         var response = await admin.PostAsJsonAsync("/api/v1/users", new
         {
             fullName = $"{prefix} {role}",
-            email,
             role = role.ToString(),
 
             // 🔴 TELEFON MAJBURIY (2026-08-13): xodim rollari uchun server
@@ -335,7 +313,7 @@ internal static class WorldBuilder
         response.StatusCode.Should().Be(HttpStatusCode.Created, await Body(response));
 
         var created = (await response.Content.ReadFromJsonAsync<CreatedUser>())!;
-        return new TestUser(created.User.Id, email, Password);
+        return new TestUser(created.User.Id, Password);
     }
 
     /// <summary>Xato javobini o'qib beradi — test yiqilganda sabab ko'rinsin.</summary>

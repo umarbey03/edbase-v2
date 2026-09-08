@@ -128,12 +128,12 @@ async function askAdd(student: UserDetailsDto): Promise<void> {
   >
     <BaseField
       label="O‘quvchini qidirish"
-      :hint="searchTooShort ? `Kamida ${USER_SEARCH_MIN} belgi kiriting.` : 'Ism, email yoki telefon'"
+      :hint="searchTooShort ? `Kamida ${USER_SEARCH_MIN} belgi kiriting.` : 'Ism yoki telefon'"
     >
       <input
         v-model="search"
         class="zn-input"
-        placeholder="Ism yoki email"
+        placeholder="Ism yoki telefon"
       >
     </BaseField>
 
@@ -162,7 +162,7 @@ async function askAdd(student: UserDetailsDto): Promise<void> {
               />
               <p
                 class="truncate text-xs text-slate-400"
-                v-text="student.email ?? (formatPhone(student.phone) || '—')"
+                v-text="formatPhone(student.phone) || '—'"
               />
             </div>
 

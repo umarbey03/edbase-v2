@@ -1002,7 +1002,7 @@ public sealed class GroupService(
         ?? throw new NotFoundException(nameof(GroupMember), memberId);
 
     /// <param name="withContact">
-    /// 🔴 <c>false</c> — email va telefon <c>null</c> bo'lib qaytadi (ustoz).
+    /// 🔴 <c>false</c> — telefon <c>null</c> bo'lib qaytadi (ustoz).
     ///
     /// ★ TERNAR AYNAN PROYEKSIYA ICHIDA, natijani keyin "tozalash" emas:
     /// shu shaklda EF <c>CASE WHEN</c> yasaydi va ustunlar SQL javobiga ham
@@ -1016,7 +1016,6 @@ public sealed class GroupService(
             m.Id,
             m.StudentId,
             m.Student!.FullName,
-            withContact ? m.Student.Email : null,
             withContact ? m.Student.Phone : null,
             m.Status,
             m.JoinedAt,
@@ -1053,7 +1052,7 @@ public sealed class GroupService(
     ///      SQL'da o'zbekcha nomni bilishni talab qilardi — ya'ni tarjima
     ///      jadvali bazaga ko'chirilardi;
     ///   3) NAQSH: `UserService.ApplySearch` AYNAN shunday ishlaydi —
-    ///      matnli ustunlar (F.I.Sh., email) erkin qidiruvda, telefon esa
+    ///      matnli ustun (F.I.Sh.) erkin qidiruvda, telefon esa
     ///      normalizatsiya bilan; sonli filtrlar alohida parametrlarda.
     ///
     /// ⚠️ SO'ROV SHAKLI O'ZGARDI. Ilgari bu bitta ustun ustidagi `LIKE` edi;

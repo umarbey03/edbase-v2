@@ -7,12 +7,11 @@ namespace Zinnur.Application.Users.Dtos;
 /// (<c>Auth.Dtos.UserDto</c> — kirgan foydalanuvchining O'ZI uchun qisqa shakl;
 /// bu esa o'quv bo'limi ko'radigan to'liq shakl.)
 /// </summary>
-/// <param name="Email">
-/// 🔴 <c>null</c> — MAJBURIY ustun bo'lsa ham (bazada <c>NOT NULL</c>):
-/// so'rovchi USTOZ va kontakt serverda KESILGAN (talab R27,
-/// <c>StudentAudience.Teacher</c>). Boshqa hech qanday holatda bo'sh
-/// bo'lmaydi. <paramref name="Phone"/>, <paramref name="TelegramId"/> va
-/// <paramref name="TelegramUsername"/> ham AYNI qoida bilan kesiladi.
+/// <param name="Phone">
+/// 🔴 <c>null</c> — raqam kiritilmagan YOKI so'rovchi USTOZ va kontakt
+/// serverda KESILGAN (talab R27, <c>StudentAudience.Teacher</c>).
+/// <paramref name="TelegramId"/> va <paramref name="TelegramUsername"/>
+/// ham AYNI qoida bilan kesiladi.
 /// </param>
 /// <param name="TelegramUsername">
 /// <c>@</c> BELGISIZ. Faqat ko'rsatish uchun — shaxs
@@ -22,7 +21,6 @@ namespace Zinnur.Application.Users.Dtos;
 public sealed record UserDetailsDto(
     long Id,
     string FullName,
-    string? Email,
     string? Phone,
     long? TelegramId,
     string? TelegramUsername,
@@ -32,7 +30,7 @@ public sealed record UserDetailsDto(
     DateTimeOffset? UpdatedAt);
 
 /// <summary>Ro'yxat filtri. Barcha maydonlar ixtiyoriy.</summary>
-/// <param name="Search">F.I.Sh., email yoki telefon bo'yicha qism-satr (pg_trgm GIN indeksi).</param>
+/// <param name="Search">F.I.Sh. yoki telefon bo'yicha qism-satr (pg_trgm GIN indeksi).</param>
 /// <param name="Role">Rol bo'yicha filtr.</param>
 /// <param name="IsActive">Faollik bo'yicha filtr.</param>
 /// <param name="GroupId">
@@ -120,7 +118,6 @@ public sealed record TelegramUnlinkResponse(long? TelegramId, string? TelegramUs
 /// </param>
 public sealed record CreateUserRequest(
     string FullName,
-    string Email,
     UserRole Role,
     string? Phone = null,
     bool IsActive = true);
@@ -137,7 +134,6 @@ public sealed record CreateUserRequest(
 /// </param>
 public sealed record UpdateUserRequest(
     string FullName,
-    string Email,
     string? Phone = null,
     UserRole? Role = null);
 

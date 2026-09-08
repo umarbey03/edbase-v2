@@ -17,7 +17,6 @@ public class UserTests
     private static User NewUser(UserRole role = UserRole.Student) => new()
     {
         FullName = "Ali Valiyev",
-        Email = "ali@zinnur.uz",
         PasswordHash = "$2a$11$eskiHash",
         Role = role,
     };
