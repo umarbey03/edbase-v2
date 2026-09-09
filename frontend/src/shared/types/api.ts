@@ -2533,6 +2533,8 @@ export interface RecordingListItemDto {
   /** `DateOnly` — `YYYY-MM-DD` (vaqt zonasiz). */
   localDate: string
   scheduledStart: string
+  /** Darsni olib borgan xodim (o'rinbosar bo'lsa — o'rinbosar). `null` — biriktirilmagan. */
+  hostName: string | null
 }
 
 /**

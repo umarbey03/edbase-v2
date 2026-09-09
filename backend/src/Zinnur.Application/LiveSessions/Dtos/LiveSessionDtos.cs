@@ -84,7 +84,8 @@ public sealed record CalendarSessionDto(
     DateTimeOffset ScheduledStart,
     DateTimeOffset ScheduledEnd,
     bool IsHost,
-    string? MyAttendance);
+    string? MyAttendance,
+    string? HostName = null);
 
 /// <summary>
 /// ========================================================================

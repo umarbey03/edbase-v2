@@ -101,7 +101,8 @@ public sealed record RecordingListItemDto(
     string GroupName,
     string? Title,
     DateOnly LocalDate,
-    DateTimeOffset ScheduledStart);
+    DateTimeOffset ScheduledStart,
+    string? HostName = null);
 
 /// <summary>
 /// Ko'rish havolasi.

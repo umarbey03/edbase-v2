@@ -281,7 +281,8 @@ public sealed class RecordingService(
                 session.GroupName,
                 session.Title,
                 session.LocalDate,
-                session.ScheduledStart));
+                session.ScheduledStart,
+                session.HostName));
         }
 
         return items;

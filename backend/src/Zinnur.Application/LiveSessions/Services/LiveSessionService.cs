@@ -180,6 +180,27 @@ public sealed class LiveSessionService(
                 s.ScheduledEnd))
             .ToListAsync(ct);
 
+        // ★ USTOZ ISMI (2026-09-09, loyiha egasi: "dars yozuvlari qismida
+        //   har bir yozuvda ustoz nomi ham ko'rinib turishi kerak").
+        //   Yozuvlar ro'yxati AYNAN shu kalendardan quriladi
+        //   (`RecordingService.ListAsync`), shuning uchun ism shu yerda.
+        //   BITTA qo'shimcha so'rov — `ResolveHostNamesAsync` bilan AYNI
+        //   mulohaza (N+1 emas). Qoida `HostUserId` bilan bir xil:
+        //   o'rinbosar > (kurator darsi ? kurator : ustoz).
+        var hostIds = rows
+            .Select(EffectiveHostId)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var hostNames = hostIds.Count == 0
+            ? new Dictionary<long, string>()
+            : await db.Users.AsNoTracking()
+                .Where(u => hostIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName })
+                .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+
         return rows.ConvertAll(row => new CalendarSessionDto(
             row.Id,
             row.GroupId,
@@ -191,7 +212,14 @@ public sealed class LiveSessionService(
             row.ScheduledStart,
             row.ScheduledEnd,
             IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
-            row.MyAttendance?.ToString()));
+            row.MyAttendance?.ToString(),
+            EffectiveHostId(row) is { } hostId && hostNames.TryGetValue(hostId, out var hostName)
+                ? hostName
+                : null));
+
+        // `HostUserId(LiveSession)` ning proyeksiya uchun nusxasi — entity yo'q.
+        static long? EffectiveHostId(CalendarRow row) =>
+            row.HostId ?? (row.Type == SessionType.Assistant ? row.AssistantId : row.TeacherId);
     }
 
     /// <inheritdoc />
