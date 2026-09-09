@@ -33,6 +33,7 @@ export {
   ruleScopeLabel,
   supportsGroupTargeting,
   todayIsoDate,
+  usesAcademicHour,
   usesStudentCount,
 } from './model/types'
 export {

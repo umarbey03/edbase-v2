@@ -33,6 +33,35 @@ export interface PayrollKindGuideEntry {
 }
 
 const GUIDE: Record<PayrollRuleKindName, PayrollKindGuideEntry> = {
+  PerStudentAcademicHour: {
+    kind: 'PerStudentAcademicHour',
+    scope: 'session',
+    summary: 'HolliHop’dagi asosiy formula: stavka × darsdagi o‘quvchi soni × akademik soat.',
+    formula: 'Summa × o‘quvchi soni × (dars daqiqasi ÷ akademik soat daqiqasi) × ustama',
+    example: [
+      'Stavka: 14 851.5 so‘m / o‘quvchi / dars. Akademik soat: 80 daqiqa (bitta dars = 1 soat).',
+      'Dars 80 daqiqa, 10 ta o‘quvchi keldi.',
+      '14 851.5 × 10 × 1 = 148 515 so‘m',
+      'Natija: 148 515 so‘m',
+      'Individual dars: 81 250 × 1 o‘quvchi × 1 = 81 250 so‘m.',
+    ],
+    fields: [
+      'Summa (1 o‘quvchi-soat uchun)',
+      'Akademik soat (daqiqa)',
+      'Asos (kim sanaladi)',
+      'Min/Max o‘quvchi',
+      'Dam olish/bayram ustamasi',
+      'Maqsad (xodim, guruh turi, kurs…)',
+    ],
+    notes: [
+      'Markazda har dars 80 daqiqa. Akademik soatni 80 qo‘ying — shunda bitta dars = 1 soat va summa «1 o‘quvchi uchun bir darslik haq» bo‘ladi. Uzaytirilgan daqiqalar (ustoz +10 daqiqa qo‘shsa) hisobga OLINMAYDI — dars doim 80 deb to‘lanadi.',
+      'HolliHop’dan ko‘chirish: «0,01–396 040/soat» yozuvi 40 o‘quvchilik guruh uchun oraliq, HolliHop’da dars 1.5 soat sanalgan. Bir darslik stavka = 396 040 ÷ 40 × 1.5 = 14 851.5. Individual tarifda oraliqning yuqori chegarasi × 0.5 soat: 162 500 × 0.5 = 81 250.',
+      'Bu ASOSIY stavka: dam olish ustamasi qo‘llanadi, hisobotda «Asosiy» ustuniga tushadi («Darsdagi har o‘quvchi» bonusidan farqi shu).',
+      'Hech kim kelmasa — 0 so‘m (HolliHop’dagi 0.01 so‘mlik qoldiq yo‘q).',
+      'Har ustozning stavkasi turlicha bo‘lsa — har biriga alohida qoida (xodim + guruh turi). Bir xil turdagi qoidalardan eng aniqi ishlaydi.',
+    ],
+  },
+
   PerSession: {
     kind: 'PerSession',
     scope: 'session',
@@ -60,15 +89,15 @@ const GUIDE: Record<PayrollRuleKindName, PayrollKindGuideEntry> = {
     formula: 'Summa × (dars daqiqasi ÷ akademik soat daqiqasi) × ustama',
     example: [
       'Stavka: 30 000 so‘m / akademik soat. Akademik soat: 45 daqiqa.',
-      'Dars 80 daqiqa davom etdi.',
+      'Dars rejada 80 daqiqa.',
       '80 ÷ 45 = 1.78 soat (ikki xonagacha yaxlitlanadi)',
       '30 000 × 1.78 = 53 400 so‘m',
-      'Natija: 53 400 so‘m',
+      'Natija: 53 400 so‘m (akademik soat 80 bo‘lsa — 1 soat, 30 000 so‘m)',
     ],
     fields: ['Summa', 'Akademik soat (daqiqa)', 'Minimal davomiylik', 'Dam olish/bayram ustamasi', 'Maqsad'],
     notes: [
-      'Akademik soat 10..240 daqiqa oralig‘ida. Standart — 45.',
-      'Davomiyligi turlicha darslar (60, 80, 90 daqiqa) uchun eng adolatli tur.',
+      'Akademik soat 10..240 daqiqa oralig‘ida. Standart — 80 (markazda dars 80 daqiqa, ya’ni bitta dars = 1 soat).',
+      'Davomiylik REJADAGI (jadvaldagi) qiymat: uzaytirilgan daqiqalar va haqiqiy boshlanish/tugash vaqti hisobga olinmaydi.',
       'Soat soni avval yaxlitlanadi, keyin summaga ko‘paytiriladi — hisobotdagi «1.78 akademik soat» yozuvi shundan.',
     ],
   },
@@ -180,6 +209,7 @@ export function payrollKindGuide(kind: PayrollRuleKindName): PayrollKindGuideEnt
 
 /** Drawer uchun tartib: avval dars qamrovi, keyin davr — forma ro'yxati bilan bir xil. */
 export const PAYROLL_KIND_GUIDE: ReadonlyArray<PayrollKindGuideEntry> = [
+  GUIDE.PerStudentAcademicHour,
   GUIDE.PerSession,
   GUIDE.PerAcademicHour,
   GUIDE.PerAttendedStudent,
@@ -211,7 +241,8 @@ export const PAYROLL_GUIDE_SECTIONS: ReadonlyArray<PayrollGuideSection> = [
   {
     title: 'Dars qamrovi va davr qamrovi',
     items: [
-      'Dars qamrovi («Har dars», «Akademik soat», «Har o‘quvchi», «Bosqichli»): har dars yakunlanganda hisoblanadi va MUZLATILADI. Qoidani keyin tahrirlash o‘tgan darslarga ta’sir qilmaydi.',
+      'Dars qamrovi («O‘quvchi × akademik soat», «Har dars», «Akademik soat», «Har o‘quvchi», «Bosqichli»): har dars yakunlanganda hisoblanadi va MUZLATILADI. Qoidani keyin tahrirlash o‘tgan darslarga ta’sir qilmaydi.',
+      'Dars davomiyligi doim REJADAGI qiymat (markazda 80 daqiqa). Ustoz darsni uzaytirsa yoki kech boshlasa, oylik baribir 80 daqiqa uchun hisoblanadi.',
       'Davr qamrovi («Oklad», «Tushumdan foiz», «Oylik: faol o‘quvchi»): oyga bir marta, davr oxiridagi holat bo‘yicha jonli hisoblanadi.',
       'Hisobotda «Asosiy» va «Bonus» ustunlari — dars qamrovi yig‘indisi, «Oylik qismi» ustuni — davr qamrovi.',
     ],
@@ -222,13 +253,13 @@ export const PAYROLL_GUIDE_SECTIONS: ReadonlyArray<PayrollGuideSection> = [
       '«Faqat kelganlar» — davomatda «kelmadi» belgilanmagan o‘quvchilar (standart).',
       '«Kelgan + sababli kelmagan» — sababli kelmaganlar ham sanaladi: joy band, ustoz tayyorlangan.',
       '«Barcha a’zolar» — guruhning shu darsdagi barcha faol a’zolari, davomatdan qat’i nazar.',
-      'Asos faqat o‘quvchi soniga bog‘liq turlarda ma’noli: «Har o‘quvchi» va «Bosqichli».',
+      'Asos faqat o‘quvchi soniga bog‘liq turlarda ma’noli: «O‘quvchi × akademik soat», «Har o‘quvchi» va «Bosqichli».',
     ],
   },
   {
     title: 'Dam olish va bayram ustamasi',
     items: [
-      'Ustama faqat ASOSIY stavkaga: «Har dars», «Akademik soat», «Bosqichli». 1.5 = +50%.',
+      'Ustama faqat ASOSIY stavkaga: «O‘quvchi × akademik soat», «Har dars», «Akademik soat», «Bosqichli». 1.5 = +50%.',
       '«Har o‘quvchi» bonusiga ustama qo‘llanmaydi — dam olish kuni ustozning mehnati qimmatroq, o‘quvchi soni emas.',
       'Shanba va yakshanba avtomatik dam olish kuni; bayramlar «Akademik sozlamalar» sahifasidagi ro‘yxatdan olinadi.',
     ],

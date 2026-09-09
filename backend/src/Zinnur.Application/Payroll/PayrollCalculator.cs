@@ -126,6 +126,23 @@ public static class PayrollCalculator
                     break;
                 }
 
+                case PayrollRuleKind.PerStudentAcademicHour:
+                {
+                    // ★ HOLLIHOP FORMULASI: stavka × o'quvchi × soat. ASOSIY
+                    //   stavka (bonus emas) — markazda butun oylik shu bilan
+                    //   hisoblanadi, shuning uchun ustama ham qo'llanadi va
+                    //   hisobotda «Asosiy» ustuniga tushadi. Soat
+                    //   `PerAcademicHour` bilan AYNI yaxlitlash (2 xona).
+                    var divisor = rule.AcademicHourMinutes > 0 ? rule.AcademicHourMinutes : 45;
+                    var hours = Math.Round((decimal)ctx.DurationMinutes / divisor, 2, MidpointRounding.AwayFromZero);
+                    var amount = Money(rule.Amount * count * hours * multiplier);
+                    lines.Add(new PayrollLine(
+                        rule.Id, rule.Name, rule.Kind, amount,
+                        $"{count} o'quvchi × {hours:0.##} akademik soat ({ctx.DurationMinutes} daq / {divisor} daq)"));
+                    baseAmount += amount;
+                    multiplierApplied = Math.Max(multiplierApplied, multiplier);
+                    break;
+                }
                 case PayrollRuleKind.PerAttendedStudent:
                 {
                     var amount = Money(rule.Amount * count);

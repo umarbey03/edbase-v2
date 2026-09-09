@@ -9,6 +9,7 @@ import {
   payrollRuleKindHint,
   payrollRuleKindLabel,
   ruleScopeLabel,
+  usesAcademicHour,
 } from '@/entities/payroll'
 import { toUserMessage } from '@/shared/api'
 import { formatDateWithYear } from '@/shared/lib/datetime'
@@ -275,7 +276,7 @@ const deleteMessage = computed(() => {
             <p class="shrink-0 text-right text-sm font-semibold tabular-nums text-slate-100">
               {{ ruleValueLabel(rule) }}
               <span
-                v-if="rule.kind === 'PerAcademicHour'"
+                v-if="usesAcademicHour(rule.kind)"
                 class="block text-[11px] font-normal text-slate-400"
               >
                 / {{ rule.academicHourMinutes }} daqiqa

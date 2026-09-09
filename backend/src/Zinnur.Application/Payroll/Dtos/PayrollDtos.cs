@@ -96,7 +96,7 @@ public sealed record PayrollRuleRequest(
     long? GroupId = null,
     long? CategoryId = null,
     GroupType? GroupType = null,
-    int AcademicHourMinutes = 45,
+    int AcademicHourMinutes = 80,
     PayrollBasis Basis = PayrollBasis.Attended,
     int? MinStudents = null,
     int? MaxStudents = null,

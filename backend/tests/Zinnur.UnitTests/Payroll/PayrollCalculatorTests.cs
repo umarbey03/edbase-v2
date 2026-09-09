@@ -93,6 +93,37 @@ public class PayrollCalculatorTests
         result.Lines.Single().Basis.Should().Contain("akademik soat");
     }
 
+    /// <summary>
+    /// ★ HOLLIHOP FORMULASI (2026-09-09): stavka × o'quvchi × soat, ASOSIY
+    /// stavka sifatida (ustama qo'llanadi, «Bonus» emas). Sonlar markazning
+    /// 2026-avgust hisobotidan: HolliHop'da 1.5 soatlik dars × 9 901 =
+    /// 14 851.5 so'm / o'quvchi / dars; markazda dars 80 daqiqa va akademik
+    /// soat 80 — ya'ni bitta dars = 1 soat, 10 o'quvchi → 148 515.
+    /// </summary>
+    [Fact]
+    public void ComputeSession_PerStudentAcademicHour_MultipliesStudentsByHours()
+    {
+        var rule = Rule(1, PayrollRuleKind.PerStudentAcademicHour, 14_851.5m);
+        rule.AcademicHourMinutes = 80;
+        rule.WeekendHolidayMultiplier = 1.5m;
+
+        var weekday = PayrollCalculator.ComputeSession(
+            [rule], Context(attended: 10, durationMinutes: 80));
+
+        weekday.BaseAmount.Should().Be(148_515m);
+        weekday.BonusAmount.Should().Be(0m);
+        weekday.Lines.Single().Basis.Should().Contain("10 o'quvchi × 1 akademik soat");
+
+        // Hech kim kelmasa — 0 (HolliHop'dagi 0.01 «minimal» qoldiq YO'Q).
+        PayrollCalculator.ComputeSession([rule], Context(attended: 0, durationMinutes: 80))
+            .Total.Should().Be(0m);
+
+        // Dam olish kuni ustama ASOSIY stavkaga tushadi: 148 515 × 1.5.
+        PayrollCalculator.ComputeSession(
+                [rule], Context(attended: 10, durationMinutes: 80, date: Saturday, isWeekendOrHoliday: true))
+            .BaseAmount.Should().Be(222_772.5m);
+    }
+
     /// <summary>★ BOSQICHLI: sonidan KICHIK yoki TENG eng katta bosqich olinadi.</summary>
     [Theory]
     [InlineData(0, 20_000)]

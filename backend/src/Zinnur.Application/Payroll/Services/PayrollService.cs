@@ -408,7 +408,8 @@ public sealed class PayrollService(
                      && r.Kind != PayrollRuleKind.PerSession
                      && r.Kind != PayrollRuleKind.PerAcademicHour
                      && r.Kind != PayrollRuleKind.PerAttendedStudent
-                     && r.Kind != PayrollRuleKind.TieredByAttendance)
+                     && r.Kind != PayrollRuleKind.TieredByAttendance
+                     && r.Kind != PayrollRuleKind.PerStudentAcademicHour)
             .ToListAsync(ct);
 
         if (rules.Count == 0)

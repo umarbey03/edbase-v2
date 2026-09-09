@@ -74,6 +74,21 @@ public enum PayrollRuleKind
     /// qo'shilgan o'quvchi uchun 50% kabi.
     /// </summary>
     MonthlyPerActiveStudent = 6,
+
+    /// <summary>
+    /// O'QUVCHI × AKADEMIK SOAT (2026-09-09) — HolliHop'dagi «ставка за
+    /// ученика за ак. час» bilan AYNI: <c>Amount</c> × (asosga mos o'quvchi
+    /// soni) × (dars daqiqasi ÷ <c>AcademicHourMinutes</c>).
+    ///
+    /// ★ NIMA UCHUN ALOHIDA TUR: <see cref="PerAttendedStudent"/> darsga bir
+    /// marta (soatga bog'liq emas), <see cref="PerAcademicHour"/> esa
+    /// o'quvchiga bog'liq emas, turlar esa QO'SHILADI, ko'paytirilmaydi.
+    /// Markazning 2026-avgust HolliHop hisobotidagi 27 ustozning HAMMASI
+    /// shu bitta formula bilan hisoblangan (guruh 1.5 soat, individual
+    /// 0.5/1 soat) — ya'ni bu asosiy stavka, bonus emas: dam olish
+    /// ustamasi qo'llanadi va hisobotda «Asosiy» ustuniga tushadi.
+    /// </summary>
+    PerStudentAcademicHour = 7,
 }
 
 /// <summary>
@@ -135,7 +150,13 @@ public static class PayrollRuleKinds
         is PayrollRuleKind.PerSession
         or PayrollRuleKind.PerAcademicHour
         or PayrollRuleKind.PerAttendedStudent
-        or PayrollRuleKind.TieredByAttendance;
+        or PayrollRuleKind.TieredByAttendance
+        or PayrollRuleKind.PerStudentAcademicHour;
+
+    /// <summary>Dars davomiyligi <c>AcademicHourMinutes</c> ga bo'linadigan turlar.</summary>
+    public static bool UsesAcademicHour(PayrollRuleKind kind) => kind
+        is PayrollRuleKind.PerAcademicHour
+        or PayrollRuleKind.PerStudentAcademicHour;
 
     /// <summary><c>Amount</c> pul emas, FOIZ sifatida o'qiladimi.</summary>
     public static bool IsPercent(PayrollRuleKind kind) =>
@@ -157,5 +178,6 @@ public static class PayrollRuleKinds
     /// </summary>
     public static bool UsesStudentCount(PayrollRuleKind kind) => kind
         is PayrollRuleKind.PerAttendedStudent
-        or PayrollRuleKind.TieredByAttendance;
+        or PayrollRuleKind.TieredByAttendance
+        or PayrollRuleKind.PerStudentAcademicHour;
 }

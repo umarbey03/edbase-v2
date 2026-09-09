@@ -451,7 +451,8 @@ public sealed class PayrollRuleService(
             r.Kind == PayrollRuleKind.PerSession
                 || r.Kind == PayrollRuleKind.PerAcademicHour
                 || r.Kind == PayrollRuleKind.PerAttendedStudent
-                || r.Kind == PayrollRuleKind.TieredByAttendance,
+                || r.Kind == PayrollRuleKind.TieredByAttendance
+                || r.Kind == PayrollRuleKind.PerStudentAcademicHour,
 
             r.Tiers
                 .OrderBy(t => t.StudentCount)

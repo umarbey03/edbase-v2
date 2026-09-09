@@ -96,11 +96,13 @@ public class PayrollRule : BaseEntity
 
     /// <summary>
     /// Akademik soat necha daqiqa — <see cref="PayrollRuleKind.PerAcademicHour"/>
-    /// uchun bo'luvchi. 45 — CIS bozorida odatiy, lekin markazlar 40/50/60 ni
-    /// ham ishlatadi, shuning uchun QOIDANING O'ZIDA (global sozlamada emas):
-    /// bitta markazda bolalar guruhi 40 daqiqa, kattalarniki 60 bo'lishi mumkin.
+    /// (va <see cref="PayrollRuleKind.PerStudentAcademicHour"/>) uchun bo'luvchi.
+    /// Standart 80 (2026-09-09): markazda HAR dars 80 daqiqa, ya'ni bitta dars
+    /// = 1 akademik soat va summa "bir darslik haq" bo'ladi. Qiymat QOIDANING
+    /// O'ZIDA (global sozlamada emas): kelajakda 40/45/60 daqiqalik guruh
+    /// paydo bo'lsa, unga alohida qoida yoziladi.
     /// </summary>
-    public int AcademicHourMinutes { get; set; } = 45;
+    public int AcademicHourMinutes { get; set; } = 80;
 
     /// <summary>Qaysi o'quvchilar sanaladi (<c>UsesStudentCount</c> turlarida ma'noli).</summary>
     public PayrollBasis Basis { get; set; }
@@ -294,7 +296,7 @@ public class PayrollRule : BaseEntity
                 + "guruh, kurs, kategoriya yoki guruh turiga bog'lab bo'lmaydi.");
         }
 
-        if (Kind == PayrollRuleKind.PerAcademicHour && AcademicHourMinutes is < 10 or > 240)
+        if (PayrollRuleKinds.UsesAcademicHour(Kind) && AcademicHourMinutes is < 10 or > 240)
             throw new DomainException("Akademik soat 10..240 daqiqa oralig'ida bo'lishi kerak.");
 
         if (MinStudents is < 0)

@@ -3652,6 +3652,8 @@ export type PayrollRuleKindName =
   | 'TieredByAttendance'
   | 'PercentOfRevenue'
   | 'MonthlyPerActiveStudent'
+  /** O'quvchi × akademik soat — HolliHop'dagi asosiy stavka (2026-09-09). */
+  | 'PerStudentAcademicHour'
 
 /** Qoida QAYSI o'quvchilarni sanaydi. */
 export type PayrollBasisName = 'Attended' | 'AttendedAndExcused' | 'Enrolled'

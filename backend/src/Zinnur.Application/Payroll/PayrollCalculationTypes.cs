@@ -21,8 +21,10 @@ namespace Zinnur.Application.Payroll;
 /// <see cref="GroupPayrollMode.FixedRule"/> da majburlanadigan qoida.
 /// </param>
 /// <param name="DurationMinutes">
-/// Darsning REJALASHTIRILGAN davomiyligi + uzaytirish (<c>ExtendedMin</c>) —
-/// soatbay hisob shu songa tayanadi.
+/// Darsning REJALASHTIRILGAN davomiyligi (jadvaldagi, markazda 80 daqiqa) —
+/// soatbay hisob shu songa tayanadi. Uzaytirish (<c>ExtendedMin</c>) va
+/// haqiqiy boshlanish/tugash vaqti ATAYLAB hisobga olinmaydi (2026-09-09,
+/// loyiha egasi: "oylik faqat 80 daqiqa uchun hisoblanishi kerak").
 /// </param>
 /// <param name="IsWeekendOrHoliday">
 /// Dam olish yoki bayram kunimi — ustama shu bayroqqa qarab qo'llanadi.

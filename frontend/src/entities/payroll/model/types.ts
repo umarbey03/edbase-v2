@@ -33,6 +33,7 @@ export const PAYROLL_ROLE_OPTIONS: ReadonlyArray<{ value: UserRoleName; label: s
  * yuqorida bo'ladi.
  */
 const RULE_KIND_LABELS: Record<PayrollRuleKindName, string> = {
+  PerStudentAcademicHour: 'O‘quvchi × akademik soat (HolliHop)',
   PerSession: 'Har dars uchun',
   PerAcademicHour: 'Akademik soat uchun',
   PerAttendedStudent: 'Darsdagi har o‘quvchi uchun',
@@ -44,6 +45,8 @@ const RULE_KIND_LABELS: Record<PayrollRuleKindName, string> = {
 
 /** Har turning bir gapli izohi — formada tanlov ostida ko'rsatiladi. */
 const RULE_KIND_HINTS: Record<PayrollRuleKindName, string> = {
+  PerStudentAcademicHour:
+    'Stavka × darsdagi o‘quvchi soni × akademik soat. HolliHop’dagi «ставка за ученика за ак. час» bilan bir xil.',
   PerSession: 'Yakunlangan har bir dars uchun belgilangan summa.',
   PerAcademicHour: 'Dars davomiyligi akademik soatga bo‘linadi va stavkaga ko‘paytiriladi.',
   PerAttendedStudent: 'Darsdagi har bir o‘quvchi uchun qo‘shimcha summa.',
@@ -66,6 +69,9 @@ export const PAYROLL_RULE_KIND_OPTIONS: ReadonlyArray<{
   label: string
 }> = (
   [
+    // ★ BIRINCHI: markazning HolliHop'dagi asosiy formulasi — admin
+    //   ko'chirishda aynan shuni qidiradi.
+    'PerStudentAcademicHour',
     'PerSession',
     'PerAcademicHour',
     'PerAttendedStudent',
@@ -82,8 +88,14 @@ export function isSessionScopedKind(kind: PayrollRuleKindName): boolean {
     kind === 'PerSession' ||
     kind === 'PerAcademicHour' ||
     kind === 'PerAttendedStudent' ||
-    kind === 'TieredByAttendance'
+    kind === 'TieredByAttendance' ||
+    kind === 'PerStudentAcademicHour'
   )
+}
+
+/** Dars davomiyligi akademik soatga bo'linadimi — `academicHourMinutes` shu turlarda ma'noli. Backenddagi `UsesAcademicHour` bilan AYNI. */
+export function usesAcademicHour(kind: PayrollRuleKindName): boolean {
+  return kind === 'PerAcademicHour' || kind === 'PerStudentAcademicHour'
 }
 
 /** `amount` pul emas, FOIZ sifatida o'qiladimi. */
@@ -104,7 +116,11 @@ export function supportsGroupTargeting(kind: PayrollRuleKindName): boolean {
 
 /** O'quvchi soni natijaga ta'sir qiladimi — `basis` va min/max shu turlarda ma'noli. */
 export function usesStudentCount(kind: PayrollRuleKindName): boolean {
-  return kind === 'PerAttendedStudent' || kind === 'TieredByAttendance'
+  return (
+    kind === 'PerAttendedStudent' ||
+    kind === 'TieredByAttendance' ||
+    kind === 'PerStudentAcademicHour'
+  )
 }
 
 /* =============================================================== hisob asosi === */

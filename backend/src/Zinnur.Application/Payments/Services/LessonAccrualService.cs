@@ -399,9 +399,15 @@ public sealed class LessonAccrualService(
             group.PayrollMode,
             group.PayrollRuleId,
 
-            // Uzaytirilgan vaqt HAM to'lanadi — soatbay stavkada ustoz
-            // haqiqatda o'tirgan vaqt uchun haq oladi (`LiveSession.ExtendedMin`).
-            session.PlannedDurationMinutes + session.ExtendedMin,
+            // ★ FAQAT REJADAGI DAVOMIYLIK (2026-09-09, loyiha egasi: "barcha
+            //   darslar to'liq 80 daqiqa — oylik faqat 80 daqiqa uchun
+            //   hisoblanishi kerak"). Ilgari `+ ExtendedMin` qo'shilardi va
+            //   ustoz darsni 10 daqiqaga uzaytirsa soatbay stavka 90 daqiqa
+            //   uchun to'lardi — HolliHop bilan mos kelmasdi (u yerda dars
+            //   doim bir xil soat). Haqiqiy davomiylik (ActualStart/End) ham
+            //   ATAYLAB ishlatilmaydi: kech boshlangan yoki erta yopilgan
+            //   dars ham rejadagi 80 daqiqa deb to'lanadi.
+            session.PlannedDurationMinutes,
             lessonDate,
             isWeekend || isHoliday,
             attended,
