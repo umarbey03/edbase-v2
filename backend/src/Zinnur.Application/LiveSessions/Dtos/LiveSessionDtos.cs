@@ -1,3 +1,5 @@
+using Zinnur.Application.Common.Interfaces;
+
 namespace Zinnur.Application.LiveSessions.Dtos;
 
 /// <param name="HostName">
@@ -276,3 +278,14 @@ public sealed record SetFreeLessonRequest(bool IsFree, bool PayrollExcluded, str
 /// </summary>
 public sealed record FreeLessonStatusDto(
     long SessionId, bool IsFreeLesson, string? FreeLessonReason, bool PayrollExcluded);
+
+/// <summary>
+/// <c>POST /api/v1/live-sessions/{id}/participants/{userId}/mute</c> tanasi
+/// (2026-09-09, loyiha egasi: "teacherda mute, video off imkoniyatlari
+/// bo'lishi kerak" — Telegram guruh qo'ng'irog'idagi kabi).
+/// </summary>
+/// <param name="Source">
+/// Nimani o'chirish: <c>Microphone</c> yoki <c>Camera</c>. ⚠️ FAQAT
+/// O'CHIRISH — yoqish yo'q, sabab <c>ILiveKitRoomControl</c> izohida.
+/// </param>
+public sealed record MuteParticipantRequest(ParticipantMediaSource Source);

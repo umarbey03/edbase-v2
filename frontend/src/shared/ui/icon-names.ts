@@ -24,6 +24,7 @@ export type IconName =
   | BrandIconName
   | 'mic'
   | 'mic-off'
+  | 'pin'
   | 'camera'
   | 'camera-off'
   | 'screen-share'

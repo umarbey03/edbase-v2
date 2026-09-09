@@ -66,6 +66,14 @@ export interface UseLiveKitRoomResult {
   audioBlocked: Ref<boolean>
   mediaError: Ref<string | null>
   connectionError: Ref<string | null>
+  /**
+   * Ustoz SERVER orqali mikrofon/kamerani o'chirdi (2026-09-09). Alohida
+   * xabar: `mediaError` "qurilma ishlamadi" degani, bu esa "ishlayapti,
+   * lekin ustoz o'chirdi" — ikkalasi bir rangda chiqsa o'quvchi kamerasini
+   * "buzilgan" deb o'ylab, brauzer sozlamasini titkilay boshlardi.
+   */
+  moderationNotice: Ref<string | null>
+  dismissModerationNotice: () => void
   connect: () => Promise<void>
   leave: () => Promise<void>
   toggleMic: () => Promise<void>
@@ -171,6 +179,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   const audioBlocked = ref(false)
   const mediaError = ref<string | null>(null)
   const connectionError = ref<string | null>(null)
+  const moderationNotice = ref<string | null>(null)
 
   /**
    * `shallowRef` — katakchalar massivi butunligicha almashtiriladi.
@@ -273,7 +282,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
    * KO'RAYOTGAN narsani aks ettiradi: kamera treki bor ekan — kamera YONIQ.
    */
   function readCameraOn(participant: Room['localParticipant']): boolean {
-    return localCameraTrack.value !== null || participant.isCameraEnabled
+    // ★ `isMuted` HAM tekshiriladi: ustoz server orqali kamerani o'chirsa
+    //   LiveKit mahalliy trekni MUTE qiladi (to'xtatmaydi) — trek obyekti
+    //   tirik, lekin kadr qora. Bu holda tugma "yoniq" deb yolg'on ko'rsatmasin.
+    const local = localCameraTrack.value
+    return (local !== null && !local.isMuted) || participant.isCameraEnabled
   }
 
   /**
@@ -338,7 +351,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     // MAHALLIY ishtirokchi uchun: e'lon qilingan trek hali yo'q bo'lsa,
     // to'g'ridan-to'g'ri mahalliy trekdan chizamiz (izoh `localCameraTrack` da).
     const publishedCamera = videoTrackOf(participant.getTrackPublication(Track.Source.Camera))
-    const cameraTrack = publishedCamera ?? (isLocal ? localCameraTrack.value : null)
+    const localCamera = localCameraTrack.value
+    const cameraTrack =
+      publishedCamera ?? (isLocal && localCamera !== null && !localCamera.isMuted ? localCamera : null)
     out.push({
       key: `${identity}:cam`,
       identity,
@@ -432,8 +447,52 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     scheduleRebuild()
   }
 
-  function onTrackMuteChanged(_publication: TrackPublication, _participant: Participant): void {
+  function onTrackMuteChanged(publication: TrackPublication, participant: Participant): void {
+    handleRemoteModeration(publication, participant)
     scheduleRebuild()
+  }
+
+  /**
+   * USTOZ SERVER ORQALI O'CHIRDI (2026-09-09) — o'quvchi tomonidagi javob.
+   *
+   * LiveKit `MutePublishedTrack` ni olganda mahalliy trekni MUTE qiladi va
+   * `TrackMuted` hodisasini beradi. Bu hodisa o'quvchi O'ZI tugmani
+   * bosganda ham keladi — farqi: o'z bosishida tegishli `pending` bayrog'i
+   * `true` (amal hali kutilmoqda), ustoz o'chirganda esa hech qanday amal
+   * kutilmayapti.
+   *
+   * ★ KAMERA UCHUN TREK TO'XTATILADI (faqat mute emas): mute holatida
+   *   kameraning chirog'i yonib turadi va o'quvchi "hali ko'rishyapti" deb
+   *   xavotirlanadi. `toggleCamera(false)` bilan AYNI yo'l — unpublish +
+   *   stop. Qayta yoqish o'quvchining o'z qo'lida (pastki panel).
+   * ★ Mikrofon uchun `setMicrophoneEnabled(false)` — SDK holatini bizning
+   *   tugma bilan bir xil qiladi; trek allaqachon jim, bu chaqiruv arzon.
+   */
+  function handleRemoteModeration(publication: TrackPublication, participant: Participant): void {
+    const current = room
+    if (current === null || participant !== current.localParticipant) return
+    if (!publication.isMuted) return
+
+    if (publication.source === Track.Source.Camera && !cameraPending.value) {
+      const track = localCameraTrack.value
+      localCameraTrack.value = null
+      if (track !== null) {
+        void current.localParticipant.unpublishTrack(track, true).catch(() => undefined)
+      }
+      isCameraOn.value = false
+      moderationNotice.value = 'Ustoz kamerangizni o‘chirdi. Kerak bo‘lsa pastki paneldan qayta yoqing.'
+      return
+    }
+
+    if (publication.source === Track.Source.Microphone && !micPending.value) {
+      isMicOn.value = false
+      void current.localParticipant.setMicrophoneEnabled(false).catch(() => undefined)
+      moderationNotice.value = 'Ustoz mikrofoningizni o‘chirdi. Gapirish uchun pastki paneldan qayta yoqing.'
+    }
+  }
+
+  function dismissModerationNotice(): void {
+    moderationNotice.value = null
   }
 
   function onLocalTrackChanged(
@@ -503,6 +562,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     cameraPending.value = false
     screenPending.value = false
     audioBlocked.value = false
+    moderationNotice.value = null
 
     status.value = 'disconnected'
     connectionError.value = describeDisconnect(reason)
@@ -851,6 +911,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     cameraPending.value = false
     screenPending.value = false
     audioBlocked.value = false
+    moderationNotice.value = null
 
     // Kamera treki `Room` dan MUSTAQIL yaratilgani uchun uni O'ZIMIZ
     // to'xtatishimiz shart — aks holda kameraning chirog'i yonib qolardi.
@@ -904,6 +965,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     audioBlocked,
     mediaError,
     connectionError,
+    moderationNotice,
+    dismissModerationNotice,
     connect,
     leave,
     toggleMic,

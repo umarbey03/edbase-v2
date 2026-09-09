@@ -7,9 +7,11 @@ import { fetchRecentMessages } from '@/entities/message'
 import {
   endLiveSession,
   fetchLiveSession,
+  muteParticipant,
   sessionTitle,
   startLiveSession,
 } from '@/entities/session'
+import type { ParticipantMediaSource } from '@/entities/session'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import ChatPanel from '@/features/chat/ui/ChatPanel.vue'
@@ -23,6 +25,7 @@ import { toUserMessage } from '@/shared/api'
 import { formatCountdown } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
+import { showToast } from '@/shared/lib/useToast'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 
 /*
@@ -110,6 +113,8 @@ const {
   audioBlocked,
   mediaError,
   connectionError: mediaConnectionError,
+  moderationNotice,
+  dismissModerationNotice,
   connect: connectMedia,
   leave: leaveMedia,
   toggleMic,
@@ -214,6 +219,43 @@ const canManageSession = computed(() => session.value?.isHost === true || isHost
 */
 const isStudent = computed(() => auth.role === 'Student')
 
+/*
+  USTOZ TUGMALARI — ISHTIROKCHINING MIKROFON/KAMERASINI O'CHIRISH (2026-09-09).
+
+  ★ `canManageSession` — darsni boshlay/yakunlay oladigan odam (host yoki
+  o'quv bo'limi/admin). Server ham AYNI qoida bilan tekshiradi
+  (`LiveSessionService.MuteParticipantAsync`), ya'ni tugma ko'ringan
+  joyda so'rov rad etilmaydi.
+
+  ★ HAR NISHON UCHUN ALOHIDA KUTISH: ustoz ikki o'quvchini ketma-ket
+  o'chirsa, birinchisining spinneri ikkinchisiga tegmasin. Kalit —
+  `${userId}:${source}`, `VideoStage` shu kalit bo'yicha o'qiydi.
+
+  ★ MUVAFFAQIYATDA TOAST YO'Q: natija SAHNADA ko'rinadi — o'quvchi
+  katagidagi mikrofon belgisi qizarib, kamerasi avatarga aylanadi
+  (LiveKit `TrackMuted` hodisasi orqali). Ikkinchi xabar shovqin.
+  Xato esa toast bilan — 409 "o'quvchi xonada emas" kabi.
+*/
+const moderating = ref<Set<string>>(new Set())
+
+async function handleModerate(userId: number, source: ParticipantMediaSource): Promise<void> {
+  const key = `${userId}:${source}`
+  if (moderating.value.has(key)) return
+
+  // `Set` ni ALMASHTIRAMIZ (mutatsiya emas): `VideoStage` prop'i
+  // `ReadonlySet` va Vue chuqur kuzatuvni faqat yangi obyektda sezadi.
+  moderating.value = new Set(moderating.value).add(key)
+  try {
+    await muteParticipant(sessionId, userId, source)
+  } catch (error) {
+    showToast(toUserMessage(error), 'error')
+  } finally {
+    const next = new Set(moderating.value)
+    next.delete(key)
+    moderating.value = next
+  }
+}
+
 /**
  * Kim "host" (ustoz) ekanini LiveKit o'zi aytmaydi — `LiveSessionDto` da ham
  * `HostId` yo'q. Shu sababli presence ma'lumotidan foydalanamiz: SPEC 7 bo'yicha
@@ -297,6 +339,7 @@ const noticeCount = computed(
     (banner.value !== null ? 1 : 0) +
     (audioBlocked.value ? 1 : 0) +
     (mediaError.value !== null ? 1 : 0) +
+    (moderationNotice.value !== null ? 1 : 0) +
     (actionError.value !== null ? 1 : 0),
 )
 
@@ -664,6 +707,34 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <!-- Ustoz server orqali mikrofon/kamerani o'chirdi — o'quvchi ko'radi -->
+      <div
+        v-if="moderationNotice !== null"
+        class="flex shrink-0 items-center gap-2 border-b border-sky-500/25 bg-sky-500/10 text-xs text-sky-200"
+        :class="noticeRowClass"
+        role="status"
+      >
+        <AppIcon
+          name="mic-off"
+          :size="14"
+          class="shrink-0"
+        />
+        <span
+          class="flex-1"
+          v-text="moderationNotice"
+        />
+        <button
+          type="button"
+          class="tap-expand rounded p-0.5 hover:text-sky-100"
+          @click="dismissModerationNotice"
+        >
+          <AppIcon
+            name="close"
+            :size="14"
+          />
+        </button>
+      </div>
+
       <div
         v-if="actionError !== null"
         class="flex shrink-0 items-center gap-2 border-b border-rose-500/25 bg-rose-500/10 text-xs text-rose-200"
@@ -727,7 +798,10 @@ onBeforeUnmount(() => {
           :status="mediaStatus"
           :role-by-user-id="roleByUserId"
           :connection-error="mediaConnectionError"
+          :can-moderate="canManageSession"
+          :moderating="moderating"
           @retry="handleRetry"
+          @moderate="handleModerate"
         />
 
         <!--

@@ -27,6 +27,7 @@ namespace Zinnur.Application.LiveSessions.Services;
 public sealed class LiveSessionService(
     IApplicationDbContext db,
     ILiveKitTokenService liveKit,
+    ILiveKitRoomControl roomControl,
     ILiveSessionNotifier notifier,
     IPaymentBlockService paymentBlock,
     ILessonAccrualService accrual,
@@ -604,6 +605,50 @@ public sealed class LiveSessionService(
         if (ttl < MinJoinTokenTtl) return MinJoinTokenTtl;
 
         return ttl > MaxJoinTokenTtl ? MaxJoinTokenTtl : ttl;
+    }
+
+    /// <summary>
+    /// Ishtirokchining mikrofon/kamerasini O'CHIRISH (2026-09-09).
+    ///
+    /// ★ RUXSAT — <see cref="IsHost(LiveSession, User)"/> bilan AYNI qoida:
+    ///   darsni boshlay oladigan odam uni tartibga ham sola oladi. O'quvchi
+    ///   uchun 403 — atributdagi rol darvozasi bo'lsa ham, "aynan SHU
+    ///   dars" tekshiruvi shu yerda (begona guruh ustozi ham 403 oladi).
+    ///
+    /// ★ NISHON O'QUVCHI BO'LISHI SHART EMAS — kurator ham o'chirilishi
+    ///   mumkin (masalan, mikrofoni shovqin berayotgan bo'lsa). Faqat
+    ///   O'ZINI o'chirish rad etiladi: buning uchun o'z tugmasi bor va
+    ///   server aylanma yo'li chalkashlik tug'diradi.
+    ///
+    /// ★ NATIJA XATO BO'LSA 409: "o'quvchi xonada emas" — yarim soniya
+    ///   oldin chiqib ketgan bo'lishi mumkin, bu SERVER xatosi emas.
+    /// </summary>
+    public async Task MuteParticipantAsync(
+        long sessionId,
+        long targetUserId,
+        ParticipantMediaSource source,
+        long actorId,
+        CancellationToken ct = default)
+    {
+        var (session, actor) = await LoadAndAuthorizeAsync(sessionId, actorId, ct);
+
+        if (!IsHost(session, actor))
+            throw new ForbiddenException("Ishtirokchilarni faqat darsning ustozi boshqara oladi.");
+
+        if (session.Status != SessionStatus.Live)
+            throw new ConflictException("Dars hozir jonli emas.");
+
+        if (targetUserId == actorId)
+            throw new ConflictException("O'z mikrofoningiz/kamerangizni pastki paneldan o'chiring.");
+
+        var result = await roomControl.MuteTrackAsync(
+            session.RoomName,
+            targetUserId.ToString(CultureInfo.InvariantCulture),
+            source,
+            ct);
+
+        if (!result.Succeeded)
+            throw new ConflictException(result.Error ?? "Video xizmati amalni bajarmadi.");
     }
 
     public async Task<IReadOnlyList<ChatMessageDto>> GetRecentMessagesAsync(

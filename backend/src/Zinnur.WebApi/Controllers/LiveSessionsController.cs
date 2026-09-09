@@ -149,6 +149,26 @@ public sealed class LiveSessionsController(
     public async Task<ActionResult<LiveKitJoinDto>> CreateToken(long id, CancellationToken ct) =>
         Ok(await sessions.CreateJoinTokenAsync(id, CurrentUserId, ct));
 
+    /// <summary>
+    /// Ishtirokchining mikrofonini yoki kamerasini O'CHIRISH (2026-09-09) —
+    /// Telegram guruh qo'ng'irog'idagi "mute" kabi. Faqat o'chirish:
+    /// yoqishni o'quvchining o'zi qiladi.
+    ///
+    /// Atributdagi rollar DARVOZA; "aynan shu darsning hosti" tekshiruvi
+    /// servis ichida. LiveKit rad etsa (o'quvchi xonadan chiqib ketgan) — 409.
+    /// </summary>
+    [HttpPost("{id:long}/participants/{userId:long}/mute")]
+    [Authorize(Roles = "Teacher,Assistant,Academic,Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MuteParticipant(
+        long id, long userId, [FromBody] MuteParticipantRequest request, CancellationToken ct)
+    {
+        await sessions.MuteParticipantAsync(id, userId, request.Source, CurrentUserId, ct);
+        return NoContent();
+    }
+
     // ================================================================= DAVOMAT
 
     /// <summary>
