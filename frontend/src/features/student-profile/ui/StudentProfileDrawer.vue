@@ -15,9 +15,12 @@ import { useAuthStore } from '@/features/auth/model/auth.store'
 import LessonChargesDialog from '@/features/payment-actions/ui/LessonChargesDialog.vue'
 import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDialog.vue'
 import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDialog.vue'
+import StaffGroupsSection from '@/features/staff-profile/ui/StaffGroupsSection.vue'
+import StaffPayrollSection from '@/features/staff-profile/ui/StaffPayrollSection.vue'
 import StudentNotesSection from '@/features/student-notes/ui/StudentNotesSection.vue'
 import { toUserMessage } from '@/shared/api'
-import { BaseAvatar, BaseBadge, BaseDrawer, DataStatus, SectionLoader } from '@/shared/ui'
+import type { UserRoleName } from '@/shared/types'
+import { AppIcon, BaseAvatar, BaseBadge, BaseDrawer, DataStatus, SectionLoader } from '@/shared/ui'
 
 import ProfileFinanceSection from './ProfileFinanceSection.vue'
 import ProfileGroupsSection from './ProfileGroupsSection.vue'
@@ -99,10 +102,38 @@ const displayName = computed(() => profile.value?.user.fullName ?? props.fallbac
 
 const roleName = computed(() => profile.value?.user.role ?? '')
 
+/*
+  ═══════════════════════════════════════════════════════════════════════
+   USTOZ/KURATOR PROFILI — O'QUVCHINIKIDAN BOSHQA KO'RINISH (2026-09-09,
+   loyiha egasi: "ustoz profili o'quvchi profilidan farq qilishi kerak").
+  ═══════════════════════════════════════════════════════════════════════
+  Belgi — serverdan kelgan `staff` bloki (`null` = o'quvchi). Xodim uchun
+  bo'limlar: Shaxsiy → O'qitadigan guruhlar → Oylik va stavkalar (faqat
+  Admin: oylik endpointlari Admin darvozasi ortida). To'lovlar, o'quv
+  natijalari va izohlar bo'limlari xodimda MA'NOSIZ va chizilmaydi.
+*/
+const isStaffProfile = computed(() => profile.value?.staff != null)
+
+const staffRole = computed<UserRoleName>(() =>
+  roleName.value === 'Assistant' ? 'Assistant' : 'Teacher',
+)
+
+const staffGroupsActive = computed(
+  () => profile.value?.staff?.groups.filter((group) => group.isActive) ?? [],
+)
+const staffStudentTotal = computed(() =>
+  staffGroupsActive.value.reduce((sum, group) => sum + group.activeStudentCount, 0),
+)
+
+const canManagePayroll = computed(() => isAdminRole(auth.role ?? ''))
+
 const subtitle = computed(() => {
   const data = profile.value
   if (data === null) return ''
-  return `${roleLabel(data.user.role ?? '')} · ${data.user.isActive ? 'Faol' : 'Bloklangan'}`
+  const status = data.user.isActive ? 'Faol' : 'Bloklangan'
+  return isStaffProfile.value
+    ? `Xodim profili · ${roleLabel(data.user.role ?? '')} · ${status}`
+    : `${roleLabel(data.user.role ?? '')} · ${status}`
 })
 
 /** To'lov oynalari `{ id, name }` shaklini kutadi (mavjud shartnoma). */
@@ -231,11 +262,36 @@ function openGroup(groupId: number): void {
         class="space-y-4"
       >
         <!-- ------------------------------------------------------ xulosa -->
-        <div class="flex items-center gap-3 rounded-2xl border border-line bg-ink-800 p-3.5">
-          <BaseAvatar
-            :name="displayName"
-            size="lg"
-          />
+        <!--
+          Xodim uchun kartaning o'zi boshqacha: brend rangli chegara,
+          «ustoz» ikonkasi va yuk ko'rsatkichi (guruh/o'quvchi soni) —
+          ro'yxatdan ochilganda birinchi qarashda "bu o'quvchi emas"
+          ekani bilinsin.
+        -->
+        <div
+          class="flex items-center gap-3 rounded-2xl border p-3.5"
+          :class="
+            isStaffProfile
+              ? 'border-brand-500/40 bg-brand-500/10'
+              : 'border-line bg-ink-800'
+          "
+        >
+          <div class="relative shrink-0">
+            <BaseAvatar
+              :name="displayName"
+              size="lg"
+            />
+            <span
+              v-if="isStaffProfile"
+              class="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-brand-500 text-on-brand ring-2 ring-ink-900"
+              aria-hidden="true"
+            >
+              <AppIcon
+                name="graduation"
+                :size="11"
+              />
+            </span>
+          </div>
           <div class="min-w-0">
             <p
               class="truncate text-base font-semibold text-slate-100"
@@ -249,6 +305,12 @@ function openGroup(groupId: number): void {
                 {{ profile.user.isActive ? 'Faol' : 'Bloklangan' }}
               </BaseBadge>
             </div>
+            <p
+              v-if="isStaffProfile"
+              class="mt-1.5 text-xs text-slate-400"
+            >
+              {{ staffGroupsActive.length }} faol guruh · {{ staffStudentTotal }} o‘quvchi
+            </p>
           </div>
         </div>
 
@@ -261,39 +323,58 @@ function openGroup(groupId: number): void {
           @unlink="unlinkOpen = true"
         />
 
-        <!-- 2 --------------------------------------------------- to'lovlar -->
-        <!--
+        <!-- ═══════════════════════════════ XODIM: guruhlar + oylik ═══ -->
+        <template v-if="isStaffProfile && profile.staff !== null">
+          <StaffGroupsSection
+            :groups="profile.staff.groups"
+            @open="openGroup"
+          />
+
+          <!-- 🔴 Oylik endpointlari FAQAT Admin — o'quv bo'limi bo'limni ko'rmaydi. -->
+          <StaffPayrollSection
+            v-if="canManagePayroll && props.userId !== null"
+            :user-id="props.userId"
+            :user-name="displayName"
+            :role="staffRole"
+          />
+        </template>
+
+        <!-- ═══════════════════════════════ O'QUVCHI: to'lov, guruh, o'quv, izoh ═══ -->
+        <template v-else>
+          <!-- 2 --------------------------------------------------- to'lovlar -->
+          <!--
           🔴 `finance === null` -> BO'LIM UMUMAN YO'Q (ustoz/kurator).
           Ma'lumot serverdan kelmaydi, ya'ni "yashirish" emas — yo'qlik.
         -->
-        <ProfileFinanceSection
-          v-if="profile.finance !== null"
-          :finance="profile.finance"
-          :can-manage-money="canManageMoney"
-          @record="recordOpen = true"
-          @reverse="reverseOpen = true"
-          @show-transactions="transactionsOpen = true"
-          @open-lesson-charges="openLessonCharges"
-        />
+          <ProfileFinanceSection
+            v-if="profile.finance !== null"
+            :finance="profile.finance"
+            :can-manage-money="canManageMoney"
+            @record="recordOpen = true"
+            @reverse="reverseOpen = true"
+            @show-transactions="transactionsOpen = true"
+            @open-lesson-charges="openLessonCharges"
+          />
 
-        <!-- 3 ---------------------------------------------------- guruhlar -->
-        <ProfileGroupsSection
-          :groups="profile.groups"
-          @open="openGroup"
-        />
+          <!-- 3 ---------------------------------------------------- guruhlar -->
+          <ProfileGroupsSection
+            :groups="profile.groups"
+            @open="openGroup"
+          />
 
-        <!-- 4 --------------------------------------------- o'quv natijalari -->
-        <ProfileStudySection :study="profile.study" />
+          <!-- 4 --------------------------------------------- o'quv natijalari -->
+          <ProfileStudySection :study="profile.study" />
 
-        <!-- 5 ----------------------------------------------------- izohlar -->
-        <!-- 🔴 `notes === null` -> o'quvchining o'zi ko'rayapti: bo'lim yo'q. -->
-        <StudentNotesSection
-          v-if="profile.notes !== null && props.userId !== null"
-          :student-id="props.userId"
-          :notes="profile.notes"
-          :groups="profile.groups"
-          @changed="reloadProfile"
-        />
+          <!-- 5 ----------------------------------------------------- izohlar -->
+          <!-- 🔴 `notes === null` -> o'quvchining o'zi ko'rayapti: bo'lim yo'q. -->
+          <StudentNotesSection
+            v-if="profile.notes !== null && props.userId !== null"
+            :student-id="props.userId"
+            :notes="profile.notes"
+            :groups="profile.groups"
+            @changed="reloadProfile"
+          />
+        </template>
       </div>
     </DataStatus>
   </BaseDrawer>

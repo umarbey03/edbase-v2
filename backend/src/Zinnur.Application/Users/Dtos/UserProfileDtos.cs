@@ -43,7 +43,33 @@ public sealed record UserProfileDto(
     IReadOnlyList<ProfileGroupDto> Groups,
     ProfileFinanceDto? Finance,
     ProfileStudyDto Study,
-    IReadOnlyList<StudentNoteDto>? Notes);
+    IReadOnlyList<StudentNoteDto>? Notes,
+    ProfileStaffDto? Staff = null);
+
+// ---------------------------------------------------------------- xodim (ustoz/kurator)
+
+/// <summary>
+/// USTOZ/KURATOR PROFILI BLOKI (2026-09-09, loyiha egasi: "ustoz profili
+/// o'quvchi profilidan farq qilishi kerak"). Faqat subyekt Teacher yoki
+/// Assistant bo'lsa to'ldiriladi; o'quvchi uchun <c>null</c>.
+///
+/// ★ OYLIK QOIDALARI BU YERDA EMAS: ular <c>GET /payroll/rules</c> dan
+/// olinadi (faqat Admin) va frontend xodim bo'yicha filtrlaydi — bir
+/// xil ma'lumot ikki endpointdan chiqmasin.
+/// </summary>
+public sealed record ProfileStaffDto(IReadOnlyList<ProfileTaughtGroupDto> Groups);
+
+/// <param name="RoleInGroup">Shu guruhda ustozmi (<c>Teacher</c>) yoki kuratormi (<c>Assistant</c>).</param>
+/// <param name="ActiveStudentCount">Hozir FAOL a'zolar soni (pauzadagilar sanalmaydi — guruhlar ro'yxati bilan ayni mezon).</param>
+public sealed record ProfileTaughtGroupDto(
+    long GroupId,
+    string GroupName,
+    UserRole RoleInGroup,
+    GroupType Type,
+    bool IsActive,
+    int ActiveStudentCount,
+    string? CourseName,
+    DateOnly StartDate);
 
 // ---------------------------------------------------------------- telegram
 

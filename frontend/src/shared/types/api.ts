@@ -2616,6 +2616,28 @@ export interface UserProfileDto {
   study: ProfileStudyDto
   /** 🔴 `null` — o'quvchining o'zi so'ragan (bo'lim render QILINMAYDI). */
   notes: StudentNoteDto[] | null
+  /**
+   * USTOZ/KURATOR bloki (2026-09-09) — subyekt xodim bo'lsa. O'quvchi
+   * uchun `null`; drawer shu maydonga qarab ko'rinishni tanlaydi.
+   */
+  staff: ProfileStaffDto | null
+}
+
+export interface ProfileStaffDto {
+  groups: ProfileTaughtGroupDto[]
+}
+
+export interface ProfileTaughtGroupDto {
+  groupId: number
+  groupName: string
+  /** Shu guruhda ustozmi yoki kuratormi. */
+  roleInGroup: 'Teacher' | 'Assistant'
+  type: GroupTypeName
+  isActive: boolean
+  activeStudentCount: number
+  courseName: string | null
+  /** `DateOnly` — `YYYY-MM-DD`. */
+  startDate: string
 }
 
 /** Telegram ulanish holati + OXIRGI uzishning izi. */

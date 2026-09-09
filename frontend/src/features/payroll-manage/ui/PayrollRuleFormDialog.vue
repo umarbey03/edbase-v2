@@ -18,6 +18,7 @@ import {
   supportsGroupTargeting,
   todayIsoDate,
   updatePayrollRule,
+  usesAcademicHour,
   usesStudentCount,
 } from '@/entities/payroll'
 import { fetchUsers } from '@/entities/user'
@@ -50,7 +51,20 @@ import { AppIcon, BaseButton, BaseDrawer, BaseField } from '@/shared/ui'
  *
  * ★ `PUT` — TO'LIQ ALMASHTIRISH: forma HAMMA maydonni yuklaydi va qaytaradi.
  */
-const props = defineProps<{ open: boolean; rule: PayrollRuleDto | null }>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    rule: PayrollRuleDto | null
+    /**
+     * YARATISH rejimida oldindan tanlangan xodim va roli (2026-09-09) —
+     * ustoz PROFILIDAN «Stavka qo'shish» bosilganda forma xodimni
+     * qaytadan tanlatmaydi. Tahrirlashda (`rule !== null`) e'tiborsiz.
+     */
+    presetUserId?: number | null
+    presetRole?: UserRoleName | null
+  }>(),
+  { presetUserId: null, presetRole: null },
+)
 
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -69,7 +83,7 @@ const categoryId = ref<number | null>(null)
 const groupType = ref<GroupTypeName | null>(null)
 
 const amountText = ref('')
-const academicHourText = ref('45')
+const academicHourText = ref('80')
 const basis = ref<PayrollBasisName>('Attended')
 
 const minStudentsText = ref('')
@@ -98,7 +112,7 @@ const percentKind = computed(() => isPercentKind(kind.value))
 const showTargeting = computed(() => supportsGroupTargeting(kind.value))
 const showBasis = computed(() => usesStudentCount(kind.value))
 const showTiers = computed(() => kind.value === 'TieredByAttendance')
-const showAcademicHour = computed(() => kind.value === 'PerAcademicHour')
+const showAcademicHour = computed(() => usesAcademicHour(kind.value))
 const showPlan = computed(() => percentKind.value)
 
 /* Tanlangan tur uchun formula va sonli misol — `kind-guide.ts` dan. */
@@ -112,9 +126,13 @@ function resetForm(): void {
   const rule = props.rule
 
   name.value = rule?.name ?? ''
-  kind.value = rule?.kind ?? 'PerSession'
-  role.value = rule?.role ?? 'Teacher'
-  userId.value = rule?.userId ?? null
+  // Standart tur — markazning HolliHop'dagi asosiy formulasi (2026-09-09).
+  kind.value = rule?.kind ?? 'PerStudentAcademicHour'
+  // `resetting` — pastdagi rol kuzatuvchisi oldindan tanlangan xodimni
+  // o'chirib yubormasin (u rol ALMASHGANDA xodimni tozalaydi).
+  resetting = true
+  role.value = rule?.role ?? props.presetRole ?? 'Teacher'
+  userId.value = rule?.userId ?? (rule === null ? props.presetUserId : null)
 
   courseId.value = rule?.courseId ?? null
   groupId.value = rule?.groupId ?? null
@@ -122,7 +140,7 @@ function resetForm(): void {
   groupType.value = rule?.groupType ?? null
 
   amountText.value = rule === null ? '' : String(rule.amount)
-  academicHourText.value = String(rule?.academicHourMinutes ?? 45)
+  academicHourText.value = String(rule?.academicHourMinutes ?? 80)
   basis.value = rule?.basis ?? 'Attended'
 
   minStudentsText.value = rule?.minStudents == null ? '' : String(rule.minStudents)
@@ -148,9 +166,14 @@ function resetForm(): void {
         }))
 
   errorMessage.value = null
+  // Kuzatuvchi `flush: 'sync'` bilan — bayroq shu yerda tushirilganda
+  // rol o'zgarishi allaqachon qayta ishlangan bo'ladi.
+  resetting = false
 }
 
-watch(() => [props.open, props.rule], resetForm, { immediate: true })
+let resetting = false
+
+watch(() => [props.open, props.rule, props.presetUserId, props.presetRole], resetForm, { immediate: true })
 
 /* Bosqichli turga o'tilganda kamida bitta bo'sh qator turishi kerak —
    aks holda admin "qayerga yozaman?" degan bo'sh jadvalni ko'rardi. */
@@ -160,10 +183,17 @@ watch(kind, (next) => {
   }
 })
 
-/* Rol o'zgarsa, boshqa rolga tegishli xodim tanlovi endi ma'nosiz. */
-watch(role, () => {
-  userId.value = null
-})
+/* Rol o'zgarsa, boshqa rolga tegishli xodim tanlovi endi ma'nosiz.
+   `flush: 'sync'` — `resetForm` ichidagi `resetting` bayrog'i bilan
+   ishlashi uchun (formani to'ldirish rol almashuvi emas). */
+watch(
+  role,
+  () => {
+    if (resetting) return
+    userId.value = null
+  },
+  { flush: 'sync' },
+)
 
 /* ------------------------------------------------------------- ma'lumot */
 
@@ -230,7 +260,7 @@ const academicHour = computed(() => parseMoneyInput(academicHourText.value))
 const academicHourError = computed(() => {
   if (!showAcademicHour.value) return null
   const value = academicHour.value
-  if (value === null) return 'Akademik soatni daqiqada kiriting (masalan 45).'
+  if (value === null) return 'Akademik soatni daqiqada kiriting (masalan 80).'
   if (value < 10 || value > 240) return 'Akademik soat 10..240 daqiqa oralig‘ida bo‘lishi kerak.'
   return null
 })
@@ -372,7 +402,7 @@ const mutation = useMutation({
       categoryId: targeting ? categoryId.value : null,
       groupType: targeting ? groupType.value : null,
 
-      academicHourMinutes: showAcademicHour.value ? (academicHour.value ?? 45) : 45,
+      academicHourMinutes: showAcademicHour.value ? (academicHour.value ?? 80) : 80,
       basis: showBasis.value ? basis.value : 'Attended',
 
       minStudents: sessionScoped.value && typeof minStudents.value === 'number' ? minStudents.value : null,
@@ -522,7 +552,7 @@ async function submit(): Promise<void> {
           <BaseField
             label="Akademik soat (daqiqa)"
             :error="academicHourError"
-            hint="80 daqiqalik dars 45 daqiqalik akademik soatda 1.78 soat beradi."
+            hint="Markazda dars 80 daqiqa — 80 qo‘yilsa bitta dars = 1 akademik soat. Uzaytirilgan daqiqalar hisobga olinmaydi."
           >
             <input
               v-model="academicHourText"
@@ -530,7 +560,7 @@ async function submit(): Promise<void> {
               type="text"
               inputmode="numeric"
               autocomplete="off"
-              placeholder="45"
+              placeholder="80"
             >
           </BaseField>
         </div>

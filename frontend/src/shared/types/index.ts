@@ -261,6 +261,8 @@ export type {
   ProfileAttendanceDto,
   ProfileFinanceDto,
   ProfileGroupDto,
+  ProfileStaffDto,
+  ProfileTaughtGroupDto,
   ProfilePeriodDto,
   ProfileStudyDto,
   ProfileTelegramDto,
