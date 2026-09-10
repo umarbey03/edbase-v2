@@ -436,7 +436,8 @@ internal static class RecordingWorld
         string? objectKey = null,
         long? sizeBytes = null,
         long? durationNanos = null,
-        string? error = null)
+        string? error = null,
+        string? details = null)
     {
         var id = eventId ?? "EV_" + Guid.NewGuid().ToString("N")[..12];
 
@@ -450,6 +451,12 @@ internal static class RecordingWorld
             ? string.Empty
             : string.Create(CultureInfo.InvariantCulture, $$""","error":"{{error}}" """).TrimEnd();
 
+        // LiveKit egressni O'ZI to'xtatganda sabab AYNAN shu maydonda
+        // keladi ("End reason: CPU exhausted") — `error` esa bo'sh qoladi.
+        var detailsField = details is null
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $$""","details":"{{details}}" """).TrimEnd();
+
         // `$$$` (uchta dollar) ATAYLAB: satr oxiridagi `}}` — JSON'ning LITERAL
         // yopuvchi qavslari (`egress_info` va ildiz obyekti). `$$` bilan ular
         // interpolatsiya teshigining yopilishi deb o'qiladi (CS9007). Uchta
@@ -457,7 +464,7 @@ internal static class RecordingWorld
         return string.Create(
             CultureInfo.InvariantCulture,
             $$$"""
-              {"event":"{{{eventName}}}","id":"{{{id}}}","egress_info":{"egress_id":"{{{egressId}}}","status":"{{{status}}}"{{{errorField}}}{{{file}}}}}
+              {"event":"{{{eventName}}}","id":"{{{id}}}","egress_info":{"egress_id":"{{{egressId}}}","status":"{{{status}}}"{{{errorField}}}{{{detailsField}}}{{{file}}}}}
               """);
     }
 }

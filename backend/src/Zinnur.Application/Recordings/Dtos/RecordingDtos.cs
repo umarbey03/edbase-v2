@@ -360,6 +360,21 @@ public sealed record LiveKitEgressListResult(
 /// </param>
 /// <param name="FileSizeBytes">Yozilgan faylning hajmi (baytda).</param>
 /// <param name="DurationSeconds">Videoning haqiqiy uzunligi.</param>
+/// <param name="Details">
+/// LiveKit'ning <c>details</c> maydoni — egress NEGA tugaganini
+/// ODAM O'QIYDIGAN matn bilan aytadi ("End reason: CPU exhausted").
+///
+/// 🔴 <see cref="Error"/> DAN AYRIM VA AYNAN SHU SABABDAN QO'SHILDI:
+/// protsessor yetmagani uchun O'LDIRILGAN egress ham <c>error: ""</c>,
+/// <c>code: 0</c> va TO'LIQ fayl kaliti bilan <c>EGRESS_COMPLETE</c>
+/// qaytaradi — ya'ni bizning tomondan u MUVAFFAQIYATLI yozuvdan hech
+/// nima bilan farq qilmasdi. 2026-09-09 da dars 1 soat davom etib,
+/// yozuvning 8 daqiqasi saqlangan va kartochkada "Tayyor" turgan edi.
+/// Sabab faqat shu maydonda bor.
+///
+/// ⚠️ LiveKit uni bermasligi ham mumkin — hech qachon MAJBURIY
+/// deb hisoblanmaydi, faqat sababni ANIQROQ qilish uchun ishlatiladi.
+/// </param>
 public sealed record LiveKitWebhookEventDto(
     string EventId,
     string EventName,
@@ -371,7 +386,8 @@ public sealed record LiveKitWebhookEventDto(
     int? DurationSeconds,
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
-    string? Error);
+    string? Error,
+    string? Details = null);
 
 /// <summary>
 /// LiveKit webhook hodisasining TREK/XONA qismi — yangi yozuv quvuri

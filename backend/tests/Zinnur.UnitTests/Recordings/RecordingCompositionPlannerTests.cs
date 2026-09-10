@@ -597,6 +597,121 @@ public sealed class RecordingCompositionPlannerTests
 
     // ═══════════════════════════════════════════════════ yordamchilar
 
+    // ═══════════════════════════════════ ovozni o'z oralig'iga cho'zish
+
+    /// <summary>
+    /// 🔴 O'LCHANMAGAN OVOZ — GRAF O'ZGARMAYDI VA REJA BUNI AYTADI.
+    ///
+    /// Birinchi rejada <c>ProbedDurationMs</c> DOIM bo'sh: fayl hali
+    /// diskka tushmagan. Graf bugungicha quriladi, lekin
+    /// <c>AssumedMediaMs</c> bo'sh qoladi — bu yig'uvchi uchun
+    /// "o'lchab ko'r, kerak bo'lsa qayta rejalashtiraman" degan signal.
+    /// </summary>
+    [Fact]
+    public void Audio_NotYetProbed_KeepsTheGraphAndReportsItIsUnmeasured()
+    {
+        var plan = Plan(Audio(1, 0, 5400), Camera(2, 0, 5400));
+
+        plan.FilterGraph.Should().Contain($"[1:a]adelay=0|0,{Tail}[a]");
+        plan.FilterGraph.Should().NotContain("atempo");
+
+        plan.Inputs.Single(i => i.Kind == RecordingTrackKind.RoomAudio)
+            .AssumedMediaMs.Should().BeNull("yig'uvchi shundan qayta rejalash kerakligini biladi");
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 QISQA YOZILGAN OVOZ O'Z ORALIG'IGA CHO'ZILADI
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// ATF 184 — dars 12 ning haqiqiy raqamlariga yaqin holat: oraliq
+    /// 5400 s, faylda esa 5369.3 s media bor (30.7 s yo'q). Cho'zilmasa
+    /// ovoz tasvirdan oldinda ketadi va farq dars oxirigacha to'planadi.
+    ///
+    /// ★ <c>atempo</c> <c>adelay</c> DAN OLDIN: avval faylning ichki
+    ///   vaqti to'g'rilanadi, keyin u vaqt o'qidagi joyiga qo'yiladi.
+    ///   Teskari tartibda surishning o'zi ham cho'zilardi.
+    /// </summary>
+    [Fact]
+    public void Audio_ShorterThanItsWindow_IsStretchedToFillIt()
+    {
+        var audio = Audio(1, 0, 5400);
+
+        audio.ProbedDurationMs = 5_369_300;
+
+        var plan = Plan(audio, Camera(2, 0, 5400));
+
+        plan.FilterGraph.Should().Contain($"[1:a]atempo=0.994315,adelay=0|0,{Tail}[a]");
+
+        plan.Inputs.Single(i => i.Kind == RecordingTrackKind.RoomAudio)
+            .AssumedMediaMs.Should().Be(5_369_300, "ikkinchi marta qayta rejalash bo'lmasin");
+    }
+
+    /// <summary>
+    /// O'LIK ZONA: 2 soniyalik farq uchun butun darsni <c>atempo</c> dan
+    /// o'tkazishning ma'nosi yo'q — <c>aresample</c> buni o'zi yutadi.
+    /// </summary>
+    [Fact]
+    public void Audio_WithinTheDeadBand_IsLeftAlone()
+    {
+        var audio = Audio(1, 0, 5400);
+
+        audio.ProbedDurationMs = 5_398_000;      // 2 s farq = 0.037%
+
+        Plan(audio, Camera(2, 0, 5400)).FilterGraph.Should().NotContain("atempo");
+    }
+
+    /// <summary>
+    /// 🔴 BUZUQ FAYL CHO'ZILMAYDI.
+    ///
+    /// O'lchangan eng yomon hol — 542 soniyalik darsning 90 soniyasi
+    /// umuman yo'q (16.7%). Buni cho'zish ovozni sezilarli
+    /// sekinlashtirib, nosozlikni YASHIRARDI: xodim "ustoz g'alati
+    /// gapiryapti" deb o'ylardi, "ovoz yozib olinmagan" deb emas.
+    /// Bunday yozuv tuzatilmasdan chiqadi va ogohlantirish oladi.
+    /// </summary>
+    [Fact]
+    public void Audio_MissingFarTooMuch_IsNotStretched()
+    {
+        var audio = Audio(1, 0, 542);
+
+        audio.ProbedDurationMs = 451_869;        // 16.7% yo'q
+
+        Plan(audio, Camera(2, 0, 542)).FilterGraph.Should().NotContain("atempo");
+    }
+
+    /// <summary>
+    /// Oralig'idan UZUN ovoz tasvirni orqaga surmaydi — ortig'ini
+    /// <c>aresample</c> kesadi. Uni siqish faqat zarar bo'lardi.
+    /// </summary>
+    [Fact]
+    public void Audio_LongerThanItsWindow_IsNotSqueezed()
+    {
+        var audio = Audio(1, 0, 5400);
+
+        audio.ProbedDurationMs = 5_430_000;
+
+        Plan(audio, Camera(2, 0, 5400)).FilterGraph.Should().NotContain("atempo");
+    }
+
+    /// <summary>
+    /// 🔴 SALBIY NAZORAT — CHO'ZISH FAQAT XONA OVOZIGA TEGISHLI.
+    ///
+    /// Video bo'lagi ham o'lchanadi va u ham qisqa bo'lishi mumkin,
+    /// lekin u vaqt o'qiga <c>-itsoffset</c> bilan qadalgan va o'z
+    /// <c>enable</c> oralig'ida chiziladi — cho'zish uni faqat
+    /// buzardi.
+    /// </summary>
+    [Fact]
+    public void Video_ShorterThanItsWindow_IsNotStretched()
+    {
+        var camera = Camera(2, 0, 5400);
+
+        camera.ProbedDurationMs = 5_000_000;
+
+        Plan(Audio(1, 0, 5400), camera).FilterGraph.Should().NotContain("atempo");
+    }
+
     private static CompositionPlan Plan(params RecordingTrack[] tracks) =>
         Plan(CompositionPlanSettings.Default, tracks);
 

@@ -100,7 +100,8 @@ public static class LiveKitWebhookParser
                 DurationSeconds: DurationOf(file, startedAt, endedAt),
                 StartedAt: startedAt,
                 EndedAt: endedAt,
-                Error: Text(info.Value, "error"));
+                Error: Text(info.Value, "error"),
+                Details: Text(info.Value, "details"));
         }
     }
 

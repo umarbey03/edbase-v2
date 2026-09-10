@@ -346,6 +346,123 @@ public sealed class LiveKitWebhookTests(RecordingFactory factory)
         recording.SizeBytes.Should().Be(4242);
     }
 
+    // ================================================ 🔴 DARSDAN OLDIN UZILGAN YOZUV
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 8 DAQIQALIK YOZUV "TAYYOR" BO'LIB TURMASLIGI KERAK
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 2026-09-09, ATF 195 — 2-dars. LiveKit egressni protsessor yetmagani
+    /// uchun 8-daqiqada o'ldirdi va hodisani <c>EGRESS_COMPLETE</c> qilib,
+    /// HAQIQIY fayl kaliti bilan yubordi (<c>error</c> BO'SH). Dars yana
+    /// ~50 daqiqa davom etdi, kartochkada esa yozuv "Tayyor" bo'lib turdi —
+    /// ya'ni xodim uchun sog'lom yozuvdan farq qilmasdi.
+    ///
+    /// AJRATUVCHI SHART: to'xtashni BIZ SO'RAMAGANMIZ
+    /// (<c>StopRequestedAt is null</c>) va dars hamon <c>Live</c>.
+    ///
+    /// Fayl SAQLANADI (<c>Completed</c>) — o'sha 8 daqiqa ham dars, uni
+    /// <c>Failed</c> qilib yashirish ikkinchi yo'qotish bo'lardi.
+    /// </summary>
+    [Fact]
+    public async Task Webhook_CompletedWhileTheLessonIsStillLive_IsMarkedTruncated()
+    {
+        var (recordingId, egressId) = await NewRecordingAsync();
+
+        var body = RecordingWorld.EgressEvent(
+            "egress_ended", egressId, "EGRESS_COMPLETE",
+            objectKey: "recordings/qisqa.mp4",
+            sizeBytes: 15_000_000,
+            durationNanos: 482_000_000_000,          // 8 daq 02 s
+            details: "End reason: CPU exhausted");
+
+        var response = await PostAsync(body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<WebhookAckDto>())!.Outcome.Should().Be("Completed");
+
+        var recording = await RecordingWorld.ReloadAsync(factory, recordingId);
+
+        recording.Status.Should().Be(
+            RecordingStatus.Completed,
+            "fayl haqiqiy va ochiladi — yozilgan 8 daqiqa yo'qotilmaydi");
+
+        recording.ObjectKey.Should().Be("recordings/qisqa.mp4");
+
+        recording.Error.Should().NotBeNull(
+            "aks holda kartochka uni to'liq yozuvdan ajratmaydi — 2026-09-09 dagi holat");
+
+        recording.Error.Should().Contain("8 daqiqasi saqlangan");
+
+        recording.Error.Should().Contain(
+            "CPU exhausted",
+            "LiveKit'ning sababi yagona ip — uni yashirish nosozlikni qidirishni imkonsiz qiladi");
+    }
+
+    /// <summary>
+    /// 🔴 SALBIY NAZORAT — ODATIY YAKUN OGOHLANTIRISH BERMAYDI.
+    ///
+    /// Dars "Yakunlash" bilan tugagan: dars <c>Ended</c>, to'xtatishni biz
+    /// so'raganmiz. Bu ENG KO'P uchraydigan yo'l va u sof qolishi shart —
+    /// aks holda har bir sog'lom yozuv qizil blok bilan chiqib, xodim
+    /// ogohlantirishga umuman qaramay qo'yardi.
+    /// </summary>
+    [Fact]
+    public async Task Webhook_CompletedAfterTheLessonEnded_CarriesNoWarning()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "whok");
+
+        var sessionId = await RecordingWorld.AddSessionAsync(
+            factory, world.GroupId, SessionStatus.Ended);
+
+        var egressId = "EG_" + Guid.NewGuid().ToString("N")[..16];
+
+        var recordingId = await RecordingWorld.AddRecordingAsync(
+            factory, sessionId, RecordingStatus.Active, egressId,
+            stopRequestedAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+
+        await PostAsync(RecordingWorld.EgressEvent(
+            "egress_ended", egressId, "EGRESS_COMPLETE",
+            objectKey: "recordings/toliq.mp4",
+            sizeBytes: 288_000_000,
+            durationNanos: 5_491_000_000_000));
+
+        var recording = await RecordingWorld.ReloadAsync(factory, recordingId);
+
+        recording.Status.Should().Be(RecordingStatus.Completed);
+        recording.Error.Should().BeNull("odatiy yakunda ogohlantiriladigan hech narsa yo'q");
+    }
+
+    /// <summary>
+    /// 🔴 DARS KETYAPTI, LEKIN TO'XTATISHNI BIZ SO'RAGANMIZ.
+    ///
+    /// Watchdog yoki xodim yozuvni ataylab to'xtatgan bo'lishi mumkin, dars
+    /// esa davom etaveradi. Bu KUTILGAN hol va u ogohlantirish EMAS —
+    /// shart AYNAN "biz so'ramaganmiz" ustiga qurilgani shuning uchun.
+    /// </summary>
+    [Fact]
+    public async Task Webhook_CompletedAfterWeAskedItToStop_CarriesNoWarning()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "whstop");
+        var sessionId = await RecordingWorld.AddSessionAsync(factory, world.GroupId);
+
+        var egressId = "EG_" + Guid.NewGuid().ToString("N")[..16];
+
+        var recordingId = await RecordingWorld.AddRecordingAsync(
+            factory, sessionId, RecordingStatus.Active, egressId,
+            stopRequestedAt: DateTimeOffset.UtcNow.AddSeconds(-5));
+
+        await PostAsync(RecordingWorld.EgressEvent(
+            "egress_ended", egressId, "EGRESS_COMPLETE",
+            objectKey: "recordings/qolda.mp4", sizeBytes: 1024));
+
+        var recording = await RecordingWorld.ReloadAsync(factory, recordingId);
+
+        recording.Status.Should().Be(RecordingStatus.Completed);
+        recording.Error.Should().BeNull();
+    }
+
     // ---------------------------------------------------------------- yordamchi
 
     /// <summary>To'g'ri imzolangan so'rov yuboradi.</summary>

@@ -45,6 +45,23 @@ internal static partial class RecordingLog
     internal static partial void WebhookApplied(
         ILogger logger, string eventName, string egressId, long recordingId, string status);
 
+    /// <summary>
+    /// Egress dars tugashidan oldin, biz so'ramagan holda to'xtagan.
+    ///
+    /// 🔴 `Warning`, `Information` EMAS: fayl bor va holat `Completed`,
+    /// ya'ni boshqa hech bir jurnal qatori bu darsni nosozlik deb
+    /// ko'rsatmaydi. LiveKit'ning `details` i (`End reason: …`) shu
+    /// yerda saqlanadi — u egress konteynerining o'z jurnalida qoladi
+    /// va u alohida joyda, alohida saqlash muddati bilan turadi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6504,
+        Level = LogLevel.Warning,
+        Message = "Yozuv darsdan oldin uzildi: yozuv={RecordingId} dars={SessionId} "
+                  + "uzunlik={DurationSeconds}s sabab={Details}")]
+    internal static partial void WebhookTruncated(
+        ILogger logger, long recordingId, long sessionId, int durationSeconds, string details);
+
     // ================================================================= boshlash/to'xtatish
 
     [LoggerMessage(

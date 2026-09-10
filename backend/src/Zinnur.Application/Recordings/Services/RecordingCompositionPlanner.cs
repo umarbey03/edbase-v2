@@ -163,6 +163,35 @@ public static class RecordingCompositionPlanner
     private const string AudioTail = "aresample=async=1:first_pts=0";
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// OVOZNI O'Z ORALIG'IGA CHO'ZISH — O'LIK ZONA
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Xona ovozi fayli o'z vaqt oralig'idan qisqa bo'lsa, tuzatish
+    /// FAQAT farq shu ulushdan oshganda qo'llanadi.
+    ///
+    /// ★ 0.05% ≈ 90 daqiqalik darsda 2.7 soniya — <c>aresample</c>
+    ///   o'zi yutadigan kichik farqlarni qayta ishlashning ma'nosi yo'q
+    ///   va har darsni sababsiz <c>atempo</c> dan o'tkazish faqat
+    ///   nozik sifat yo'qotishi bo'lardi.
+    /// </summary>
+    private const double AudioStretchDeadBand = 0.0005;
+
+    /// <summary>
+    /// ⚠️ BUNDAN KATTA FARQ TUZATILMAYDI — VA BU ATAYLAB.
+    ///
+    /// 5% dan ortiq yetishmayotgan ovoz "biroz siljigan" emas, BUZUQ
+    /// fayl (o'lchangan eng yomon hol — 16.7%, ya'ni 542 soniyalik
+    /// darsning 90 soniyasi umuman yo'q). Uni cho'zish ovozni
+    /// sekinlashtirib, nosozlikni YASHIRARDI: xodim "ustoz g'alati
+    /// gapiryapti" deb o'ylardi, "ovoz yozib olinmagan" deb emas.
+    ///
+    /// Bunday yozuv tuzatilmasdan chiqadi va <c>CompositionError</c>
+    /// orqali ogohlantirish oladi (<c>RecordingCompositionRunner</c>).
+    /// </summary>
+    private const double MaxAudioStretch = 0.05;
+
+    /// <summary>
     /// Rejani tuzadi.
     /// </summary>
     /// <param name="recording">Yig'iladigan yozuv (kaliti va Id'si olinadi).</param>
@@ -492,8 +521,12 @@ public static class RecordingCompositionPlanner
 
         if (audio.Count == 1)
         {
+            // 🔴 CHO'ZISH SURISHDAN OLDIN. `atempo` faylning ICHKI
+            //    vaqtini o'zgartiradi, `adelay` esa uni vaqt o'qiga
+            //    QO'YADI. Tartib teskari bo'lsa surishning o'zi ham
+            //    cho'zilardi va ovoz butunlay boshqa joyga tushardi.
             Add(graph,
-                $"[{firstAudioIndex}:a]{Placement(delays[0])},{AudioTail}"
+                $"[{firstAudioIndex}:a]{Stretch(audio[0], t0)}{Placement(delays[0])},{AudioTail}"
                 + CompositionPlan.AudioLabel);
 
             return;
@@ -573,6 +606,75 @@ public static class RecordingCompositionPlanner
     /// qabul qilmaydi va uni nolga yaxlitlash kalibrlashni jimgina
     /// ishlamaydigan qilib qo'yardi.
     /// </summary>
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// OVOZNI O'Z VAQT ORALIG'IGA CHO'ZADI
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Qaytaradi: <c>"atempo=0.994,"</c> yoki BO'SH satr.
+    ///
+    /// ── NIMA UCHUN KERAK (2026-09-10 da o'lchandi) ──────────────────
+    ///
+    /// SPEC §9.1 xona ovozini "butun darsni qamragan BITTA uzluksiz
+    /// fayl" deb hisoblaydi va butun vaqt o'qi shu taxminga tayanadi.
+    /// TAXMIN NOTO'G'RI: o'lchangan 12 darsning HAMMASIDA faylning
+    /// media uzunligi wall-clock oralig'idan qisqa — 0.13% dan 2.5%
+    /// gacha (5.5 s dan 123 s gacha).
+    ///
+    /// 🔴 QISQALIK TESHIK EMAS, SIQILISH. Agar fayl ichida vaqt o'qini
+    ///    saqlaydigan teshiklar bo'lganda <c>ffprobe</c> uzunligi
+    ///    oraliqqa TENG chiqardi (oxirgi granule pozitsiyasi o'sha
+    ///    yerda bo'lardi). U qisqa — ya'ni yo'qolgan vaqt o'qdan
+    ///    BUTUNLAY tushib qolgan va undan keyingi hamma narsa oldinga
+    ///    surilgan. Aynan shuning uchun <c>aresample=async=1</c> buni
+    ///    tuzatmaydi: u TESHIKLARNI to'ldiradi, teshik esa yo'q.
+    ///
+    /// Video wall-clock'ga <c>-itsoffset</c> bilan qadalgani uchun
+    /// natija — ovozning tasvirdan oldinda ketishi, va farq dars
+    /// oxirigacha to'planib boradi (ATF 184 — dars 12: 91.5 daqiqada
+    /// 30.7 s, ya'ni 14-daqiqada ~4.7 s).
+    ///
+    /// ── NIMA UCHUN AYNAN TEKIS CHO'ZISH ─────────────────────────────
+    ///
+    /// Yo'qotish qaysi lahzada bo'lganini fayl SAQLAMAYDI, ya'ni uni
+    /// aniq joyiga qaytarib bo'lmaydi. Tekis cho'zishning kafolati esa
+    /// arifmetik: siljish boshida ham, oxirida ham NOL bo'ladi va
+    /// eng yomon holatda (butun yo'qotish bitta lahzada) xatolik
+    /// bugungi eng yomon holatdan OSHMAYDI. O'lchangan taqsimot esa
+    /// bitta lahza emas — dars bo'ylab o'nlab kichik to'plam, ya'ni
+    /// amalda natija optimalga yaqin.
+    ///
+    /// ⚠️ <c>atempo</c> TOVUSH BALANDLIGINI O'ZGARTIRMAYDI (u vaqt
+    ///    bo'yicha cho'zadi, tezlikni emas), ya'ni ustozning ovozi
+    ///    o'zgarmaydi. 0.5–2.5% oraliq baribir quloqqa sezilmaydi.
+    /// </summary>
+    private static string Stretch(RecordingTrack track, DateTimeOffset t0)
+    {
+        if (track.Kind != RecordingTrackKind.RoomAudio) return string.Empty;
+
+        // O'lchanmagan — bu BIRINCHI reja. Yig'uvchi diskda o'lchagach
+        // qayta rejalashni so'raydi (`CompositionResult.RePlanRequested`).
+        if (track.ProbedDurationMs is not { } probed || probed <= 0) return string.Empty;
+
+        var span = SpanOf(track, t0).Length * 1000d;
+
+        if (span <= 0) return string.Empty;
+
+        var shortfall = (span - probed) / span;
+
+        // Ortiqcha uzun ovoz (manfiy) tasvirni orqaga surmaydi —
+        // `aresample` ortig'ini kesadi. Kichik farq — o'lik zona.
+        if (shortfall <= AudioStretchDeadBand) return string.Empty;
+
+        // Buzuq fayl: tuzatilmaydi, ogohlantiriladi (`MaxAudioStretch`).
+        if (shortfall > MaxAudioStretch) return string.Empty;
+
+        // `atempo < 1` — CHO'ZADI. probed/span aynan shu nisbat.
+        var tempo = Math.Round(probed / span, 6);
+
+        return $"atempo={tempo.ToString("0.######", CultureInfo.InvariantCulture)},";
+    }
+
     private static string Placement(long delayMs) =>
         delayMs >= 0
             ? $"adelay={delayMs.ToString(CultureInfo.InvariantCulture)}|"
@@ -596,7 +698,8 @@ public static class RecordingCompositionPlanner
             // 🔴 OVOZDA SURISH YO'Q — u filtr grafida (`adelay`) beriladi.
             //    Sabab `CompositionInput.ItsOffsetSeconds` izohida.
             ItsOffsetSeconds: video ? span.Start : 0,
-            ExpectedDurationMs: (int)Math.Round(span.Length * 1000));
+            ExpectedDurationMs: (int)Math.Round(span.Length * 1000),
+            AssumedMediaMs: track.ProbedDurationMs);
     }
 
     /// <summary>

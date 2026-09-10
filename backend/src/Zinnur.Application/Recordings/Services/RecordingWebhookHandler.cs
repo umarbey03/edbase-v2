@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Recordings.Dtos;
 using Zinnur.Domain.Entities;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Recordings.Services;
 
@@ -59,8 +60,13 @@ public sealed class RecordingWebhookHandler(
             return RecordingWebhookOutcome.Duplicate;
         }
 
+        // ★ `Session` KERAK: dars hali ketayotgan bo'lsa, "tugadi" degan
+        //   egress hodisasi yozuvning DARSDAN OLDIN uzilganini bildiradi
+        //   (`Complete` dagi izoh). Bittagina `Include` — hodisa
+        //   sekundiga bir marta ham kelmaydi.
         var recording = await db.SessionRecordings
             .AsTracking()
+            .Include(r => r.Session)
             .FirstOrDefaultAsync(r => r.EgressId == evt.EgressId, ct)
             .ConfigureAwait(false);
 
@@ -84,6 +90,19 @@ public sealed class RecordingWebhookHandler(
 
         RecordingLog.WebhookApplied(
             logger, evt.EventName, evt.EgressId!, recording.Id, recording.Status.ToString());
+
+        // ★ SHART SHU YERDA "QAYTA HISOBLANMAYDI": `MarkCompleted` `Error`
+        //   ni TOZALAYDI, ya'ni tugallangan qatorda matn qolgan bo'lsa uni
+        //   AYNAN `MarkTruncated` qo'ygan (`Complete` dagi izoh).
+        if (outcome == RecordingWebhookOutcome.Completed && recording.Error is { Length: > 0 })
+        {
+            RecordingLog.WebhookTruncated(
+                logger,
+                recording.Id,
+                recording.SessionId,
+                recording.DurationSeconds ?? 0,
+                evt.Details ?? "—");
+        }
 
         return outcome;
     }
@@ -142,13 +161,78 @@ public sealed class RecordingWebhookHandler(
         return RecordingWebhookOutcome.Started;
     }
 
+    /// <summary>
+    /// Egress "tugadi" dedi va fayl kaliti keldi.
+    ///
+    /// ══════════════════════════════════════════════════════════════════
+    /// 🔴 "TUGADI" HAR DOIM HAM "DARS TUGADI" DEGANI EMAS
+    /// ══════════════════════════════════════════════════════════════════
+    ///
+    /// LiveKit egressni O'ZI to'xtatishi mumkin — protsessor yetmasa
+    /// (<c>End reason: CPU exhausted</c>), ichki nosozlikda, xona
+    /// yopilganda. Bularning HAMMASI bir xil ko'rinadi: <c>error: ""</c>,
+    /// <c>code: 0</c> va haqiqiy fayl kaliti bilan
+    /// <c>EGRESS_COMPLETE</c>. Ya'ni hodisaning O'ZIDAN yozuv to'liqmi
+    /// yoki yo'qmi, BILIB BO'LMAYDI.
+    ///
+    /// ★ AJRATUVCHI SAVOL — "TO'XTASHNI BIZ SO'RAGANMIDIK?":
+    ///
+    ///   • <c>StopRequestedAt is not null</c> — ha, biz so'raganmiz
+    ///     (dars "Yakunlash" bilan tugadi yoki watchdog to'xtatdi).
+    ///     Normal yakun.
+    ///   • <c>StopRequestedAt is null</c> VA dars hamon <c>Live</c> —
+    ///     egress O'ZI o'ldi, dars esa DAVOM ETYAPTI. Fayl bor, lekin
+    ///     u darsning faqat bir qismi.
+    ///
+    /// 🔴 NIMA UCHUN DARS UZUNLIGI BILAN SOLISHTIRILMAYDI: dars
+    ///    jadvaldagidan erta ham, kech ham tugaydi va "qancha qisqa
+    ///    bo'lsa shubhali" degan chegara har doim yo yolg'on ogohlantirish
+    ///    berardi, yo haqiqiysini o'tkazib yuborardi. "Biz so'ramaganmiz,
+    ///    dars esa ketyapti" esa chegarasiz, ANIQ shart.
+    ///
+    /// ⚠️ POYGA YO'Q: "Yakunlash" oqimida dars avval <c>Ended</c> bo'ladi,
+    ///    to'xtatish esa undan KEYIN so'raladi — ya'ni bu shart ikkala
+    ///    tomondan ham himoyalangan.
+    /// </summary>
     private static RecordingWebhookOutcome Complete(
         SessionRecording recording, LiveKitWebhookEventDto evt, DateTimeOffset now)
     {
         recording.MarkCompleted(
             evt.ObjectKey, evt.FileSizeBytes, evt.DurationSeconds, evt.EndedAt ?? now, now);
 
+        if (IsTruncated(recording))
+            recording.MarkTruncated(TruncatedReason(recording, evt), now);
+
         return RecordingWebhookOutcome.Completed;
+    }
+
+    /// <summary>Dars ketayotganda, biz so'ramagan holda tugagan yozuv.</summary>
+    private static bool IsTruncated(SessionRecording recording) =>
+        recording.StopRequestedAt is null
+        && recording.Session?.Status == SessionStatus.Live;
+
+    /// <summary>
+    /// Xodim o'qiydigan sabab. Uzunlik ATAYLAB matnga qo'shiladi: xodim
+    /// kartochkada "1 soat 32 daq" ni ko'rib turadi va "8 daqiqa
+    /// saqlandi" degan qator ikkisini bir qarashda solishtirishga imkon
+    /// beradi.
+    ///
+    /// LiveKit'ning <c>details</c> i bo'lsa QAVSDA qo'shiladi — u
+    /// o'zbekcha emas, lekin AYNAN u sababni aytadi
+    /// ("End reason: CPU exhausted") va uni yashirish nosozlikni
+    /// qidirayotgan odamdan yagona ipni olib qo'yardi.
+    /// </summary>
+    private static string TruncatedReason(
+        SessionRecording recording, LiveKitWebhookEventDto evt)
+    {
+        var minutes = (recording.DurationSeconds ?? 0) / 60;
+
+        var reason = $"Yozuv dars tugashidan oldin uzilib qoldi — "
+                   + $"faqat {minutes} daqiqasi saqlangan.";
+
+        return string.IsNullOrWhiteSpace(evt.Details)
+            ? reason
+            : $"{reason} ({evt.Details.Trim()})";
     }
 
     private static RecordingWebhookOutcome Fail(

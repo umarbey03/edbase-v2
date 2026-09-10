@@ -194,6 +194,47 @@ public sealed class RecordingCompositionRunner(
                     result = await composer.ComposeAsync(plan, ct).ConfigureAwait(false);
                 }
             }
+
+            // ══════════════════════════════════════════════════════════
+            // 🔴 XOM OVOZ REJADAGIDAN QISQA — REJA QAYTA QURILADI
+            //
+            // Yig'uvchi fayllarni tushirib o'lchagach, xona ovozi reja
+            // ishongan uzunlikdan sezilarli farq qilsa KODLAMASDAN
+            // qaytadi. Bu yerda o'lchovlar qatorlarga yoziladi va reja
+            // AYNI kechada, endi haqiqiy raqamlar bilan qayta quriladi:
+            // planner ovozni o'z oralig'iga cho'zadigan `atempo` ni
+            // qo'shadi (`RecordingCompositionPlanner.Stretch`).
+            //
+            // ★ URINISH SARFLANMAYDI VA BU MUHIM: bu nosozlik emas,
+            //   o'lchash natijasi. `CompositionAttempts` ni oshirish
+            //   uch kechadan keyin butunlay sog'lom yozuvni o'ldirardi.
+            //
+            // ⚠️ CHEKSIZ AYLANISH YO'Q: `ApplyProbes` dan keyin
+            //    `ProbedDurationMs` to'ldirilgan bo'ladi, ya'ni yangi
+            //    rejada `AssumedMediaMs` bor va yig'uvchi bayroqni
+            //    ikkinchi marta ko'tarmaydi.
+            // ══════════════════════════════════════════════════════════
+            if (result.RePlanRequested)
+            {
+                ApplyProbes(recording, result);
+
+                var remeasured = RecordingCompositionPlanner.Create(
+                    recording, recording.Tracks, configuration);
+
+                if (remeasured.Plan is { } corrected)
+                {
+                    plan = corrected;
+                    result = await composer.ComposeAsync(plan, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Reja qurilmadi — o'lchovsiz holatdagi bilan AYNI
+                    // sabab, ya'ni uni odatiy nosozlik yo'liga beramiz.
+                    result = CompositionResult.Fail(
+                        remeasured.Error ?? RecordingCompositionPlanner.NoTracksReason,
+                        result.Probes);
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -216,10 +257,10 @@ public sealed class RecordingCompositionRunner(
 
         await StopAsync(beat, heartbeat).ConfigureAwait(false);
 
-        ApplyProbes(recording, result);
+        var drift = ApplyProbes(recording, result);
 
         return result.Succeeded
-            ? await CompleteAsync(recording, plan, result, ct).ConfigureAwait(false)
+            ? await CompleteAsync(recording, plan, result, drift, ct).ConfigureAwait(false)
             : await RetryOrGiveUpAsync(recording, result).ConfigureAwait(false);
     }
 
@@ -229,6 +270,7 @@ public sealed class RecordingCompositionRunner(
         SessionRecording recording,
         CompositionPlan plan,
         CompositionResult result,
+        string? driftWarning,
         CancellationToken ct)
     {
         var now = clock.GetUtcNow();
@@ -238,12 +280,19 @@ public sealed class RecordingCompositionRunner(
 
         // ⚠️ OGOHLANTIRISH YAKUNDAN KEYIN YOZILADI: `MarkCompositionCompleted`
         //    `CompositionError` ni TOZALAYDI (u nosozlik sababi uchun
-        //    o'ylangan). Bu yerdagi yagona holat — "ovoz yozib olinmadi":
-        //    fayl tayyor va ochiladi, lekin JIM. Xodim buni ochmasdan
-        //    bilishi kerak, aks holda "yozuv buzuq" degan xabar keladi
-        //    (§4.6). Boshqa staff-ga ko'rinadigan maydon yo'q.
-        if (plan.Warning is { Length: > 0 } warning)
-            recording.CompositionError = warning;
+        //    o'ylangan). Ikkita holat bor va IKKALASI ham "fayl tayyor,
+        //    lekin ochishdan OLDIN bilish kerak" turkumidan:
+        //      • "ovoz yozib olinmadi" — fayl JIM (§4.6);
+        //      • ovoz spinasi qisqa yozilgan — ovoz tasvirdan oldinda
+        //        ketadi (§9.1, `DriftWarningOf` izohi).
+        //    Boshqa staff-ga ko'rinadigan maydon yo'q, shuning uchun
+        //    ikkalasi bitta ustunda birlashtiriladi.
+        var warnings = new[] { plan.Warning, driftWarning }
+            .Where(w => w is { Length: > 0 })
+            .ToArray();
+
+        if (warnings.Length > 0)
+            recording.CompositionError = string.Join(' ', warnings);
 
         await db.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -331,8 +380,13 @@ public sealed class RecordingCompositionRunner(
     /// ularning FARQI. O'n darsdan keyin bu farqlar siljish tezligini
     /// beradi va §9.1 aynan shu raqamlar bo'yicha hal qilinadi.
     /// </summary>
-    private void ApplyProbes(SessionRecording recording, CompositionResult result)
+    /// <returns>
+    /// Xodimga ko'rsatiladigan siljish ogohlantirishi yoki <c>null</c>.
+    /// </returns>
+    private string? ApplyProbes(SessionRecording recording, CompositionResult result)
     {
+        string? warning = null;
+
         foreach (var probe in result.Probes)
         {
             var track = recording.Tracks.FirstOrDefault(t => t.Id == probe.TrackId);
@@ -356,7 +410,62 @@ public sealed class RecordingCompositionRunner(
                 track.Kind.ToString(),
                 (int)Math.Round(expected),
                 probe.DurationMs);
+
+            warning ??= DriftWarningOf(track.Kind, expected, probe.DurationMs);
         }
+
+        return warning;
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// OVOZ SPINASI QISQA YOZILGAN — TASVIR BILAN MOS KELMAYDI
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 FAQAT <see cref="RecordingTrackKind.RoomAudio"/> UCHUN, VA BU
+    ///    §9.1 NING O'Z QOIDASI: ovoz — vaqt o'qining O'ZI, ya'ni
+    ///    uning siljishi YOZUVNING siljishi. Video bo'lagining bir
+    ///    necha soniyasi esa sezilmaydi, chunki lab-sinxron AYNAN
+    ///    ovozga qarab baholanadi — video qatorini ham ogohlantirishga
+    ///    aylantirish har kartochkani sababsiz qizartirardi.
+    ///
+    /// ── NIMA UCHUN BU UMUMAN KO'RINISHI KERAK (2026-09-10) ──────────
+    ///
+    /// Xona mikseri protsessor bosimi ostida ovoz sample'larini
+    /// tashlaydi (egress logida <c>buffer full, dropping sample</c>) va
+    /// buni PTS'da TESHIK qoldirmasdan qiladi — ya'ni .ogg fayli
+    /// wall-clock oralig'idan QISQA chiqadi. Yig'ishda ovoz bitta
+    /// <c>adelay</c> bilan qo'yiladi va o'z tezligida ketaveradi,
+    /// video esa <c>-itsoffset</c> bilan wall-clock'ga qadalgan.
+    /// Natijada yo'qolgan har bir soniya ovozni tasvirdan OLDINGA
+    /// suradi va farq dars oxirigacha to'planib boradi.
+    ///
+    /// ⚠️ <c>recordings.compose_audio_offset_ms</c> BUNI TUZATMAYDI va
+    ///    u bilan urinib ko'rish XATO: o'sha sozlama DOIMIY siljish
+    ///    uchun, bu esa zinapoya (yo'qotish portlash-portlash bo'lib
+    ///    keladi). Haqiqiy yechim — sample tashlanishini to'xtatish,
+    ///    ya'ni egressga protsessor bo'shatish.
+    ///
+    /// ★ MATN SONI BILAN: xodim ochmasdan turib "bu 1 soniyami yoki
+    ///   yarim daqiqami" degan savolga javob oladi va shikoyatni
+    ///   o'sha zahoti tekshira oladi (yozuvning OXIRIDA shuncha vaqt
+    ///   umuman ovoz bo'lmaydi).
+    /// </summary>
+    private static string? DriftWarningOf(
+        RecordingTrackKind kind, double expectedMs, int probedMs)
+    {
+        if (kind != RecordingTrackKind.RoomAudio) return null;
+
+        var lostMs = expectedMs - probedMs;
+
+        // Ovoz KUTILGANIDAN UZUN bo'lishi (manfiy farq) boshqa hodisa va
+        // u tasvirni orqaga surmaydi — `aresample` ortig'ini kesadi.
+        if (lostMs <= DriftWarningThreshold.TotalMilliseconds) return null;
+
+        var seconds = (int)Math.Round(lostMs / 1000d);
+
+        return $"Ovoz tasvirdan taxminan {seconds} soniya oldinda ketishi mumkin "
+             + "(dars ovozi shuncha qisqa yozib olingan).";
     }
 
     // ═════════════════════════════════════════════════════════ tozalash

@@ -433,6 +433,44 @@ public class SessionRecording : BaseEntity
     }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// FAYL BOR, LEKIN DARSNING HAMMASI EMAS
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Egress dars tugashidan OLDIN, biz so'ramagan holda o'zi to'xtagan.
+    /// Fayl haqiqiy va ochiladi — shuning uchun holat
+    /// <see cref="RecordingStatus.Completed"/> bo'lib QOLADI va
+    /// <see cref="MarkFailed"/> ISHLATILMAYDI: yozuvni <c>Failed</c>
+    /// qilish bor faylni ro'yxatdan yashirib, o'sha 8 daqiqani ham
+    /// yo'qotardi.
+    ///
+    /// 🔴 NIMA UCHUN UMUMAN KERAK (2026-09-09, ATF 195 — 2-dars):
+    /// protsessor yetmagani uchun LiveKit egressni 8-daqiqada o'ldirdi
+    /// (<c>End reason: CPU exhausted</c>), lekin hodisani fayl kaliti
+    /// bilan <c>EGRESS_COMPLETE</c> qilib yubordi. Dars yana ~50 daqiqa
+    /// davom etdi. Bizda esa yozuv "Tayyor" bo'lib turdi — ya'ni
+    /// XODIM UCHUN SOG'LOM yozuvdan farq qilmasdi va nosozlik faqat
+    /// o'quvchi shikoyat qilgandan keyin bilindi.
+    ///
+    /// ★ SABAB <see cref="Error"/> GA YOZILADI, chunki kartochka aynan
+    ///   shu ustunni qizil blokda ko'rsatadi va u yozuvning YAKUNIY,
+    ///   foydalanuvchiga ko'rinadigan holati haqida
+    ///   (<c>CompositionError</c> esa tungi montajning ORALIQ holati —
+    ///   bu qator umuman <see cref="RecordingPipeline.RoomComposite"/>).
+    ///
+    /// IDEMPOTENT: takroriy yoki kech kelgan hodisa matnni almashtiradi,
+    /// holatni emas. TUGALLANMAGAN yozuvga TEGMAYDI — u hali o'z
+    /// oqimida va uning sababi <see cref="MarkFailed"/> ning ishi.
+    /// </summary>
+    public void MarkTruncated(string reason, DateTimeOffset now)
+    {
+        if (Status != RecordingStatus.Completed) return;
+
+        Error = Trim(reason);
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Yozuv chiqmadi. TUGALLANGAN yozuvga TEGMAYDI (kech kelgan yoki
     /// takroriy "xato" hodisasi tayyor faylni yo'q qilib qo'ymasin).
     /// </summary>

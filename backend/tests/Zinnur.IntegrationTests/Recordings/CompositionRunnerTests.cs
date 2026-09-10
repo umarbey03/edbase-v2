@@ -122,6 +122,135 @@ public sealed class CompositionRunnerTests(FakeComposerFactory factory)
     }
 
     /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 O'LCHOV REJANI TUZATADI — KODLASH ESA BIR MARTA BO'LADI
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Yig'uvchi xom ovozni diskda o'lchab, u reja ishongan uzunlikdan
+    /// qisqa ekanini ko'radi va KODLAMASDAN qaytadi. Runner o'lchovni
+    /// qatorga yozadi, rejani qayta quradi (endi <c>atempo</c> bilan) va
+    /// AYNI kechada yana chaqiradi.
+    ///
+    /// ★ QO'SHIMCHA NARX — FAQAT BIR MARTA YUKLAB OLISH. Kodlash birinchi
+    ///   chaqiruvda umuman boshlanmaydi, ya'ni tungi oyna ikki barobar
+    ///   yeyilmaydi.
+    ///
+    /// 🔴 URINISH SARFLANMAYDI: bu nosozlik emas, o'lchash natijasi.
+    ///    Sarflansa uch kechadan keyin butunlay sog'lom yozuv o'lardi.
+    /// </summary>
+    [Fact]
+    public async Task Compose_WhenTheRawAudioIsShorter_RePlansOnceAndStretchesIt()
+    {
+        var lesson = await NewLessonAsync();
+        var tracks = await AddTracksAsync(lesson, RawKey(), RawKey());
+
+        // Ovoz oralig'i 90 daqiqa, faylda esa 30.7 s kam.
+        var probes = new[]
+        {
+            new ProbedTrackDuration(tracks.AudioId, 5_369_300),
+            new ProbedTrackDuration(tracks.VideoId, 1_500_000),
+        };
+
+        factory.Composer.OnCompose = (plan, _) => Task.FromResult(
+            plan.FilterGraph.Contains("atempo", StringComparison.Ordinal)
+                ? CompositionResult.Ok(302_005_931, 5400, probes)
+                : CompositionResult.NeedsRePlan(probes));
+
+        var result = await factory.RunCompositionAsync();
+
+        result.Outcome.Should().Be(CompositionCycleOutcome.Completed);
+
+        factory.Composer.Plans.Should().HaveCount(2, "bir marta o'lchov, bir marta kodlash");
+
+        factory.Composer.Plans[0].FilterGraph.Should().NotContain("atempo");
+        factory.Composer.Plans[1].FilterGraph.Should().Contain("atempo=0.994315");
+
+        var row = await CompositionWorld.ReloadAsync(factory, lesson.RecordingId);
+
+        row.CompositionStatus.Should().Be(RecordingCompositionStatus.Completed);
+
+        row.CompositionAttempts.Should().Be(
+            0,
+            "hisoblagich faqat NOSOZLIKDA oshadi; qayta rejalash esa nosozlik emas — "
+            + "u o'lchash natijasi va uni sanash uch kechadan keyin sog'lom yozuvni o'ldirardi");
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// 🔴 OVOZ SPINASI QISQA — XODIM BUNI OCHMASDAN BILISHI KERAK
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 2026-09-10, ATF 184 — dars 12. Xona mikseri protsessor bosimi ostida
+    /// sample tashlagan va .ogg wall-clock oralig'idan 30.7 s QISQA chiqqan.
+    /// Yig'ish ovozni bitta <c>adelay</c> bilan qo'yadi, video esa
+    /// <c>-itsoffset</c> bilan wall-clock'ga qadalgan — natijada ovoz
+    /// tasvirdan oldinda ketadi va farq dars oxirigacha to'planadi.
+    ///
+    /// ILGARI bu FAQAT jurnalga tushardi (<c>CompositionDrift</c>), fayl esa
+    /// hech qanday belgisiz chiqardi. Ya'ni nosozlikni o'quvchi topardi,
+    /// tizim emas.
+    /// </summary>
+    [Fact]
+    public async Task Compose_ShortAudioSpine_LeavesADriftWarningForStaff()
+    {
+        var lesson = await NewLessonAsync();
+        var tracks = await AddTracksAsync(lesson, RawKey(), RawKey());
+
+        factory.Composer.OnCompose = (plan, _) => Task.FromResult(
+            CompositionResult.Ok(302_005_931, 5400,
+            [
+                // 90 daqiqalik oraliq, 5 369 300 ms ovoz — 30.7 s yo'q.
+                new ProbedTrackDuration(tracks.AudioId, 5_369_300),
+                new ProbedTrackDuration(tracks.VideoId, 1_500_000),
+            ]));
+
+        await factory.RunCompositionAsync();
+
+        var row = await CompositionWorld.ReloadAsync(factory, lesson.RecordingId);
+
+        row.CompositionStatus.Should().Be(
+            RecordingCompositionStatus.Completed,
+            "fayl tayyor — ogohlantirish uni yiqitmaydi");
+
+        row.CompositionError.Should().NotBeNull();
+
+        row.CompositionError.Should().Contain(
+            "31 soniya",
+            "raqamsiz matn xodimga 1 soniyami yoki yarim daqiqami degan savolga javob bermaydi");
+    }
+
+    /// <summary>
+    /// 🔴 SALBIY NAZORAT — VIDEO BO'LAGINING SILJISHI OGOHLANTIRISH EMAS.
+    ///
+    /// §9.1: lab-sinxron AYNAN ovozga qarab baholanadi, ya'ni ovoz —
+    /// vaqt o'qining O'ZI. Video bo'lagining bir necha soniyasi sezilmaydi,
+    /// va uni ham qizil blokka aylantirish har kartochkani sababsiz
+    /// bezovta qilardi (o'lchangan darslarning deyarli hammasida video
+    /// bo'lagi bir necha soniyaga farq qiladi).
+    /// </summary>
+    [Fact]
+    public async Task Compose_ShortVideoSegment_LeavesNoWarning()
+    {
+        var lesson = await NewLessonAsync();
+        var tracks = await AddTracksAsync(lesson, RawKey(), RawKey());
+
+        factory.Composer.OnCompose = (plan, _) => Task.FromResult(
+            CompositionResult.Ok(1024, 5400,
+            [
+                new ProbedTrackDuration(tracks.AudioId, 5_400_000),
+                // 25 daqiqalik oraliq, 19.3 s yo'q — faqat jurnalga.
+                new ProbedTrackDuration(tracks.VideoId, 1_480_700),
+            ]));
+
+        await factory.RunCompositionAsync();
+
+        var row = await CompositionWorld.ReloadAsync(factory, lesson.RecordingId);
+
+        row.CompositionStatus.Should().Be(RecordingCompositionStatus.Completed);
+        row.CompositionError.Should().BeNull();
+    }
+
+    /// <summary>
     /// Mikser yiqilgan dars: fayl TAYYOR, lekin JIM. Xodim buni OCHMASDAN
     /// bilishi kerak (§4.6), aks holda "yozuv buzuq" degan xabar keladi.
     /// </summary>

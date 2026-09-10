@@ -168,6 +168,26 @@ public sealed record CompositionPlan(
 /// O'lchangan uzunlik bundan 2 soniyadan ko'p farq qilsa — siljish
 /// signali (§9.1).
 /// </param>
+/// <param name="AssumedMediaMs">
+/// Reja shu faylning ICHIDA qancha media borligiga qanday ISHONGANI.
+///
+/// 🔴 <see cref="ExpectedDurationMs"/> DAN AYRIM VA FARQI BUTUN
+///    TUZATISHNING MA'NOSI:
+///      • <c>ExpectedDurationMs</c> — vaqt o'qidagi ORALIQ
+///        (<c>EndedAt - StartedAt</c>), ya'ni fayl QANCHA VAQTNI
+///        qamrashi kerak;
+///      • <c>AssumedMediaMs</c> — faylda HAQIQATDA qancha media bor
+///        (<c>RecordingTrack.ProbedDurationMs</c>).
+///
+///    Xona ovozi fayli bu ikkisi TENG deb hisoblangan edi. Amalda u
+///    doim qisqaroq (o'lchangan 12 darsda 0.13%–2.5%), ya'ni ovoz
+///    tasvirdan oldinda ketardi.
+///
+/// ★ <c>null</c> — "hali o'lchanmagan". Birinchi rejada DOIM shunday
+///   bo'ladi: o'lchov faqat fayl diskka tushgach mumkin. Shu bayroq
+///   yig'uvchiga "kodlashdan oldin qayta rejalash kerak" degan
+///   signalni beradi (<see cref="CompositionResult.RePlanRequested"/>).
+/// </param>
 public sealed record CompositionInput(
     int Index,
     long TrackId,
@@ -175,7 +195,8 @@ public sealed record CompositionInput(
     string ObjectKey,
     string FileName,
     double ItsOffsetSeconds,
-    int ExpectedDurationMs);
+    int ExpectedDurationMs,
+    int? AssumedMediaMs = null);
 
 /// <summary>
 /// Yig'ishning natijasi.
@@ -211,13 +232,30 @@ public sealed record CompositionInput(
 /// hammasini emas. Ro'yxat bo'lmasa yagona iloj butun yozuvni yiqitish
 /// bo'lardi va u har urinishda AYNAN shu joyda qayta yiqilardi.
 /// </param>
+/// <param name="RePlanRequested">
+/// "O'LCHADIM — REJA NOTO'G'RI EDI, KODLAMADIM."
+///
+/// 🔴 BU NOSOZLIK EMAS VA URINISH SARFLAMAYDI. Yig'uvchi xom fayllarni
+/// tushirib o'lchagach, ularning biri reja ishongan uzunlikdan sezilarli
+/// farq qilsa, kodlashni UMUMAN boshlamaydi va shu bayroq bilan
+/// qaytadi. Chaqiruvchi o'lchovlarni qatorlarga yozadi, rejani QAYTA
+/// quradi (endi haqiqiy raqamlar bilan) va AYNI aylanishda yana
+/// chaqiradi — <c>MissingTrackIds</c> dagi AYNI naqsh.
+///
+/// ★ NIMA UCHUN ARZON: o'lchash kodlashdan OLDIN bo'ladi, ya'ni
+///   qo'shimcha narx — faqat bir marta yuklab olish, kodlash EMAS.
+///   Ikkinchi chaqiruvda reja allaqachon o'lchangan qiymat bilan
+///   quriladi (<c>CompositionInput.AssumedMediaMs</c>), ya'ni bayroq
+///   ikkinchi marta ko'tarilmaydi va cheksiz aylanish BO'LMAYDI.
+/// </param>
 public sealed record CompositionResult(
     bool Succeeded,
     long? SizeBytes,
     int? DurationSeconds,
     string? Error,
     IReadOnlyList<ProbedTrackDuration> Probes,
-    IReadOnlyList<long> MissingTrackIds)
+    IReadOnlyList<long> MissingTrackIds,
+    bool RePlanRequested = false)
 {
     public static CompositionResult Ok(
         long sizeBytes,
@@ -230,6 +268,13 @@ public sealed record CompositionResult(
         IReadOnlyList<ProbedTrackDuration>? probes = null,
         IReadOnlyList<long>? missingTrackIds = null) =>
         new(false, null, null, error, probes ?? [], missingTrackIds ?? []);
+
+    /// <summary>
+    /// Kodlash boshlanmadi — reja o'lchangan uzunliklar bilan qayta
+    /// qurilishi kerak. <see cref="RePlanRequested"/> ga qarang.
+    /// </summary>
+    public static CompositionResult NeedsRePlan(IReadOnlyList<ProbedTrackDuration> probes) =>
+        new(false, null, null, null, probes, [], RePlanRequested: true);
 }
 
 /// <summary>Bitta xom faylning o'lchangan uzunligi.</summary>

@@ -171,6 +171,56 @@ public sealed class SessionRecordingTests
         recording.SizeBytes.Should().Be(100);
     }
 
+    // ================================================================= uzilib qolgan
+
+    /// <summary>
+    /// Dars tugashidan oldin uzilgan yozuv: fayl QOLADI, sabab esa
+    /// ko'rinadi. Holat <c>Completed</c> — 8 daqiqa ham dars, uni
+    /// <c>Failed</c> qilib yashirish ikkinchi yo'qotish bo'lardi.
+    /// </summary>
+    [Fact]
+    public void MarkTruncated_KeepsTheFileAndShowsTheReason()
+    {
+        var recording = New();
+
+        recording.MarkCompleted("recordings/qisqa.mp4", 15_000_000, 482, Now, Now);
+        recording.MarkTruncated("Yozuv dars tugashidan oldin uzilib qoldi.", Now);
+
+        recording.Status.Should().Be(RecordingStatus.Completed);
+        recording.IsPlayable.Should().BeTrue("fayl omborda va u ochiladi");
+        recording.ObjectKey.Should().Be("recordings/qisqa.mp4");
+        recording.Error.Should().Be("Yozuv dars tugashidan oldin uzilib qoldi.");
+    }
+
+    /// <summary>
+    /// 🔴 TUGALLANMAGAN YOZUVGA TEGMAYDI. U hali o'z oqimida va uning
+    /// sababi <see cref="SessionRecording.MarkFailed"/> ning ishi —
+    /// aks holda watchdog qayta uradigan qator "uzilgan" degan matnni
+    /// olib qolardi.
+    /// </summary>
+    [Fact]
+    public void MarkTruncated_OnAnUnfinishedRecording_DoesNothing()
+    {
+        var recording = New();
+
+        recording.MarkStarting("EG_1", Now);
+        recording.MarkTruncated("uzilib qoldi", Now);
+
+        recording.Status.Should().Be(RecordingStatus.Starting);
+        recording.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void MarkTruncated_TrimsAVeryLongReason()
+    {
+        var recording = New();
+
+        recording.MarkCompleted("recordings/qisqa.mp4", 1, 1, Now, Now);
+        recording.MarkTruncated(new string('x', SessionRecording.MaxErrorLength + 500), Now);
+
+        recording.Error!.Length.Should().Be(SessionRecording.MaxErrorLength);
+    }
+
     // ================================================================= xato
 
     [Fact]

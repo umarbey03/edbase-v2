@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Recordings.Services;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Infrastructure.Services;
 
@@ -150,6 +151,27 @@ public sealed class FfmpegRecordingComposer(
             probes.Add(new ProbedTrackDuration(input.TrackId, (int)Math.Round(duration.Value * 1000)));
         }
 
+        // ── 2b) REJA XOM OVOZ HAQIDA ADASHGANMI? ──────────────────────
+        //
+        // 🔴 KODLASHDAN OLDIN, chunki aynan shu yerda u BEPUL. Reja
+        //    xona ovozi faylini o'z vaqt oralig'ini to'liq qamraydi deb
+        //    quriladi; amalda u qisqaroq va farq ovozni tasvirdan
+        //    oldinga suradi (`RecordingCompositionPlanner.Stretch`).
+        //
+        // ★ FAQAT O'LCHANMAGAN XONA OVOZI UCHUN: video bo'laklariga
+        //   cho'zish qo'llanmaydi, ya'ni ular uchun qayta rejalash
+        //   hech nimani o'zgartirmasdi — bir marta bekorga yuklab
+        //   olish bo'lardi.
+        //
+        // ⚠️ BIR MARTALIK: ikkinchi rejada `AssumedMediaMs` to'ldirilgan
+        //    bo'ladi va bu shart boshqa bajarilmaydi.
+        if (NeedsRePlan(plan, probes))
+        {
+            FfmpegLog.RePlanRequested(logger, plan.RecordingId);
+
+            return CompositionResult.NeedsRePlan(probes);
+        }
+
         // ── 3) KODLASH ────────────────────────────────────────────────
         var output = Path.Combine(scratch, OutputFileName);
 
@@ -282,6 +304,38 @@ public sealed class FfmpegRecordingComposer(
     // ═════════════════════════════════════════════════════════ ombor
 
     /// <summary><c>false</c> — obyekt omborda yo'q.</summary>
+    /// <summary>
+    /// Xona ovozi o'lchanmagan holda rejaga kirgan va o'lchov reja
+    /// ishongan uzunlikdan sezilarli farq qilganmi.
+    ///
+    /// ★ CHEGARA — 2 SONIYA: <c>RecordingCompositionRunner</c> dagi
+    ///   siljish ogohlantirishi bilan AYNI son. Ikkita boshqa-boshqa
+    ///   chegara bo'lsa, "ogohlantirish chiqdi-yu, tuzatilmadi" degan
+    ///   tushunarsiz oraliq paydo bo'lardi.
+    /// </summary>
+    private static bool NeedsRePlan(
+        CompositionPlan plan, IReadOnlyList<ProbedTrackDuration> probes)
+    {
+        foreach (var input in plan.Inputs)
+        {
+            if (input.Kind != RecordingTrackKind.RoomAudio) continue;
+
+            // Allaqachon o'lchangan holda rejalangan — reja to'g'ri.
+            if (input.AssumedMediaMs is not null) continue;
+
+            var probe = probes.FirstOrDefault(p => p.TrackId == input.TrackId);
+
+            if (probe is null) continue;
+
+            if (Math.Abs(input.ExpectedDurationMs - probe.DurationMs) > RePlanThresholdMs)
+                return true;
+        }
+
+        return false;
+    }
+
+    private const int RePlanThresholdMs = 2000;
+
     private async Task<bool> DownloadAsync(string objectKey, string path, CancellationToken ct)
     {
         await using var stored = await storage.OpenReadAsync(objectKey, ct).ConfigureAwait(false);
@@ -683,6 +737,16 @@ internal static partial class FfmpegLog
                   + "kalit={ObjectKey}")]
     internal static partial void RawMissing(
         ILogger logger, long recordingId, long trackId, string objectKey);
+
+    /// <summary>
+    /// O'lchov rejadan farq qildi — kodlash boshlanmadi, reja qayta
+    /// quriladi. `Information`, chunki bu KUTILGAN yo'l, nosozlik emas.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6643,
+        Level = LogLevel.Information,
+        Message = "Xom ovoz rejadagidan farq qildi — reja qayta quriladi: yozuv={RecordingId}")]
+    internal static partial void RePlanRequested(ILogger logger, long recordingId);
 
     [LoggerMessage(
         EventId = 6638,
