@@ -192,6 +192,32 @@ public static class RecordingCompositionPlanner
     private const double MaxAudioStretch = 0.05;
 
     /// <summary>
+    /// Ovoz o'z oralig'idan qancha ULUSH qisqa (musbat = qisqa).
+    ///
+    /// ★ CHAQIRUVCHIGA OCHIQ, chunki xodimga ogohlantirish yozadigan
+    ///   <c>RecordingCompositionRunner</c> AYNI qarorni takrorlamasligi
+    ///   kerak: "tuzatildimi?" degan savolga javob BITTA joyda bo'lsin.
+    /// </summary>
+    public static double AudioShortfall(double expectedMs, int probedMs) =>
+        expectedMs <= 0 ? 0 : (expectedMs - probedMs) / expectedMs;
+
+    /// <summary>
+    /// Shu farq CHO'ZISH bilan tuzatiladimi.
+    ///
+    /// <c>false</c> ikki xil ma'noda bo'ladi va ikkalasi ham TO'G'RI:
+    ///   • o'lik zonadan past — tuzatishning hojati yo'q;
+    ///   • yuqori chegaradan baland — fayl buzuq, cho'zish uni
+    ///     yashirardi (<see cref="MaxAudioStretch"/>).
+    /// Xodimga ogohlantirish faqat IKKINCHISIDA kerak.
+    /// </summary>
+    public static bool IsAudioStretchable(double shortfall) =>
+        shortfall > AudioStretchDeadBand && shortfall <= MaxAudioStretch;
+
+    /// <summary>Farq shunchalik kattaki, cho'zish bilan tuzatilmaydi.</summary>
+    public static bool IsAudioBeyondRepair(double shortfall) =>
+        shortfall > MaxAudioStretch;
+
+    /// <summary>
     /// Rejani tuzadi.
     /// </summary>
     /// <param name="recording">Yig'iladigan yozuv (kaliti va Id'si olinadi).</param>
@@ -660,14 +686,12 @@ public static class RecordingCompositionPlanner
 
         if (span <= 0) return string.Empty;
 
-        var shortfall = (span - probed) / span;
-
-        // Ortiqcha uzun ovoz (manfiy) tasvirni orqaga surmaydi —
+        // Ortiqcha uzun ovoz (manfiy farq) tasvirni orqaga surmaydi —
         // `aresample` ortig'ini kesadi. Kichik farq — o'lik zona.
-        if (shortfall <= AudioStretchDeadBand) return string.Empty;
+        // Juda katta farq — buzuq fayl, u tuzatilmaydi, ogohlantiriladi.
+        var shortfall = AudioShortfall(span, probed);
 
-        // Buzuq fayl: tuzatilmaydi, ogohlantiriladi (`MaxAudioStretch`).
-        if (shortfall > MaxAudioStretch) return string.Empty;
+        if (!IsAudioStretchable(shortfall)) return string.Empty;
 
         // `atempo < 1` — CHO'ZADI. probed/span aynan shu nisbat.
         var tempo = Math.Round(probed / span, 6);

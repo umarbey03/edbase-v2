@@ -191,7 +191,7 @@ public sealed class CompositionRunnerTests(FakeComposerFactory factory)
     /// tizim emas.
     /// </summary>
     [Fact]
-    public async Task Compose_ShortAudioSpine_LeavesADriftWarningForStaff()
+    public async Task Compose_ShortAudioSpine_IsCorrectedAndCarriesNoWarning()
     {
         var lesson = await NewLessonAsync();
         var tracks = await AddTracksAsync(lesson, RawKey(), RawKey());
@@ -208,15 +208,46 @@ public sealed class CompositionRunnerTests(FakeComposerFactory factory)
 
         var row = await CompositionWorld.ReloadAsync(factory, lesson.RecordingId);
 
+        row.CompositionStatus.Should().Be(RecordingCompositionStatus.Completed);
+
+        row.CompositionError.Should().BeNull(
+            "bu farq cho'zish bilan TUZATILADI — tuzatilgan yozuvni qizil blok bilan "
+            + "ko'rsatish xodimni bloklarga umuman qaramaydigan qilib qo'yardi");
+    }
+
+    /// <summary>
+    /// 🔴 TUZATIB BO'LMAYDIGAN FARQ — O'SHANDA OGOHLANTIRILADI.
+    ///
+    /// Cho'zish chegarasidan (5%) oshgan farq "biroz siljigan" emas,
+    /// ovozning bir qismi UMUMAN yozib olinmagan degani. Uni cho'zish
+    /// nosozlikni yashirardi, shuning uchun fayl tuzatilmasdan chiqadi
+    /// va xodim buni ochmasdan biladi.
+    /// </summary>
+    [Fact]
+    public async Task Compose_AudioBeyondRepair_LeavesAWarningForStaff()
+    {
+        var lesson = await NewLessonAsync();
+        var tracks = await AddTracksAsync(lesson, RawKey(), RawKey());
+
+        factory.Composer.OnCompose = (plan, _) => Task.FromResult(
+            CompositionResult.Ok(1024, 5400,
+            [
+                // 90 daqiqalik oraliq, faylda atigi 4000 s — 25.9% yo'q.
+                new ProbedTrackDuration(tracks.AudioId, 4_000_000),
+                new ProbedTrackDuration(tracks.VideoId, 1_500_000),
+            ]));
+
+        await factory.RunCompositionAsync();
+
+        var row = await CompositionWorld.ReloadAsync(factory, lesson.RecordingId);
+
         row.CompositionStatus.Should().Be(
             RecordingCompositionStatus.Completed,
             "fayl tayyor — ogohlantirish uni yiqitmaydi");
 
-        row.CompositionError.Should().NotBeNull();
-
         row.CompositionError.Should().Contain(
-            "31 soniya",
-            "raqamsiz matn xodimga 1 soniyami yoki yarim daqiqami degan savolga javob bermaydi");
+            "1400 soniyasi",
+            "raqamsiz matn xodimga hajmni aytmaydi");
     }
 
     /// <summary>

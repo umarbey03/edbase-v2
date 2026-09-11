@@ -456,16 +456,26 @@ public sealed class RecordingCompositionRunner(
     {
         if (kind != RecordingTrackKind.RoomAudio) return null;
 
-        var lostMs = expectedMs - probedMs;
+        // 🔴 FARQNING O'ZI OGOHLANTIRISH EMAS — TUZATILMAGANI OGOHLANTIRISH.
+        //
+        //    Deyarli har darsda farq BOR va u endi yig'ishda cho'zish
+        //    bilan tuzatiladi (`RecordingCompositionPlanner.Stretch`).
+        //    Agar shart faqat "farq 2 soniyadan katta" bo'lsa, TUZATILGAN
+        //    yozuv ham qizil blok bilan chiqardi — 2026-09-10 kechasida
+        //    aynan shunday bo'ldi: yetti yozuvning oltitasi sog'lom
+        //    bo'la turib "ovoz siljigan" deb turdi. Bir necha kunda xodim
+        //    blokka umuman qaramay qo'yardi.
+        //
+        // ★ Ogohlantirish FAQAT cho'zish chegarasidan oshgan holatda:
+        //   u yerda fayl haqiqatan buzuq va hech narsa tuzatmaydi.
+        var shortfall = RecordingCompositionPlanner.AudioShortfall(expectedMs, probedMs);
 
-        // Ovoz KUTILGANIDAN UZUN bo'lishi (manfiy farq) boshqa hodisa va
-        // u tasvirni orqaga surmaydi — `aresample` ortig'ini kesadi.
-        if (lostMs <= DriftWarningThreshold.TotalMilliseconds) return null;
+        if (!RecordingCompositionPlanner.IsAudioBeyondRepair(shortfall)) return null;
 
-        var seconds = (int)Math.Round(lostMs / 1000d);
+        var seconds = (int)Math.Round((expectedMs - probedMs) / 1000d);
 
-        return $"Ovoz tasvirdan taxminan {seconds} soniya oldinda ketishi mumkin "
-             + "(dars ovozi shuncha qisqa yozib olingan).";
+        return $"Dars ovozining {seconds} soniyasi yozib olinmagan — "
+             + "ovoz bilan tasvir mos kelmasligi mumkin.";
     }
 
     // ═════════════════════════════════════════════════════════ tozalash
