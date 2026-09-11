@@ -24,6 +24,11 @@ export type IconName =
   | BrandIconName
   | 'mic'
   | 'mic-off'
+  | 'pen'
+  | 'highlighter'
+  | 'undo'
+  | 'zoom-in'
+  | 'zoom-out'
   | 'pin'
   | 'camera'
   | 'camera-off'

@@ -275,6 +275,9 @@ public interface IApplicationDbContext
 
     /* ===== /2026-08-16 (to'lov) ===== */
 
+    /// <summary>KUTUBXONA (2026-09-09): jonli darsda ulashiladigan PDF kitoblar.</summary>
+    DbSet<Book> Books { get; }
+
     /* ===== 2026-08-17: ustoz kunlik tasdiqlash + o'rinbosar ===== */
 
     DbSet<TeacherDailyCheckin> TeacherDailyCheckins { get; }

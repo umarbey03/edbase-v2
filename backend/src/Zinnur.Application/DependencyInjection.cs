@@ -209,6 +209,9 @@ public static class DependencyInjection
         services.AddScoped<ILessonAssetService, LessonAssetService>();
         services.AddScoped<IAssignmentAttachmentService, AssignmentAttachmentService>();
 
+        // KUTUBXONA (2026-09-09): PDF kitoblar — jonli darsda ulashish uchun.
+        services.AddScoped<Books.Services.IBookService, Books.Services.BookService>();
+
         // R37: USTOZ tekshirishda biriktiradigan fayllar. AYNI sabablar
         // bilan SCOPED va ALOHIDA interfeys — u ham `IMediaStorage` bilan
         // oqim orqali ishlaydi va ruxsat uchun `IAssignmentService` ning

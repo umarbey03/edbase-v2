@@ -9,6 +9,13 @@ const props = withDefaults(
     isScreenSharing: boolean
     /** Ekran ulashish faqat host uchun (SPEC: `roomAdmin` grant'i hostda). */
     canShareScreen: boolean
+    /**
+     * KITOB TAXTASI (2026-09-09) — hostda: PDF kitob sahifasini chizma
+     * bilan ekran ulashuvi sifatida uzatish (telefonda ekran ulashib
+     * bo'lmaydi). `isBookSharing` — taxta hozir efirda.
+     */
+    canShareBook?: boolean
+    isBookSharing?: boolean
     handRaised: boolean
     /**
      * Qo'l ko'tarish FAQAT o'quvchida (R1, 2026-08-13 talabi: "livechatda
@@ -37,6 +44,8 @@ const props = withDefaults(
     unreadCount?: number
   }>(),
   {
+    canShareBook: false,
+    isBookSharing: false,
     micPending: false,
     cameraPending: false,
     screenPending: false,
@@ -49,6 +58,7 @@ const emit = defineEmits<{
   'toggle-mic': []
   'toggle-camera': []
   'toggle-screen': []
+  'toggle-book': []
   'toggle-hand': []
   'toggle-chat': []
   leave: []
@@ -167,6 +177,30 @@ function toneOf(active: boolean, activeTone = 'bg-ink-750 text-slate-100 hover:b
         <BaseSpinner size="sm" />
       </span>
       <span class="sr-only">Ekranni ulashish</span>
+    </button>
+
+    <!-- Kitob taxtasi — telefondan ekran ulasha olmaydigan ustoz uchun. -->
+    <button
+      v-if="props.canShareBook"
+      type="button"
+      :class="[
+        BASE,
+        props.isBookSharing
+          ? 'bg-brand-600 text-white hover:bg-brand-500'
+          : 'bg-ink-750 text-slate-100 hover:bg-ink-700',
+      ]"
+      :disabled="props.disabled"
+      :aria-pressed="props.isBookSharing"
+      :title="props.isBookSharing ? 'Kitob taxtasi (efirda) — ochish' : 'Kitobni ko‘rsatish'"
+      @click="emit('toggle-book')"
+    >
+      <AppIcon name="book" />
+      <span
+        v-if="props.isBookSharing"
+        class="absolute -right-0.5 -top-0.5 size-2.5 animate-pulse rounded-full bg-rose-400 ring-2 ring-ink-900"
+        aria-hidden="true"
+      />
+      <span class="sr-only">Kitob taxtasi</span>
     </button>
 
     <button

@@ -4254,3 +4254,32 @@ export interface MarkCalledRequest {
   /** Qo'ng'iroqda aniqlangan sabab yoki qisqa izoh. */
   note?: string
 }
+
+/* ==========================================================================
+   KUTUBXONA (2026-09-09) — jonli darsda ulashiladigan PDF kitoblar
+   ========================================================================== */
+
+/** `GET /api/v1/books` qatori. */
+export interface BookDto {
+  id: number
+  title: string
+  sizeBytes: number
+  /** Sahifalar soni — yuklashda KLIENT aniqlaydi; `null` — noma'lum. */
+  pageCount: number | null
+  isActive: boolean
+  createdByName: string | null
+  createdAt: string
+}
+
+/** `POST /api/v1/books` (multipart) ixtiyoriy maydonlari. */
+export interface BookUploadFields {
+  title?: string
+  pageCount?: number | null
+}
+
+/** `PUT /api/v1/books/{id}` tanasi. `pageCount: null` — tegilmaydi. */
+export interface UpdateBookRequest {
+  title: string
+  isActive: boolean
+  pageCount: number | null
+}

@@ -190,6 +190,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     /* ===== /2026-08-16 (to'lov) ===== */
 
+    /* ===== 2026-09-09: Kutubxona (PDF kitoblar) ===== */
+
+    public DbSet<Book> Books => Set<Book>();
+
     // ---------------------------------------------------------------- FAZA 5.2: notifikatsiya
 
     /// <summary>

@@ -14,6 +14,8 @@ import {
 import type { ParticipantMediaSource } from '@/entities/session'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { useBookBoard } from '@/features/book-share/model/useBookBoard'
+import BookSharePanel from '@/features/book-share/ui/BookSharePanel.vue'
 import ChatPanel from '@/features/chat/ui/ChatPanel.vue'
 import { useLiveHub } from '@/features/live-hub/model/useLiveHub'
 import { useLiveKitRoom } from '@/features/live-room/model/useLiveKitRoom'
@@ -115,6 +117,10 @@ const {
   connectionError: mediaConnectionError,
   moderationNotice,
   dismissModerationNotice,
+  isCanvasSharing,
+  canvasSharePending,
+  shareCanvas,
+  stopCanvasShare,
   connect: connectMedia,
   leave: leaveMedia,
   toggleMic,
@@ -385,6 +391,37 @@ async function handleLeave(): Promise<void> {
   await leaveMedia()
   await router.push({ name: homeRoute.value })
 }
+
+/*
+  KITOB TAXTASI (2026-09-09, loyiha egasi: "mobileda ustozlar ekran share
+  qilish imkoniyati yo'qligi sababli qiynalishyapti" + "yozib chizib,
+  belgilab tushuntiradigan funksionalliklari ham bo'lsa").
+
+  Taxta (`useBookBoard`) SAHIFA darajasida yashaydi, panel emas: panel
+  yopilganda ulashuv davom etadi va ustoz o'z sahnasida "Ekran" katagida
+  natijani ko'rib turadi. Panel — faqat boshqaruv oynasi.
+*/
+const board = useBookBoard()
+const bookPanelOpen = ref(false)
+
+function handleToggleBook(): void {
+  bookPanelOpen.value = true
+}
+
+async function startBookShare(): Promise<void> {
+  await shareCanvas(board.canvas)
+  // Ulashuv boshlangach panel YIG'ILADI: ustoz o'quvchilarni ko'rsin.
+  // Varaqlash/chizish uchun «Kitob» tugmasi bilan qayta ochadi.
+  if (isCanvasSharing.value) bookPanelOpen.value = false
+}
+
+async function stopBookShare(): Promise<void> {
+  await stopCanvasShare()
+}
+
+onBeforeUnmount(() => {
+  board.dispose()
+})
 
 async function handleToggleHand(): Promise<void> {
   await raiseHand(!handRaised.value)
@@ -829,6 +866,8 @@ onBeforeUnmount(() => {
             :is-camera-on="isCameraOn"
             :is-screen-sharing="isScreenSharing"
             :can-share-screen="isHost"
+            :can-share-book="isHost"
+            :is-book-sharing="isCanvasSharing"
             :hand-raised="handRaised"
             :can-raise-hand="isStudent"
             :mic-pending="micPending"
@@ -839,6 +878,7 @@ onBeforeUnmount(() => {
             @toggle-mic="toggleMic"
             @toggle-camera="toggleCamera"
             @toggle-screen="toggleScreenShare"
+            @toggle-book="handleToggleBook"
             @toggle-hand="handleToggleHand"
             @toggle-chat="openChat"
             @leave="handleLeave"
@@ -942,4 +982,21 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+
+  <!--
+    KITOB TAXTASI PANELI — `<Teleport to="body">` bilan, sahifa ildizidan
+    TASHQARIDA e'lon qilinadi (ichki oynalar naqshi). Faqat hostda
+    ochiladi; `board` sahifa darajasida — panel yopilsa ham ulashuv
+    davom etadi.
+  -->
+  <BookSharePanel
+    v-if="isHost"
+    :open="bookPanelOpen"
+    :board="board"
+    :sharing="isCanvasSharing"
+    :share-pending="canvasSharePending"
+    @close="bookPanelOpen = false"
+    @start-share="startBookShare"
+    @stop-share="stopBookShare"
+  />
 </template>

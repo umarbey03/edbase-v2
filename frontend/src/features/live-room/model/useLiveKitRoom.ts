@@ -4,6 +4,7 @@ import {
   ConnectionState,
   createLocalVideoTrack,
   DisconnectReason,
+  LocalVideoTrack,
   Room,
   RoomEvent,
   Track,
@@ -11,7 +12,6 @@ import {
 } from 'livekit-client'
 import type {
   LocalTrackPublication,
-  LocalVideoTrack,
   Participant,
   RemoteParticipant,
   RemoteTrack,
@@ -74,6 +74,15 @@ export interface UseLiveKitRoomResult {
    */
   moderationNotice: Ref<string | null>
   dismissModerationNotice: () => void
+  /**
+   * KITOB TAXTASI (2026-09-09): canvas EKRAN ULASHUVI treki sifatida
+   * uzatiladi — telefondan ekran ulasha olmaydigan ustoz uchun.
+   * Oddiy ekran ulashuvi bilan bir vaqtda bo'lmaydi (bittasi ikkinchisini to'xtatadi).
+   */
+  isCanvasSharing: Ref<boolean>
+  canvasSharePending: Ref<boolean>
+  shareCanvas: (canvas: HTMLCanvasElement) => Promise<void>
+  stopCanvasShare: () => Promise<void>
   connect: () => Promise<void>
   leave: () => Promise<void>
   toggleMic: () => Promise<void>
@@ -201,6 +210,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
    * esa keyin fonda ketadi. Endi o'z videongiz server bilan bog'liq emas.
    */
   const localCameraTrack = shallowRef<LocalVideoTrack | null>(null)
+
+  /**
+   * Kitob taxtasi treki (canvas → LiveKit). `isCanvasSharing` — UI uchun
+   * ko'zgu; haqiqiy manba shu o'zgaruvchi. `canvasPublishing` — e'lon
+   * hali tasdiqlanmagan oraliq (`rebuildTiles` dagi tekshiruv uchun).
+   */
+  let canvasTrack: LocalVideoTrack | null = null
+  let canvasPublishing = false
+  const isCanvasSharing = ref(false)
+  const canvasSharePending = ref(false)
 
   let room: Room | null = null
   let disposed = false
@@ -381,6 +400,18 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     const current = room
     if (current === null) return
 
+    // Taxta treki TASHQARIDAN olib tashlangan bo'lsa (ustoz oddiy ekran
+    // ulashuvi tugmasini bosib o'chirdi, server uzdi) — holatni tozalaymiz,
+    // aks holda «Kitob» tugmasi «efirda» deb yolg'on ko'rsatardi.
+    if (canvasTrack !== null && !canvasPublishing) {
+      const published = current.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+      if (published?.track !== canvasTrack) {
+        canvasTrack.stop()
+        canvasTrack = null
+        isCanvasSharing.value = false
+      }
+    }
+
     const next: ParticipantTile[] = []
     appendTiles(current.localParticipant, true, next)
     for (const participant of current.remoteParticipants.values()) {
@@ -553,6 +584,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     }
 
     dropLocalCamera()
+    dropCanvasTrack()
     detachAllAudio()
     tiles.value = []
     isMicOn.value = false
@@ -818,6 +850,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     )
   }
 
+  /** Taxta trekini (uzilish/tozalashda) mahalliy to'xtatadi — server bilan gaplashmasdan. */
+  function dropCanvasTrack(): void {
+    const track = canvasTrack
+    canvasTrack = null
+    canvasPublishing = false
+    isCanvasSharing.value = false
+    canvasSharePending.value = false
+    if (track !== null) track.stop()
+  }
+
   /** Mahalliy kamera trekini to'xtatib, sahnadan olib tashlaydi. */
   function dropLocalCamera(): void {
     const track = localCameraTrack.value
@@ -869,9 +911,94 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     return runToggle(
       isScreenSharing,
       screenPending,
-      (participant, next) => participant.setScreenShareEnabled(next, { audio: true }),
+      async (participant, next) => {
+        // Taxta ulashilayotgan bo'lsa — u ham "ekran ulashuvi": bitta
+        // manba bo'lishi kerak, avval taxtani to'xtatamiz.
+        if (canvasTrack !== null) await stopCanvasShare()
+        await participant.setScreenShareEnabled(next, { audio: true })
+      },
       (participant) => participant.isScreenShareEnabled,
     )
+  }
+
+  /* --------------------------------------------------- kitob taxtasi */
+
+  /**
+   * Canvas'ni EKRAN ULASHUVI sifatida uzatadi.
+   *
+   * ★ `captureStream(5)` — 5 kadr/soniya yetarli: sahifa statik, chizma
+   *   sekin. Yuqori kadr tezligi telefon batareyasini yeydi.
+   * ★ `simulcast: false` — matnli kadr uchun bitta sifatli qatlam
+   *   afzal: pastki qatlamda harflar o'qilmas bo'lib qolardi.
+   * ★ Manba `ScreenShare`: o'quvchi klienti va yozuv (egress) uni oddiy
+   *   ekran ulashuvi deb biladi — hech qayerda maxsus ishlov yo'q.
+   */
+  async function shareCanvas(canvas: HTMLCanvasElement): Promise<void> {
+    const current = room
+    if (current === null) {
+      mediaError.value = 'Video aloqasi hali tayyor emas. Ulanish tiklanishini kuting.'
+      return
+    }
+    if (canvasTrack !== null || canvasSharePending.value) return
+
+    canvasSharePending.value = true
+    mediaError.value = null
+    try {
+      if (current.localParticipant.isScreenShareEnabled) {
+        await current.localParticipant.setScreenShareEnabled(false)
+      }
+
+      const stream = canvas.captureStream(5)
+      const media = stream.getVideoTracks()[0]
+      if (media === undefined) {
+        throw new Error('Brauzer canvas oqimini bera olmadi (captureStream).')
+      }
+
+      // `userProvidedTrack = true` — LiveKit bu trekni O'ZI yaratmagan:
+      // qayta ulanishda `getUserMedia` bilan "qayta ochishga" urinmasin
+      // (canvas oqimini kameradek qayta ochib bo'lmaydi — xato berardi).
+      const track = new LocalVideoTrack(media, undefined, true)
+      canvasTrack = track
+      canvasPublishing = true
+      isCanvasSharing.value = true
+
+      try {
+        await current.localParticipant.publishTrack(track, {
+          source: Track.Source.ScreenShare,
+          name: 'book-board',
+          simulcast: false,
+          videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 5 },
+        })
+      } catch (error) {
+        canvasTrack = null
+        isCanvasSharing.value = false
+        track.stop()
+        throw error
+      } finally {
+        canvasPublishing = false
+      }
+    } catch (error) {
+      mediaError.value = describeMediaError(error)
+    } finally {
+      canvasSharePending.value = false
+      scheduleRebuild()
+    }
+  }
+
+  async function stopCanvasShare(): Promise<void> {
+    const track = canvasTrack
+    canvasTrack = null
+    canvasPublishing = false
+    isCanvasSharing.value = false
+    if (track === null) return
+    const current = room
+    if (current !== null) {
+      // `stopOnUnpublish = true` — MediaStreamTrack ham to'xtaydi.
+      await current.localParticipant.unpublishTrack(track, true).catch(() => undefined)
+    } else {
+      track.stop()
+    }
+    scheduleRebuild()
   }
 
   /** Ovoz bloklangan bo'lsa — foydalanuvchi bosgan zahoti ochamiz. */
@@ -916,6 +1043,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     // Kamera treki `Room` dan MUSTAQIL yaratilgani uchun uni O'ZIMIZ
     // to'xtatishimiz shart — aks holda kameraning chirog'i yonib qolardi.
     dropLocalCamera()
+    dropCanvasTrack()
     detachAllAudio()
 
     if (target === null) return
@@ -967,6 +1095,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     connectionError,
     moderationNotice,
     dismissModerationNotice,
+    isCanvasSharing,
+    canvasSharePending,
+    shareCanvas,
+    stopCanvasShare,
     connect,
     leave,
     toggleMic,
