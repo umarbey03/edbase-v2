@@ -198,6 +198,7 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
         :is-speaking="mainTile.isSpeaking"
         :mic-enabled="mainTile.micEnabled"
         :role-label="tileRole(mainTile)"
+        :quality="mainTile.quality"
       />
 
       <!--
@@ -222,6 +223,7 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
           is-local
           :is-speaking="selfPip.isSpeaking"
           :mic-enabled="selfPip.micEnabled"
+          :quality="selfPip.quality"
           class="!w-full"
         />
       </div>
@@ -362,6 +364,7 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
             :is-speaking="tile.isSpeaking"
             :mic-enabled="tile.micEnabled"
             :role-label="tileRole(tile)"
+            :quality="tile.quality"
           />
         </button>
         <div

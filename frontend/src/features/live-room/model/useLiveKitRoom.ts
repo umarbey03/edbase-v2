@@ -1,6 +1,8 @@
 import {
+  AudioPresets,
   ConnectionError,
   ConnectionErrorReason,
+  ConnectionQuality,
   ConnectionState,
   createLocalVideoTrack,
   DisconnectReason,
@@ -33,6 +35,25 @@ export type MediaStatus =
   | 'disconnected'
   | 'failed'
 
+/**
+ * Ishtirokchining SERVERGACHA bo'lgan aloqa sifati.
+ *
+ * ★ NIMA UCHUN LiveKit turi emas, O'Z turimiz: `ConnectionQuality` — sonli
+ * enum va uni shablonga chiqarish "quality === 2" degan o'qib bo'lmaydigan
+ * shartlarga olib borardi.
+ */
+export type LinkQuality = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown'
+
+function toLinkQuality(value: ConnectionQuality): LinkQuality {
+  switch (value) {
+    case ConnectionQuality.Excellent: return 'excellent'
+    case ConnectionQuality.Good: return 'good'
+    case ConnectionQuality.Poor: return 'poor'
+    case ConnectionQuality.Lost: return 'lost'
+    default: return 'unknown'
+  }
+}
+
 /** Sahnada chiziladigan bitta katakcha (kamera yoki ekran). */
 export interface ParticipantTile {
   /** `v-for` uchun barqaror kalit. */
@@ -47,6 +68,8 @@ export interface ParticipantTile {
   cameraEnabled: boolean
   isSpeaking: boolean
   videoTrack: Track | null
+  /** Shu ishtirokchining aloqa sifati — katakchada zaif signal belgisi uchun. */
+  quality: LinkQuality
 }
 
 export interface UseLiveKitRoomResult {
@@ -71,6 +94,17 @@ export interface UseLiveKitRoomResult {
   screenPending: Ref<boolean>
   /** Brauzer ovozni avtomatik chalishga ruxsat bermadi (bosish talab qilinadi). */
   audioBlocked: Ref<boolean>
+  /** O'ZINGIZNING serverga ulanish sifatingiz (indikator uchun). */
+  localQuality: Ref<LinkQuality>
+  /**
+   * Zaif kanal haqida ogohlantirish — XATO EMAS.
+   *
+   * `mediaError` dan ataylab ayrim: u "amal bajarilmadi" degani, bu esa
+   * "hammasi ishlayapti, lekin internetingiz zaif" degani. Ikkalasini
+   * bitta maydonga qo'shsak, foydalanuvchi tuzatib bo'lmaydigan xatoni
+   * ko'rib qo'ng'iroq qilardi.
+   */
+  linkWarning: Ref<string | null>
   mediaError: Ref<string | null>
   connectionError: Ref<string | null>
   connect: () => Promise<void>
@@ -80,6 +114,7 @@ export interface UseLiveKitRoomResult {
   toggleScreenShare: () => Promise<void>
   enableAudio: () => Promise<void>
   dismissMediaError: () => void
+  dismissLinkWarning: () => void
 }
 
 function parseUserId(identity: string): number | null {
@@ -216,6 +251,36 @@ function describeDisconnect(reason: DisconnectReason | undefined): string {
   }
 }
 
+/*
+  ZAIF KANAL MATNLARI — AYBLAMAYDI VA NIMA QILISHNI AYTADI.
+
+  ⚠️ "Internetingiz yomon" deb yozilmaydi: foydalanuvchi buni ayb deb
+  o'qiydi va qo'llab-quvvatlashga yozadi. Matn HOLATNI va CHORANI aytadi.
+*/
+/**
+ * Kamera qanday o'lchamda OLINADI (yuborish qatlamlari alohida).
+ *
+ * 🔴 O'QUVCHIDA 360p, USTOZDA 720p. Manba o'lchami simulcast
+ * qatlamlarining eng yuqorisini belgilaydi: 720p olinsa, 720p ham
+ * yuboriladi. O'quvchining kichkina katakchasi uchun bu behuda
+ * yuklashdir va u ovozdan joy oladi.
+ */
+function captureResolution(isHost: boolean) {
+  return isHost ? VideoPresets.h720.resolution : VideoPresets.h360.resolution
+}
+
+const WEAK_LINK_CAMERA_OFF_TEXT =
+  'Internet aloqangiz zaiflashdi — ovoz uzilmasligi uchun kamera vaqtincha '
+  + 'o‘chirildi. Aloqa tiklanganda uni qayta yoqishingiz mumkin.'
+
+const WEAK_LINK_AUDIO_ONLY_TEXT =
+  'Internet aloqangiz zaif — ovozingiz uzilib eshitilishi mumkin. '
+  + 'Imkon bo‘lsa Wi-Fi‘ga ulaning yoki routerga yaqinroq turing.'
+
+const WEAK_LINK_HOST_TEXT =
+  'Internet aloqangiz zaiflashdi — o‘quvchilar ovozingizni uzuq eshitishi '
+  + 'mumkin. Kamerani vaqtincha o‘chirsangiz ovoz barqarorlashadi.'
+
 export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   const status = ref<MediaStatus>('idle')
   const isHost = ref(false)
@@ -230,6 +295,37 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   const audioBlocked = ref(false)
   const mediaError = ref<string | null>(null)
   const connectionError = ref<string | null>(null)
+  const localQuality = ref<LinkQuality>('unknown')
+  const linkWarning = ref<string | null>(null)
+
+  /**
+   * Ishtirokchilarning aloqa sifati — `identity` bo'yicha.
+   *
+   * ⚠️ ODDIY `Map`, REAKTIV EMAS VA BU ATAYLAB: qiymat katakchalarga
+   * `rebuildTiles()` orqali ko'chadi, ya'ni butun sahna baribir bitta
+   * joydan yangilanadi. Reaktiv qilinsa, 200 kishilik xonada har sifat
+   * hodisasi alohida render keltirib chiqarardi.
+   */
+  const qualityByIdentity = new Map<string, LinkQuality>()
+
+  /**
+   * Zaif kanalda kamera BIR MARTA o'chiriladi.
+   *
+   * 🔴 BAYROQSIZ BO'LMAYDI: sifat `poor` da uzoq turadi va har hodisada
+   * kamerani o'chirsak, foydalanuvchi uni qayta yoqolmaydi — tugma bilan
+   * jang boshlanardi. Bayroq sifat tiklanganda tushiriladi.
+   */
+  let cameraDroppedForWeakLink = false
+
+  /**
+   * Foydalanuvchi ogohlantirishni YOPGAN.
+   *
+   * ⚠️ BUSIZ BANNER QAYTA-QAYTA CHIQARDI: sifat hodisasi bir necha
+   * soniyada bir keladi va har biri matnni qayta qo'yardi — yopib
+   * bo'lmaydigan xabar eng bezovta qiladigan naqsh. Bayroq aloqa
+   * tiklanganda tushadi, ya'ni KEYINGI uzilishda banner yana chiqadi.
+   */
+  let linkWarningDismissed = false
 
   /**
    * `shallowRef` — katakchalar massivi butunligicha almashtiriladi.
@@ -378,6 +474,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     const micEnabled = participant.isMicrophoneEnabled
     const isSpeaking = participant.isSpeaking
 
+    const quality = qualityByIdentity.get(identity) ?? 'unknown'
+
     const screenTrack = videoTrackOf(participant.getTrackPublication(Track.Source.ScreenShare))
     if (screenTrack !== null) {
       out.push({
@@ -391,6 +489,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         cameraEnabled: true,
         isSpeaking: false,
         videoTrack: screenTrack,
+        quality,
       })
     }
 
@@ -409,6 +508,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       cameraEnabled: cameraTrack !== null,
       isSpeaking,
       videoTrack: cameraTrack,
+      quality,
     })
   }
 
@@ -554,6 +654,15 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
     dropLocalCamera()
     detachAllAudio()
+
+    // Sifat holati UZILISHDA tozalanadi: qayta ulanganda eski "poor"
+    // qiymati qolib, kamera sababsiz o'chirilib ketardi.
+    qualityByIdentity.clear()
+    localQuality.value = 'unknown'
+    linkWarning.value = null
+    cameraDroppedForWeakLink = false
+    linkWarningDismissed = false
+
     tiles.value = []
     isMicOn.value = false
     isCameraOn.value = false
@@ -565,6 +674,87 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
     status.value = 'disconnected'
     connectionError.value = describeDisconnect(reason)
+  }
+
+  /**
+   * ════════════════════════════════════════════════════════════════════
+   * ALOQA SIFATI — ZAIF KANALDA OVOZNI QUTQARISH
+   * ════════════════════════════════════════════════════════════════════
+   *
+   * 🔴 NIMA UCHUN BU UMUMAN KERAK (2026-09-12 da o'lchandi). LiveKit
+   *    jurnalida 48 soatda 7171 ta "channel congestion" hodisasi bor va
+   *    ularning 217 dan 1 qismigina tinglovchi tomonida — qolgani
+   *    YUBORUVCHI tomonida. Kanal bahosi 100 Mbit/s dan 38 kbit/s ga
+   *    tushgan holatlar bor, ya'ni bitta Opus oqimi ham sig'maydi va
+   *    o'quvchining ovozi uzilib qoladi.
+   *
+   *    Bunda ilova HECH NARSA demasdi: `ConnectionQuality` hodisasi
+   *    umuman o'qilmasdi. O'quvchi sababni bilmasdi, ustoz esa
+   *    "platforma buzuq" deb xabar qilardi.
+   *
+   * ★ IKKI ISH QILINADI:
+   *     1) sifat sahnaga chiqariladi (har katakchada va o'zingiz uchun);
+   *     2) o'z kanalingiz `poor` bo'lsa KAMERA o'chiriladi — video
+   *        kanalning katta qismini yeydi, ovoz esa darsning O'ZI.
+   *
+   * ⚠️ USTOZGA TEGILMAYDI: uning videosi darsning mazmuni (doska,
+   *    ko'rsatma), va o'lchov bo'yicha ustozlarda bu muammo umuman
+   *    uchramagan — siqilgan 25 ishtirokchining hammasi o'quvchi edi.
+   */
+  function onConnectionQualityChanged(
+    quality: ConnectionQuality,
+    participant: Participant,
+  ): void {
+    const mapped = toLinkQuality(quality)
+    qualityByIdentity.set(participant.identity, mapped)
+
+    if (room !== null && participant.identity === room.localParticipant.identity) {
+      localQuality.value = mapped
+      applyWeakLinkPolicy(mapped)
+    }
+
+    scheduleRebuild()
+  }
+
+  /** Zaif kanalda kamerani o'chiradi, tiklanganda bayroqni bo'shatadi. */
+  function applyWeakLinkPolicy(quality: LinkQuality): void {
+    if (quality === 'excellent' || quality === 'good') {
+      cameraDroppedForWeakLink = false
+      linkWarningDismissed = false
+      linkWarning.value = null
+      return
+    }
+
+    if (quality !== 'poor') return
+
+    /** Yopilgan ogohlantirish qayta chiqmaydi (aloqa tiklanmaguncha). */
+    function warn(text: string): void {
+      if (!linkWarningDismissed) linkWarning.value = text
+    }
+
+    if (isHost.value) {
+      // Ustozning kamerasiga TEGILMAYDI — u darsning mazmuni (doska,
+      // ko'rsatma). Unga faqat sabab aytiladi, chorani o'zi tanlaydi.
+      warn(WEAK_LINK_HOST_TEXT)
+      return
+    }
+
+    if (cameraDroppedForWeakLink) return
+
+    cameraDroppedForWeakLink = true
+
+    if (!isCameraOn.value) {
+      warn(WEAK_LINK_AUDIO_ONLY_TEXT)
+      return
+    }
+
+    warn(WEAK_LINK_CAMERA_OFF_TEXT)
+    void toggleCamera()
+  }
+
+  function dismissLinkWarning(): void {
+    linkWarningDismissed = true
+    linkWarning.value = null
   }
 
   function onMediaDevicesError(error: Error): void {
@@ -592,6 +782,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       .on(RoomEvent.LocalTrackUnpublished, onLocalTrackChanged)
       .on(RoomEvent.ActiveSpeakersChanged, onActiveSpeakersChanged)
       .on(RoomEvent.ConnectionStateChanged, onConnectionStateChanged)
+      .on(RoomEvent.ConnectionQualityChanged, onConnectionQualityChanged)
       .on(RoomEvent.Disconnected, onDisconnected)
       .on(RoomEvent.MediaDevicesError, onMediaDevicesError)
       .on(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackChanged)
@@ -609,6 +800,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       .off(RoomEvent.LocalTrackUnpublished, onLocalTrackChanged)
       .off(RoomEvent.ActiveSpeakersChanged, onActiveSpeakersChanged)
       .off(RoomEvent.ConnectionStateChanged, onConnectionStateChanged)
+      .off(RoomEvent.ConnectionQualityChanged, onConnectionQualityChanged)
       .off(RoomEvent.Disconnected, onDisconnected)
       .off(RoomEvent.MediaDevicesError, onMediaDevicesError)
       .off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackChanged)
@@ -641,12 +833,53 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         adaptiveStream: true,
         // `dynacast` — hech kim ko'rmayotgan qatlamlar serverda o'chiriladi.
         dynacast: true,
-        videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+        videoCaptureDefaults: { resolution: captureResolution(join.isHost) },
         publishDefaults: {
           // Simulcast: bir nechta sifat qatlami yuboriladi, LiveKit har bir
           // ko'ruvchiga mos qatlamni tanlaydi.
           simulcast: true,
-          videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+
+          /*
+            ════════════════════════════════════════════════════════════
+            QATLAMLAR ROLGA QARAB — O'QUVCHIDA IKKITA, USTOZDA UCHTA
+            ════════════════════════════════════════════════════════════
+
+            Simulcast HAMMA qatlamni BIR VAQTDA yuboradi. Ilgari hamma
+            720p + 360p + 180p yuborardi, ya'ni ~2.4 Mbit/s yuklash —
+            o'lchangan kanal bahosining medianasi esa 279 kbit/s.
+            O'quvchi uchun 360p + 180p yetarli va u ovozga joy qoldiradi.
+          */
+          videoSimulcastLayers: join.isHost
+            ? [VideoPresets.h180, VideoPresets.h360]
+            : [VideoPresets.h180],
+
+          /*
+            ════════════════════════════════════════════════════════════
+            🔴 OVOZ PRESETI — ENG MUHIM QATOR
+            ════════════════════════════════════════════════════════════
+
+            LiveKit standarti — `music` (48 kbit/s). Dars uchun bu
+            ortiqcha: o'lchov bo'yicha siqilish hodisalarining 11% ida
+            ishtirokchi FAQAT ovoz yuborayotgan edi va kanal baribir
+            38 kbit/s ga tushgan — ya'ni 48 sig'maydi, 24 sig'adi.
+            Opus 24 kbit/s da nutqni juda yaxshi uzatadi.
+
+            ★ USTOZDA `music` QOLADI VA BU ATAYLAB: darsda tinglash
+              materiali qo'yilishi mumkin (til kurslari), ustozlarda esa
+              bu muammo o'lchovda UMUMAN uchramagan — siqilgan 25
+              ishtirokchining hammasi o'quvchi edi. Sifatni faqat
+              kerak bo'lgan joyda pasaytiramiz.
+          */
+          audioPreset: join.isHost ? AudioPresets.music : AudioPresets.speech,
+
+          /*
+            RED — ovoz paketlarining ORTIQCHA nusxasi. Paket yo'qolganda
+            ovoz uzilmaydi. LiveKit'da standart holda yoniq, lekin bu
+            yerda OSHKORA yozilgan: u aynan zaif kanal uchun eng muhim
+            himoya va uni kelajakda kimdir bilmasdan o'chirmasin.
+          */
+          red: true,
+          dtx: true,
         },
       })
 
@@ -843,8 +1076,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
         // 1-QADAM: trekni mahalliy yaratamiz va DARHOL sahnaga qo'yamiz.
         //          Bu qadam serverga umuman bog'liq emas.
+        // ⚠️ `videoCaptureDefaults` BU YO'LGA TA'SIR QILMAYDI — trek qo'lda
+        //    yaratilyapti. Shuning uchun o'lcham AYNI yordamchidan olinadi,
+        //    aks holda o'quvchi tugma orqali yoqqanda yana 720p ketardi.
         const track = await createLocalVideoTrack({
-          resolution: VideoPresets.h720.resolution,
+          resolution: captureResolution(isHost.value),
         })
         localCameraTrack.value = track
         rebuildTiles()
@@ -982,6 +1218,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     cameraPending,
     screenPending,
     audioBlocked,
+    localQuality,
+    linkWarning,
     mediaError,
     connectionError,
     connect,
@@ -991,5 +1229,6 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     toggleScreenShare,
     enableAudio,
     dismissMediaError,
+    dismissLinkWarning,
   }
 }

@@ -107,6 +107,8 @@ const {
   cameraPending,
   screenPending,
   audioBlocked,
+  localQuality,
+  linkWarning,
   mediaError,
   connectionError: mediaConnectionError,
   connect: connectMedia,
@@ -116,6 +118,7 @@ const {
   toggleScreenShare,
   enableAudio,
   dismissMediaError,
+  dismissLinkWarning,
 } = media
 
 /* ------------------------------- chat / hub -------------------------------- */
@@ -314,8 +317,9 @@ const BANNER_CLASS: Record<BannerTone, string> = {
 }
 
 /*
-  TO'RTTA CHIZIQ BIR VAQTDA CHIQISHI MUMKIN (aloqa, ovoz blokka tushgan,
-  media xatosi, amal xatosi) — ular bir-birini istisno qilmaydi. Har biri
+  BESHTA CHIZIQ BIR VAQTDA CHIQISHI MUMKIN (aloqa, ovoz blokka tushgan,
+  zaif internet, media xatosi, amal xatosi) — ular bir-birini istisno
+  qilmaydi. Har biri
   ~30px: 390px balandlikdagi yotiq telefonda bu videodan qolgan joyni ham
   yeb qo'yardi.
 
@@ -330,6 +334,7 @@ const noticeCount = computed(
   () =>
     (banner.value !== null ? 1 : 0) +
     (audioBlocked.value ? 1 : 0) +
+    (linkWarning.value !== null ? 1 : 0) +
     (mediaError.value !== null ? 1 : 0) +
     (actionError.value !== null ? 1 : 0),
 )
@@ -665,6 +670,31 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!--
+          O'Z ALOQANGIZ — FAQAT MUAMMO BO'LGANDA.
+
+          ★ "Yaxshi" holat CHIZILMAYDI: doim yonib turgan yashil belgi bir
+            kunda ko'rinmas bo'lib qoladi va muammo paytida ham sezilmasdi.
+            Belgi paydo bo'lishining O'ZI — xabar.
+
+          ⚠️ Banner (`linkWarning`) yopilgandan KEYIN ham bu qoladi: banner
+             bir martalik xabar, bu esa joriy HOLAT. Aloqa tiklanganda
+             ikkalasi ham o'zi yo'qoladi.
+        -->
+        <span
+          v-if="localQuality === 'poor' || localQuality === 'lost'"
+          class="flex items-center gap-1 rounded-md bg-sky-500/10 px-1.5 py-0.5 text-[11px] font-medium text-sky-300"
+          :title="localQuality === 'lost'
+            ? 'Serverga aloqa uzildi'
+            : 'Internet aloqangiz zaif — ovozingiz uzilib eshitilishi mumkin'"
+        >
+          <AppIcon
+            name="wifi-off"
+            :size="13"
+          />
+          <span class="hidden sm:inline">{{ localQuality === 'lost' ? 'Aloqa yo‘q' : 'Zaif aloqa' }}</span>
+        </span>
+
         <!-- ================================================================
           🔴 "YOZUVDA" — ROZILIK INDIKATORI, XONADAGI HAR KIMGA.
 
@@ -827,6 +857,41 @@ onBeforeUnmount(() => {
           @click="enableAudio"
         >
           Ovozni yoqish
+        </button>
+      </div>
+
+      <!--
+        ZAIF ALOQA — XATO BANNERIDAN AYRIM.
+
+        🔴 Rangi ham, matni ham boshqacha: bu "amal bajarilmadi" emas,
+        "hammasi ishlayapti, lekin internetingiz zaif" degani. Ikkalasini
+        bitta qizil/sariq blokka qo'shsak, foydalanuvchi tuzatib
+        bo'lmaydigan narsa uchun qo'llab-quvvatlashga yozardi.
+      -->
+      <div
+        v-if="linkWarning !== null"
+        class="flex shrink-0 items-center gap-2 border-b border-sky-500/25 bg-sky-500/10 text-xs text-sky-200"
+        :class="noticeRowClass"
+        role="status"
+      >
+        <AppIcon
+          name="wifi-off"
+          :size="14"
+          class="shrink-0"
+        />
+        <span
+          class="flex-1"
+          v-text="linkWarning"
+        />
+        <button
+          type="button"
+          class="tap-expand rounded p-0.5 hover:text-sky-100"
+          @click="dismissLinkWarning"
+        >
+          <AppIcon
+            name="close"
+            :size="14"
+          />
         </button>
       </div>
 

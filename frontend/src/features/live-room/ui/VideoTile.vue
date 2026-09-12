@@ -21,6 +21,15 @@ const props = withDefaults(
      */
     compact?: boolean
     roleLabel?: string
+    /**
+     * Shu ishtirokchining SERVERGACHA bo'lgan aloqa sifati.
+     *
+     * 🔴 NIMA UCHUN KATAKCHADA KO'RSATILADI: zaif kanalda ovoz uzilib
+     * eshitiladi va ilgari buni HECH NARSA tushuntirmasdi — ustoz
+     * "platforma buzuq" deb o'ylardi. Belgi aybni emas, SABABNI
+     * ko'rsatadi: muammo aynan shu odamning aloqasida.
+     */
+    quality?: 'excellent' | 'good' | 'poor' | 'lost' | 'unknown'
   }>(),
   {
     isLocal: false,
@@ -30,8 +39,12 @@ const props = withDefaults(
     large: false,
     compact: false,
     roleLabel: '',
+    quality: 'unknown',
   },
 )
+
+/** Belgi FAQAT muammoda chiqadi — "yaxshi" holat shovqin bo'lardi. */
+const weakLink = computed(() => props.quality === 'poor' || props.quality === 'lost')
 
 const videoEl = useTemplateRef<HTMLVideoElement>('videoEl')
 
@@ -153,6 +166,24 @@ const sizeClass = computed(() => {
         v-if="props.isLocal"
         class="text-[10px] text-white/60"
       >(siz)</span>
+
+      <!--
+        Zaif aloqa belgisi — ismdan KEYIN va `ml-auto` bilan o'ngda.
+        `title`: sichqoncha ustiga kelganda to'liq sabab ko'rinadi.
+      -->
+      <span
+        v-if="weakLink"
+        class="ml-auto flex shrink-0 items-center"
+        :title="props.quality === 'lost'
+          ? 'Aloqa uzildi'
+          : 'Internet aloqasi zaif — ovoz uzilib eshitilishi mumkin'"
+      >
+        <AppIcon
+          name="wifi-off"
+          :size="14"
+          class="text-amber-400"
+        />
+      </span>
     </div>
 
     <span
