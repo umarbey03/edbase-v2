@@ -1,13 +1,16 @@
 import { http } from '@/shared/api'
 import type {
   CreatePayrollAdjustmentRequest,
-  CreateTeacherRateRequest,
+  GroupPayrollAssignmentDto,
   PayrollAdjustmentDto,
   PayrollDetailDto,
   PayrollPeriodActionRequest,
+  PayrollRuleDto,
+  PayrollRuleRequest,
+  PayrollStudentCoefficientDto,
   PayrollSummaryDto,
-  TeacherRateDto,
-  UpdateTeacherRateRequest,
+  SetGroupPayrollAssignmentRequest,
+  SetPayrollStudentCoefficientRequest,
 } from '@/shared/types'
 
 const BASE = '/api/v1/payroll'
@@ -35,21 +38,53 @@ export function fetchPayrollDetail(
   })
 }
 
-export function fetchTeacherRates(options?: { signal?: AbortSignal }): Promise<TeacherRateDto[]> {
-  return http.get<TeacherRateDto[]>(`${BASE}/rates`, { signal: options?.signal })
+/* ------------------------------------------------------------- qoidalar */
+
+export function fetchPayrollRules(options?: { signal?: AbortSignal }): Promise<PayrollRuleDto[]> {
+  return http.get<PayrollRuleDto[]>(`${BASE}/rules`, { signal: options?.signal })
 }
 
-export function createTeacherRate(body: CreateTeacherRateRequest): Promise<TeacherRateDto> {
-  return http.post<TeacherRateDto>(`${BASE}/rates`, body)
+export function createPayrollRule(body: PayrollRuleRequest): Promise<PayrollRuleDto> {
+  return http.post<PayrollRuleDto>(`${BASE}/rules`, body)
 }
 
-/** ★ TO'LIQ ALMASHTIRISH — `UpdateTeacherRateRequest` dagi izohga qarang. */
-export function updateTeacherRate(id: number, body: UpdateTeacherRateRequest): Promise<TeacherRateDto> {
-  return http.put<TeacherRateDto>(`${BASE}/rates/${id}`, body)
+/** ★ TO'LIQ ALMASHTIRISH (bosqichlar bilan) — izoh: `PayrollRuleRequest`. */
+export function updatePayrollRule(id: number, body: PayrollRuleRequest): Promise<PayrollRuleDto> {
+  return http.put<PayrollRuleDto>(`${BASE}/rules/${id}`, body)
 }
 
-export function deleteTeacherRate(id: number): Promise<void> {
-  return http.delete<void>(`${BASE}/rates/${id}`)
+export function deletePayrollRule(id: number): Promise<void> {
+  return http.delete<void>(`${BASE}/rules/${id}`)
+}
+
+/* ------------------------------------------------------ guruh tayinlash */
+
+export function fetchGroupPayrollAssignments(
+  options?: { signal?: AbortSignal },
+): Promise<GroupPayrollAssignmentDto[]> {
+  return http.get<GroupPayrollAssignmentDto[]>(`${BASE}/group-assignments`, {
+    signal: options?.signal,
+  })
+}
+
+export function setGroupPayrollAssignment(
+  groupId: number,
+  body: SetGroupPayrollAssignmentRequest,
+): Promise<GroupPayrollAssignmentDto> {
+  return http.put<GroupPayrollAssignmentDto>(`${BASE}/group-assignments/${groupId}`, body)
+}
+
+/* ---------------------------------------------------------- koeffitsient */
+
+/**
+ * ★ `percent: 100` — yozuv o'chiriladi va server `204` qaytaradi
+ * (`http.put` bo'sh javobda `null` beradi). Sabab: jadval faqat ISTISNONI
+ * saqlaydi.
+ */
+export function setPayrollStudentCoefficient(
+  body: SetPayrollStudentCoefficientRequest,
+): Promise<PayrollStudentCoefficientDto | null> {
+  return http.put<PayrollStudentCoefficientDto | null>(`${BASE}/coefficients`, body)
 }
 
 /* ------------------------------------------------------------ tuzatish */

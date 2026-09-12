@@ -186,6 +186,12 @@ const MANAGE_NAV: NavItem[] = [
   */
   { routeName: 'manage-recordings', label: 'Dars yozuvlari', icon: 'camera' },
   /*
+    "Kutubxona" — v2 qo'shimchasi (2026-09-09): jonli darsda ekran
+    ulashuvi o'rniga ko'rsatiladigan PDF kitoblar. "Dars yozuvlari" dan
+    KEYIN: ikkalasi ham dars materiali, biri o'tgan dars, biri kelgusi.
+  */
+  { routeName: 'manage-library', label: 'Kutubxona', icon: 'book' },
+  /*
     "Ustozlar holati" — v2 qo'shimchasi (2026-08-17): kunlik "darsga o'ta
     olasizmi?" tasdiqlash + o'rinbosar tizimi paneli. "Uy vazifalari" dan
     OLDIN qo'yildi: ikkalasi ham kundalik nazorat oqimi, lekin bu band
@@ -299,6 +305,7 @@ const ACADEMIC_SECTION_ROUTES = [
   'manage-assignments',
   'manage-tests',
   'manage-recordings',
+  'manage-library',
   'manage-courses',
   'manage-broadcasts',
   'manage-academic-settings',

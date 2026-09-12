@@ -210,6 +210,10 @@ function play(recordingId: number, title: string): void {
             />
             <p class="mt-1 text-[12px] text-slate-400">
               <span v-text="formatDateTime(item.scheduledStart)" />
+              <template v-if="item.hostName !== null && item.hostName.length > 0">
+                ·
+                <span v-text="item.hostName" />
+              </template>
               <template v-if="formatRecordingDuration(item.recording.durationSeconds).length > 0">
                 ·
                 <span v-text="formatRecordingDuration(item.recording.durationSeconds)" />

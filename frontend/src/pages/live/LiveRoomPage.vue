@@ -7,11 +7,15 @@ import { fetchRecentMessages } from '@/entities/message'
 import {
   endLiveSession,
   fetchLiveSession,
+  muteParticipant,
   sessionTitle,
   startLiveSession,
 } from '@/entities/session'
+import type { ParticipantMediaSource } from '@/entities/session'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { useBookBoard } from '@/features/book-share/model/useBookBoard'
+import BookSharePanel from '@/features/book-share/ui/BookSharePanel.vue'
 import ChatPanel from '@/features/chat/ui/ChatPanel.vue'
 import { useLiveHub } from '@/features/live-hub/model/useLiveHub'
 import { useLiveKitRoom } from '@/features/live-room/model/useLiveKitRoom'
@@ -22,6 +26,7 @@ import { toUserMessage } from '@/shared/api'
 import { formatCountdown } from '@/shared/lib/datetime'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import { useConfirm } from '@/shared/lib/useConfirm'
+import { showToast } from '@/shared/lib/useToast'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 
 /*
@@ -111,6 +116,12 @@ const {
   linkWarning,
   mediaError,
   connectionError: mediaConnectionError,
+  moderationNotice,
+  dismissModerationNotice,
+  isCanvasSharing,
+  canvasSharePending,
+  shareCanvas,
+  stopCanvasShare,
   connect: connectMedia,
   leave: leaveMedia,
   toggleMic,
@@ -235,6 +246,43 @@ const canManageSession = computed(() => session.value?.isHost === true || isHost
 */
 const isStudent = computed(() => auth.role === 'Student')
 
+/*
+  USTOZ TUGMALARI — ISHTIROKCHINING MIKROFON/KAMERASINI O'CHIRISH (2026-09-09).
+
+  ★ `canManageSession` — darsni boshlay/yakunlay oladigan odam (host yoki
+  o'quv bo'limi/admin). Server ham AYNI qoida bilan tekshiradi
+  (`LiveSessionService.MuteParticipantAsync`), ya'ni tugma ko'ringan
+  joyda so'rov rad etilmaydi.
+
+  ★ HAR NISHON UCHUN ALOHIDA KUTISH: ustoz ikki o'quvchini ketma-ket
+  o'chirsa, birinchisining spinneri ikkinchisiga tegmasin. Kalit —
+  `${userId}:${source}`, `VideoStage` shu kalit bo'yicha o'qiydi.
+
+  ★ MUVAFFAQIYATDA TOAST YO'Q: natija SAHNADA ko'rinadi — o'quvchi
+  katagidagi mikrofon belgisi qizarib, kamerasi avatarga aylanadi
+  (LiveKit `TrackMuted` hodisasi orqali). Ikkinchi xabar shovqin.
+  Xato esa toast bilan — 409 "o'quvchi xonada emas" kabi.
+*/
+const moderating = ref<Set<string>>(new Set())
+
+async function handleModerate(userId: number, source: ParticipantMediaSource): Promise<void> {
+  const key = `${userId}:${source}`
+  if (moderating.value.has(key)) return
+
+  // `Set` ni ALMASHTIRAMIZ (mutatsiya emas): `VideoStage` prop'i
+  // `ReadonlySet` va Vue chuqur kuzatuvni faqat yangi obyektda sezadi.
+  moderating.value = new Set(moderating.value).add(key)
+  try {
+    await muteParticipant(sessionId, userId, source)
+  } catch (error) {
+    showToast(toUserMessage(error), 'error')
+  } finally {
+    const next = new Set(moderating.value)
+    next.delete(key)
+    moderating.value = next
+  }
+}
+
 /**
  * Kim "host" (ustoz) ekanini LiveKit o'zi aytmaydi — `LiveSessionDto` da ham
  * `HostId` yo'q. Shu sababli presence ma'lumotidan foydalanamiz: SPEC 7 bo'yicha
@@ -336,6 +384,7 @@ const noticeCount = computed(
     (audioBlocked.value ? 1 : 0) +
     (linkWarning.value !== null ? 1 : 0) +
     (mediaError.value !== null ? 1 : 0) +
+    (moderationNotice.value !== null ? 1 : 0) +
     (actionError.value !== null ? 1 : 0),
 )
 
@@ -404,6 +453,37 @@ async function handleLeave(): Promise<void> {
   await leaveMedia()
   await router.push({ name: homeRoute.value })
 }
+
+/*
+  KITOB TAXTASI (2026-09-09, loyiha egasi: "mobileda ustozlar ekran share
+  qilish imkoniyati yo'qligi sababli qiynalishyapti" + "yozib chizib,
+  belgilab tushuntiradigan funksionalliklari ham bo'lsa").
+
+  Taxta (`useBookBoard`) SAHIFA darajasida yashaydi, panel emas: panel
+  yopilganda ulashuv davom etadi va ustoz o'z sahnasida "Ekran" katagida
+  natijani ko'rib turadi. Panel — faqat boshqaruv oynasi.
+*/
+const board = useBookBoard()
+const bookPanelOpen = ref(false)
+
+function handleToggleBook(): void {
+  bookPanelOpen.value = true
+}
+
+async function startBookShare(): Promise<void> {
+  await shareCanvas(board.canvas)
+  // Ulashuv boshlangach panel YIG'ILADI: ustoz o'quvchilarni ko'rsin.
+  // Varaqlash/chizish uchun «Kitob» tugmasi bilan qayta ochadi.
+  if (isCanvasSharing.value) bookPanelOpen.value = false
+}
+
+async function stopBookShare(): Promise<void> {
+  await stopCanvasShare()
+}
+
+onBeforeUnmount(() => {
+  board.dispose()
+})
 
 async function handleToggleHand(): Promise<void> {
   await raiseHand(!handRaised.value)
@@ -917,6 +997,34 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <!-- Ustoz server orqali mikrofon/kamerani o'chirdi — o'quvchi ko'radi -->
+      <div
+        v-if="moderationNotice !== null"
+        class="flex shrink-0 items-center gap-2 border-b border-sky-500/25 bg-sky-500/10 text-xs text-sky-200"
+        :class="noticeRowClass"
+        role="status"
+      >
+        <AppIcon
+          name="mic-off"
+          :size="14"
+          class="shrink-0"
+        />
+        <span
+          class="flex-1"
+          v-text="moderationNotice"
+        />
+        <button
+          type="button"
+          class="tap-expand rounded p-0.5 hover:text-sky-100"
+          @click="dismissModerationNotice"
+        >
+          <AppIcon
+            name="close"
+            :size="14"
+          />
+        </button>
+      </div>
+
       <div
         v-if="actionError !== null"
         class="flex shrink-0 items-center gap-2 border-b border-rose-500/25 bg-rose-500/10 text-xs text-rose-200"
@@ -980,7 +1088,10 @@ onBeforeUnmount(() => {
           :status="mediaStatus"
           :role-by-user-id="roleByUserId"
           :connection-error="mediaConnectionError"
+          :can-moderate="canManageSession"
+          :moderating="moderating"
           @retry="handleRetry"
+          @moderate="handleModerate"
         />
 
         <!--
@@ -1008,6 +1119,8 @@ onBeforeUnmount(() => {
             :is-camera-on="isCameraOn"
             :is-screen-sharing="isScreenSharing"
             :can-share-screen="isHost"
+            :can-share-book="isHost"
+            :is-book-sharing="isCanvasSharing"
             :hand-raised="handRaised"
             :can-raise-hand="isStudent"
             :mic-pending="micPending"
@@ -1021,6 +1134,7 @@ onBeforeUnmount(() => {
             @toggle-mic="toggleMic"
             @toggle-camera="toggleCamera"
             @toggle-screen="toggleScreenShare"
+            @toggle-book="handleToggleBook"
             @toggle-hand="handleToggleHand"
             @toggle-chat="openChat"
             @toggle-fullscreen="toggleFullscreen"
@@ -1144,4 +1258,21 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+
+  <!--
+    KITOB TAXTASI PANELI — `<Teleport to="body">` bilan, sahifa ildizidan
+    TASHQARIDA e'lon qilinadi (ichki oynalar naqshi). Faqat hostda
+    ochiladi; `board` sahifa darajasida — panel yopilsa ham ulashuv
+    davom etadi.
+  -->
+  <BookSharePanel
+    v-if="isHost"
+    :open="bookPanelOpen"
+    :board="board"
+    :sharing="isCanvasSharing"
+    :share-pending="canvasSharePending"
+    @close="bookPanelOpen = false"
+    @start-share="startBookShare"
+    @stop-share="stopBookShare"
+  />
 </template>

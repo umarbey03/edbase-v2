@@ -2,7 +2,7 @@
 import type { Track } from 'livekit-client'
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
-import { AppIcon, BaseAvatar } from '@/shared/ui'
+import { AppIcon, BaseAvatar, BaseSpinner } from '@/shared/ui'
 
 const props = withDefaults(
   defineProps<{
@@ -14,6 +14,12 @@ const props = withDefaults(
     micEnabled?: boolean
     /** Asosiy sahna uchun kattaroq ko'rinish. */
     large?: boolean
+    /**
+     * TO'R (grid) katakchasi — ota konteynerning butun katagini to'ldiradi
+     * (2026-09-09, Telegram uslubidagi to'r). `large` dan farqi: avatar va
+     * yozuv O'RTA o'lchamda qoladi (5×5 to'rda katak kichik bo'ladi).
+     */
+    fill?: boolean
     /**
      * Yotiq telefondagi YON filmstrip uchun toraytirilgan katakcha
      * (104px ≈ 59px balandlik). `large` bilan birga ma'nosiz — asosiy sahna
@@ -30,6 +36,17 @@ const props = withDefaults(
      * ko'rsatadi: muammo aynan shu odamning aloqasida.
      */
     quality?: 'excellent' | 'good' | 'poor' | 'lost' | 'unknown'
+    /** Sahnaga "qadalgan" (pin) — burchakda belgi chiqadi. */
+    pinned?: boolean
+    /**
+     * USTOZ TUGMALARI (2026-09-09): "mikrofonni o'chirish" va "kamerani
+     * o'chirish". Faqat o'zganing kamera katakchasida ma'noli — o'z
+     * katakchasida va ekran ulashuvida ko'rsatilmaydi (ota tekshiradi).
+     */
+    canModerate?: boolean
+    /** Server javobi kutilmoqda — mos tugma aylanadi. */
+    micModerating?: boolean
+    cameraModerating?: boolean
   }>(),
   {
     isLocal: false,
@@ -37,11 +54,21 @@ const props = withDefaults(
     isSpeaking: false,
     micEnabled: false,
     large: false,
+    fill: false,
     compact: false,
     roleLabel: '',
     quality: 'unknown',
+    pinned: false,
+    canModerate: false,
+    micModerating: false,
+    cameraModerating: false,
   },
 )
+
+const emit = defineEmits<{
+  'mute-mic': []
+  'camera-off': []
+}>()
 
 /** Belgi FAQAT muammoda chiqadi — "yaxshi" holat shovqin bo'lardi. */
 const weakLink = computed(() => props.quality === 'poor' || props.quality === 'lost')
@@ -88,15 +115,31 @@ onBeforeUnmount(detachTrack)
 const hasVideo = computed(() => props.track !== null)
 
 /*
-  O'lchov klassi. Uchta holat: asosiy sahna (butun joy), yon filmstrip
-  (yotiq telefon — tor), oddiy filmstrip (o'zgarmadi: 160px, `sm` da 192px).
+  O'lchov klassi. To'rt holat: asosiy sahna va to'r katagi (butun joy),
+  yon filmstrip (yotiq telefon — tor), oddiy filmstrip (160px, `sm` da 192px).
 */
 const sizeClass = computed(() => {
-  if (props.large) return 'size-full'
+  if (props.large || props.fill) return 'size-full'
   return props.compact
     ? 'aspect-video w-[104px] shrink-0'
     : 'aspect-video w-40 shrink-0 sm:w-48'
 })
+
+const isSmallChrome = computed(() => props.compact && !props.large && !props.fill)
+
+/** Ustoz tugmalari: faqat hali YONIQ bo'lgan oqim uchun (o'chiqni o'chirib bo'lmaydi). */
+const showMuteMic = computed(() => props.canModerate && props.micEnabled)
+const showCameraOff = computed(() => props.canModerate && hasVideo.value)
+const showModeration = computed(() => showMuteMic.value || showCameraOff.value)
+
+/*
+  Tugma o'lchami 36px — 44px emas. Sabab: 5×5 to'rda katak ~150px, ikkita
+  44px tugma + oraliq uning uchdan birini egallardi va yuz ustiga tushardi.
+  36px hali ham barmoq nishoni sifatida yetarli (Material minimal 36dp),
+  va bu tugmalar KAMDAN-KAM bosiladi — ular asosiy boshqaruv emas.
+*/
+const MOD_BUTTON =
+  'inline-flex size-9 items-center justify-center rounded-full bg-black/60 text-white/90 ring-1 ring-inset ring-white/15 backdrop-blur transition-colors hover:bg-rose-600/90 active:scale-90 disabled:cursor-wait disabled:opacity-70'
 </script>
 
 <template>
@@ -151,7 +194,7 @@ const sizeClass = computed(() => {
          (ism `truncate` bilan qisqaradi, olib tashlanmaydi). -->
     <div
       class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent"
-      :class="props.compact && !props.large ? 'px-1.5 py-0.5' : 'px-2 py-1.5'"
+      :class="isSmallChrome ? 'px-1.5 py-0.5' : 'px-2 py-1.5'"
     >
       <AppIcon
         :name="props.micEnabled ? 'mic' : 'mic-off'"
@@ -184,14 +227,90 @@ const sizeClass = computed(() => {
           class="text-amber-400"
         />
       </span>
+      <span
+        v-if="props.roleLabel && !props.large && !isSmallChrome"
+        class="ml-auto shrink-0 text-[10px] text-white/60"
+        v-text="props.roleLabel"
+      />
     </div>
 
     <span
       v-if="props.isScreenShare"
       class="absolute rounded-md bg-brand-600/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-      :class="props.compact && !props.large ? 'left-1 top-1' : 'left-2 top-2'"
+      :class="isSmallChrome ? 'left-1 top-1' : 'left-2 top-2'"
     >
       Ekran
     </span>
+
+    <!-- Qadalgan belgisi -->
+    <span
+      v-if="props.pinned"
+      class="absolute flex size-6 items-center justify-center rounded-full bg-black/60 text-white/90"
+      :class="[isSmallChrome ? 'left-1 top-1' : 'left-2 top-2', props.isScreenShare ? 'mt-6' : '']"
+      title="Sahnaga qadalgan"
+    >
+      <AppIcon
+        name="pin"
+        :size="12"
+      />
+    </span>
+
+    <!--
+      USTOZ TUGMALARI — o'ng yuqori burchak.
+
+      ★ Sichqonchali qurilmada faqat katak ustiga borilganda ko'rinadi
+        (`group-hover`), TEGINISHLI qurilmada esa DOIMIY: u yerda "hover"
+        yo'q va yashirin tugma topilmas edi. `@media (hover: hover)`
+        Tailwind'da `hover:` variantining o'zida bor — shuning uchun
+        boshlang'ich holat KO'RINADIGAN, `[@media(hover:hover)]` ostida
+        yashiriladi.
+      ★ `@click.stop` — katakning o'zi bosilganda sahnaga qadaladi (pin);
+        tugma bosilishi qadashga aylanib ketmasin.
+    -->
+    <div
+      v-if="showModeration"
+      class="absolute right-2 top-2 flex items-center gap-1.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100"
+    >
+      <button
+        v-if="showMuteMic"
+        type="button"
+        :class="MOD_BUTTON"
+        :disabled="props.micModerating"
+        :aria-busy="props.micModerating"
+        :title="`${props.name}: mikrofonni o‘chirish`"
+        @click.stop="emit('mute-mic')"
+      >
+        <BaseSpinner
+          v-if="props.micModerating"
+          size="sm"
+        />
+        <AppIcon
+          v-else
+          name="mic-off"
+          :size="16"
+        />
+        <span class="sr-only">Mikrofonni o‘chirish</span>
+      </button>
+      <button
+        v-if="showCameraOff"
+        type="button"
+        :class="MOD_BUTTON"
+        :disabled="props.cameraModerating"
+        :aria-busy="props.cameraModerating"
+        :title="`${props.name}: kamerani o‘chirish`"
+        @click.stop="emit('camera-off')"
+      >
+        <BaseSpinner
+          v-if="props.cameraModerating"
+          size="sm"
+        />
+        <AppIcon
+          v-else
+          name="camera-off"
+          :size="16"
+        />
+        <span class="sr-only">Kamerani o‘chirish</span>
+      </button>
+    </div>
   </div>
 </template>

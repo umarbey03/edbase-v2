@@ -412,6 +412,7 @@ async function bulkSetVisibility(visible: boolean): Promise<void> {
           :title="recordingItemTitle(item)"
           :group-name="showGroupFilter ? (item.groupName ?? '') : ''"
           :scheduled-start="item.scheduledStart"
+          :host-name="item.hostName ?? ''"
           staff
           @play="play"
           @review="openReview"

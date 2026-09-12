@@ -416,6 +416,61 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("AttritionReasons", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.Book", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("CreatedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("PageCount")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Books_ObjectKey");
+
+                    b.HasIndex("IsActive", "Title")
+                        .HasDatabaseName("IX_Books_IsActive_Title");
+
+                    b.ToTable("Books", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.ChatMessage", b =>
                 {
                     b.Property<long>("Id")
@@ -747,6 +802,12 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<int>("PayrollMode")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("PayrollRuleId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("QuestionResponderRole")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -797,6 +858,8 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CuratorGroupId")
                         .HasDatabaseName("IX_Groups_CuratorGroupId");
+
+                    b.HasIndex("PayrollRuleId");
 
                     b.HasIndex("TeacherId")
                         .HasDatabaseName("IX_Groups_TeacherId");
@@ -2019,6 +2082,197 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("PayrollApprovals", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollRule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AcademicHourMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("ActiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ActiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Basis")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("CategoryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("CourseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("GroupId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("GroupType")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MaxStudents")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinDurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinStudents")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal?>("PlanAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("PlanReachedPercent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("WeekendHolidayMultiplier")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("IsActive", "Role", "ActiveFrom")
+                        .HasDatabaseName("IX_PayrollRules_IsActive_Role_ActiveFrom");
+
+                    b.ToTable("PayrollRules", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRules_Amounts_NonNegative", "(\"Amount\" >= 0 AND (\"PlanAmount\" IS NULL OR \"PlanAmount\" >= 0))");
+
+                            t.HasCheckConstraint("CK_PayrollRules_Multiplier", "(\"WeekendHolidayMultiplier\" IS NULL OR \"WeekendHolidayMultiplier\" >= 1)");
+
+                            t.HasCheckConstraint("CK_PayrollRules_PeriodOrder", "(\"ActiveTo\" IS NULL OR \"ActiveTo\" >= \"ActiveFrom\")");
+
+                            t.HasCheckConstraint("CK_PayrollRules_PlanPair", "((\"PlanAmount\" IS NULL) = (\"PlanReachedPercent\" IS NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollRuleTier", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("RuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("StudentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RuleId", "StudentCount")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayrollRuleTiers_RuleId_StudentCount");
+
+                    b.ToTable("PayrollRuleTiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRuleTiers_NonNegative", "(\"StudentCount\" >= 0 AND \"Amount\" >= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollStudentCoefficient", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("CreatedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Percent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("UserId", "StudentId", "PeriodStart")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayrollStudentCoefficients_User_Student_Period");
+
+                    b.ToTable("PayrollStudentCoefficients", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollStudentCoefficients_Percent", "(\"Percent\" >= 0 AND \"Percent\" <= 100)");
+                        });
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Penalty", b =>
                 {
                     b.Property<long>("Id")
@@ -2321,6 +2575,9 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Excluded")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IncludedInSalary")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("PremiumMultiplierApplied")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -2356,6 +2613,52 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_SessionPayouts_UserId_SessionId");
 
                     b.ToTable("SessionPayouts", (string)null);
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionPayoutLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("PayoutId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("RuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RuleName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayoutId")
+                        .HasDatabaseName("IX_SessionPayoutLines_PayoutId");
+
+                    b.HasIndex("RuleId");
+
+                    b.ToTable("SessionPayoutLines", (string)null);
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionRecording", b =>
@@ -3043,64 +3346,6 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("TeacherDailyCheckins", (string)null);
                 });
 
-            modelBuilder.Entity("Zinnur.Domain.Entities.TeacherRate", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateOnly>("ActiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<decimal>("ActiveStudentBonusRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("BaseSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamptz");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("PerSessionRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("PerStudentBonusRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamptz");
-
-                    b.Property<long?>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal?>("WeekendHolidayMultiplier")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("TeacherRates", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_TeacherRates_Multiplier", "(\"WeekendHolidayMultiplier\" IS NULL OR \"WeekendHolidayMultiplier\" >= 1)");
-
-                            t.HasCheckConstraint("CK_TeacherRates_Rates_NonNegative", "(\"PerSessionRate\" >= 0 AND \"PerStudentBonusRate\" >= 0 AND \"BaseSalary\" >= 0 AND \"ActiveStudentBonusRate\" >= 0)");
-                        });
-                });
-
             modelBuilder.Entity("Zinnur.Domain.Entities.TelegramUnlinkAudit", b =>
                 {
                     b.Property<long>("Id")
@@ -3713,6 +3958,15 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Attendance");
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.Book", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.ChatMessage", b =>
                 {
                     b.HasOne("Zinnur.Domain.Entities.LiveSession", "Session")
@@ -3804,6 +4058,11 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CuratorGroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Zinnur.Domain.Entities.PayrollRule", "PayrollRule")
+                        .WithMany()
+                        .HasForeignKey("PayrollRuleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Zinnur.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("TeacherId")
@@ -3819,6 +4078,8 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Course");
 
                     b.Navigation("CuratorGroup");
+
+                    b.Navigation("PayrollRule");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.GroupBroadcast", b =>
@@ -4232,6 +4493,75 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollRule", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.GroupCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.Group", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Group");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollRuleTier", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.PayrollRule", "Rule")
+                        .WithMany("Tiers")
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Rule");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollStudentCoefficient", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Penalty", b =>
                 {
                     b.HasOne("Zinnur.Domain.Entities.PenaltyCategory", "Category")
@@ -4334,6 +4664,24 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionPayoutLine", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.SessionPayout", "Payout")
+                        .WithMany("Lines")
+                        .HasForeignKey("PayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.PayrollRule", "Rule")
+                        .WithMany()
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Payout");
+
+                    b.Navigation("Rule");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionRecording", b =>
@@ -4566,16 +4914,6 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("Zinnur.Domain.Entities.TeacherRate", b =>
-                {
-                    b.HasOne("Zinnur.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Zinnur.Domain.Entities.TelegramUnlinkAudit", b =>
                 {
                     b.HasOne("Zinnur.Domain.Entities.User", "Actor")
@@ -4729,9 +5067,19 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Assets");
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.PayrollRule", b =>
+                {
+                    b.Navigation("Tiers");
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionCoverageRequest", b =>
                 {
                     b.Navigation("Offers");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SessionPayout", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionRecording", b =>

@@ -86,3 +86,25 @@ export function cancelLiveSession(id: number, reason?: string): Promise<LiveSess
 export function fetchLiveKitJoin(id: number): Promise<LiveKitJoinDto> {
   return http.post<LiveKitJoinDto>(`${BASE}/${id}/token`)
 }
+
+/** Ustoz o'chira oladigan oqim turi (server enum'i, satr ko'rinishida). */
+export type ParticipantMediaSource = 'Microphone' | 'Camera'
+
+/**
+ * `POST /api/v1/live-sessions/{id}/participants/{userId}/mute` (2026-09-09).
+ *
+ * Ustoz o'quvchining mikrofonini yoki kamerasini O'CHIRADI — Telegram
+ * guruh qo'ng'irog'idagi kabi. Amal SERVERDA (LiveKit RoomService) bajariladi,
+ * ya'ni o'quvchi klienti hamkorlik qilmasa ham trek jim bo'ladi.
+ *
+ * ⚠️ FAQAT O'CHIRISH — yoqish yo'q: birovning mikrofonini uning xohishisiz
+ * yoqib bo'lmaydi (`livekit.yaml`: `enable_remote_unmute: false`).
+ * Yoqishni o'quvchining o'zi pastki paneldan qiladi.
+ */
+export function muteParticipant(
+  sessionId: number,
+  userId: number,
+  source: ParticipantMediaSource,
+): Promise<void> {
+  return http.post<void>(`${BASE}/${sessionId}/participants/${userId}/mute`, { source })
+}

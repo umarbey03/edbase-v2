@@ -146,11 +146,25 @@ public interface IApplicationDbContext
     /// </summary>
     DbSet<LessonCharge> LessonCharges { get; }
 
-    /// <summary>Ustoz/kurator oylik stavkasi — narx TARIXI (izoh: <see cref="TeacherRate"/>).</summary>
-    DbSet<TeacherRate> TeacherRates { get; }
+    /// <summary>
+    /// Oylik hisoblash QOIDALARI — dvigatelning yagona sozlama manbai
+    /// (izoh: <see cref="PayrollRule"/>). 2026-09-04 da <c>TeacherRates</c>
+    /// ni ALMASHTIRDI: eski jadval bitta qatorda beshta pul ustunini
+    /// saqlardi va har yangi hisoblash usuli yana bitta ustun talab qilardi.
+    /// </summary>
+    DbSet<PayrollRule> PayrollRules { get; }
+
+    /// <summary>«Suzuvchi» stavkaning bosqichlari — izoh: <see cref="PayrollRuleTier"/>.</summary>
+    DbSet<PayrollRuleTier> PayrollRuleTiers { get; }
+
+    /// <summary>Oylik o'quvchi bonusi koeffitsientlari — izoh: <see cref="PayrollStudentCoefficient"/>.</summary>
+    DbSet<PayrollStudentCoefficient> PayrollStudentCoefficients { get; }
 
     /// <summary>Ustoz/kurator haqi SNAPSHOT'i — izoh: <see cref="SessionPayout"/>.</summary>
     DbSet<SessionPayout> SessionPayouts { get; }
+
+    /// <summary>Haq snapshot'ining TASHKIL ETUVCHILARI — izoh: <see cref="SessionPayoutLine"/>.</summary>
+    DbSet<SessionPayoutLine> SessionPayoutLines { get; }
 
     /// <summary>Oylik davri tasdiqlash/to'lov holati — izoh: <see cref="PayrollApproval"/>.</summary>
     DbSet<PayrollApproval> PayrollApprovals { get; }
@@ -279,6 +293,9 @@ public interface IApplicationDbContext
     DbSet<Holiday> Holidays { get; }
 
     /* ===== /2026-08-16 (to'lov) ===== */
+
+    /// <summary>KUTUBXONA (2026-09-09): jonli darsda ulashiladigan PDF kitoblar.</summary>
+    DbSet<Book> Books { get; }
 
     /* ===== 2026-08-17: ustoz kunlik tasdiqlash + o'rinbosar ===== */
 

@@ -103,7 +103,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<LessonCharge> LessonCharges => Set<LessonCharge>();
 
-    public DbSet<TeacherRate> TeacherRates => Set<TeacherRate>();
+    public DbSet<PayrollRule> PayrollRules => Set<PayrollRule>();
+
+    public DbSet<PayrollRuleTier> PayrollRuleTiers => Set<PayrollRuleTier>();
+
+    public DbSet<PayrollStudentCoefficient> PayrollStudentCoefficients =>
+        Set<PayrollStudentCoefficient>();
+
+    public DbSet<SessionPayoutLine> SessionPayoutLines => Set<SessionPayoutLine>();
 
     public DbSet<SessionPayout> SessionPayouts => Set<SessionPayout>();
 
@@ -185,6 +192,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Holiday> Holidays => Set<Holiday>();
 
     /* ===== /2026-08-16 (to'lov) ===== */
+
+    /* ===== 2026-09-09: Kutubxona (PDF kitoblar) ===== */
+
+    public DbSet<Book> Books => Set<Book>();
 
     // ---------------------------------------------------------------- FAZA 5.2: notifikatsiya
 

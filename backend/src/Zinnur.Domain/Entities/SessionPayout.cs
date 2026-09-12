@@ -9,7 +9,7 @@ namespace Zinnur.Domain.Entities;
 /// ============================================================================
 ///
 /// ★ NIMA UCHUN KERAK: <c>PayrollService</c> ilgari HAR SO'ROVDA
-/// <c>LiveSessions</c> + <c>Attendances</c> + <c>TeacherRates</c> dan
+/// <c>LiveSessions</c> + <c>Attendances</c> + stavkalar jadvalidan
 /// QAYTA HISOBLAR edi — bu <see cref="Payment"/>/<see cref="Tariff"/> dagi
 /// "narx TARIXI saqlanadi" tamoyilidan FARQ QILARDI: stavka tahrirlansa
 /// yoki o'chirilsa, O'TGAN OY HISOBOTI ham jimgina o'zgarib qolardi.
@@ -53,7 +53,8 @@ public class SessionPayout : BaseEntity
 
     /// <summary>
     /// ★ 2026-08-16 — shu darsda haqiqatda qo'llangan dam olish/bayram
-    /// ko'paytiruvchisi (<c>TeacherRate.WeekendHolidayMultiplier</c>).
+    /// ko'paytiruvchisi (<c>PayrollRule.WeekendHolidayMultiplier</c>).
+    /// Bir nechta asosiy qoida bo'lsa — ENG KATTASI.
     /// Ustama yo'q bo'lsa <c>1</c>. <see cref="SessionRate"/> ALLAQACHON
     /// shu ko'paytiruvchi bilan hisoblangan — bu maydon faqat SHAFFOFLIK
     /// uchun (detail ko'rinishida "nega bu kunning stavkasi boshqacha"
@@ -62,9 +63,15 @@ public class SessionPayout : BaseEntity
     public decimal PremiumMultiplierApplied { get; set; } = 1m;
 
     /// <summary>
-    /// Stavka topilmaganmi (rol/xodim uchun hech qanday <see cref="TeacherRate"/>
+    /// Mos qoida topilmaganmi (bu dars uchun hech qanday <see cref="PayrollRule"/>
     /// sozlanmagan) — shunday bo'lsa <see cref="SessionRate"/>/<see cref="BonusAmount"/>
-    /// ikkalasi ham 0, lekin sabab "stavka yo'q", "bepul dars" EMAS.
+    /// ikkalasi ham 0, lekin sabab "qoida yo'q", "bepul dars" EMAS va
+    /// "oklad ichida" ham EMAS (<see cref="IncludedInSalary"/>).
+    ///
+    /// ★ NOM SAQLANDI (<c>RateMissing</c>, <c>RuleMissing</c> emas): ustun
+    /// allaqachon bazada va uni qayta nomlash migratsiyada ma'noli hech
+    /// narsa bermay, faqat xavf qo'shardi. DTO darajasida esa u
+    /// <c>RuleMissing</c> deb chiqadi — tashqi til yangi modelga mos.
     /// </summary>
     public bool RateMissing { get; set; }
 
@@ -75,4 +82,21 @@ public class SessionPayout : BaseEntity
     /// (lekin dars SONIGA hali ham kiradi — shaffoflik uchun).
     /// </summary>
     public bool Excluded { get; set; }
+
+    /// <summary>
+    /// ★ 2026-09-04 — guruh "oklad ichida" deb belgilangani uchun haq 0
+    /// (<c>Group.PayrollMode</c>). <see cref="RateMissing"/> DAN FARQI:
+    /// bu ONGLI qaror, u esa SOZLANMAGANLIK belgisi. Ikkovini bir bayroqqa
+    /// yig'ish hisobotda "stavka yo'q" ogohlantirishini soxta chiqarardi va
+    /// admin har oy bor-yo'q muammoni qidirardi.
+    /// </summary>
+    public bool IncludedInSalary { get; set; }
+
+    /// <summary>
+    /// ★ 2026-09-04 — haq QANDAY chiqqani: qoidama-qoida tafsilot
+    /// (izoh: <see cref="SessionPayoutLine"/>). <see cref="SessionRate"/> va
+    /// <see cref="BonusAmount"/> — shularning YIG'INDISI, ular bilan BIRGA
+    /// muzlatiladi.
+    /// </summary>
+    public ICollection<SessionPayoutLine> Lines { get; set; } = new List<SessionPayoutLine>();
 }

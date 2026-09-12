@@ -54,6 +54,14 @@ public static class DependencyInjection
         services.AddSingleton<ILiveKitTokenService, LiveKitTokenService>();
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
+        // Xona boshqaruvi (ustoz o'quvchining mikrofon/kamerasini o'chiradi).
+        // Holatsiz — Egress klienti bilan AYNI mulohaza (`AddRecordings`).
+        // Timeout QISQA: ustoz tugmani bosib turibdi, yarim daqiqa kutmasin.
+        services.AddHttpClient(
+            LiveKitRoomControlClient.HttpClientName,
+            client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton<ILiveKitRoomControl, LiveKitRoomControlClient>();
+
         // Jadval zonasi ham holatsiz: zona fayli bir marta o'qiladi va
         // ilova umri davomida keshda qoladi.
         services.AddSingleton<IScheduleTimeZoneProvider, ConfiguredScheduleTimeZone>();

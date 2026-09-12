@@ -2615,6 +2615,8 @@ export interface RecordingListItemDto {
   /** `DateOnly` — `YYYY-MM-DD` (vaqt zonasiz). */
   localDate: string
   scheduledStart: string
+  /** Darsni olib borgan xodim (o'rinbosar bo'lsa — o'rinbosar). `null` — biriktirilmagan. */
+  hostName: string | null
 }
 
 /**
@@ -2696,6 +2698,28 @@ export interface UserProfileDto {
   study: ProfileStudyDto
   /** 🔴 `null` — o'quvchining o'zi so'ragan (bo'lim render QILINMAYDI). */
   notes: StudentNoteDto[] | null
+  /**
+   * USTOZ/KURATOR bloki (2026-09-09) — subyekt xodim bo'lsa. O'quvchi
+   * uchun `null`; drawer shu maydonga qarab ko'rinishni tanlaydi.
+   */
+  staff: ProfileStaffDto | null
+}
+
+export interface ProfileStaffDto {
+  groups: ProfileTaughtGroupDto[]
+}
+
+export interface ProfileTaughtGroupDto {
+  groupId: number
+  groupName: string
+  /** Shu guruhda ustozmi yoki kuratormi. */
+  roleInGroup: 'Teacher' | 'Assistant'
+  type: GroupTypeName
+  isActive: boolean
+  activeStudentCount: number
+  courseName: string | null
+  /** `DateOnly` — `YYYY-MM-DD`. */
+  startDate: string
 }
 
 /** Telegram ulanish holati + OXIRGI uzishning izi. */
@@ -3714,50 +3738,199 @@ export interface StudentStatsDto {
    OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi, FAQAT Admin ko'radi.
    ============================================================================ */
 
-export interface TeacherRateDto {
+/**
+ * Qoida TURI — "pul qanday hisoblanadi".
+ *
+ * ★ 2026-09-04 da `TeacherRateDto` ni ALMASHTIRDI: eski shakl bitta qatorda
+ * beshta pul maydonini olib yurardi va har yangi hisoblash usuli shartnomani
+ * ham o'zgartirishni talab qilardi. Sabab backendda `PayrollRule` izohida.
+ *
+ * ★ IKKI QAMROV: birinchi to'rttasi HAR DARS uchun, qolgan uchtasi OYGA
+ * bir marta hisoblanadi (`isSessionScoped` bayrog'i).
+ */
+export type PayrollRuleKindName =
+  | 'FixedMonthly'
+  | 'PerSession'
+  | 'PerAcademicHour'
+  | 'PerAttendedStudent'
+  | 'TieredByAttendance'
+  | 'PercentOfRevenue'
+  | 'MonthlyPerActiveStudent'
+  /** O'quvchi × akademik soat — HolliHop'dagi asosiy stavka (2026-09-09). */
+  | 'PerStudentAcademicHour'
+
+/** Qoida QAYSI o'quvchilarni sanaydi. */
+export type PayrollBasisName = 'Attended' | 'AttendedAndExcused' | 'Enrolled'
+
+/** Guruh kartochkasidagi oylik rejimi. */
+export type GroupPayrollModeName = 'Auto' | 'IncludedInSalary' | 'FixedRule'
+
+/** «Suzuvchi» stavkaning bitta bosqichi. */
+export interface PayrollRuleTierDto {
   id: number
+  /** Shu SONDAN boshlab (undan ko'p bo'lsa keyingi bosqich). */
+  studentCount: number
+  amount: number
+}
+
+export interface PayrollRuleTierInput {
+  studentCount: number
+  amount: number
+}
+
+export interface PayrollRuleDto {
+  id: number
+  name: string
+  kind: PayrollRuleKindName
+
+  /* --- maqsad: `null` = cheklov yo'q --- */
   userId: number | null
   userName: string | null
   role: UserRoleName
-  perSessionRate: number
-  perStudentBonusRate: number
-  /** Oylik kafolatlangan summa (asosan kurator uchun) — 0 = yo'q. */
-  baseSalary: number
-  /** Har bir faol o'quvchi uchun oylik KPI bonusi (asosan kurator uchun) — 0 = yo'q. */
-  activeStudentBonusRate: number
-  /** Dam olish/bayram kuni asosiy stavkaga ko'paytiruvchi — `null` = ustama yo'q. */
+  courseId: number | null
+  courseName: string | null
+  groupId: number | null
+  groupName: string | null
+  categoryId: number | null
+  categoryName: string | null
+  groupType: GroupTypeName | null
+
+  /* --- qiymat --- */
+  /** Pul (so'm) — yoki `PercentOfRevenue` da FOIZ (0..100). */
+  amount: number
+  academicHourMinutes: number
+  basis: PayrollBasisName
+
+  /* --- shartlar: `null` = chegara yo'q --- */
+  minStudents: number | null
+  maxStudents: number | null
+  minDurationMinutes: number | null
+
+  /* --- reja (faqat `PercentOfRevenue`) --- */
+  planAmount: number | null
+  planReachedPercent: number | null
+
+  /** Dam olish/bayram ko'paytiruvchisi — `null` = ustama yo'q. */
   weekendHolidayMultiplier: number | null
+
   /** `DateOnly` — `YYYY-MM-DD`. */
   activeFrom: string
+  /** `DateOnly` yoki `null` = muddatsiz. */
+  activeTo: string | null
   isActive: boolean
+
+  /** Bir xil turdagi qoidalar orasidagi ustunlik: guruh 8 > xodim 4 > kurs 2 > kategoriya/tur 1. */
   specificity: number
+  /** Har dars uchunmi — UI shunga qarab maydonlarni ko'rsatadi. */
+  isSessionScoped: boolean
+
+  tiers: PayrollRuleTierDto[]
+
+  /** Bu qoidani QO'LDA tanlagan guruhlar soni — o'chirishdan oldin ogohlantirish uchun. */
+  pinnedGroupCount: number
+
   createdAt: string
   updatedAt: string | null
 }
 
-export interface CreateTeacherRateRequest {
+/**
+ * ★ Yaratish va yangilash BIR XIL shakl — `PUT` TO'LIQ ALMASHTIRADI
+ * (bosqichlar ham). Qisman yangilash "qaysi bosqich qaysi id?" degan
+ * murakkablikni frontendga yuklardi.
+ */
+export interface PayrollRuleRequest {
+  name: string
+  kind: PayrollRuleKindName
   role: UserRoleName
-  perSessionRate: number
-  perStudentBonusRate: number
+  amount: number
   activeFrom: string
-  userId?: number | null
-  isActive: boolean
-  baseSalary: number
-  activeStudentBonusRate: number
+  userId: number | null
+  courseId: number | null
+  groupId: number | null
+  categoryId: number | null
+  groupType: GroupTypeName | null
+  academicHourMinutes: number
+  basis: PayrollBasisName
+  minStudents: number | null
+  maxStudents: number | null
+  minDurationMinutes: number | null
+  planAmount: number | null
+  planReachedPercent: number | null
   weekendHolidayMultiplier: number | null
+  activeTo: string | null
+  isActive: boolean
+  tiers: PayrollRuleTierInput[]
 }
 
-/** ★ `PUT` — TO'LIQ ALMASHTIRISH (izoh: `UpdateTariffRequest` bilan AYNI naqsh). */
-export interface UpdateTeacherRateRequest {
-  role: UserRoleName
-  perSessionRate: number
-  perStudentBonusRate: number
-  activeFrom: string
-  isActive: boolean
-  userId: number | null
-  baseSalary: number
-  activeStudentBonusRate: number
-  weekendHolidayMultiplier: number | null
+/* ------------------------------------------------------ guruh tayinlash */
+
+export interface GroupPayrollAssignmentDto {
+  groupId: number
+  groupName: string
+  mode: GroupPayrollModeName
+  ruleId: number | null
+  ruleName: string | null
+}
+
+export interface SetGroupPayrollAssignmentRequest {
+  mode: GroupPayrollModeName
+  ruleId: number | null
+}
+
+/* ---------------------------------------------------------- koeffitsient */
+
+export interface PayrollStudentCoefficientDto {
+  id: number
+  userId: number
+  studentId: number
+  studentName: string
+  /** `DateOnly` — oyning 1-kuni. */
+  periodStart: string
+  percent: number
+  note: string | null
+}
+
+/**
+ * Xodimning shu davrdagi BITTA faol o'quvchisi va uning koeffitsienti.
+ *
+ * ★ BUTUN RO'YXAT qaytariladi (faqat istisnolar emas): admin koeffitsient
+ * qo'yish uchun o'quvchini shu ro'yxatdan tanlaydi. Aks holda UI butun
+ * markazning o'quvchilarini ko'rsatishga majbur bo'lardi va u yerdan bu
+ * xodimga aloqasi yo'q o'quvchini tanlash mumkin edi.
+ *
+ * `percent` yozuv bo'lmasa `100` — "istisno yo'q".
+ */
+export interface PayrollStudentUnitDto {
+  studentId: number
+  studentName: string
+  percent: number
+  note: string | null
+}
+
+/**
+ * ★ `percent: 100` yuborilsa yozuv O'CHIRILADI va javob `204` bo'ladi:
+ * jadval faqat ISTISNONI saqlaydi (yo'qligi = 100%).
+ */
+export interface SetPayrollStudentCoefficientRequest {
+  userId: number
+  studentId: number
+  period: string
+  percent: number
+  note: string | null
+}
+
+/**
+ * Haqning bitta tashkil etuvchisi — "nima uchun shuncha" qatori.
+ * Dars ichida ham, davr yig'indisida ham AYNI shakl.
+ */
+export interface PayrollAmountLineDto {
+  /** Qoida o'chirilgan bo'lsa `null` — nomi nusxa sifatida saqlangan. */
+  ruleId: number | null
+  ruleName: string
+  kind: PayrollRuleKindName
+  amount: number
+  /** "1.78 akademik soat", "7 o'quvchi" — faqat ko'rsatish uchun. */
+  basis: string | null
 }
 
 /** Oylik davri holati (2026-08-16) — Draft → Approved → Paid. */
@@ -3769,20 +3942,23 @@ export interface PayrollSummaryRowDto {
   role: UserRoleName
   sessionCount: number
   totalStudentsAttended: number
-  baseAmount: number
-  bonusAmount: number
-  /** Davr uchun BIR MARTA qo'shiladigan oylik kafolatlangan summa (kurator baza oylik). */
-  baseSalaryAmount: number
-  /** Davr OXIRIDAGI faol o'quvchilar soni (KPI hisob asosi). */
-  activeStudentCount: number
-  kpiBonusAmount: number
+  /** Darslardan asosiy stavka yig'indisi (dars/soat/bosqich turlari). */
+  sessionBaseAmount: number
+  /** Darslardan o'quvchi bonusi yig'indisi. */
+  sessionBonusAmount: number
+  /** Davr qoidalari (oklad, foiz, oylik o'quvchi bonusi) yig'indisi. */
+  periodAmount: number
+  /** Davr qoidalarining tafsiloti — qatorni kengaytirganda ko'rinadi. */
+  periodLines: PayrollAmountLineDto[]
   /** Qo'lda qo'shilgan tuzatishlar yig'indisi (ishorasi bilan). */
   adjustmentAmount: number
   total: number
-  /** Stavka topilmagan darslar soni — 0 bo'lmasa hisobot TO'LIQ EMAS. */
-  sessionsWithoutRate: number
-  /** Bepul deb belgilanib, ustoz HAM haq olmagan darslar soni. */
+  /** Mos qoida topilmagan darslar soni — 0 bo'lmasa SOZLASH KERAK. */
+  sessionsWithoutRule: number
+  /** Bepul deb belgilanib, xodim HAM haq olmagan darslar soni. */
   sessionsExcluded: number
+  /** Guruhi "oklad ichida" bo'lgani uchun alohida haq hisoblanmagan darslar. */
+  sessionsIncludedInSalary: number
   approvalStatus: PayrollApprovalStatusName
   approvedAt: string | null
   paidAt: string | null
@@ -3803,11 +3979,16 @@ export interface PayrollSessionRowDto {
   sessionRate: number
   bonusAmount: number
   total: number
-  rateMissing: boolean
-  /** Bepul dars deb belgilanib, ustoz shu darsdan haq olmadi. */
+  /** Mos qoida topilmadi — "bepul dars" EMAS, SOZLANMAGAN. */
+  ruleMissing: boolean
+  /** Bepul dars deb belgilanib, xodim shu darsdan haq olmadi. */
   excluded: boolean
+  /** Guruh "oklad ichida" — haq ONGLI ravishda 0. */
+  includedInSalary: boolean
   /** Shu darsda qo'llangan dam olish/bayram ko'paytiruvchisi — ustama yo'q bo'lsa `1`. */
   premiumMultiplierApplied: number
+  /** Qoidama-qoida tafsilot: qaysi qoida qancha berdi. */
+  lines: PayrollAmountLineDto[]
 }
 
 /** Qo'lda qo'shilgan bonus/ushlab qolish (ishorasi bilan) — audit iz bilan. */
@@ -3852,9 +4033,15 @@ export interface PayrollDetailDto {
   role: UserRoleName
   period: string
   sessions: PayrollSessionRowDto[]
-  baseSalaryAmount: number
+  /** Davr qoidalari — oklad, tushumdan foiz, oylik o'quvchi bonusi. */
+  periodLines: PayrollAmountLineDto[]
+  periodAmount: number
+  /** Davr oxiridagi faol o'quvchilar soni. */
   activeStudentCount: number
-  kpiBonusAmount: number
+  /** Koeffitsientlar bilan o'lchangan ulushlar yig'indisi (100% = 1 ulush). */
+  weightedStudentUnits: number
+  /** Xodimning faol o'quvchilari va koeffitsientlari. */
+  students: PayrollStudentUnitDto[]
   adjustments: PayrollAdjustmentDto[]
   grandTotal: number
   approvalStatus: PayrollApprovalStatusName
@@ -4148,4 +4335,33 @@ export interface AbsenceNoticeSummaryDto {
 export interface MarkCalledRequest {
   /** Qo'ng'iroqda aniqlangan sabab yoki qisqa izoh. */
   note?: string
+}
+
+/* ==========================================================================
+   KUTUBXONA (2026-09-09) — jonli darsda ulashiladigan PDF kitoblar
+   ========================================================================== */
+
+/** `GET /api/v1/books` qatori. */
+export interface BookDto {
+  id: number
+  title: string
+  sizeBytes: number
+  /** Sahifalar soni — yuklashda KLIENT aniqlaydi; `null` — noma'lum. */
+  pageCount: number | null
+  isActive: boolean
+  createdByName: string | null
+  createdAt: string
+}
+
+/** `POST /api/v1/books` (multipart) ixtiyoriy maydonlari. */
+export interface BookUploadFields {
+  title?: string
+  pageCount?: number | null
+}
+
+/** `PUT /api/v1/books/{id}` tanasi. `pageCount: null` — tegilmaydi. */
+export interface UpdateBookRequest {
+  title: string
+  isActive: boolean
+  pageCount: number | null
 }

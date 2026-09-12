@@ -27,8 +27,11 @@ import type { Recording } from '../model/types'
  * sarlavha, sana va o'ngda "Ko'rish" tugmasi. Setka ham o'sha:
  * `repeat(auto-fill, minmax(290px, 1fr))` — u ota komponentda.
  *
- * ESKISIDAN OLIB TASHLANGANLARI VA SABABI:
- *  • ustoz avatari va ismi — `RecordingListItemDto` da dars EGASI yo'q;
+ * ★★ USTOZ ISMI QAYTA TIKLANDI (2026-09-09): ilgari "`RecordingListItemDto`
+ *    da dars EGASI yo'q" degan sabab bilan olib tashlangan edi — endi
+ *    server `hostName` beradi (o'rinbosar bo'lsa o'rinbosar ismi).
+ *    Avatar EMAS, faqat ism: kartada avatar uchun rasm yo'q va bo'sh
+ *    doira hech narsa aytmasdi.
  *
  * ★★ QAYTA TIKLANDI (R29, 2026-08-14): "Ko'rilmagan / Tasdiqlandi /
  *    Muammo bor" nishoni va tahlil tugmasi. Ilgari bu yerda ular
@@ -66,6 +69,8 @@ const props = withDefaults(
     groupName?: string
     /** Dars jadval bo'yicha qachon boshlangani. Bo'sh bo'lsa yozuv sanasi ishlatiladi. */
     scheduledStart?: string
+    /** Darsni olib borgan ustoz/kurator. Bo'sh satr — ko'rsatilmaydi. */
+    hostName?: string
     /**
      * Xodim ko'rinishimi: sifat nishoni va ko'rinish kaliti FAQAT shunda
      * chiziladi (R29 / R5).
@@ -77,7 +82,7 @@ const props = withDefaults(
      */
     staff?: boolean
   }>(),
-  { groupName: '', scheduledStart: '', staff: false },
+  { groupName: '', scheduledStart: '', hostName: '', staff: false },
 )
 
 const emit = defineEmits<{
@@ -282,6 +287,20 @@ const reviewTone = computed(() => reviewVerdictTone(props.recording.reviewStatus
             <span aria-hidden="true">·</span>
             <span v-text="size" />
           </template>
+        </p>
+        <p
+          v-if="hostName.length > 0"
+          class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-400"
+          :title="`Ustoz: ${hostName}`"
+        >
+          <AppIcon
+            name="user"
+            :size="12"
+          />
+          <span
+            class="truncate"
+            v-text="hostName"
+          />
         </p>
 
         <!--
