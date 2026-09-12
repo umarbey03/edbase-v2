@@ -532,6 +532,18 @@ const routes: RouteRecordRaw[] = [
       },
       {
         /*
+          KUTUBXONA (2026-09-09) — jonli darsda ustoz ko'rsatadigan PDF
+          kitoblar. Yuklash/o'chirish — o'quv bo'limi va admin; ustoz
+          ro'yxatni jonli xonadagi «Kitob» tugmasidan ko'radi, alohida
+          sahifa kerak emas.
+        */
+        path: 'boshqaruv/kutubxona',
+        name: 'manage-library',
+        component: () => import('@/pages/manage/ManageLibraryPage.vue'),
+        meta: { title: 'Kutubxona', roles: MANAGERS },
+      },
+      {
+        /*
           OYLIK HISOBLASH (2026-08-16) — ustoz/kurator haqi. `ADMIN_ONLY`:
           `PayrollController` ham FAQAT Admin (Academic emas) — izoh
           `PayrollService` sinfida ("kim TO'LOV OLADI — ustoz VA kurator,

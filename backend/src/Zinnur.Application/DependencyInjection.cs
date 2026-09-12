@@ -209,6 +209,9 @@ public static class DependencyInjection
         services.AddScoped<ILessonAssetService, LessonAssetService>();
         services.AddScoped<IAssignmentAttachmentService, AssignmentAttachmentService>();
 
+        // KUTUBXONA (2026-09-09): PDF kitoblar — jonli darsda ulashish uchun.
+        services.AddScoped<Books.Services.IBookService, Books.Services.BookService>();
+
         // R37: USTOZ tekshirishda biriktiradigan fayllar. AYNI sabablar
         // bilan SCOPED va ALOHIDA interfeys — u ham `IMediaStorage` bilan
         // oqim orqali ishlaydi va ruxsat uchun `IAssignmentService` ning
@@ -240,6 +243,10 @@ public static class DependencyInjection
         // ALOHIDA: ruxsat FAQAT Admin (Academic emas), izoh `PayrollService`
         // sinfida.
         services.AddScoped<IPayrollService, PayrollService>();
+
+        // Qoidalarni SOZLASH ALOHIDA servisda — hisobotdan farqli hayot
+        // sikli va sinov yuzasi (izoh `IPayrollRuleService` da).
+        services.AddScoped<IPayrollRuleService, PayrollRuleService>();
 
         // Blok darvozasi ALOHIDA va KICHIK interfeys: uni moliyadan
         // TASHQARIDAGI servislar chaqiradi (jonli darsga kirish, kurs

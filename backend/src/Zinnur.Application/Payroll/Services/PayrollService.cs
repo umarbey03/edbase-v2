@@ -11,40 +11,34 @@ using Zinnur.Domain.Finance;
 namespace Zinnur.Application.Payroll.Services;
 
 /// <summary>
-/// <see cref="IPayrollService"/> ning amalga oshirilishi.
+/// <see cref="IPayrollService"/> ning amalga oshirilishi — oylik HISOBOTI.
 ///
 /// ══════════════════════════════════════════════════════════════════════
-/// ★ SNAPSHOT — HAR SO'ROVDA QAYTA HISOBLANMAYDI (2026-08-16 dan)
+/// ★ IKKI QAMROV — HISOBOT SHU BO'LINISH USTIGA QURILGAN
 /// ══════════════════════════════════════════════════════════════════════
-/// Ilgari natija HAR SO'ROVDA <c>LiveSessions</c> + <c>Attendances</c> +
-/// <c>TeacherRates</c> dan qayta hisoblanardi — bu <see cref="Payment"/>/
-/// <see cref="Tariff"/> dagi "narx TARIXI saqlanadi" tamoyilidan FARQ
-/// QILARDI: stavka tahrirlansa yoki o'chirilsa, O'TGAN OY hisoboti ham
-/// jimgina o'zgarib qolardi. Endi bu servis <see cref="SessionPayout"/>
-/// jadvalini O'QIYDI — snapshot dars YAKUNLANGANDA (`LessonAccrualService.
-/// ReconcilePayoutAsync`) bir marta yoziladi va QOTIB QOLADI.
+///   • DARS QAMROVI (<c>SessionPayout</c> + <c>SessionPayoutLine</c>) —
+///     O'QILADI, qayta hisoblanmaydi. Snapshot dars YAKUNLANGANDA
+///     (`LessonAccrualService.ReconcilePayoutAsync`) bir marta yoziladi va
+///     QOTIB QOLADI. Sabab: stavka tahrirlansa yoki o'chirilsa, O'TGAN OY
+///     hisoboti ham jimgina o'zgarib qolardi.
+///
+///   • DAVR QAMROVI (oklad, tushumdan foiz, oylik o'quvchi bonusi) —
+///     davr OXIRIDAGI holat bo'yicha JONLI hisoblanadi
+///     (<see cref="PayrollCalculator.ComputePeriod"/>). Bularni darsga
+///     bog'lab muzlatib bo'lmaydi: ular darsga BOG'LIQ EMAS.
 ///
 /// ══════════════════════════════════════════════════════════════════════
-/// ★ 2026-08-16 — BAZA OYLIK + KPI, TASDIQLASH/TO'LOV, QO'LDA TUZATISH
+/// ★ 2026-09-04 — QOIDA DVIGATELIGA KO'CHIRILDI
 /// ══════════════════════════════════════════════════════════════════════
-/// Tadqiqot (Tutorbase/GetCourse/Skyeng/Preply) asosida uchta yangi qism
-/// qo'shildi:
-///   1) BAZA OYLIK + KPI (asosan kurator uchun, `TeacherRate.BaseSalary`/
-///      `ActiveStudentBonusRate`) — SESSIYAGA BOG'LIQ EMAS, shuning uchun
-///      bu ikkovi <see cref="SessionPayout"/>dan emas, DAVR OXIRIDAGI holat
-///      bo'yicha JONLI hisoblanadi (`BuildRateContextAsync`).
-///   2) TASDIQLASH/TO'LOV (<see cref="PayrollApproval"/>) — Draft → Approved
-///      → Paid. Yozuv topilmasa davr Draft hisoblanadi.
-///   3) QO'LDA TUZATISH (<see cref="PayrollAdjustment"/>) — faqat Draft
-///      davrda qo'shiladi/o'chiriladi (`EnsureDraftAsync`).
+/// Ilgari hisobot <c>TeacherRate</c> ning beshta ustuniga QATTIQ bog'langan
+/// edi (<c>BaseSalaryAmount</c>, <c>KpiBonusAmount</c> alohida ustunlar).
+/// Endi davr natijasi QATORLAR ro'yxati (<see cref="PayrollAmountLineDto"/>) —
+/// yangi hisoblash turi qo'shilganda bu sinf ham, DTO ham o'zgarmaydi.
 ///
-/// ══════════════════════════════════════════════════════════════════════
-/// ★ RUXSAT — FAQAT ADMIN
-/// ══════════════════════════════════════════════════════════════════════
-/// <see cref="Zinnur.Application.Payments.Services.PaymentService"/> dan
-/// ATAYLAB FARQ QILADI (u yerda Academic HAM kiradi): stavkani boshqarish
-/// va xodimlar haqini ko'rish — markazning eng nozik ichki ma'lumoti,
-/// faqat Admin.
+/// ★ TASDIQLASH/TO'LOV (<see cref="PayrollApproval"/>) va QO'LDA TUZATISH
+/// (<see cref="PayrollAdjustment"/>) o'zgarishsiz qoldi.
+///
+/// ★ RUXSAT — FAQAT ADMIN: izoh <see cref="PayrollGuard"/> da.
 /// </summary>
 public sealed class PayrollService(
     IApplicationDbContext db,
@@ -56,7 +50,7 @@ public sealed class PayrollService(
     public async Task<PayrollSummaryDto> GetSummaryAsync(
         string? period, long actorId, CancellationToken ct = default)
     {
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var billingPeriod = ParsePeriodOrCurrent(period);
         var (fromUtc, toUtc) = billingPeriod.UtcRange(timeZone.TimeZone);
@@ -68,73 +62,76 @@ public sealed class PayrollService(
             join s in db.LiveSessions.AsNoTracking() on p.SessionId equals s.Id
             where s.ScheduledStart >= fromUtc && s.ScheduledStart < toUtc
             select new PayoutRow(
-                p.UserId, p.Role, p.AttendedStudents, p.SessionRate, p.BonusAmount,
-                p.RateMissing, p.Excluded))
+                p.UserId, p.AttendedStudents, p.SessionRate, p.BonusAmount,
+                p.RateMissing, p.Excluded, p.IncludedInSalary))
             .ToListAsync(ct);
 
-        // ── BAZA OYLIK/KPI NOMZODLARI: darsi bo'lmasa ham ro'yxatda ko'rinsin ──
+        // ── DAVR QOIDASI NOMZODLARI: darsi bo'lmasa ham ro'yxatda ko'rinsin ──
         //
         // Masalan yangi qabul qilingan kurator — hali biror darsi yo'q, lekin
-        // baza oylik + KPI bonusi allaqachon hisoblanishi kerak.
-        var staffUsers = await db.Users.AsNoTracking()
+        // oklad allaqachon hisoblanishi kerak.
+        var staff = await db.Users.AsNoTracking()
             .Where(u => u.IsActive && (u.Role == UserRole.Teacher || u.Role == UserRole.Assistant))
-            .Select(u => new { u.Id, u.Role })
+            .Select(u => new StaffRow(u.Id, u.FullName, u.Role))
             .ToListAsync(ct);
 
-        var rates = await db.TeacherRates.AsNoTracking()
-            .Where(r => r.IsActive && r.ActiveFrom <= periodEndDate)
-            .ToListAsync(ct);
+        var payoutUserIds = payouts.Select(p => p.UserId).ToHashSet();
 
-        var ratesByUser = staffUsers.ToDictionary(
-            u => u.Id, u => TeacherRateSelection.PickRate(rates, u.Id, u.Role, periodEndDate));
+        // Hisobga faqat KERAKLI xodimlar kiradi, lekin davr qoidalarini
+        // hisoblash uchun avval hammasi ko'riladi (xodimlar soni o'nlab,
+        // yuzlab emas — bu qidiruv arzon).
+        var periodLines = await BuildPeriodLinesAsync(
+            staff, periodStart, periodEndDate, fromUtc, toUtc, ct);
 
-        var payoutUserIds = payouts.Select(p => p.UserId).Distinct();
-        var salaryUserIds = ratesByUser
-            .Where(kv => kv.Value is { BaseSalary: > 0 } or { ActiveStudentBonusRate: > 0 })
-            .Select(kv => kv.Key);
-        var relevantUserIds = payoutUserIds.Union(salaryUserIds).ToList();
+        var relevantIds = payoutUserIds
+            .Union(periodLines.Where(kv => kv.Value.Count > 0).Select(kv => kv.Key))
+            .ToList();
 
-        if (relevantUserIds.Count == 0)
+        if (relevantIds.Count == 0)
             return new PayrollSummaryDto(billingPeriod.ToString(), [], 0m);
 
-        var users = await db.Users.AsNoTracking()
-            .Where(u => relevantUserIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.FullName, u.Role })
-            .ToDictionaryAsync(u => u.Id, ct);
+        var adjustmentTotals = await GetAdjustmentTotalsAsync(relevantIds, periodStart, ct);
+        var approvals = await GetApprovalsAsync(relevantIds, periodStart, ct);
 
-        var activeStudentCounts = await GetActiveStudentCountsAsync(relevantUserIds, ct);
-        var adjustmentTotals = await GetAdjustmentTotalsAsync(relevantUserIds, periodStart, ct);
-        var approvals = await GetApprovalsAsync(relevantUserIds, periodStart, ct);
+        var rows = new List<PayrollSummaryRowDto>(relevantIds.Count);
 
-        var rows = new List<PayrollSummaryRowDto>();
-
-        foreach (var userId in relevantUserIds)
+        foreach (var user in staff.Where(s => relevantIds.Contains(s.Id)))
         {
-            if (!users.TryGetValue(userId, out var user)) continue;
+            var userPayouts = payouts.Where(p => p.UserId == user.Id).ToList();
 
-            var userPayouts = payouts.Where(p => p.UserId == userId).ToList();
+            // Bepul (Excluded) va "oklad ichida" darslar JAMIga qo'shilmaydi,
+            // lekin dars SONIGA kiradi — shaffoflik uchun.
+            var counted = userPayouts.Where(p => !p.Excluded).ToList();
 
-            var baseAmount = userPayouts.Where(p => !p.Excluded).Sum(p => p.SessionRate);
-            var bonusAmount = userPayouts.Where(p => !p.Excluded).Sum(p => p.BonusAmount);
-            var missingRate = userPayouts.Count(p => p.RateMissing && !p.Excluded);
-            var excludedCount = userPayouts.Count(p => p.Excluded);
+            var sessionBase = counted.Sum(p => p.SessionRate);
+            var sessionBonus = counted.Sum(p => p.BonusAmount);
 
-            ratesByUser.TryGetValue(userId, out var rate);
-            var baseSalaryAmount = rate?.BaseSalary ?? 0m;
-            activeStudentCounts.TryGetValue(userId, out var activeStudents);
-            var kpiBonusAmount = activeStudents * (rate?.ActiveStudentBonusRate ?? 0m);
+            var lines = periodLines.TryGetValue(user.Id, out var found) ? found : [];
+            var periodAmount = lines.Sum(l => l.Amount);
 
-            adjustmentTotals.TryGetValue(userId, out var adjustmentAmount);
-            approvals.TryGetValue(userId, out var approval);
+            adjustmentTotals.TryGetValue(user.Id, out var adjustmentAmount);
+            approvals.TryGetValue(user.Id, out var approval);
 
-            var total = baseAmount + bonusAmount + baseSalaryAmount + kpiBonusAmount + adjustmentAmount;
+            var total = sessionBase + sessionBonus + periodAmount + adjustmentAmount;
 
             rows.Add(new PayrollSummaryRowDto(
-                userId, user.FullName, user.Role, userPayouts.Count,
+                user.Id,
+                user.FullName,
+                user.Role,
+                userPayouts.Count,
                 userPayouts.Sum(p => p.AttendedStudents),
-                baseAmount, bonusAmount, baseSalaryAmount, activeStudents, kpiBonusAmount,
-                adjustmentAmount, total, missingRate, excludedCount,
-                approval?.Status ?? PayrollApprovalStatus.Draft, approval?.ApprovedAt, approval?.PaidAt));
+                sessionBase,
+                sessionBonus,
+                periodAmount,
+                lines,
+                adjustmentAmount,
+                total,
+                counted.Count(p => p.RateMissing && !p.IncludedInSalary),
+                userPayouts.Count(p => p.Excluded),
+                userPayouts.Count(p => p.IncludedInSalary),
+                approval?.Status ?? PayrollApprovalStatus.Draft,
+                approval?.ApprovedAt,
+                approval?.PaidAt));
         }
 
         rows.Sort((a, b) => b.Total.CompareTo(a.Total));
@@ -145,11 +142,11 @@ public sealed class PayrollService(
     public async Task<PayrollDetailDto> GetDetailAsync(
         long userId, string? period, long actorId, CancellationToken ct = default)
     {
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var user = await db.Users.AsNoTracking()
             .Where(u => u.Id == userId)
-            .Select(u => new { u.Id, u.FullName, u.Role })
+            .Select(u => new StaffRow(u.Id, u.FullName, u.Role))
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException(nameof(User), userId);
 
@@ -165,7 +162,7 @@ public sealed class PayrollService(
             orderby s.ScheduledStart
             select new
             {
-                SessionId = p.SessionId,
+                p.SessionId,
                 s.GroupId,
                 GroupName = s.Group!.Name,
                 s.ScheduledStart,
@@ -174,25 +171,39 @@ public sealed class PayrollService(
                 p.BonusAmount,
                 p.RateMissing,
                 p.Excluded,
+                p.IncludedInSalary,
                 p.PremiumMultiplierApplied,
+                Lines = p.Lines
+                    .OrderBy(l => l.Id)
+                    .Select(l => new PayrollAmountLineDto(
+                        l.RuleId, l.RuleName, l.Kind, l.Amount, l.Basis))
+                    .ToList(),
             })
             .ToListAsync(ct);
 
         var sessions = sessionRows.ConvertAll(s => new PayrollSessionRowDto(
-            s.SessionId, s.GroupId, s.GroupName, s.ScheduledStart, s.AttendedStudents,
-            s.Excluded ? 0m : s.SessionRate, s.Excluded ? 0m : s.BonusAmount,
-            s.Excluded ? 0m : s.SessionRate + s.BonusAmount, s.RateMissing, s.Excluded,
-            s.PremiumMultiplierApplied));
+            s.SessionId,
+            s.GroupId,
+            s.GroupName,
+            s.ScheduledStart,
+            s.AttendedStudents,
+            s.Excluded ? 0m : s.SessionRate,
+            s.Excluded ? 0m : s.BonusAmount,
+            s.Excluded ? 0m : s.SessionRate + s.BonusAmount,
+            s.RateMissing,
+            s.Excluded,
+            s.IncludedInSalary,
+            s.PremiumMultiplierApplied,
+            s.Excluded ? [] : s.Lines));
 
-        var rates = await db.TeacherRates.AsNoTracking()
-            .Where(r => r.IsActive && r.ActiveFrom <= periodEndDate)
-            .ToListAsync(ct);
-        var rate = TeacherRateSelection.PickRate(rates, userId, user.Role, periodEndDate);
+        var periodLines = await BuildPeriodLinesAsync(
+            [user], periodStart, periodEndDate, fromUtc, toUtc, ct);
 
-        var baseSalaryAmount = rate?.BaseSalary ?? 0m;
-        var activeStudentCounts = await GetActiveStudentCountsAsync([userId], ct);
-        activeStudentCounts.TryGetValue(userId, out var activeStudentCount);
-        var kpiBonusAmount = activeStudentCount * (rate?.ActiveStudentBonusRate ?? 0m);
+        var lines = periodLines.TryGetValue(userId, out var found) ? found : [];
+        var periodAmount = lines.Sum(l => l.Amount);
+
+        var students = await GetStudentRowsAsync(user, periodStart, ct);
+        var weightedUnits = students.Sum(s => s.Percent / 100m);
 
         var adjustments = await ProjectAdjustments(db.PayrollAdjustments.AsNoTracking()
                 .Where(a => a.UserId == userId && a.PeriodStart == periodStart))
@@ -201,13 +212,24 @@ public sealed class PayrollService(
         var approvals = await GetApprovalsAsync([userId], periodStart, ct);
         approvals.TryGetValue(userId, out var approval);
 
-        var grandTotal = sessions.Sum(s => s.Total) + baseSalaryAmount + kpiBonusAmount
-            + adjustments.Sum(a => a.Amount);
+        var grandTotal = sessions.Sum(s => s.Total) + periodAmount + adjustments.Sum(a => a.Amount);
 
         return new PayrollDetailDto(
-            user.Id, user.FullName, user.Role, billingPeriod.ToString(), sessions,
-            baseSalaryAmount, activeStudentCount, kpiBonusAmount, adjustments, grandTotal,
-            approval?.Status ?? PayrollApprovalStatus.Draft, approval?.ApprovedAt, approval?.PaidAt);
+            user.Id,
+            user.FullName,
+            user.Role,
+            billingPeriod.ToString(),
+            sessions,
+            lines,
+            periodAmount,
+            students.Count,
+            weightedUnits,
+            students,
+            adjustments,
+            grandTotal,
+            approval?.Status ?? PayrollApprovalStatus.Draft,
+            approval?.ApprovedAt,
+            approval?.PaidAt);
     }
 
     // ================================================================= tuzatish
@@ -217,7 +239,7 @@ public sealed class PayrollService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var billingPeriod = ParsePeriod(request.Period);
         var periodStart = billingPeriod.FirstDay();
@@ -228,7 +250,7 @@ public sealed class PayrollService(
             throw new NotFoundException(nameof(User), request.UserId);
 
         if (request.Amount < -MaxAmount || request.Amount > MaxAmount)
-            throw Invalid("amount", "Tuzatish summasi 1 000 000 000 dan oshmasligi kerak.");
+            throw PayrollGuard.Invalid("amount", "Tuzatish summasi 1 000 000 000 dan oshmasligi kerak.");
 
         var adjustment = new PayrollAdjustment
         {
@@ -249,7 +271,7 @@ public sealed class PayrollService(
 
     public async Task DeleteAdjustmentAsync(long id, long actorId, CancellationToken ct = default)
     {
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var adjustment = await db.PayrollAdjustments.FirstOrDefaultAsync(a => a.Id == id, ct)
             ?? throw new NotFoundException(nameof(PayrollAdjustment), id);
@@ -290,7 +312,7 @@ public sealed class PayrollService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var detail = await GetDetailAsync(request.UserId, request.Period, actorId, ct);
 
@@ -323,7 +345,7 @@ public sealed class PayrollService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        await EnsureAdminAsync(actorId, ct);
+        await PayrollGuard.EnsureAdminAsync(db, actorId, ct);
 
         var periodStart = ParsePeriod(request.Period).FirstDay();
 
@@ -355,110 +377,274 @@ public sealed class PayrollService(
             throw new ConflictException("Bu davr allaqachon tasdiqlangan/to'langan — tuzatish qo'shib/o'chirib bo'lmaydi.");
     }
 
-    // ================================================================= stavka
+    // ================================================================= davr qamrovi
 
-    public async Task<IReadOnlyList<TeacherRateDto>> ListRatesAsync(
-        long actorId, CancellationToken ct = default)
+    /// <summary>
+    /// Berilgan xodimlar uchun DAVR qoidalarini hisoblaydi.
+    ///
+    /// ★ BARCHA MA'LUMOT BITTA MARTA olinadi (xodim boshiga alohida so'rov
+    /// emas): kirish so'rovlari 5 ta, xodimlar soni esa o'nlab bo'lishi
+    /// mumkin — N+1 bu yerda eng oson kiradigan joy edi.
+    /// </summary>
+    private async Task<Dictionary<long, List<PayrollAmountLineDto>>> BuildPeriodLinesAsync(
+        IReadOnlyList<StaffRow> staff,
+        DateOnly periodStart,
+        DateOnly periodEnd,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken ct)
     {
-        await EnsureAdminAsync(actorId, ct);
+        var result = new Dictionary<long, List<PayrollAmountLineDto>>();
+        if (staff.Count == 0) return result;
 
-        return await ProjectRates(db.TeacherRates.AsNoTracking()
-                .OrderByDescending(r => r.UserId != null ? 1 : 0)
-                .ThenByDescending(r => r.ActiveFrom)
-                .ThenByDescending(r => r.Id))
+        var ids = staff.Select(s => s.Id).ToList();
+
+        // Davr qamrovidagi qoidalar (oklad, foiz, oylik o'quvchi bonusi).
+        // Dars qoidalari bu yerda KERAK EMAS — ular snapshot'da.
+        var rules = await db.PayrollRules.AsNoTracking()
+            .Where(r => r.IsActive
+                     && r.ActiveFrom <= periodEnd
+                     && (r.ActiveTo == null || r.ActiveTo >= periodEnd)
+                     && r.Kind != PayrollRuleKind.PerSession
+                     && r.Kind != PayrollRuleKind.PerAcademicHour
+                     && r.Kind != PayrollRuleKind.PerAttendedStudent
+                     && r.Kind != PayrollRuleKind.TieredByAttendance
+                     && r.Kind != PayrollRuleKind.PerStudentAcademicHour)
             .ToListAsync(ct);
-    }
 
-    public async Task<TeacherRateDto> CreateRateAsync(
-        CreateTeacherRateRequest request, long actorId, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        await EnsureAdminAsync(actorId, ct);
-
-        var rate = new TeacherRate
+        if (rules.Count == 0)
         {
-            UserId = request.UserId,
-            Role = request.Role,
-            PerSessionRate = request.PerSessionRate,
-            PerStudentBonusRate = request.PerStudentBonusRate,
-            BaseSalary = request.BaseSalary,
-            ActiveStudentBonusRate = request.ActiveStudentBonusRate,
-            WeekendHolidayMultiplier = request.WeekendHolidayMultiplier,
-            ActiveFrom = RequireDate(request.ActiveFrom, nameof(request.ActiveFrom)),
-            IsActive = request.IsActive,
-        };
+            foreach (var s in staff) result[s.Id] = [];
+            return result;
+        }
 
-        await ValidateRateAsync(rate, ct);
+        var groups = await GetStaffGroupsAsync(ids, ct);
+        var studentUnits = await GetStudentUnitsAsync(staff, groups, periodStart, ct);
+        var revenues = await GetGroupRevenuesAsync(ids, groups, fromUtc, toUtc, ct);
 
-        db.TeacherRates.Add(rate);
-        await SaveAsync(ct);
+        foreach (var member in staff)
+        {
+            var groupRevenues = revenues.TryGetValue(member.Id, out var r) ? r : [];
+            studentUnits.TryGetValue(member.Id, out var units);
 
-        return await GetRateAsync(rate.Id, ct);
+            var context = new PayrollPeriodContext(
+                member.Id,
+                member.Role,
+                periodEnd,
+                units.Count,
+                units.Weighted,
+                groupRevenues.Sum(x => x.Amount),
+                groupRevenues);
+
+            result[member.Id] = PayrollCalculator.ComputePeriod(rules, context)
+                .Select(l => new PayrollAmountLineDto(l.RuleId, l.RuleName, l.Kind, l.Amount, l.Basis))
+                .ToList();
+        }
+
+        return result;
     }
 
-    public async Task<TeacherRateDto> UpdateRateAsync(
-        long id, UpdateTeacherRateRequest request, long actorId, CancellationToken ct = default)
+    /// <summary>
+    /// Xodim HOST bo'lgan guruhlar. Ustoz uchun <c>TeacherId</c>, kurator
+    /// uchun <c>AssistantId</c> — <c>Group.HostId</c> bilan AYNI qoida.
+    /// </summary>
+    private async Task<List<StaffGroupRow>> GetStaffGroupsAsync(
+        List<long> ids, CancellationToken ct) =>
+        await db.Groups.AsNoTracking()
+            .Where(g => g.IsActive
+                     && ((g.TeacherId != null && ids.Contains(g.TeacherId.Value))
+                      || (g.AssistantId != null && ids.Contains(g.AssistantId.Value))))
+            .Select(g => new StaffGroupRow(
+                g.Id, g.TeacherId, g.AssistantId, g.CourseId, g.CategoryId, g.Type))
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// Har xodim uchun faol o'quvchilar soni va KOEFFITSIENT bilan
+    /// o'lchangan ulushlar yig'indisi.
+    /// </summary>
+    /// <remarks>
+    /// ★ O'QUVCHI BIR MARTA sanaladi (<c>Distinct</c>): bitta xodimning ikki
+    /// guruhida bo'lgan o'quvchi ikki barobar bonus keltirmasligi kerak.
+    /// Eski kod a'zolik QATORLARINI sanardi va kurator guruhida bu muammo
+    /// yuzaga chiqmasdi — ustozga kengaytirilgandan keyin esa chiqardi.
+    /// </remarks>
+    private async Task<Dictionary<long, StudentUnits>> GetStudentUnitsAsync(
+        IReadOnlyList<StaffRow> staff,
+        List<StaffGroupRow> groups,
+        DateOnly periodStart,
+        CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        var result = new Dictionary<long, StudentUnits>();
+        if (staff.Count == 0) return result;
 
-        await EnsureAdminAsync(actorId, ct);
+        var groupIds = groups.ConvertAll(g => g.GroupId);
+        var ids = staff.Select(s => s.Id).ToList();
 
-        var rate = await db.TeacherRates.FirstOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new NotFoundException(nameof(TeacherRate), id);
+        var members = groupIds.Count == 0
+            ? []
+            : await db.GroupMembers.AsNoTracking()
+                .Where(m => m.Status == MemberStatus.Active && groupIds.Contains(m.GroupId))
+                .Select(m => new { m.GroupId, m.StudentId })
+                .ToListAsync(ct);
 
-        rate.UserId = request.UserId;
-        rate.Role = request.Role;
-        rate.PerSessionRate = request.PerSessionRate;
-        rate.PerStudentBonusRate = request.PerStudentBonusRate;
-        rate.BaseSalary = request.BaseSalary;
-        rate.ActiveStudentBonusRate = request.ActiveStudentBonusRate;
-        rate.WeekendHolidayMultiplier = request.WeekendHolidayMultiplier;
-        rate.ActiveFrom = RequireDate(request.ActiveFrom, nameof(request.ActiveFrom));
-        rate.IsActive = request.IsActive;
+        var coefficients = await db.PayrollStudentCoefficients.AsNoTracking()
+            .Where(c => ids.Contains(c.UserId) && c.PeriodStart == periodStart)
+            .Select(c => new { c.UserId, c.StudentId, c.Percent })
+            .ToListAsync(ct);
 
-        await ValidateRateAsync(rate, ct);
+        var coefficientMap = coefficients.ToDictionary(c => (c.UserId, c.StudentId), c => c.Percent);
 
-        await SaveAsync(ct);
+        foreach (var member in staff)
+        {
+            var ownGroupIds = groups
+                .Where(g => member.Role == UserRole.Teacher
+                    ? g.TeacherId == member.Id
+                    : g.AssistantId == member.Id)
+                .Select(g => g.GroupId)
+                .ToHashSet();
 
-        return await GetRateAsync(rate.Id, ct);
+            var studentIds = members
+                .Where(m => ownGroupIds.Contains(m.GroupId))
+                .Select(m => m.StudentId)
+                .Distinct()
+                .ToList();
+
+            var weighted = studentIds.Sum(studentId =>
+                coefficientMap.TryGetValue((member.Id, studentId), out var percent)
+                    ? percent / 100m
+                    : 1m);
+
+            result[member.Id] = new StudentUnits(studentIds.Count, weighted);
+        }
+
+        return result;
     }
 
-    public async Task DeleteRateAsync(long id, long actorId, CancellationToken ct = default)
+    /// <summary>
+    /// Tafsilot ko'rinishi uchun: xodimning faol o'quvchilari va ularning
+    /// koeffitsientlari (izoh: <see cref="PayrollStudentUnitDto"/>).
+    ///
+    /// ★ KOEFFITSIENT YOZUVI YO'Q = 100%: jadval faqat ISTISNONI saqlaydi
+    /// (<c>PayrollStudentCoefficient</c> izohi), shuning uchun to'ldirish
+    /// shu yerda — bir joyda — bajariladi.
+    /// </summary>
+    private async Task<List<PayrollStudentUnitDto>> GetStudentRowsAsync(
+        StaffRow staff, DateOnly periodStart, CancellationToken ct)
     {
-        await EnsureAdminAsync(actorId, ct);
+        var groups = await GetStaffGroupsAsync([staff.Id], ct);
 
-        var rate = await db.TeacherRates.FirstOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new NotFoundException(nameof(TeacherRate), id);
+        var ownGroupIds = groups
+            .Where(g => staff.Role == UserRole.Teacher
+                ? g.TeacherId == staff.Id
+                : g.AssistantId == staff.Id)
+            .Select(g => g.GroupId)
+            .ToList();
 
-        db.TeacherRates.Remove(rate);
-        await SaveAsync(ct);
+        if (ownGroupIds.Count == 0) return [];
+
+        // `Distinct` — o'quvchi xodimning ikki guruhida bo'lsa ham BIR
+        // MARTA ko'rinadi (`GetStudentUnitsAsync` dagi AYNI qoida).
+        var students = await db.GroupMembers.AsNoTracking()
+            .Where(m => m.Status == MemberStatus.Active && ownGroupIds.Contains(m.GroupId))
+            .Select(m => new { m.StudentId, Name = m.Student!.FullName })
+            .Distinct()
+            .ToListAsync(ct);
+
+        var coefficients = await db.PayrollStudentCoefficients.AsNoTracking()
+            .Where(c => c.UserId == staff.Id && c.PeriodStart == periodStart)
+            .Select(c => new { c.StudentId, c.Percent, c.Note })
+            .ToListAsync(ct);
+
+        var map = coefficients.ToDictionary(c => c.StudentId);
+
+        return students
+            .Select(s => map.TryGetValue(s.StudentId, out var found)
+                ? new PayrollStudentUnitDto(s.StudentId, s.Name, found.Percent, found.Note)
+                : new PayrollStudentUnitDto(s.StudentId, s.Name, 100m, null))
+            .OrderBy(s => s.StudentName, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Xodimning shu davrda HISOBLANGAN o'quv haqi, guruhma-guruh —
+    /// "tushumdan foiz" qoidasining asosi.
+    /// </summary>
+    /// <remarks>
+    /// ★ <c>NetAmount</c> — chegirmadan KEYINGI, HAQIQATDA hisoblangan summa
+    /// (<c>LessonCharge.NetAmount</c> izohi). <c>Amount</c> (stiker narx)
+    /// olinsa, chegirmali oilalar bo'lgan guruhda markaz olmagan puldan
+    /// foiz to'lanardi.
+    ///
+    /// ★ Dars HOST'i bo'yicha bog'lanadi (<c>LiveSession.HostId</c>) —
+    /// guruhning bugungi ustozi bo'yicha emas: o'rinbosar o'tgan dars
+    /// tushumi o'rinbosarga tegishli.
+    /// </remarks>
+    private async Task<Dictionary<long, List<PayrollGroupRevenue>>> GetGroupRevenuesAsync(
+        List<long> ids,
+        List<StaffGroupRow> groups,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken ct)
+    {
+        var raw = await (
+            from c in db.LessonCharges.AsNoTracking()
+            join s in db.LiveSessions.AsNoTracking() on c.SessionId equals s.Id
+            where s.ScheduledStart >= fromUtc
+               && s.ScheduledStart < toUtc
+               && s.HostId != null
+               && ids.Contains(s.HostId.Value)
+            group c by new { UserId = s.HostId!.Value, c.GroupId } into g
+            select new
+            {
+                g.Key.UserId,
+                g.Key.GroupId,
+                Amount = g.Sum(x => x.NetAmount),
+            })
+            .ToListAsync(ct);
+
+        // Guruh xossalari (kurs/kategoriya/tur) — foiz qoidasi shular
+        // bo'yicha moslanadi. `GetStaffGroupsAsync` faqat FAOL guruhlarni
+        // qaytaradi, shuning uchun arxivlangan guruh tushumi uchun
+        // xossalar alohida olinadi.
+        var missingIds = raw
+            .Select(x => x.GroupId)
+            .Where(id => !groups.Exists(g => g.GroupId == id))
+            .Distinct()
+            .ToList();
+
+        var lookup = groups.ToDictionary(g => g.GroupId);
+
+        if (missingIds.Count > 0)
+        {
+            var extra = await db.Groups.AsNoTracking()
+                .Where(g => missingIds.Contains(g.Id))
+                .Select(g => new StaffGroupRow(
+                    g.Id, g.TeacherId, g.AssistantId, g.CourseId, g.CategoryId, g.Type))
+                .ToListAsync(ct);
+
+            foreach (var g in extra) lookup[g.GroupId] = g;
+        }
+
+        var result = new Dictionary<long, List<PayrollGroupRevenue>>();
+
+        foreach (var row in raw)
+        {
+            if (!lookup.TryGetValue(row.GroupId, out var group)) continue;
+
+            if (!result.TryGetValue(row.UserId, out var list))
+            {
+                list = [];
+                result[row.UserId] = list;
+            }
+
+            list.Add(new PayrollGroupRevenue(
+                group.GroupId, group.CourseId, group.CategoryId, group.Type, row.Amount));
+        }
+
+        return result;
     }
 
     // ================================================================= yordamchi
-
-    /// <summary>
-    /// Kurator/xodimning DAVR OXIRIDAGI faol o'quvchilari — KPI hisob asosi
-    /// (`TeacherRate.ActiveStudentBonusRate` izohi). <c>Group.AssistantId</c>
-    /// bo'lgan HAR QANDAY guruhdagi (oddiy YOKI kurator turi) faol a'zolar
-    /// yig'indisi — kurator guruhida to'g'ridan-to'g'ri a'zo bo'lmagani
-    /// uchun (`GroupService` dagi bilan AYNI qoida) bu yig'indi ikki marta
-    /// sanamaydi.
-    /// </summary>
-    private async Task<Dictionary<long, int>> GetActiveStudentCountsAsync(
-        IEnumerable<long> userIds, CancellationToken ct)
-    {
-        var ids = userIds.ToList();
-        if (ids.Count == 0) return [];
-
-        return await db.GroupMembers.AsNoTracking()
-            .Where(m => m.Status == MemberStatus.Active
-                     && m.Group!.AssistantId != null
-                     && ids.Contains(m.Group!.AssistantId!.Value))
-            .GroupBy(m => m.Group!.AssistantId!.Value)
-            .Select(g => new { UserId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.UserId, x => x.Count, ct);
-    }
 
     private async Task<Dictionary<long, decimal>> GetAdjustmentTotalsAsync(
         IEnumerable<long> userIds, DateOnly periodStart, CancellationToken ct)
@@ -495,83 +681,6 @@ public sealed class PayrollService(
                 //   so'rov N+1 bo'lardi. Sabab `FromPenalty` izohida.
                 db.Penalties.Any(p => p.PayrollAdjustmentId == a.Id)));
 
-    private async Task ValidateRateAsync(TeacherRate rate, CancellationToken ct)
-    {
-        if (!Enum.IsDefined(rate.Role) || rate.Role is not (UserRole.Teacher or UserRole.Assistant))
-            throw Invalid("role", "Stavka faqat ustoz yoki kurator uchun bo'lishi mumkin.");
-
-        if (rate.PerSessionRate < 0 || rate.PerSessionRate > MaxAmount)
-            throw Invalid("perSessionRate", "Dars stavkasi 0..1 000 000 000 oralig'ida bo'lishi kerak.");
-
-        if (rate.PerStudentBonusRate < 0 || rate.PerStudentBonusRate > MaxAmount)
-            throw Invalid("perStudentBonusRate", "Bonus stavkasi 0..1 000 000 000 oralig'ida bo'lishi kerak.");
-
-        if (rate.BaseSalary < 0 || rate.BaseSalary > MaxAmount)
-            throw Invalid("baseSalary", "Baza oylik 0..1 000 000 000 oralig'ida bo'lishi kerak.");
-
-        if (rate.ActiveStudentBonusRate < 0 || rate.ActiveStudentBonusRate > MaxAmount)
-            throw Invalid("activeStudentBonusRate", "KPI bonusi 0..1 000 000 000 oralig'ida bo'lishi kerak.");
-
-        if (rate.WeekendHolidayMultiplier is { } multiplier && (multiplier < 1 || multiplier > 10))
-            throw Invalid("weekendHolidayMultiplier", "Ko'paytiruvchi 1..10 oralig'ida bo'lishi kerak.");
-
-        if (rate.UserId is { } userId)
-        {
-            var user = await db.Users.AsNoTracking()
-                .Where(u => u.Id == userId)
-                .Select(u => new { u.Role })
-                .FirstOrDefaultAsync(ct)
-                ?? throw new NotFoundException(nameof(User), userId);
-
-            if (user.Role != rate.Role)
-            {
-                throw Invalid("userId",
-                    "Tanlangan xodimning haqiqiy roli stavkadagi rol bilan mos emas.");
-            }
-        }
-
-        rate.Validate();
-    }
-
-    private async Task EnsureAdminAsync(long actorId, CancellationToken ct)
-    {
-        // Rol TOKEN'dan emas, BAZADAN — `PaymentService.LoadActorAsync`
-        // bilan AYNI sabab: eski token bilan pasaytirilgan rol ishlamasin.
-        var actor = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorId, ct)
-            ?? throw new NotFoundException(nameof(User), actorId);
-
-        if (!actor.IsActive)
-            throw new ForbiddenException("Profilingiz faol emas.");
-
-        if (actor.Role != UserRole.Admin)
-        {
-            throw new ForbiddenException(
-                "Oylik hisoblash paneliga faqat administrator kira oladi.");
-        }
-    }
-
-    private async Task<TeacherRateDto> GetRateAsync(long id, CancellationToken ct) =>
-        await ProjectRates(db.TeacherRates.AsNoTracking().Where(r => r.Id == id))
-            .FirstOrDefaultAsync(ct)
-        ?? throw new NotFoundException(nameof(TeacherRate), id);
-
-    private static IQueryable<TeacherRateDto> ProjectRates(IQueryable<TeacherRate> rows) =>
-        rows.Select(r => new TeacherRateDto(
-            r.Id,
-            r.UserId,
-            r.User == null ? null : r.User.FullName,
-            r.Role,
-            r.PerSessionRate,
-            r.PerStudentBonusRate,
-            r.BaseSalary,
-            r.ActiveStudentBonusRate,
-            r.WeekendHolidayMultiplier,
-            r.ActiveFrom,
-            r.IsActive,
-            r.UserId != null ? 1 : 0,
-            r.CreatedAt,
-            r.UpdatedAt));
-
     private async Task SaveAsync(CancellationToken ct)
     {
         try
@@ -583,14 +692,6 @@ public sealed class PayrollService(
             throw new ConflictException(
                 "Yozuv boshqa so'rov bilan to'qnashdi. Sahifani yangilab, qaytadan urinib ko'ring.");
         }
-    }
-
-    private static DateOnly RequireDate(DateOnly value, string field)
-    {
-        if (value.Year is < 2000 or > 2200)
-            throw Invalid(field, "Sana kiritilishi shart (masalan 2026-07-01).");
-
-        return value;
     }
 
     /// <summary>
@@ -611,14 +712,19 @@ public sealed class PayrollService(
         }
         catch (Zinnur.Domain.Exceptions.DomainException ex)
         {
-            throw Invalid("period", ex.Message);
+            throw PayrollGuard.Invalid("period", ex.Message);
         }
     }
 
-    private static ValidationException Invalid(string field, string message) =>
-        new(new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] });
-
     private sealed record PayoutRow(
-        long UserId, UserRole Role, int AttendedStudents,
-        decimal SessionRate, decimal BonusAmount, bool RateMissing, bool Excluded);
+        long UserId, int AttendedStudents, decimal SessionRate, decimal BonusAmount,
+        bool RateMissing, bool Excluded, bool IncludedInSalary);
+
+    private sealed record StaffRow(long Id, string FullName, UserRole Role);
+
+    private sealed record StaffGroupRow(
+        long GroupId, long? TeacherId, long? AssistantId,
+        long? CourseId, long? CategoryId, GroupType Type);
+
+    private readonly record struct StudentUnits(int Count, decimal Weighted);
 }

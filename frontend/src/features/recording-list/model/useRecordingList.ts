@@ -129,10 +129,10 @@ export function useRecordingList(options: UseRecordingListOptions = {}): UseReco
     return all.value.filter((item) => {
       if (selectedGroup !== null && item.groupId !== selectedGroup) return false
       if (query.length === 0) return true
-      // Eski ilovada qidiruv nom VA ustoz bo'yicha edi; ustoz maydoni yo'q,
-      // shuning uchun uning o'rnida GURUH nomi qidiriladi.
+      // Eski ilovadagidek: nom, GURUH va USTOZ bo'yicha (ustoz maydoni
+      // 2026-09-09 da qo'shildi — `RecordingListItemDto.hostName`).
       const haystack =
-        `${recordingItemTitle(item)} ${item.groupName ?? ''}`.toLocaleLowerCase()
+        `${recordingItemTitle(item)} ${item.groupName ?? ''} ${item.hostName ?? ''}`.toLocaleLowerCase()
       return haystack.includes(query)
     })
   })

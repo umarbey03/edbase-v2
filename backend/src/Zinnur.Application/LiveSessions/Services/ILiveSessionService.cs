@@ -1,3 +1,4 @@
+using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.LiveSessions.Dtos;
 
@@ -72,6 +73,17 @@ public interface ILiveSessionService
 
     /// <summary>LiveKit'ga ulanish uchun token. Ruxsat shu yerda tekshiriladi.</summary>
     Task<LiveKitJoinDto> CreateJoinTokenAsync(long sessionId, long userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ishtirokchining mikrofonini/kamerasini O'CHIRADI (faqat host —
+    /// ustoz/kurator/o'rinbosar, yoki o'quv bo'limi/admin). Faqat JONLI darsda.
+    /// </summary>
+    Task MuteParticipantAsync(
+        long sessionId,
+        long targetUserId,
+        ParticipantMediaSource source,
+        long actorId,
+        CancellationToken ct = default);
 
     Task<IReadOnlyList<ChatMessageDto>> GetRecentMessagesAsync(
         long sessionId, long userId, int take = 50, CancellationToken ct = default);

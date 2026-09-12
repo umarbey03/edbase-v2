@@ -5,9 +5,10 @@ export {
   fetchLiveSession,
   fetchLiveSessions,
   fetchSessionStats,
+  muteParticipant,
   startLiveSession,
 } from './api/session-api'
-export type { SessionStatsParams } from './api/session-api'
+export type { ParticipantMediaSource, SessionStatsParams } from './api/session-api'
 export {
   isJoinable,
   lateStartLabel,

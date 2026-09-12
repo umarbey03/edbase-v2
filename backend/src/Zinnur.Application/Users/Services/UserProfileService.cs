@@ -53,11 +53,21 @@ public sealed class UserProfileService(
 
         var telegram = await LoadTelegramAsync(student, audience, ct);
 
+        // ★ SUBYEKT XODIM (ustoz/kurator) bo'lsa — o'zi o'qitadigan guruhlar
+        //   bloki (2026-09-09). O'quvchi uchun `null`: frontend shu maydonga
+        //   qarab "ustoz profili" yoki "o'quvchi profili" ko'rinishini tanlaydi.
+        var isStaffSubject = student.Role is UserRole.Teacher or UserRole.Assistant;
+        var staff = isStaffSubject
+            ? new ProfileStaffDto(await LoadTaughtGroupsAsync(userId, ct))
+            : null;
+
         // 🔴 USTOZ/KURATOR — MOLIYA BLOKI UMUMAN YUKLANMAYDI.
         //    Maydon `null` bo'lib javobga tushadi, ya'ni ma'lumot serverdan
         //    CHIQMAYDI. Frontendda yashirish yetarli emasligi shundan:
         //    javobni ko'rish uchun brauzer konsoli yetarli bo'lardi.
-        var finance = audience.IsStaff()
+        //    ★ Subyektning O'ZI xodim bo'lsa ham moliya yo'q: ustozda
+        //      o'quv haqi hisobi bo'lmaydi, uning puli — oylik moduli.
+        var finance = audience.IsStaff() || isStaffSubject
             ? null
             : await LoadFinanceAsync(student, audience, ct);
 
@@ -95,8 +105,33 @@ public sealed class UserProfileService(
             groups.ConvertAll(ToDto),
             finance,
             study,
-            notes);
+            notes,
+            staff);
     }
+
+    // ================================================================= XODIM GURUHLARI
+
+    /// <summary>
+    /// Xodim USTOZ yoki KURATOR sifatida biriktirilgan guruhlar. Faol
+    /// guruhlar tepada. O'quvchi soni — korrelyatsion sanoq, AYNI SQL da
+    /// (guruh boshiga alohida so'rov yo'q).
+    /// </summary>
+    private async Task<List<ProfileTaughtGroupDto>> LoadTaughtGroupsAsync(
+        long staffId, CancellationToken ct) =>
+        await db.Groups.AsNoTracking()
+            .Where(g => g.TeacherId == staffId || g.AssistantId == staffId)
+            .OrderByDescending(g => g.IsActive)
+            .ThenBy(g => g.Name)
+            .Select(g => new ProfileTaughtGroupDto(
+                g.Id,
+                g.Name,
+                g.TeacherId == staffId ? UserRole.Teacher : UserRole.Assistant,
+                g.Type,
+                g.IsActive,
+                g.Members.Count(m => m.Status == MemberStatus.Active),
+                g.Course != null ? g.Course.Name : null,
+                g.StartDate))
+            .ToListAsync(ct);
 
     // ================================================================= TELEGRAM
 

@@ -113,7 +113,7 @@ public sealed class LessonAccrualService(
             ? null
             : await ReconcileStudentChargesAsync(session, group, lessonDate, periodText, now, ct);
 
-        var payoutChanged = await ReconcilePayoutAsync(session, lessonDate, now, ct);
+        var payoutChanged = await ReconcilePayoutAsync(session, group, lessonDate, now, ct);
 
         if (studentOutcome is { Changed: true } || payoutChanged)
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -332,7 +332,7 @@ public sealed class LessonAccrualService(
     /// bayrog'i o'zgarsa.
     /// </summary>
     private async Task<bool> ReconcilePayoutAsync(
-        LiveSession session, DateOnly lessonDate, DateTimeOffset now, CancellationToken ct)
+        LiveSession session, Group group, DateOnly lessonDate, DateTimeOffset now, CancellationToken ct)
     {
         if (session.HostId is not { } hostId) return false;
 
@@ -350,40 +350,110 @@ public sealed class LessonAccrualService(
 
         var role = session.Type == SessionType.Teacher ? UserRole.Teacher : UserRole.Assistant;
 
-        var rates = await db.TeacherRates.AsNoTracking()
-            .Where(r => r.IsActive && r.ActiveFrom <= lessonDate)
+        // ★ 2026-09-04 — QOIDA DVIGATELI: ilgari bu yerda bitta `TeacherRate`
+        //   tanlanib, ikkita ustuni (`PerSessionRate`, `PerStudentBonusRate`)
+        //   qo'lda ko'paytirilardi. Endi hisob `PayrollCalculator` da —
+        //   soatbay, bosqichli va shartli qoidalar shu yerda hech narsa
+        //   o'zgartirmasdan ishlaydi.
+        var rules = await db.PayrollRules.AsNoTracking()
+            .Include(r => r.Tiers)
+            .Where(r => r.IsActive
+                     && r.ActiveFrom <= lessonDate
+                     && (r.ActiveTo == null || r.ActiveTo >= lessonDate))
             .ToListAsync(ct);
 
-        var rate = TeacherRateSelection.PickRate(rates, hostId, role, lessonDate);
+        // Davomat BIR SO'ROVDA olinadi: qoidalarning asosi har xil bo'lishi
+        // mumkin (kelganlar / kelganlar+sababli / ro'yxatdagilar), ya'ni uch
+        // xil sanoq kerak — uchta `CountAsync` uchta borish-kelish bo'lardi.
+        var attendance = await db.Attendances.AsNoTracking()
+            .Where(a => a.SessionId == session.Id)
+            .Select(a => new { a.Status, a.IsExcused })
+            .ToListAsync(ct);
 
-        var attended = await db.Attendances.AsNoTracking()
-            .CountAsync(a => a.SessionId == session.Id && a.Status != AttendanceStatus.Absent, ct);
+        var attended = attendance.Count(a => a.Status != AttendanceStatus.Absent);
+        var excused = attendance.Count(a => a.Status == AttendanceStatus.Absent && a.IsExcused);
 
-        // ★ 2026-08-16 — DAM OLISH/BAYRAM USTAMASI: dars shanba/yakshanba
-        // yoki `Holidays` jadvalidagi sanaga to'g'ri kelsa va stavka egasi
-        // `WeekendHolidayMultiplier` sozlagan bo'lsa, FAQAT asosiy stavkaga
-        // qo'llanadi (`TeacherRate.WeekendHolidayMultiplier` izohi) — bonusga
-        // tegilmaydi.
+        // `JoinedAt <= ScheduledStart` — `ReconcileStudentChargesAsync` bilan
+        // AYNI qoida: oy o'rtasida qo'shilgan o'quvchi OLDINGI darsning
+        // ro'yxatida turmaydi.
+        var enrolled = await db.GroupMembers.AsNoTracking()
+            .CountAsync(m => m.GroupId == group.Id
+                          && m.Status == MemberStatus.Active
+                          && m.JoinedAt <= session.ScheduledStart, ct);
+
+        // ★ DAM OLISH/BAYRAM USTAMASI: dars shanba/yakshanba yoki `Holidays`
+        //   jadvalidagi sanaga to'g'ri kelsa, ustama FAQAT asosiy stavkaga
+        //   qo'llanadi (`PayrollCalculator.ComputeSession` izohi) — o'quvchi
+        //   bonusiga tegilmaydi.
         var isWeekend = lessonDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
         var isHoliday = !isWeekend
             && await db.Holidays.AsNoTracking().AnyAsync(h => h.Date == lessonDate, ct);
-        var multiplier = isWeekend || isHoliday ? rate?.WeekendHolidayMultiplier ?? 1m : 1m;
 
-        db.SessionPayouts.Add(new SessionPayout
+        var result = PayrollCalculator.ComputeSession(rules, new PayrollSessionContext(
+            hostId,
+            role,
+            group.Id,
+            group.CourseId,
+            group.CategoryId,
+            group.Type,
+            group.PayrollMode,
+            group.PayrollRuleId,
+
+            // ★ FAQAT REJADAGI DAVOMIYLIK (2026-09-09, loyiha egasi: "barcha
+            //   darslar to'liq 80 daqiqa — oylik faqat 80 daqiqa uchun
+            //   hisoblanishi kerak"). Ilgari `+ ExtendedMin` qo'shilardi va
+            //   ustoz darsni 10 daqiqaga uzaytirsa soatbay stavka 90 daqiqa
+            //   uchun to'lardi — HolliHop bilan mos kelmasdi (u yerda dars
+            //   doim bir xil soat). Haqiqiy davomiylik (ActualStart/End) ham
+            //   ATAYLAB ishlatilmaydi: kech boshlangan yoki erta yopilgan
+            //   dars ham rejadagi 80 daqiqa deb to'lanadi.
+            session.PlannedDurationMinutes,
+            lessonDate,
+            isWeekend || isHoliday,
+            attended,
+            excused,
+            enrolled));
+
+        var payout = new SessionPayout
         {
             SessionId = session.Id,
             UserId = hostId,
             Role = role,
             AttendedStudents = attended,
-            SessionRate = (rate?.PerSessionRate ?? 0m) * multiplier,
-            BonusAmount = attended * (rate?.PerStudentBonusRate ?? 0m),
-            RateMissing = rate is null,
+            SessionRate = result.BaseAmount,
+            BonusAmount = result.BonusAmount,
+            RateMissing = result.RuleMissing,
+            IncludedInSalary = result.IncludedInSalary,
             Excluded = targetExcluded,
-            PremiumMultiplierApplied = multiplier,
-        });
+            PremiumMultiplierApplied = result.MultiplierApplied,
+        };
+
+        foreach (var line in result.Lines)
+        {
+            payout.Lines.Add(new SessionPayoutLine
+            {
+                RuleId = line.RuleId,
+                RuleName = Truncate(line.RuleName, SessionPayoutLine.MaxRuleNameLength),
+                Kind = line.Kind,
+                Amount = line.Amount,
+                Basis = line.Basis is null ? null : Truncate(line.Basis, SessionPayoutLine.MaxBasisLength),
+            });
+        }
+
+        db.SessionPayouts.Add(payout);
 
         return true;
     }
+
+    /// <summary>
+    /// Nom/asos matnini ustun uzunligiga sig'diradi.
+    ///
+    /// ★ NIMA UCHUN KESILADI, XATO KO'TARILMAYDI: bu yo'l DARS YAKUNLANISHIDA
+    /// ishlaydi. Uzun matn tufayli butun amal yiqilsa, ustoz darsni tugata
+    /// olmasdi — matnning oxirgi bir necha belgisidan ko'ra bu ancha yomon.
+    /// </summary>
+    private static string Truncate(string value, int maxLength) =>
+        value.Length > maxLength ? value[..maxLength] : value;
 
     // ================================================================= yordamchi turlar
 

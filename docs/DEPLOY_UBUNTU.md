@@ -1391,6 +1391,11 @@ VITE_YANDEX_VERIFICATION=
 #    IndexNow kaliti (Bing va Yandex). Akkaunt talab qilmaydi.
 #    Kalit MAXFIY EMAS — u sayt ildizida ochiq faylda turadi.
 VITE_INDEXNOW_KEY=9f3f23b8b3bf11af76a3439f90f30912
+
+#    Bot foydalanuvchi nomi (@siz) — landing footer'idagi «Telegram bot»
+#    havolasi va Mini App'dagi «Botga qaytish» tugmasi uchun. Sozlamalar
+#    panelidagi bot nomi bilan BIR XIL bo'lsin (kirish oqimiga ta'sir qilmaydi).
+VITE_TELEGRAM_BOT_USERNAME=zinnuronlinebot
 EOF
 
 chmod 600 .env

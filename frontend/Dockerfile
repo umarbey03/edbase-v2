@@ -97,6 +97,10 @@ ARG VITE_GOOGLE_SITE_VERIFICATION=
 ARG VITE_YANDEX_VERIFICATION=
 ARG VITE_INDEXNOW_KEY=
 
+#  Bot foydalanuvchi nomi (@siz) — landing va kirish ekranidagi `t.me/<nom>`
+#  havolasi uchun. Bo'sh bo'lsa havola chizilmaydi, `WebApp.close()` ishlaydi.
+ARG VITE_TELEGRAM_BOT_USERNAME=
+
 # ARG -> ENV: Vite o'zgaruvchilarni MUHITDAN o'qiydi, ARG esa
 # `npm run build` jarayoniga avtomatik ko'rinmaydi. Bu qator — ko'prik.
 ENV VITE_API_URL=$VITE_API_URL
@@ -105,6 +109,7 @@ ENV VITE_SITE_URL=$VITE_SITE_URL
 ENV VITE_GOOGLE_SITE_VERIFICATION=$VITE_GOOGLE_SITE_VERIFICATION
 ENV VITE_YANDEX_VERIFICATION=$VITE_YANDEX_VERIFICATION
 ENV VITE_INDEXNOW_KEY=$VITE_INDEXNOW_KEY
+ENV VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME
 
 # Ishlab chiqarish rejimi: Vite minifikatsiya qiladi, tree-shaking
 # bajaradi va fayl nomlariga hash qo'shadi (app.4f2c9a1b.js).

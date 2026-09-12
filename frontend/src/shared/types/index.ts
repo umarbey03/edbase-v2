@@ -262,7 +262,12 @@ export type {
   ProfileAssignmentDto,
   ProfileAttendanceDto,
   ProfileFinanceDto,
+  BookDto,
+  BookUploadFields,
+  UpdateBookRequest,
   ProfileGroupDto,
+  ProfileStaffDto,
+  ProfileTaughtGroupDto,
   ProfilePeriodDto,
   ProfileStudyDto,
   ProfileTelegramDto,
@@ -308,19 +313,29 @@ export type { AvatarUploadedDto } from './api'
 export type { ClassroomDto, ClassroomGroupDto, ClassroomMemberDto } from './api'
 /* ===== /"MENING GURUHIM" OYNASI ===== */
 
-/* ===== Bosqich 4 · Oylik hisoblash (2026-08-16) ===== */
+/* ===== Bosqich 4 · Oylik hisoblash (2026-08-16, 2026-09-04 qoida dvigateli) ===== */
 export type {
   CreatePayrollAdjustmentRequest,
-  CreateTeacherRateRequest,
+  GroupPayrollAssignmentDto,
+  GroupPayrollModeName,
   PayrollAdjustmentDto,
+  PayrollAmountLineDto,
   PayrollApprovalStatusName,
+  PayrollBasisName,
   PayrollDetailDto,
   PayrollPeriodActionRequest,
+  PayrollRuleDto,
+  PayrollRuleKindName,
+  PayrollRuleRequest,
+  PayrollRuleTierDto,
+  PayrollRuleTierInput,
   PayrollSessionRowDto,
+  PayrollStudentCoefficientDto,
+  PayrollStudentUnitDto,
   PayrollSummaryDto,
   PayrollSummaryRowDto,
-  TeacherRateDto,
-  UpdateTeacherRateRequest,
+  SetGroupPayrollAssignmentRequest,
+  SetPayrollStudentCoefficientRequest,
 } from './api'
 /* ===== /Bosqich 4 ===== */
 
