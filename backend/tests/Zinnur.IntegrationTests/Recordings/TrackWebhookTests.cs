@@ -228,6 +228,128 @@ public sealed class TrackWebhookTests(RecordingFactory factory)
         tracks.Should().ContainSingle(t => t.Kind == RecordingTrackKind.CameraVideo);
     }
 
+    // ═══════════════════════════════════════════════════ 2b) xona dars o'rtasida qayta ochildi
+
+    /// <summary>
+    /// 🔴 PRODUKSIYADAGI NOSOZLIK (2026-09-10..12, 17 darsdan 5 tasi):
+    /// hamma 60 soniyadan uzoq chiqib ketdi, LiveKit xonani yopdi va
+    /// mikser tugadi. Odamlar qaytganda yangi <c>room_started</c> keldi,
+    /// lekin to'xtagan mikser "bor" hisoblanib yangisi yoqilmadi —
+    /// darsning qolgan qismi OVOZSIZ yozildi.
+    ///
+    /// Kutilgan: ikkinchi mikser <c>ROOM2</c> nomi bilan, o'z faylida.
+    /// </summary>
+    [Fact]
+    public async Task RoomReopened_MidLesson_StartsASecondMixer()
+    {
+        var lesson = await NewLessonAsync();
+
+        var t0 = new DateTimeOffset(2026, 9, 12, 16, 0, 0, TimeSpan.Zero);
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var first = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        await ActivateAsync(first.EgressId!, t0);
+
+        (await AckAsync(TrackEvent("room_finished", lesson.RoomName))).Should().Be("Handled");
+
+        await CompleteAsync(first.EgressId!, first.ObjectKey, 4_000, t0, t0.AddMinutes(30));
+
+        // ── odamlar qaytdi: xona YANGIDAN ochildi ─────────────────────
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var mixers = (await TracksAsync(lesson))
+            .Where(t => t.Kind == RecordingTrackKind.RoomAudio)
+            .ToList();
+
+        mixers.Should().HaveCount(2, "darsning ikkinchi yarmi ham ovozli yozilishi kerak");
+
+        var second = mixers.Single(t => t.Id != first.Id);
+
+        second.TrackSid.Should().Be(RecordingTrack.RoomAudioSid + "2");
+        second.ObjectKey.Should().Be(
+            $"raw/{lesson.SessionId}/{lesson.RecordingId}/ROOM2.ogg",
+            "🔴 birinchi bo'lakning fayli ustidan yozilmasin");
+        second.Status.Should().Be(RecordingStatus.Starting);
+
+        factory.Egress.StartedRoomAudio
+            .Count(r => r.RoomName == lesson.RoomName)
+            .Should().Be(2);
+
+        // Yangi mikser tirik — takroriy `room_started` uchinchisini yoqmaydi.
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Duplicate");
+
+        (await TracksAsync(lesson))
+            .Count(t => t.Kind == RecordingTrackKind.RoomAudio)
+            .Should().Be(2);
+    }
+
+    /// <summary>
+    /// Eski mikserning <c>egress_ended</c> hodisasi xona qayta ochilganidan
+    /// KEYIN keldi. To'xtatish so'ralgan mikser yozmayapti — demak yangisi
+    /// baribir kerak, va u ustozning birinchi trekidayoq yoqiladi.
+    /// </summary>
+    [Fact]
+    public async Task RoomReopened_BeforeTheOldMixerReportedItsEnd_StillStartsANewMixer()
+    {
+        var lesson = await NewLessonAsync();
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var first = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        await ActivateAsync(first.EgressId!, DateTimeOffset.UtcNow.AddMinutes(-30));
+
+        (await AckAsync(TrackEvent("room_finished", lesson.RoomName))).Should().Be("Handled");
+
+        (await AckAsync(Published(lesson, "TR_back", "CAMERA", "video/vp8"))).Should().Be("Started");
+
+        var tracks = await TracksAsync(lesson);
+
+        tracks.Count(t => t.Kind == RecordingTrackKind.RoomAudio).Should().Be(2);
+        tracks.Should().ContainSingle(t => t.TrackSid == "TR_back");
+
+        factory.Egress.StartedRoomAudio
+            .Count(r => r.RoomName == lesson.RoomName)
+            .Should().Be(2);
+    }
+
+    /// <summary>
+    /// Dars TUGAGAN, kimdir eski sahifadan qaytib kirdi va LiveKit xonani
+    /// qayta yaratdi (<c>auto_create</c>). Yangi mikser YOQILMAYDI: aks
+    /// holda yozuv oxiriga bekorga jimlik va shovqin qo'shilardi.
+    /// </summary>
+    [Fact]
+    public async Task RoomReopened_AfterTheLessonEnded_StartsNoMixer()
+    {
+        var lesson = await NewLessonAsync();
+
+        var t0 = new DateTimeOffset(2026, 9, 12, 16, 0, 0, TimeSpan.Zero);
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var first = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        await ActivateAsync(first.EgressId!, t0);
+        await AckAsync(TrackEvent("room_finished", lesson.RoomName));
+        await CompleteAsync(first.EgressId!, first.ObjectKey, 4_000, t0, t0.AddMinutes(80));
+
+        await factory.WithDbAsync(db => db.LiveSessions
+            .Where(s => s.Id == lesson.SessionId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SessionStatus.Ended)));
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Ignored");
+
+        (await TracksAsync(lesson))
+            .Count(t => t.Kind == RecordingTrackKind.RoomAudio)
+            .Should().Be(1);
+
+        factory.Egress.StartedRoomAudio
+            .Count(r => r.RoomName == lesson.RoomName)
+            .Should().Be(1);
+    }
+
     // ═══════════════════════════════════════════════════ 3) chetlanadigan hodisalar
 
     /// <summary>O'quvchining treki YOZILMAYDI — faqat xost (§3.1).</summary>

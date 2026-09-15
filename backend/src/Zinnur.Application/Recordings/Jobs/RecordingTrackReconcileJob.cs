@@ -334,6 +334,13 @@ public sealed class RecordingTrackReconcileJob(
     /// 🔴 FAQAT <c>Active</c> QATORLAR TEKSHIRILADI. <c>Starting</c> qator
     /// LiveKit ro'yxatida hali ko'rinmasligi mumkin va uni "o'lgan" deb
     /// hisoblash har dars boshida ikkinchi mikserni yoqardi.
+    ///
+    /// 🔴 TO'XTATISH SO'RALGAN MIKSER HAM TEKSHIRILMAYDI. Dars o'rtasida
+    /// xona yopilsa (<c>departure_timeout</c>) <c>room_finished</c> uni
+    /// to'xtatadi va u ro'yxatdan YO'QOLADI — lekin fayli yuklanayotgan
+    /// bo'ladi. Uni <c>Failed</c> deb belgilash yakuniy holat: kechroq
+    /// kelgan <c>egress_ended</c> endi qatorni tayyor qila olmaydi va
+    /// darsning o'sha bo'lagi ovozi tungi yig'ishga tushmaydi.
     /// </summary>
     private async Task<bool> CheckMixerAsync(
         SessionRecording recording,
@@ -345,6 +352,7 @@ public sealed class RecordingTrackReconcileJob(
         var active = recording.Tracks
             .Where(t => t.IsRoomAudio
                      && t.Status == RecordingStatus.Active
+                     && t.StopRequestedAt is null
                      && !string.IsNullOrWhiteSpace(t.EgressId))
             .ToList();
 

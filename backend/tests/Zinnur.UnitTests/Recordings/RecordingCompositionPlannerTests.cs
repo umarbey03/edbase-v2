@@ -490,6 +490,31 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().NotContain("amix", "bo'laklar kesishmaydi, aralashtirish kerak emas");
     }
 
+    /// <summary>
+    /// Xona dars o'rtasida yopilib qayta ochilgan: ikki mikser bo'lagi va
+    /// IKKALASI HAM o'z oralig'idan qisqa (bitta fayldagi AYNI siqilish).
+    ///
+    /// 🔴 HAR BO'LAK O'Z ORALIG'IGA CHO'ZILADI: busiz birinchi bo'lak
+    /// ichida ovoz tasvirdan 9 soniyagacha oldinga ketib, oxiri jimlik
+    /// bilan to'ldirilardi. Cho'zish surishdan va kesishdan OLDIN.
+    /// </summary>
+    [Fact]
+    public void TwoRoomAudioRows_AreEachStretchedToTheirOwnWindow()
+    {
+        var first = Audio(1, 0, 900, sid: RecordingTrack.RoomAudioSid);
+        var second = Audio(3, 1000, 2000, sid: RecordingTrack.RoomAudioSid + "2");
+
+        first.ProbedDurationMs = 891_000;        // 1% qisqa
+        second.ProbedDurationMs = 985_000;       // 1.5% qisqa
+
+        var plan = Plan(first, Camera(2, 0, 2000), second);
+
+        plan.FilterGraph.Should().Contain(string.Join(';',
+            "[1:a]atempo=0.99,adelay=0|0,atrim=end=1000,apad=whole_dur=1000[a0]",
+            "[2:a]atempo=0.985[a1]",
+            $"[a0][a1]concat=n=2:v=0:a=1,{Tail}[a]"));
+    }
+
     // ═══════════════════════════════════════════════════ 8) zaxira ovoz rejimi
 
     /// <summary>

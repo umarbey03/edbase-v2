@@ -592,7 +592,15 @@ public static class RecordingCompositionPlanner
 
         for (var i = 0; i < audio.Count; i++)
         {
-            var chain = new List<string>(2);
+            var chain = new List<string>(3);
+
+            // ★ HAR BO'LAK O'Z ORALIG'IGA CHO'ZILADI (bitta fayldagi AYNI
+            //   sabab, `Stretch` izohida). Busiz har bo'lak ichida ovoz
+            //   tasvirdan oldinga ketib, bo'lak oxirida jimlik bilan
+            //   to'ldirilardi. Cho'zish surishdan OLDIN — sabab yuqorida.
+            var stretch = Stretch(audio[i], t0);
+
+            if (stretch.Length > 0) chain.Add(stretch.TrimEnd(','));
 
             if (i == 0) chain.Add(Placement(delays[0]));
 
