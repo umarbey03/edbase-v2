@@ -24,6 +24,13 @@ export interface RequestOptions {
   /** `false` bo'lsa Authorization sarlavhasi qo'shilmaydi (login/refresh uchun). */
   auth?: boolean
   headers?: Readonly<Record<string, string>>
+  /**
+   * `true` — so'rov sahifa YOPILAYOTGANDA ham oxirigacha yuboriladi
+   * (`fetch` `keepalive`). Jonli darsning diagnostika hodisalari uchun:
+   * o'quvchi darsdan chiqib ketgan lahza aynan eng qimmatli hodisa.
+   * ⚠️ Brauzer tanani ~64 KB bilan cheklaydi — faqat kichik so'rovlarga.
+   */
+  keepalive?: boolean
 }
 
 /** SPEC 5: refresh yo'li. Bu yo'lning o'zi hech qachon qayta urinilmaydi. */
@@ -99,6 +106,7 @@ async function send(url: string, options: RequestOptions, token: string | null):
   }
   if (body !== undefined) init.body = body
   if (options.signal !== undefined) init.signal = options.signal
+  if (options.keepalive === true) init.keepalive = true
 
   try {
     return await fetch(url, init)

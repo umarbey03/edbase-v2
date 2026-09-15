@@ -10,6 +10,7 @@ import {
   Room,
   RoomEvent,
   Track,
+  VideoPreset,
   VideoPresets,
 } from 'livekit-client'
 import type {
@@ -24,7 +25,9 @@ import { onBeforeUnmount, ref, shallowRef } from 'vue'
 import type { Ref, ShallowRef } from 'vue'
 
 import { fetchLiveKitJoin } from '@/entities/session'
-import { toUserMessage } from '@/shared/api'
+import { isApiError, toUserMessage } from '@/shared/api'
+
+import { createLiveEventReporter, createScreenWakeLock } from './liveClientEvents'
 
 export type MediaStatus =
   | 'idle'
@@ -217,6 +220,11 @@ function screenShareUnsupportedText(): string {
  * Bu o'quvchiga hech narsa aytmaydi va nima qilishni ham ko'rsatmaydi.
  */
 function describeConnectError(error: unknown): string {
+  // Token so'rovi 10 s javobsiz qolib bekor qilindi — brauzerning inglizcha
+  // "signal is aborted without reason" matni foydalanuvchiga chiqmasin.
+  if (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError') {
+    return 'Server javob bermadi. Internet aloqangizni tekshiring.'
+  }
   if (error instanceof ConnectionError) {
     switch (error.reason) {
       case ConnectionErrorReason.NotAllowed:
@@ -269,6 +277,80 @@ function describeDisconnect(reason: DisconnectReason | undefined): string {
 }
 
 /*
+  ════════════════════════════════════════════════════════════════════════
+  AVTOMATIK QAYTA ULANISH (2026-09-14)
+  ════════════════════════════════════════════════════════════════════════
+
+  🔴 NIMA UCHUN: LiveKit qisqa uzilishni o'zi tiklaydi, lekin undan uzoqroq
+     uzilishda `Disconnected` beradi — va ilgari sahifa shu yerda TO'XTARDI:
+     "Qayta urinish" tugmasi bosilishini kutardi. O'lchov (5 kunlik log):
+     tarmoq uzilgan o'quvchi xonaga qaytguncha MEDIAN 34 s, p90 189 s. Internet
+     bir necha soniya yo'qoladi, ovoz esa daqiqalab yo'q bo'lardi.
+
+  ★ QAYTA ULANMAYDIGAN SABABLAR — foydalanuvchi yoki server ATAYLAB uzgan:
+    boshqa oynada kirdi (ikki oyna bir-birini abadiy haydab chiqarardi),
+    chiqarib yuborildi, xona yopildi/o'chirildi.
+
+  🔴 `CLIENT_INITIATED` BU RO'YXATDA YO'Q VA BU ATAYLAB: bizning kodimiz
+     `disconnect()` dan OLDIN har doim tinglovchilarni olib tashlaydi, ya'ni
+     bu sabab bilan kelgan hodisa — livekit-client'ning O'ZI sahifa
+     muzlaganda (`freeze`) yoki yashirilganda (`pagehide`) uzgani. Telefonda
+     boshqa ilovaga o'tish aynan shu — eng ko'p uchraydigan holat.
+*/
+
+export function shouldReconnect(reason: DisconnectReason | undefined): boolean {
+  switch (reason) {
+    case DisconnectReason.DUPLICATE_IDENTITY:
+    case DisconnectReason.PARTICIPANT_REMOVED:
+    case DisconnectReason.ROOM_DELETED:
+    case DisconnectReason.ROOM_CLOSED:
+      return false
+    default:
+      return true
+  }
+}
+
+/** Urinishlar orasidagi kutish: 1 → 2 → 4 → 8 → 10 s (undan keyin 10 s). */
+const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000] as const
+const RECONNECT_MAX_DELAY_MS = 10_000
+
+/**
+ * ★ ±30% TASODIFIY SILJISH: bir qurilmadagi ikki oyna (yoki bir sinfdagi
+ *   hamma telefon) internet qaytgan AYNI lahzada urinmasin.
+ */
+export function reconnectDelay(attempt: number): number {
+  const base = RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_MAX_DELAY_MS
+  return Math.round(base * (0.7 + Math.random() * 0.6))
+}
+
+/** Token so'rovi shundan uzoq osilib qolsa — bekor qilinadi va qayta uriniladi. */
+const JOIN_FETCH_TIMEOUT_MS = 10_000
+
+/**
+ * Shuncha vaqt ulanolmasak — sariq "qayta ulanmoqda" o'rniga qizil xabar va
+ * "Qayta urinish" tugmasi chiqadi. Urinishlar FONDA davom etadi.
+ */
+const RECONNECT_BUTTON_AFTER_MS = 30_000
+
+const RECONNECT_STILL_TRYING_TEXT =
+  'Aloqa hali tiklanmadi — qayta ulanishga urinib turibmiz. Internetingizni tekshiring.'
+
+/**
+ * Qayta urinishning ma'nosi yo'q xato: ruxsat yo'q (403), dars topilmadi
+ * (404), dars tugagan yoki boshlanmagan (409), sessiya tugagan (401).
+ * Tarmoq xatosi (0), server xatosi (5xx) va 429 — vaqtinchalik.
+ */
+export function isFatalJoinError(error: unknown): boolean {
+  if (isApiError(error)) {
+    return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 409
+  }
+  if (error instanceof ConnectionError) {
+    return error.reason === ConnectionErrorReason.NotAllowed
+  }
+  return false
+}
+
+/*
   ZAIF KANAL MATNLARI — AYBLAMAYDI VA NIMA QILISHNI AYTADI.
 
   ⚠️ "Internetingiz yomon" deb yozilmaydi: foydalanuvchi buni ayb deb
@@ -277,14 +359,71 @@ function describeDisconnect(reason: DisconnectReason | undefined): string {
 /**
  * Kamera qanday o'lchamda OLINADI (yuborish qatlamlari alohida).
  *
- * 🔴 O'QUVCHIDA 360p, USTOZDA 720p. Manba o'lchami simulcast
+ * 🔴 O'QUVCHIDA 240p (2026-09-14 gacha 360p), USTOZDA 720p. Manba o'lchami simulcast
  * qatlamlarining eng yuqorisini belgilaydi: 720p olinsa, 720p ham
  * yuboriladi. O'quvchining kichkina katakchasi uchun bu behuda
  * yuklashdir va u ovozdan joy oladi.
  */
 function captureResolution(isHost: boolean) {
-  return isHost ? VideoPresets.h720.resolution : VideoPresets.h360.resolution
+  return isHost ? VideoPresets.h720.resolution : STUDENT_CAMERA_CAPTURE
 }
+
+/*
+  ════════════════════════════════════════════════════════════════════
+  O'QUVCHI KAMERASI — OVOZGA JOY QOLDIRADI (2026-09-14)
+  ════════════════════════════════════════════════════════════════════
+
+  Ustoz o'quvchidan "kamerani yoq, gapir" deydi — aynan shu lahzada ovoz
+  uzilmasligi kerak. Ilgari o'quvchi 360p + 180p yuborardi (~610 kbit/s),
+  zaif o'quvchilarda o'lchangan kanal medianasi esa 279 kbit/s — kamera
+  yoqilishi bilan ovoz bo'g'ilardi.
+
+  ★ BITTA QATLAM, 240p/15 kadr, 150 kbit/s: o'quvchining yuzi kichik
+    katakchada ko'rinadi, bundan ortig'i ovozdan joy oladi.
+  ★ `priority: 'low'` — brauzer kanal torayganda AVVAL videoni qisadi.
+    Ovozning ustuvorligi livekit-client'da standart holda `high`.
+*/
+const STUDENT_CAMERA_CAPTURE = { width: 426, height: 240, frameRate: 15 }
+
+const STUDENT_CAMERA_ENCODING = {
+  maxBitrate: 150_000,
+  maxFramerate: 15,
+  priority: 'low' as const,
+}
+
+/**
+ * Ustoz ovozi: 48 → 32 kbit/s. Opus 32 kbit/s da nutq to'liq, musiqa ham
+ * qabul qilinarli; har o'quvchining yuklab olish kanalida (RED bilan)
+ * ~30 kbit/s bo'shaydi. `priority` oshkora — kelajakda tushib qolmasin.
+ */
+const HOST_AUDIO_PRESET = { maxBitrate: 32_000, priority: 'high' as const }
+
+/*
+  ════════════════════════════════════════════════════════════════════
+  EKRAN ULASHISH — ZAIF TELEFONGA HAM SIG'ADIGAN QATLAM BO'LISHI SHART
+  ════════════════════════════════════════════════════════════════════
+
+  O'lchov (LiveKit logi, 2026-09-09..14): faqat mikrofon yuborayotgan
+  o'quvchida `expectedUsage` 1.74 Mbit/s ga chiqqan — bu ustozning
+  ekrani, unga YUBORILAYOTGAN. Sabab livekit-client standartida:
+  ekran o'lchami hech bir presetga sig'masa (Retina/2K ekran) `original`
+  tanlanadi — 7 Mbit/s va 30 kadr, eng past qatlam esa uning to'rtdan
+  biri, ya'ni ~1.75 Mbit/s. O'quvchi kanalining medianasi 279 kbit/s —
+  ya'ni ENG PAST qatlam ham sig'masdi va ovoz shu bilan birga bo'g'ilardi.
+
+  ★ UCH QATLAM: 360p/3 kadr (~150 kbit/s) — zaif telefon; 720p/5 kadr —
+    o'rtacha; 1080p/15 kadr — kuchli kanal va DARS YOZUVI (egress eng
+    yuqori qatlamni oladi, ya'ni yozuv sifati pasaymaydi).
+  ★ Slayd va hujjat uchun 15 kadr yetarli — ekranda harakat kam.
+*/
+const SCREEN_SHARE_ENCODING = { maxBitrate: 1_500_000, maxFramerate: 15 }
+
+const SCREEN_SHARE_LAYERS = [
+  new VideoPreset(640, 360, 150_000, 3),
+  new VideoPreset(1280, 720, 500_000, 5),
+]
+
+const SCREEN_SHARE_CAPTURE = { width: 1920, height: 1080, frameRate: 15 }
 
 const WEAK_LINK_CAMERA_OFF_TEXT =
   'Internet aloqangiz zaiflashdi — ovoz uzilmasligi uchun kamera vaqtincha '
@@ -380,6 +519,62 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   let disposed = false
   let rebuildFrame: number | null = null
   let rebuildTimer: number | null = null
+
+  /*
+    ── QAYTA ULANISH HOLATI ─────────────────────────────────────────────
+    `disconnectedAt !== null` — qayta ulanish SIKLI ketmoqda. `reconnectEnabled`
+    — birinchi urinish qilingan va foydalanuvchi o'zi "Chiqish" bosmagan.
+    `connectInFlight` — ikki urinish (taymer + "Qayta urinish") ustma-ust
+    ikkita `Room` yaratmasin.
+  */
+  let reconnectEnabled = false
+  let disconnectedAt: number | null = null
+  let reconnectAttempt = 0
+  let reconnectTimer: number | null = null
+  let connectInFlight = false
+  /** Oxirgi urinish nima uchun yiqilgani — 30 soniyadan keyin ko'rsatiladi. */
+  let lastFailureText: string | null = null
+  /** Urinish osilib qolsa ham 30 soniyada qizil xabar va tugma chiqsin. */
+  let statusTimer: number | null = null
+  /**
+   * "Chiqish" yoki sahifa yopilishi har oshirganda ESKI urinish natijasi
+   * e'tiborsiz qoladi — aks holda chiqib ketgan foydalanuvchi (yoki dars
+   * tugagach ustoz) jimgina xonaga qaytib kirardi.
+   */
+  let generation = 0
+
+  /*
+    ── FOYDALANUVCHINING NIYATI ─────────────────────────────────────────
+    🔴 NIMA UCHUN: qayta kirganda mikrofon O'CHIQ kelardi. O'lchov: uzilishdan
+       oldin mikrofoni bor 460 holatdan 128 tasida o'quvchi 10 daqiqa o'tib
+       ham uni yoqmagan — ustoz "gapir" deydi, o'quvchi esa jim.
+    Niyatni FAQAT foydalanuvchining o'z tugmasi o'zgartiradi; ustoz o'chirsa
+    (moderatsiya) niyat ham o'chadi — qayta ulanish uni qaytarib yoqmaydi.
+  */
+  let wantMic = false
+  let wantCamera = false
+  /**
+   * Har mute hodisasida oshadi. Tugma bosilgan paytda ustoz o'chirsa, tugma
+   * natijasi (optimistik `true`) ustozning qarorini ustidan yozmasin.
+   */
+  let micModerationSeq = 0
+  let cameraModerationSeq = 0
+
+  /** Ekran ulashish uzilishda to'xtadi — qayta ulangach ustozga aytiladi. */
+  let screenShareLost = false
+
+  const reporter =
+    typeof window !== 'undefined' && Number.isInteger(sessionId) && sessionId > 0
+      ? createLiveEventReporter(sessionId, () => ({ micOn: isMicOn.value, cameraOn: isCameraOn.value }))
+      : null
+
+  function report(type: string, extra: Parameters<NonNullable<typeof reporter>['report']>[1] = {}): void {
+    reporter?.report(type, extra)
+  }
+
+  const wakeLock = typeof window !== 'undefined'
+    ? createScreenWakeLock((detail) => report('wake-lock', { detail }))
+    : null
 
   /**
    * Tugma "kutish" (spinner) holatining ENG UZOQ muddati.
@@ -663,6 +858,17 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (current === null || participant !== current.localParticipant) return
     if (!publication.isMuted) return
 
+    // Niyat `pending` dan QAT'I NAZAR o'chadi: o'z o'chirishida ham to'g'ri,
+    // yoqish kutilayotganda kelgan mute esa faqat ustozniki bo'lishi mumkin.
+    if (publication.source === Track.Source.Camera) {
+      wantCamera = false
+      cameraModerationSeq += 1
+    }
+    if (publication.source === Track.Source.Microphone) {
+      wantMic = false
+      micModerationSeq += 1
+    }
+
     if (publication.source === Track.Source.Camera && !cameraPending.value) {
       const track = localCameraTrack.value
       localCameraTrack.value = null
@@ -670,12 +876,14 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         void current.localParticipant.unpublishTrack(track, true).catch(() => undefined)
       }
       isCameraOn.value = false
+      wantCamera = false
       moderationNotice.value = 'Ustoz kamerangizni o‘chirdi. Kerak bo‘lsa pastki paneldan qayta yoqing.'
       return
     }
 
     if (publication.source === Track.Source.Microphone && !micPending.value) {
       isMicOn.value = false
+      wantMic = false
       void current.localParticipant.setMicrophoneEnabled(false).catch(() => undefined)
       moderationNotice.value = 'Ustoz mikrofoningizni o‘chirdi. Gapirish uchun pastki paneldan qayta yoqing.'
     }
@@ -698,6 +906,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   function onConnectionStateChanged(state: ConnectionState): void {
     if (disposed) return
+    // Qayta ulanish siklida holatni SIKL boshqaradi — yangi `Room` ning
+    // "Connecting" hodisasi qizil tugmani har urinishda yashirmasin.
+    if (disconnectedAt !== null && (state === ConnectionState.Connecting || state === ConnectionState.Disconnected)) {
+      scheduleRebuild()
+      return
+    }
     switch (state) {
       case ConnectionState.Connected:
         status.value = 'connected'
@@ -734,6 +948,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   function onDisconnected(reason?: DisconnectReason): void {
     if (disposed) return
 
+    if (isScreenSharing.value || isCanvasSharing.value) screenShareLost = true
+
     const target = room
     room = null
     if (target !== null) {
@@ -764,8 +980,146 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     audioBlocked.value = false
     moderationNotice.value = null
 
+    const reasonName =
+      reason === undefined ? 'UNKNOWN' : ((DisconnectReason[reason] as string | undefined) ?? String(reason))
+
+    if (reconnectEnabled && shouldReconnect(reason)) {
+      report('disconnected', { reason: reasonName, detail: 'reconnecting' })
+      beginReconnect()
+      return
+    }
+
+    report('disconnected', { reason: reasonName, detail: 'final' })
+    reconnectEnabled = false
+    wakeLock?.release()
     status.value = 'disconnected'
     connectionError.value = describeDisconnect(reason)
+  }
+
+  /* ------------------------------ qayta ulanish ----------------------------- */
+
+  function clearReconnectTimer(): void {
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+  }
+
+  /** Siklni boshlaydi (allaqachon ketayotgan bo'lsa — hech narsa qilmaydi). */
+  function beginReconnect(): void {
+    if (disconnectedAt === null) {
+      disconnectedAt = Date.now()
+      reconnectAttempt = 0
+      statusTimer = window.setTimeout(() => {
+        statusTimer = null
+        updateReconnectStatus()
+      }, RECONNECT_BUTTON_AFTER_MS)
+    }
+    updateReconnectStatus()
+    scheduleReconnect()
+  }
+
+  function stopReconnect(): void {
+    clearReconnectTimer()
+    if (statusTimer !== null) {
+      window.clearTimeout(statusTimer)
+      statusTimer = null
+    }
+    disconnectedAt = null
+    reconnectAttempt = 0
+    lastFailureText = null
+  }
+
+  function scheduleReconnect(delayMs: number = reconnectDelay(reconnectAttempt)): void {
+    if (disposed || disconnectedAt === null) return
+    clearReconnectTimer()
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      void attemptReconnect()
+    }, delayMs)
+  }
+
+  async function attemptReconnect(): Promise<void> {
+    if (disposed || disconnectedAt === null || room !== null || connectInFlight) return
+    reconnectAttempt += 1
+    report('reconnect-attempt', { attempt: reconnectAttempt })
+    updateReconnectStatus()
+    await openRoom()
+  }
+
+  /**
+   * Sariq "qayta ulanmoqda" — birinchi 30 soniya. Undan keyin qizil xabar va
+   * "Qayta urinish" tugmasi (sahifa `disconnected` holatida uni chizadi),
+   * urinishlar esa fonda davom etadi.
+   */
+  function updateReconnectStatus(): void {
+    if (disconnectedAt === null) return
+    if (Date.now() - disconnectedAt >= RECONNECT_BUTTON_AFTER_MS) {
+      status.value = 'disconnected'
+      // Aniq sabab (masalan UDP to'silgan) bo'lsa — o'shani aytamiz.
+      connectionError.value = lastFailureText !== null
+        ? `${lastFailureText} Qayta ulanishga urinib turibmiz.`
+        : RECONNECT_STILL_TRYING_TEXT
+    } else {
+      status.value = 'reconnecting'
+      connectionError.value = null
+    }
+  }
+
+  /** Internet qaytdi yoki sahifa yana ko'rindi — kutmasdan urinamiz. */
+  function onNetworkMayBeBack(): void {
+    // 0–1 s tasodifiy kutish — izoh `reconnectDelay` da.
+    if (disconnectedAt !== null && room === null && !connectInFlight) {
+      scheduleReconnect(Math.round(Math.random() * 1_000))
+    }
+  }
+
+  function onPageVisibility(): void {
+    if (document.visibilityState === 'visible') onNetworkMayBeBack()
+  }
+
+  /** Sahifa brauzer keshidan (bfcache) qaytdi — ulanish allaqachon o'lgan. */
+  function onPageShow(event: PageTransitionEvent): void {
+    if (event.persisted) onNetworkMayBeBack()
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', onNetworkMayBeBack)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onPageVisibility)
+  }
+
+  /**
+   * Qayta ulangach foydalanuvchining NIYATINI tiklaydi: mikrofon va kamera.
+   *
+   * ⚠️ EKRAN ULASHISH VA KITOB TAXTASI TIKLANMAYDI: ekran tanlash oynasi faqat
+   *    foydalanuvchi bosganda ochiladi, canvas esa sahifa komponentiga
+   *    tegishli. Ustozga buni aytamiz — jimgina yo'qolmasin.
+   */
+  async function restoreMedia(): Promise<void> {
+    const wantedMic = wantMic
+    const wantedCamera = wantCamera
+    const micSeq = micModerationSeq
+    const cameraSeq = cameraModerationSeq
+    const tasks: Promise<void>[] = []
+    if (wantedMic && !isMicOn.value) tasks.push(toggleMic())
+    if (wantedCamera && !isCameraOn.value) tasks.push(toggleCamera())
+    await Promise.allSettled(tasks)
+
+    // Tiklash paytida aloqa yana uzildi — niyat keyingi ulanishga saqlanadi.
+    if (room === null) {
+      // Shu orada ustoz o'chirgan bo'lsa — uning qarori saqlanadi.
+      if (micModerationSeq === micSeq) wantMic = wantedMic
+      if (cameraModerationSeq === cameraSeq) wantCamera = wantedCamera
+      return
+    }
+
+    if (screenShareLost) {
+      screenShareLost = false
+      mediaError.value = 'Aloqa uzilgani uchun ekran ulashish to‘xtadi — kerak bo‘lsa qayta yoqing.'
+    }
+
+    report('media-restored', { detail: `mic=${String(wantMic)} camera=${String(wantCamera)}` })
   }
 
   /**
@@ -801,7 +1155,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     qualityByIdentity.set(participant.identity, mapped)
 
     if (room !== null && participant.identity === room.localParticipant.identity) {
+      const previous = localQuality.value
       localQuality.value = mapped
+      // Faqat YOMONLASHISH va TIKLANISH lahzasi — har hodisa emas.
+      if (mapped !== previous && (mapped === 'poor' || mapped === 'lost' || previous === 'poor' || previous === 'lost')) {
+        report('quality', { detail: mapped })
+      }
       applyWeakLinkPolicy(mapped)
     }
 
@@ -903,17 +1262,46 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   /* -------------------------------- ulanish -------------------------------- */
 
   async function connect(): Promise<void> {
-    if (disposed || room !== null) return
-    // Ikki marta bosilgan "Qayta urinish" ikkita `Room` yaratmasligi uchun.
-    if (status.value === 'loading' || status.value === 'connecting') return
+    // "Qayta urinish" qayta ulanish SIKLI ichida bosildi — navbatdagi
+    // urinishni kutmasdan hozir qilamiz (ikkinchi sikl ochilmaydi).
+    if (disconnectedAt !== null) {
+      scheduleReconnect(0)
+      return
+    }
+    await openRoom()
+  }
 
-    status.value = 'loading'
-    connectionError.value = null
+  /**
+   * Bitta ulanish urinishi — birinchi kirish ham, qayta ulanish ham shu yerdan.
+   *
+   * ★ SIKL ICHIDA HOLAT `loading`/`connecting` GA O'TMAYDI: aks holda har
+   *   urinishda banner "Darsga ulanmoqda…" va "qayta ulanmoqda…" orasida
+   *   miltillab turardi.
+   */
+  async function openRoom(): Promise<void> {
+    // Ikki marta bosilgan "Qayta urinish" ikkita `Room` yaratmasligi uchun.
+    if (disposed || room !== null || connectInFlight) return
+
+    const inCycle = disconnectedAt !== null
+    const gen = generation
+    connectInFlight = true
+    reconnectEnabled = true
+
+    if (!inCycle) {
+      status.value = 'loading'
+      connectionError.value = null
+    }
+
+    // ⚠️ `AbortSignal.timeout` EMAS: eski iOS WebView'larda u yo'q va
+    //    sinxron TypeError cheksiz "vaqtinchalik xato" siklini boshlardi.
+    const abort = new AbortController()
+    const abortTimer = window.setTimeout(() => abort.abort(), JOIN_FETCH_TIMEOUT_MS)
 
     try {
       // SPEC 5: POST /api/v1/live-sessions/{id}/token -> LiveKitJoinDto
-      const join = await fetchLiveKitJoin(sessionId)
-      if (disposed) return
+      const join = await fetchLiveKitJoin(sessionId, abort.signal)
+      window.clearTimeout(abortTimer)
+      if (disposed || gen !== generation) return
 
       isHost.value = join.isHost
       roomName.value = join.roomName
@@ -945,6 +1333,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
             ? [VideoPresets.h180, VideoPresets.h360]
             : [VideoPresets.h180],
 
+          // Ekran ulashish qatlamlari — sabab `SCREEN_SHARE_ENCODING` izohida.
+          screenShareEncoding: SCREEN_SHARE_ENCODING,
+          screenShareSimulcastLayers: SCREEN_SHARE_LAYERS,
+
           /*
             ════════════════════════════════════════════════════════════
             🔴 OVOZ PRESETI — ENG MUHIM QATOR
@@ -956,13 +1348,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
             38 kbit/s ga tushgan — ya'ni 48 sig'maydi, 24 sig'adi.
             Opus 24 kbit/s da nutqni juda yaxshi uzatadi.
 
-            ★ USTOZDA `music` QOLADI VA BU ATAYLAB: darsda tinglash
-              materiali qo'yilishi mumkin (til kurslari), ustozlarda esa
-              bu muammo o'lchovda UMUMAN uchramagan — siqilgan 25
-              ishtirokchining hammasi o'quvchi edi. Sifatni faqat
-              kerak bo'lgan joyda pasaytiramiz.
+            ★ USTOZDA 32 kbit/s (2026-09-14 gacha `music`, 48): darsda
+              tinglash materiali qo'yilishi mumkin (til kurslari), shuning
+              uchun `speech` emas. Lekin ustozning ovozi HAR o'quvchining
+              yuklab olish kanalidan o'tadi — sabab `HOST_AUDIO_PRESET` da.
           */
-          audioPreset: join.isHost ? AudioPresets.music : AudioPresets.speech,
+          audioPreset: join.isHost ? HOST_AUDIO_PRESET : AudioPresets.speech,
 
           /*
             RED — ovoz paketlarining ORTIQCHA nusxasi. Paket yo'qolganda
@@ -978,10 +1369,14 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       room = target
       bindEvents(target)
 
-      status.value = 'connecting'
+      if (!inCycle) status.value = 'connecting'
       await target.connect(join.serverUrl, join.token, { autoSubscribe: true })
 
-      if (disposed) {
+      if (disposed || gen !== generation) {
+        if (room === target) {
+          room = null
+          unbindEvents(target)
+        }
         await target.disconnect(true)
         return
       }
@@ -1006,8 +1401,22 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       onAudioPlaybackChanged()
 
       status.value = 'connected'
+      connectionError.value = null
       rebuildTiles()
+      wakeLock?.acquire()
+
+      if (disconnectedAt !== null) {
+        report('reconnected', { attempt: reconnectAttempt, detail: `${String(Date.now() - disconnectedAt)}ms` })
+        stopReconnect()
+        void restoreMedia()
+      } else {
+        report('connected')
+      }
     } catch (error) {
+      window.clearTimeout(abortTimer)
+      // Foydalanuvchi shu orada chiqib ketdi — `teardown` hammasini tozalagan,
+      // bu urinishning xatosi endi hech narsani boshlamasin.
+      if (disposed || gen !== generation) return
       // MUHIM: muvaffaqiyatsiz `Room` ni tozalab, `room` ni `null` qilamiz —
       // aks holda "Qayta urinish" tugmasi hech qachon ishlamas edi
       // (`connect()` boshida `room !== null` bo'lib chiqib ketardi).
@@ -1028,8 +1437,30 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       isMicOn.value = false
       isScreenSharing.value = false
       if (disposed) return
+
+      const text = describeConnectError(error)
+
+      // Vaqtinchalik xato (internet yo'q, server qayta ishga tushmoqda) —
+      // tugmani kutmasdan qayta urinamiz. Birinchi kirishda ham.
+      // `reconnectEnabled` — urinish paytida `onDisconnected` uzilishni YAKUNIY
+      // deb belgilagan bo'lishi mumkin (boshqa oyna, chiqarib yuborish).
+      if (!isFatalJoinError(error) && reconnectEnabled) {
+        lastFailureText = text
+        report('connect-failed', { attempt: reconnectAttempt, detail: text })
+        beginReconnect()
+        return
+      }
+
+      report('connect-stopped', { detail: text })
+      stopReconnect()
+      reconnectEnabled = false
+      wakeLock?.release()
       status.value = 'failed'
-      connectionError.value = describeConnectError(error)
+      connectionError.value = text
+    } finally {
+      // Faqat SHU avlodning bayrog'i: `leave()` dan keyin boshlangan yangi
+      // urinishning bayrog'ini eski urinish tushirib yubormasin.
+      if (gen === generation) connectInFlight = false
     }
   }
 
@@ -1133,13 +1564,24 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     }
   }
 
-  function toggleMic(): Promise<void> {
-    return runToggle(
+  async function toggleMic(): Promise<void> {
+    // Xona yo'q paytdagi bosish (qayta ulanish ketmoqda) niyatni O'ZGARTIRMAYDI —
+    // `runToggle` u holda hech narsa qilmaydi, holat esa shunchaki `false`.
+    // Amal paytida aloqa uzilsa ham niyat buzilmasin: faqat AYNI xona hali
+    // tirik bo'lsa yangilanadi. ⚠️ `state === Connected` TEKSHIRILMAYDI:
+    // "qayta ulanmoqda" paytida o'chirilgan mikrofon keyingi uzilishdan
+    // keyin o'zi yoqilib ketardi. Uzilish `room` ni SINXRON bo'shatadi.
+    const target = room
+    const seq = micModerationSeq
+    await runToggle(
       isMicOn,
       micPending,
       (participant, next) => participant.setMicrophoneEnabled(next),
       readMicOn,
     )
+    if (target !== null && room === target && micModerationSeq === seq) {
+      wantMic = isMicOn.value
+    }
   }
 
   /** Taxta trekini (uzilish/tozalashda) mahalliy to'xtatadi — server bilan gaplashmasdan. */
@@ -1159,8 +1601,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (track !== null) track.stop()
   }
 
-  function toggleCamera(): Promise<void> {
-    return runToggle(
+  async function toggleCamera(): Promise<void> {
+    const target = room
+    const seq = cameraModerationSeq
+    await runToggle(
       isCameraOn,
       cameraPending,
       async (participant, next) => {
@@ -1190,7 +1634,13 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         // 2-QADAM: endi e'lon qilamiz. Bu yiqilsa ham foydalanuvchi
         //          o'z videosini ko'rib turadi va xato xabari chiqadi.
         try {
-          await participant.publishTrack(track, { source: Track.Source.Camera })
+          // O'quvchi — bitta yengil qatlam (sabab `STUDENT_CAMERA_ENCODING` da).
+          await participant.publishTrack(
+            track,
+            isHost.value
+              ? { source: Track.Source.Camera }
+              : { source: Track.Source.Camera, simulcast: false, videoEncoding: STUDENT_CAMERA_ENCODING },
+          )
         } catch (error) {
           dropLocalCamera()
           throw error
@@ -1198,6 +1648,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       },
       readCameraOn,
     )
+    if (target !== null && room === target && cameraModerationSeq === seq) {
+      wantCamera = isCameraOn.value
+    }
   }
 
   function toggleScreenShare(): Promise<void> {
@@ -1230,7 +1683,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         // Taxta ulashilayotgan bo'lsa — u ham "ekran ulashuvi": bitta
         // manba bo'lishi kerak, avval taxtani to'xtatamiz.
         if (canvasTrack !== null) await stopCanvasShare()
-        await participant.setScreenShareEnabled(next, { audio: true })
+        await participant.setScreenShareEnabled(next, {
+          audio: true,
+          resolution: SCREEN_SHARE_CAPTURE,
+        })
       },
       (participant) => participant.isScreenShareEnabled,
     )
@@ -1283,6 +1739,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
           name: 'book-board',
           simulcast: false,
           videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 5 },
+          // ⚠️ `ScreenShare` manbasida livekit-client `videoEncoding` ni
+          //    E'TIBORSIZ qoldirib `screenShareEncoding` ni oladi. Busiz
+          //    taxta xona standartini (15 kadr) meros qilib olardi.
+          screenShareEncoding: { maxBitrate: 1_200_000, maxFramerate: 5 },
         })
       } catch (error) {
         canvasTrack = null
@@ -1372,6 +1832,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   }
 
   async function leave(): Promise<void> {
+    // Foydalanuvchi O'ZI chiqdi — qayta ulanish ham, niyat ham tugaydi.
+    report('left')
+    generation += 1
+    connectInFlight = false
+    stopReconnect()
+    reconnectEnabled = false
+    wantMic = false
+    wantCamera = false
+    screenShareLost = false
+    wakeLock?.release()
     await teardown()
     /*
       ATAYLAB `idle`, `disconnected` EMAS.
@@ -1390,6 +1860,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   onBeforeUnmount(() => {
     disposed = true
+    generation += 1
+    stopReconnect()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', onNetworkMayBeBack)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onPageVisibility)
+    }
+    wakeLock?.release()
+    report('page-closed')
+    reporter?.dispose()
     void teardown()
   })
 

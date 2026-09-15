@@ -125,8 +125,11 @@ public sealed class TrackRecordingWebhookHandler(
         if (!await RoomAudioModeAsync(ct).ConfigureAwait(false))
             return RecordingWebhookOutcome.Ignored;     // `TeacherTrack` rejimi — mikser YO'Q
 
-        if (recording.Tracks.Any(t => t.IsRoomAudio))
+        if (recording.Tracks.Any(IsLiveMixer))
             return RecordingWebhookOutcome.Duplicate;
+
+        if (!CanStartMixer(recording))
+            return RecordingWebhookOutcome.Ignored;
 
         if (!await log.TryBeginAsync(evt.EventId, ct).ConfigureAwait(false))
             return RecordingWebhookOutcome.Duplicate;
@@ -216,7 +219,9 @@ public sealed class TrackRecordingWebhookHandler(
         var kind = MapKind(evt.TrackSource, roomAudio);
         var known = recording.Tracks.Any(t => t.TrackSid == evt.TrackSid);
 
-        var needsRoomAudio = roomAudio && !recording.Tracks.Any(t => t.IsRoomAudio);
+        var needsRoomAudio = roomAudio
+                          && !recording.Tracks.Any(IsLiveMixer)
+                          && CanStartMixer(recording);
         var needsTrack = !known && kind is not null && IsHost(recording.Session, evt.ParticipantIdentity);
 
         if (!needsRoomAudio && !needsTrack)
@@ -491,19 +496,76 @@ public sealed class TrackRecordingWebhookHandler(
     /// Kengaytma esa bashorat emas — so'rovda fayl turini <c>OGG</c> deb
     /// belgilaymiz, ya'ni <c>.ogg</c> — fakt (§3.4b).
     /// </summary>
-    private RecordingTrack NewRoomAudioRow(SessionRecording recording, DateTimeOffset now) =>
-        new()
+    private RecordingTrack NewRoomAudioRow(SessionRecording recording, DateTimeOffset now)
+    {
+        var sid = NextRoomAudioSid(recording);
+
+        return new()
         {
             RecordingId = recording.Id,
-            TrackSid = RecordingTrack.RoomAudioSid,
+            TrackSid = sid,
             ParticipantIdentity = null,
             Kind = RecordingTrackKind.RoomAudio,
             MimeType = RoomAudioMimeType,
             ObjectKey = storage.BuildRawObjectKey(
-                recording.SessionId, recording.Id, RecordingTrack.RoomAudioSid, OggExtension),
+                recording.SessionId, recording.Id, sid, OggExtension),
             Status = RecordingStatus.Requested,
             CreatedAt = now,
         };
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════
+    /// MIKSER HOZIR YOZYAPTIMI (yoki yozishga navbatda turibdimi)
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// ── NIMA UCHUN "BIRORTA MIKSER QATORI BORMI" YETARLI EMAS ──────────
+    ///
+    /// Hamma <c>departure_timeout</c> (60 s) dan uzoq chiqib ketsa LiveKit
+    /// xonani YOPADI, mikser <c>Source closed</c> bilan tugaydi. Odamlar
+    /// qaytganda xona YANGIDAN ochiladi va yangi <c>room_started</c>
+    /// keladi. Ilgari tekshiruv "qator bormi" edi — to'xtagan mikser ham
+    /// "bor" hisoblanardi va darsning qolgan qismi OVOZSIZ yozilardi.
+    /// O'lchov (2026-09-10..12): 17 darsdan 5 tasi shu sabab kesilgan.
+    ///
+    /// ★ <c>Requested</c> HAM TIRIK: u yozilmagan, lekin tiklash vazifasi
+    ///   uni qayta uradi — ustiga ikkinchisini yoqish ikki karra ovoz.
+    ///
+    /// ★ TO'XTATISH SO'RALGANI TIRIK EMAS: <c>room_finished</c> mikserni
+    ///   to'xtatadi, uning <c>egress_ended</c> hodisasi esa yangi
+    ///   <c>room_started</c> dan KEYIN kelishi mumkin.
+    /// </summary>
+    private static bool IsLiveMixer(RecordingTrack track) =>
+        track.IsRoomAudio && !track.IsFinished && track.StopRequestedAt is null;
+
+    /// <summary>
+    /// Yangi mikser yoqish mumkinmi.
+    ///
+    /// Birinchi mikser — har doim (avvalgi xatti-harakat o'zgarmaydi).
+    /// Keyingisi — FAQAT dars hali <c>Live</c> bo'lsa: tugagan darsning
+    /// eski tokeni bilan kimdir qaytib kirsa LiveKit xonani qayta yaratadi
+    /// (<c>auto_create</c>) va yozuv oxiriga bekorga jimlik qo'shilardi.
+    /// </summary>
+    private static bool CanStartMixer(SessionRecording recording) =>
+        !recording.Tracks.Any(t => t.IsRoomAudio)
+        || recording.Session?.Status == SessionStatus.Live;
+
+    /// <summary>
+    /// Keyingi xona ovozi sentineli: <c>ROOM</c>, <c>ROOM2</c>, <c>ROOM3</c>…
+    ///
+    /// ⚠️ <c>RecordingTrackReconcileJob.NextRoomAudioSid</c> BILAN AYNI
+    /// QOIDA — ikkala joy bir xil nom bersin, shunda bir vaqtda kelgan
+    /// ikki urinishdan birini <c>(RecordingId, TrackSid)</c> unikal
+    /// indeksi to'xtatadi va ikkinchi mikser paydo bo'lmaydi.
+    /// </summary>
+    private static string NextRoomAudioSid(SessionRecording recording)
+    {
+        var count = recording.Tracks.Count(t => t.IsRoomAudio);
+
+        return count == 0
+            ? RecordingTrack.RoomAudioSid
+            : RecordingTrack.RoomAudioSid + (count + 1).ToString(CultureInfo.InvariantCulture);
+    }
 
     private RecordingTrack NewTrackRow(
         SessionRecording recording,

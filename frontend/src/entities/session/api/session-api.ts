@@ -83,8 +83,47 @@ export function cancelLiveSession(id: number, reason?: string): Promise<LiveSess
  * SPEC 5: `POST /api/v1/live-sessions/{id}/token` -> `LiveKitJoinDto`.
  * Frontend LiveKit'ga aynan shu javob bilan ulanadi.
  */
-export function fetchLiveKitJoin(id: number): Promise<LiveKitJoinDto> {
-  return http.post<LiveKitJoinDto>(`${BASE}/${id}/token`)
+export function fetchLiveKitJoin(id: number, signal?: AbortSignal): Promise<LiveKitJoinDto> {
+  return http.post<LiveKitJoinDto>(`${BASE}/${id}/token`, undefined, signal === undefined ? undefined : { signal })
+}
+
+/** Jonli dars klientining bitta diagnostika hodisasi (2026-09-14). */
+export interface LiveClientEvent {
+  type: string
+  /** Klient soati bo'yicha ISO vaqt. */
+  at: string
+  reason?: string
+  detail?: string
+  visibility?: string
+  online?: boolean
+  network?: string
+  attempt?: number
+  micOn?: boolean
+  cameraOn?: boolean
+}
+
+export interface LiveClientInfo {
+  userAgent: string
+  telegram: boolean
+  platform?: string
+}
+
+/**
+ * `POST /api/v1/live-sessions/{id}/client-events` (2026-09-14).
+ *
+ * Telefonda o'quvchilar bir darsda ~3 marta chiqib-kiradi va server buning
+ * SABABINI ko'rmaydi (sahifa yopildimi, ekran qulflandimi, internet
+ * yo'qoldimi). Hodisalar API logiga tushadi — jadval yo'q.
+ *
+ * `keepalive` — sahifa yopilayotgan lahzada yuborish uchun.
+ */
+export function postLiveClientEvents(
+  id: number,
+  client: LiveClientInfo,
+  events: readonly LiveClientEvent[],
+  keepalive = false,
+): Promise<void> {
+  return http.post<void>(`${BASE}/${id}/client-events`, { client, events }, { keepalive })
 }
 
 /** Ustoz o'chira oladigan oqim turi (server enum'i, satr ko'rinishida). */

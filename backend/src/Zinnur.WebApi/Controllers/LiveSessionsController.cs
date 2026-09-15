@@ -169,6 +169,42 @@ public sealed class LiveSessionsController(
         return NoContent();
     }
 
+    /// <summary>
+    /// KLIENT DIAGNOSTIKASI (2026-09-14): brauzer jonli darsdagi ulanish
+    /// hodisalarini paket qilib yuboradi, har hodisa bitta strukturali LOG
+    /// qatori bo'ladi. Bazaga YOZILMAYDI. Nima uchun kerakligi —
+    /// <see cref="LiveSessionClientEventsRequest"/> izohida.
+    ///
+    /// Rol atributi YO'Q — har qanday rol. "Aynan shu darsga ruxsati bor"
+    /// tekshiruvi servis ichida (token bilan AYNI), dars holati va
+    /// qarzdorlik esa ATAYLAB tekshirilmaydi (sabab servisda).
+    ///
+    /// ★ TEZLIK CHEGARASI (<c>EnableRateLimiting</c>) YO'Q: mavjud
+    ///   siyosatlarning hammasi IP bo'yicha, bitta maktab esa bitta NAT
+    ///   ortida — butun sinf bitta budjetni bo'lishib, diagnostika aynan
+    ///   ko'p uzilish bo'lgan darsda yo'qolardi. Buning o'rniga: paketda
+    ///   ko'pi bilan 50 hodisa va <see cref="MaxClientEventsRequestBytes"/>.
+    ///
+    /// ⚠️ <c>navigator.sendBeacon</c> BILAN ISHLAMAYDI — u
+    ///    <c>Authorization</c> sarlavhasini yubora olmaydi (401).
+    ///    Sahifa yopilayotganda <c>fetch(..., { keepalive: true })</c>.
+    /// </summary>
+    /// <response code="400">Hodisa 0 ta yoki 50 tadan ko'p, yoki hodisada <c>type</c>/<c>at</c> yo'q.</response>
+    /// <response code="403">Foydalanuvchi bu darsning guruhida emas.</response>
+    /// <response code="404">Dars yo'q.</response>
+    [HttpPost("{id:long}/client-events")]
+    [RequestSizeLimit(MaxClientEventsRequestBytes)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ClientEvents(
+        long id, [FromBody] LiveSessionClientEventsRequest request, CancellationToken ct)
+    {
+        await sessions.RecordClientEventsAsync(id, request, CurrentUserId, ct);
+        return NoContent();
+    }
+
     // ================================================================= DAVOMAT
 
     /// <summary>
@@ -355,4 +391,17 @@ public sealed class LiveSessionsController(
     /// AYNI (<c>TeacherSessionsTable.vue</c>).
     /// </summary>
     private const int DefaultStatsPageSize = 20;
+
+    /// <summary>
+    /// Diagnostika paketining QAT'IY hajm chegarasi (256 KB).
+    ///
+    /// ★ NIMA UCHUN KERAK: satrlar servisda qirqiladi, lekin faqat JSON
+    ///   to'liq o'qilgandan KEYIN. Chegarasiz (Kestrel standarti 30 MB)
+    ///   bitta so'rov serverga ulkan satrni xotiraga yuklatishi mumkin edi.
+    ///
+    /// Qiymat HAQIQIY paketdan ~10 barobar katta (50 hodisa × ~500 bayt):
+    /// chegara klientning uzun xato matni tufayli emas, faqat suiiste'molda
+    /// ishga tushsin.
+    /// </summary>
+    private const long MaxClientEventsRequestBytes = 256 * 1024;
 }

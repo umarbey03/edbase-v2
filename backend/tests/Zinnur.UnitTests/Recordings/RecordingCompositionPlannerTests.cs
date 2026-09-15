@@ -42,8 +42,8 @@ public sealed class RecordingCompositionPlannerTests
 
     /// <summary>Har kirish uchun takrorlanadigan masshtablash bo'g'ini.</summary>
     private const string Fit =
-        "scale=1920:1080:force_original_aspect_ratio=decrease,"
-        + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2";
+        "scale=1920:1080:force_original_aspect_ratio=decrease:eval=frame,"
+        + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:eval=frame";
 
     private const string Tail = "aresample=async=1:first_pts=0";
 
@@ -80,11 +80,11 @@ public sealed class RecordingCompositionPlannerTests
             // kirishlar: kamera ikki o'lchamda kerak (butun kadr + burchak)
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             "[2:v]split=2[v2a][v2b]",
             $"[v2a]{Fit}[v2full]",
-            "[v2b]scale=480:-2[v2pip]",
+            "[v2b]scale=480:-2:eval=frame[v2pip]",
 
             // ⚠️ `d=` SHART: fon manbai cheksiz, ffmpeg esa asosiy kirish
             //    tugaguncha kodlaydi.
@@ -156,7 +156,7 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             $"color=c=black:s=1920x1080:r=30:d={N(seconds)}[bg]",
             $"[bg][v0full]overlay=0:0:enable='between(t,0,{N(screenStart)})"
@@ -215,7 +215,7 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             $"[2:v]{Fit}[v2full]",
             "color=c=black:s=1920x1080:r=30:d=1000[bg]",
@@ -488,6 +488,31 @@ public sealed class RecordingCompositionPlannerTests
             $"[a0][2:a]concat=n=2:v=0:a=1,{Tail}[a]"));
 
         plan.FilterGraph.Should().NotContain("amix", "bo'laklar kesishmaydi, aralashtirish kerak emas");
+    }
+
+    /// <summary>
+    /// Xona dars o'rtasida yopilib qayta ochilgan: ikki mikser bo'lagi va
+    /// IKKALASI HAM o'z oralig'idan qisqa (bitta fayldagi AYNI siqilish).
+    ///
+    /// 🔴 HAR BO'LAK O'Z ORALIG'IGA CHO'ZILADI: busiz birinchi bo'lak
+    /// ichida ovoz tasvirdan 9 soniyagacha oldinga ketib, oxiri jimlik
+    /// bilan to'ldirilardi. Cho'zish surishdan va kesishdan OLDIN.
+    /// </summary>
+    [Fact]
+    public void TwoRoomAudioRows_AreEachStretchedToTheirOwnWindow()
+    {
+        var first = Audio(1, 0, 900, sid: RecordingTrack.RoomAudioSid);
+        var second = Audio(3, 1000, 2000, sid: RecordingTrack.RoomAudioSid + "2");
+
+        first.ProbedDurationMs = 891_000;        // 1% qisqa
+        second.ProbedDurationMs = 985_000;       // 1.5% qisqa
+
+        var plan = Plan(first, Camera(2, 0, 2000), second);
+
+        plan.FilterGraph.Should().Contain(string.Join(';',
+            "[1:a]atempo=0.99,adelay=0|0,atrim=end=1000,apad=whole_dur=1000[a0]",
+            "[2:a]atempo=0.985[a1]",
+            $"[a0][a1]concat=n=2:v=0:a=1,{Tail}[a]"));
     }
 
     // ═══════════════════════════════════════════════════ 8) zaxira ovoz rejimi

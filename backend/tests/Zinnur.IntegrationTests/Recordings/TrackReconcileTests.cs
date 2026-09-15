@@ -125,6 +125,42 @@ public sealed class TrackReconcileTests(CompositionFactory factory)
     }
 
     /// <summary>
+    /// Xona dars o'rtasida yopildi: <c>room_finished</c> mikserni TO'XTATDI
+    /// va u LiveKit ro'yxatidan yo'qoldi, lekin <c>egress_ended</c> hali
+    /// kelmadi (fayl yuklanmoqda).
+    ///
+    /// 🔴 BU "O'LGAN MIKSER" EMAS. <c>Failed</c> yakuniy holat — kechroq
+    /// kelgan <c>egress_ended</c> qatorni endi tayyor qila olmasdi va
+    /// darsning birinchi yarmi ovozi tungi yig'ishga tushmasdi.
+    /// </summary>
+    [Fact]
+    public async Task StoppedMixer_MissingFromLiveKit_IsNotMarkedDead()
+    {
+        var lesson = await NewLessonAsync();
+
+        await CompositionWorld.AddTrackAsync(
+            factory,
+            lesson.RecordingId,
+            RecordingTrackKind.RoomAudio,
+            status: RecordingStatus.Active,
+            trackSid: RecordingTrack.RoomAudioSid,
+            egressId: "EG_stopped_mixer",
+            startedAt: factory.Clock.GetUtcNow().AddMinutes(-40),
+            stopRequestedAt: factory.Clock.GetUtcNow().AddSeconds(-20));
+
+        factory.Rooms.Egresses = LiveKitEgressListResult.Ok([]);
+
+        await factory.RunReconcileAsync();
+
+        var tracks = await CompositionWorld.TracksAsync(factory, lesson.RecordingId);
+
+        tracks.Should().ContainSingle();
+        tracks[0].Status.Should().Be(RecordingStatus.Active, "fayl hali kelishi mumkin");
+
+        factory.Egress.StartedRoomAudio.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// 🔴 BU TO'PLAMDAGI ENG MUHIM TEST: LIVEKIT JAVOB BERMASA HECH
     /// QANDAY XULOSA CHIQARILMAYDI.
     ///

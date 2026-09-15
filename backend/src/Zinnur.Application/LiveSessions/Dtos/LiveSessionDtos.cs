@@ -290,3 +290,71 @@ public sealed record FreeLessonStatusDto(
 /// O'CHIRISH — yoqish yo'q, sabab <c>ILiveKitRoomControl</c> izohida.
 /// </param>
 public sealed record MuteParticipantRequest(ParticipantMediaSource Source);
+
+/// <summary>
+/// <c>POST /api/v1/live-sessions/{id}/client-events</c> tanasi (2026-09-14) —
+/// brauzerning jonli darsdagi DIAGNOSTIKA hodisalari.
+///
+/// ★ NIMA UCHUN KERAK: telefondagi o'quvchilar bir darsda ~3 marta chiqib
+///   qayta kiradi. Server faqat "uzildi" va "qo'shildi" ni ko'radi, SABABI
+///   esa (ekran o'chdi, Telegram fonga o'tdi, tarmoq almashdi) faqat
+///   brauzerda ma'lum.
+///
+/// ★ BAZAGA YOZILMAYDI: har hodisa bitta strukturali LOG qatori
+///   (<c>LiveSessionClientLog</c>). Bu vaqtinchalik tergov vositasi —
+///   jadval va migratsiya uning uchun ortiqcha yuk bo'lardi.
+///
+/// ⚠️ HAMMA MAYDON NULLABLE — ATAYLAB. Majburiylik (<c>events</c>,
+///    <c>type</c>, <c>at</c>) servisda tekshiriladi va loyihaning YAGONA 400
+///    shaklida qaytadi; nullable bo'lmasa MVC o'zining boshqa shakldagi 400
+///    javobini berardi (<see cref="UpdateAttendanceRequest"/> dagi AYNI sabab).
+/// </summary>
+/// <param name="Client">
+/// Qurilma haqida — butun paket uchun BIR MARTA. Yuborilmasa ham qabul
+/// qilinadi (logda bo'sh qoladi): diagnostika shu sabab bilan yo'qolmasin.
+/// </param>
+/// <param name="Events">1..50 ta hodisa. 0 ta yoki 50 tadan ko'p bo'lsa — 400.</param>
+public sealed record LiveSessionClientEventsRequest(
+    LiveSessionClientInfo? Client,
+    IReadOnlyList<LiveSessionClientEvent>? Events);
+
+/// <summary>
+/// Klient qurilmasi. Uzun satrlar JIMGINA qirqiladi (400 EMAS) — telemetriya
+/// uzun <c>User-Agent</c> tufayli yiqilmasligi kerak.
+/// </summary>
+/// <param name="UserAgent"><c>navigator.userAgent</c>, 300 belgigacha qirqiladi.</param>
+/// <param name="Telegram"><c>true</c> — sahifa Telegram Mini App ichida ochilgan.</param>
+/// <param name="Platform">Ixtiyoriy (masalan <c>android</c>, <c>ios</c>), 40 belgigacha.</param>
+public sealed record LiveSessionClientInfo(string? UserAgent, bool? Telegram, string? Platform);
+
+/// <summary>
+/// Bitta klient hodisasi. Faqat <paramref name="Type"/> va <paramref name="At"/>
+/// MAJBURIY; qolgani — hodisa turiga qarab bor yoki yo'q.
+///
+/// Satrlar LOGGA yoziladi, shuning uchun boshqaruv belgilari (yangi qator
+/// va h.k.) olib tashlanadi va uzuni chegaragacha qirqiladi.
+/// </summary>
+/// <param name="Type">Hodisa turi (masalan <c>disconnected</c>), 40 belgigacha. MAJBURIY.</param>
+/// <param name="At">
+/// KLIENT soatidagi vaqt. MAJBURIY. Server vaqti logga ALOHIDA yoziladi —
+/// telefon soati noto'g'ri bo'lishi mumkin va farqning o'zi ham dalil.
+/// </param>
+/// <param name="Reason">LiveKit/brauzer bergan sabab, 60 belgigacha.</param>
+/// <param name="Detail">Qo'shimcha matn (masalan xato xabari), 200 belgigacha.</param>
+/// <param name="Visibility"><c>document.visibilityState</c>, 16 belgigacha.</param>
+/// <param name="Online"><c>navigator.onLine</c>.</param>
+/// <param name="Network">Tarmoq turi (<c>wifi</c>, <c>4g</c> ...), 16 belgigacha.</param>
+/// <param name="Attempt">Qayta ulanish urinishi raqami.</param>
+/// <param name="MicOn">Hodisa paytida mikrofon yoqiqmi.</param>
+/// <param name="CameraOn">Hodisa paytida kamera yoqiqmi.</param>
+public sealed record LiveSessionClientEvent(
+    string? Type,
+    DateTimeOffset? At,
+    string? Reason,
+    string? Detail,
+    string? Visibility,
+    bool? Online,
+    string? Network,
+    int? Attempt,
+    bool? MicOn,
+    bool? CameraOn);
