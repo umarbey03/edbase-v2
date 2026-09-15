@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common;
@@ -742,6 +743,181 @@ public sealed class LiveSessionService(
             throw new ConflictException(result.Error ?? "Video xizmati amalni bajarmadi.");
     }
 
+    // ---------------------------------------------------------------- klient diagnostikasi
+
+    /// <summary>
+    /// Bir so'rovdagi eng ko'p hodisa soni. Satr chegaralari (quyida) SHARTNOMA
+    /// qismi — frontend ham ularni biladi (<see cref="LiveSessionClientEvent"/>).
+    /// </summary>
+    private const int MaxClientEventsPerRequest = 50;
+
+    private const int MaxClientUserAgentLength = 300;
+    private const int MaxClientPlatformLength = 40;
+    private const int MaxClientEventTypeLength = 40;
+    private const int MaxClientReasonLength = 60;
+    private const int MaxClientDetailLength = 200;
+    private const int MaxClientVisibilityLength = 16;
+    private const int MaxClientNetworkLength = 16;
+
+    /// <summary>
+    /// Brauzerning jonli darsdagi diagnostika hodisalarini LOGGA yozadi
+    /// (2026-09-14). Nima uchun kerakligi —
+    /// <see cref="LiveSessionClientEventsRequest"/> izohida.
+    ///
+    /// ★ RUXSAT — <see cref="CreateJoinTokenAsync"/> bilan AYNI
+    ///   <c>LoadAndAuthorizeAsync</c>: begona o'quvchi (403) boshqa guruh
+    ///   darsining logiga yozib, tergovni chalg'ita olmasin.
+    ///
+    /// 🔴 TOKENDAGI QOLGAN IKKI DARVOZA ATAYLAB YO'Q:
+    ///   • dars holati — klient to'plangan hodisalarni dars TUGAGAN zahoti
+    ///     yuboradi, ya'ni eng qimmatli qatorlar (oxirgi uzilish) 409 bilan
+    ///     yo'qolardi;
+    ///   • qarzdorlik — u xonaga KIRISH kaliti, bu esa faqat log. Aynan
+    ///     bloklangan o'quvchining "nega kira olmadim" hodisasi ham kerak.
+    ///
+    /// ★ AVVAL BUTUN PAKET TEKSHIRILADI, KEYIN YOZILADI: yaroqsiz hodisa
+    ///   paketning yarmini logga yozib 400 qaytarsa, klient qayta yuborganda
+    ///   o'sha yarmi IKKI marta yozilardi.
+    /// </summary>
+    public async Task RecordClientEventsAsync(
+        long sessionId,
+        LiveSessionClientEventsRequest request,
+        long userId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
+
+        var events = NormalizeClientEvents(request.Events);
+
+        var isHost = IsHost(session, user);
+        var role = user.Role.ToString();
+        var serverAt = clock.GetUtcNow();
+        var telegram = request.Client?.Telegram;
+        var platform = CleanClientText(request.Client?.Platform, MaxClientPlatformLength);
+        var userAgent = CleanClientText(request.Client?.UserAgent, MaxClientUserAgentLength);
+
+        // ★ NOMLI ARGUMENTLAR: ketma-ket 8 ta `string?`/`bool?` — pozitsiya
+        //   adashsa log JIMGINA yolg'on gapirardi (`Map` dagi AYNI ehtiyot).
+        foreach (var e in events)
+        {
+            LiveSessionClientLog.ClientEvent(
+                logger,
+                sessionId: session.Id,
+                userId: user.Id,
+                role: role,
+                isHost: isHost,
+                eventType: e.Type,
+                reason: e.Reason,
+                detail: e.Detail,
+                visibility: e.Visibility,
+                online: e.Online,
+                network: e.Network,
+                attempt: e.Attempt,
+                micOn: e.MicOn,
+                cameraOn: e.CameraOn,
+                clientAt: e.At,
+                serverAt: serverAt,
+                telegram: telegram,
+                platform: platform,
+                userAgent: userAgent);
+        }
+    }
+
+    /// <summary>
+    /// Paketni tekshiradi va har hodisaning satrlarini tozalaydi.
+    ///
+    /// ★ 400 FAQAT TUZILMA BUZILGANDA (soni, <c>type</c>, <c>at</c>) —
+    ///   uzun satr esa qirqiladi. Telemetriya klientning xatosi tufayli
+    ///   emas, faqat ma'nosiz bo'lganda rad etilsin.
+    /// </summary>
+    private static List<ClientEventRow> NormalizeClientEvents(
+        IReadOnlyList<LiveSessionClientEvent>? events)
+    {
+        if (events is null || events.Count == 0)
+            throw Invalid("events", "Kamida bitta hodisa yuborilishi shart.");
+
+        if (events.Count > MaxClientEventsPerRequest)
+            throw Invalid("events", $"Bir so'rovda {MaxClientEventsPerRequest} tadan ortiq hodisa yuborilmasin.");
+
+        var rows = new List<ClientEventRow>(events.Count);
+
+        for (var i = 0; i < events.Count; i++)
+        {
+            // JSON'dagi `null` element ham "tur yo'q" deb rad etiladi.
+            if (events[i] is not { } e
+                || CleanClientText(e.Type, MaxClientEventTypeLength) is not { } type)
+                throw Invalid(ClientEventField(i, "type"), "Hodisa turi ko'rsatilishi shart.");
+
+            if (e.At is not { } at)
+                throw Invalid(ClientEventField(i, "at"), "Hodisa vaqti ko'rsatilishi shart.");
+
+            rows.Add(new ClientEventRow(
+                type,
+                at,
+                CleanClientText(e.Reason, MaxClientReasonLength),
+                CleanClientText(e.Detail, MaxClientDetailLength),
+                CleanClientText(e.Visibility, MaxClientVisibilityLength),
+                e.Online,
+                CleanClientText(e.Network, MaxClientNetworkLength),
+                e.Attempt,
+                e.MicOn,
+                e.CameraOn));
+        }
+
+        return rows;
+
+        static string ClientEventField(int index, string name) =>
+            string.Create(CultureInfo.InvariantCulture, $"events[{index}].{name}");
+    }
+
+    /// <summary>
+    /// Klient satrini LOGGA yozishga tayyorlaydi. Bo'sh natija — <c>null</c>.
+    ///
+    /// ★ BOSHQARUV BELGILARI (<c>\r</c>, <c>\n</c>, <c>\t</c>, U+2028/2029)
+    ///   BO'SHLIQQA almashtiriladi: dev'dagi matnli logda <c>\n</c> soxta
+    ///   log qatori yasay olardi. So'z chegarasi saqlanadi — "xato\nsabab"
+    ///   "xatosabab" ga yopishib qolmasin.
+    ///
+    /// ★ FORMAT BELGILARI (U+202E kabi yo'nalish almashtirgichlar, nol
+    ///   kenglikdagilar) butunlay OLIB TASHLANADI: ular log o'quvchiga
+    ///   matnni teskari ko'rsatib chalg'ita oladi, o'zi esa ma'no tashimaydi.
+    ///
+    /// ★ QIRQISH TOZALASHDAN KEYIN va emoji'ni ikkiga bo'lmasdan —
+    ///   <see cref="MessageText.NormalizeOptional"/> (yolg'iz surrogat sababi
+    ///   o'sha yerda).
+    /// </summary>
+    private static string? CleanClientText(string? raw, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var buffer = new StringBuilder(raw.Length);
+
+        foreach (var c in raw)
+        {
+            switch (char.GetUnicodeCategory(c))
+            {
+                case UnicodeCategory.Control:
+                case UnicodeCategory.LineSeparator:
+                case UnicodeCategory.ParagraphSeparator:
+                    buffer.Append(' ');
+                    break;
+
+                case UnicodeCategory.Format:
+                    break;
+
+                default:
+                    buffer.Append(c);
+                    break;
+            }
+        }
+
+        var text = MessageText.NormalizeOptional(buffer.ToString(), maxLength);
+
+        return text.Length == 0 ? null : text;
+    }
+
     public async Task<IReadOnlyList<ChatMessageDto>> GetRecentMessagesAsync(
         long sessionId, long userId, int take = 50, CancellationToken ct = default)
     {
@@ -1094,6 +1270,22 @@ public sealed class LiveSessionService(
         int StudentCount,
         int AttendedCount,
         SessionReviewVerdict? ReviewVerdict);
+
+    /// <summary>
+    /// Tekshirilgan va tozalangan klient hodisasi — <c>Type</c> va <c>At</c>
+    /// endi nullable EMAS, ya'ni log metodiga "yo'q" qiymat yetib bormaydi.
+    /// </summary>
+    private sealed record ClientEventRow(
+        string Type,
+        DateTimeOffset At,
+        string? Reason,
+        string? Detail,
+        string? Visibility,
+        bool? Online,
+        string? Network,
+        int? Attempt,
+        bool? MicOn,
+        bool? CameraOn);
 
     /// <summary>Kalendar so'rovining tor proyeksiyasi (butun entity tortilmaydi).</summary>
     private sealed record CalendarRow(

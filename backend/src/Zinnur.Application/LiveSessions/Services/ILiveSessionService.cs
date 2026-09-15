@@ -85,6 +85,18 @@ public interface ILiveSessionService
         long actorId,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Brauzerning diagnostika hodisalarini LOGGA yozadi (bazaga emas) —
+    /// har hodisa bitta qator. Ruxsat — <see cref="CreateJoinTokenAsync"/>
+    /// dagi AYNI a'zolik/host tekshiruvi, lekin qarzdorlik darvozasi va dars
+    /// holati tekshirilMAYDI (sabab: <c>LiveSessionService.RecordClientEventsAsync</c>).
+    /// </summary>
+    Task RecordClientEventsAsync(
+        long sessionId,
+        LiveSessionClientEventsRequest request,
+        long userId,
+        CancellationToken ct = default);
+
     Task<IReadOnlyList<ChatMessageDto>> GetRecentMessagesAsync(
         long sessionId, long userId, int take = 50, CancellationToken ct = default);
 
