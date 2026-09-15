@@ -83,8 +83,8 @@ export function cancelLiveSession(id: number, reason?: string): Promise<LiveSess
  * SPEC 5: `POST /api/v1/live-sessions/{id}/token` -> `LiveKitJoinDto`.
  * Frontend LiveKit'ga aynan shu javob bilan ulanadi.
  */
-export function fetchLiveKitJoin(id: number): Promise<LiveKitJoinDto> {
-  return http.post<LiveKitJoinDto>(`${BASE}/${id}/token`)
+export function fetchLiveKitJoin(id: number, signal?: AbortSignal): Promise<LiveKitJoinDto> {
+  return http.post<LiveKitJoinDto>(`${BASE}/${id}/token`, undefined, signal === undefined ? undefined : { signal })
 }
 
 /** Jonli dars klientining bitta diagnostika hodisasi (2026-09-14). */

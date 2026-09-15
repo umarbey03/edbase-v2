@@ -220,6 +220,11 @@ function screenShareUnsupportedText(): string {
  * Bu o'quvchiga hech narsa aytmaydi va nima qilishni ham ko'rsatmaydi.
  */
 function describeConnectError(error: unknown): string {
+  // Token so'rovi 10 s javobsiz qolib bekor qilindi — brauzerning inglizcha
+  // "signal is aborted without reason" matni foydalanuvchiga chiqmasin.
+  if (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError') {
+    return 'Server javob bermadi. Internet aloqangizni tekshiring.'
+  }
   if (error instanceof ConnectionError) {
     switch (error.reason) {
       case ConnectionErrorReason.NotAllowed:
@@ -285,11 +290,16 @@ function describeDisconnect(reason: DisconnectReason | undefined): string {
   ★ QAYTA ULANMAYDIGAN SABABLAR — foydalanuvchi yoki server ATAYLAB uzgan:
     boshqa oynada kirdi (ikki oyna bir-birini abadiy haydab chiqarardi),
     chiqarib yuborildi, xona yopildi/o'chirildi.
+
+  🔴 `CLIENT_INITIATED` BU RO'YXATDA YO'Q VA BU ATAYLAB: bizning kodimiz
+     `disconnect()` dan OLDIN har doim tinglovchilarni olib tashlaydi, ya'ni
+     bu sabab bilan kelgan hodisa — livekit-client'ning O'ZI sahifa
+     muzlaganda (`freeze`) yoki yashirilganda (`pagehide`) uzgani. Telefonda
+     boshqa ilovaga o'tish aynan shu — eng ko'p uchraydigan holat.
 */
 
 export function shouldReconnect(reason: DisconnectReason | undefined): boolean {
   switch (reason) {
-    case DisconnectReason.CLIENT_INITIATED:
     case DisconnectReason.DUPLICATE_IDENTITY:
     case DisconnectReason.PARTICIPANT_REMOVED:
     case DisconnectReason.ROOM_DELETED:
@@ -304,9 +314,17 @@ export function shouldReconnect(reason: DisconnectReason | undefined): boolean {
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000] as const
 const RECONNECT_MAX_DELAY_MS = 10_000
 
+/**
+ * ★ ±30% TASODIFIY SILJISH: bir qurilmadagi ikki oyna (yoki bir sinfdagi
+ *   hamma telefon) internet qaytgan AYNI lahzada urinmasin.
+ */
 export function reconnectDelay(attempt: number): number {
-  return RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_MAX_DELAY_MS
+  const base = RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_MAX_DELAY_MS
+  return Math.round(base * (0.7 + Math.random() * 0.6))
 }
+
+/** Token so'rovi shundan uzoq osilib qolsa — bekor qilinadi va qayta uriniladi. */
+const JOIN_FETCH_TIMEOUT_MS = 10_000
 
 /**
  * Shuncha vaqt ulanolmasak — sariq "qayta ulanmoqda" o'rniga qizil xabar va
@@ -516,6 +534,14 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   let connectInFlight = false
   /** Oxirgi urinish nima uchun yiqilgani — 30 soniyadan keyin ko'rsatiladi. */
   let lastFailureText: string | null = null
+  /** Urinish osilib qolsa ham 30 soniyada qizil xabar va tugma chiqsin. */
+  let statusTimer: number | null = null
+  /**
+   * "Chiqish" yoki sahifa yopilishi har oshirganda ESKI urinish natijasi
+   * e'tiborsiz qoladi — aks holda chiqib ketgan foydalanuvchi (yoki dars
+   * tugagach ustoz) jimgina xonaga qaytib kirardi.
+   */
+  let generation = 0
 
   /*
     ── FOYDALANUVCHINING NIYATI ─────────────────────────────────────────
@@ -527,6 +553,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   */
   let wantMic = false
   let wantCamera = false
+  /**
+   * Har mute hodisasida oshadi. Tugma bosilgan paytda ustoz o'chirsa, tugma
+   * natijasi (optimistik `true`) ustozning qarorini ustidan yozmasin.
+   */
+  let micModerationSeq = 0
+  let cameraModerationSeq = 0
 
   /** Ekran ulashish uzilishda to'xtadi — qayta ulangach ustozga aytiladi. */
   let screenShareLost = false
@@ -826,6 +858,17 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (current === null || participant !== current.localParticipant) return
     if (!publication.isMuted) return
 
+    // Niyat `pending` dan QAT'I NAZAR o'chadi: o'z o'chirishida ham to'g'ri,
+    // yoqish kutilayotganda kelgan mute esa faqat ustozniki bo'lishi mumkin.
+    if (publication.source === Track.Source.Camera) {
+      wantCamera = false
+      cameraModerationSeq += 1
+    }
+    if (publication.source === Track.Source.Microphone) {
+      wantMic = false
+      micModerationSeq += 1
+    }
+
     if (publication.source === Track.Source.Camera && !cameraPending.value) {
       const track = localCameraTrack.value
       localCameraTrack.value = null
@@ -863,6 +906,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   function onConnectionStateChanged(state: ConnectionState): void {
     if (disposed) return
+    // Qayta ulanish siklida holatni SIKL boshqaradi — yangi `Room` ning
+    // "Connecting" hodisasi qizil tugmani har urinishda yashirmasin.
+    if (disconnectedAt !== null && (state === ConnectionState.Connecting || state === ConnectionState.Disconnected)) {
+      scheduleRebuild()
+      return
+    }
     switch (state) {
       case ConnectionState.Connected:
         status.value = 'connected'
@@ -961,6 +1010,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (disconnectedAt === null) {
       disconnectedAt = Date.now()
       reconnectAttempt = 0
+      statusTimer = window.setTimeout(() => {
+        statusTimer = null
+        updateReconnectStatus()
+      }, RECONNECT_BUTTON_AFTER_MS)
     }
     updateReconnectStatus()
     scheduleReconnect()
@@ -968,21 +1021,22 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   function stopReconnect(): void {
     clearReconnectTimer()
+    if (statusTimer !== null) {
+      window.clearTimeout(statusTimer)
+      statusTimer = null
+    }
     disconnectedAt = null
     reconnectAttempt = 0
     lastFailureText = null
   }
 
-  function scheduleReconnect(immediate = false): void {
+  function scheduleReconnect(delayMs: number = reconnectDelay(reconnectAttempt)): void {
     if (disposed || disconnectedAt === null) return
     clearReconnectTimer()
-    reconnectTimer = window.setTimeout(
-      () => {
-        reconnectTimer = null
-        void attemptReconnect()
-      },
-      immediate ? 0 : reconnectDelay(reconnectAttempt),
-    )
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      void attemptReconnect()
+    }, delayMs)
   }
 
   async function attemptReconnect(): Promise<void> {
@@ -1014,15 +1068,24 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   /** Internet qaytdi yoki sahifa yana ko'rindi — kutmasdan urinamiz. */
   function onNetworkMayBeBack(): void {
-    if (disconnectedAt !== null && room === null && !connectInFlight) scheduleReconnect(true)
+    // 0–1 s tasodifiy kutish — izoh `reconnectDelay` da.
+    if (disconnectedAt !== null && room === null && !connectInFlight) {
+      scheduleReconnect(Math.round(Math.random() * 1_000))
+    }
   }
 
   function onPageVisibility(): void {
     if (document.visibilityState === 'visible') onNetworkMayBeBack()
   }
 
+  /** Sahifa brauzer keshidan (bfcache) qaytdi — ulanish allaqachon o'lgan. */
+  function onPageShow(event: PageTransitionEvent): void {
+    if (event.persisted) onNetworkMayBeBack()
+  }
+
   if (typeof window !== 'undefined') {
     window.addEventListener('online', onNetworkMayBeBack)
+    window.addEventListener('pageshow', onPageShow)
     document.addEventListener('visibilitychange', onPageVisibility)
   }
 
@@ -1034,10 +1097,22 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
    *    tegishli. Ustozga buni aytamiz — jimgina yo'qolmasin.
    */
   async function restoreMedia(): Promise<void> {
+    const wantedMic = wantMic
+    const wantedCamera = wantCamera
+    const micSeq = micModerationSeq
+    const cameraSeq = cameraModerationSeq
     const tasks: Promise<void>[] = []
-    if (wantMic && !isMicOn.value) tasks.push(toggleMic())
-    if (wantCamera && !isCameraOn.value) tasks.push(toggleCamera())
+    if (wantedMic && !isMicOn.value) tasks.push(toggleMic())
+    if (wantedCamera && !isCameraOn.value) tasks.push(toggleCamera())
     await Promise.allSettled(tasks)
+
+    // Tiklash paytida aloqa yana uzildi — niyat keyingi ulanishga saqlanadi.
+    if (room === null) {
+      // Shu orada ustoz o'chirgan bo'lsa — uning qarori saqlanadi.
+      if (micModerationSeq === micSeq) wantMic = wantedMic
+      if (cameraModerationSeq === cameraSeq) wantCamera = wantedCamera
+      return
+    }
 
     if (screenShareLost) {
       screenShareLost = false
@@ -1190,7 +1265,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     // "Qayta urinish" qayta ulanish SIKLI ichida bosildi — navbatdagi
     // urinishni kutmasdan hozir qilamiz (ikkinchi sikl ochilmaydi).
     if (disconnectedAt !== null) {
-      scheduleReconnect(true)
+      scheduleReconnect(0)
       return
     }
     await openRoom()
@@ -1208,6 +1283,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (disposed || room !== null || connectInFlight) return
 
     const inCycle = disconnectedAt !== null
+    const gen = generation
     connectInFlight = true
     reconnectEnabled = true
 
@@ -1216,10 +1292,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       connectionError.value = null
     }
 
+    // ⚠️ `AbortSignal.timeout` EMAS: eski iOS WebView'larda u yo'q va
+    //    sinxron TypeError cheksiz "vaqtinchalik xato" siklini boshlardi.
+    const abort = new AbortController()
+    const abortTimer = window.setTimeout(() => abort.abort(), JOIN_FETCH_TIMEOUT_MS)
+
     try {
       // SPEC 5: POST /api/v1/live-sessions/{id}/token -> LiveKitJoinDto
-      const join = await fetchLiveKitJoin(sessionId)
-      if (disposed) return
+      const join = await fetchLiveKitJoin(sessionId, abort.signal)
+      window.clearTimeout(abortTimer)
+      if (disposed || gen !== generation) return
 
       isHost.value = join.isHost
       roomName.value = join.roomName
@@ -1290,7 +1372,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       if (!inCycle) status.value = 'connecting'
       await target.connect(join.serverUrl, join.token, { autoSubscribe: true })
 
-      if (disposed) {
+      if (disposed || gen !== generation) {
+        if (room === target) {
+          room = null
+          unbindEvents(target)
+        }
         await target.disconnect(true)
         return
       }
@@ -1327,6 +1413,10 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         report('connected')
       }
     } catch (error) {
+      window.clearTimeout(abortTimer)
+      // Foydalanuvchi shu orada chiqib ketdi — `teardown` hammasini tozalagan,
+      // bu urinishning xatosi endi hech narsani boshlamasin.
+      if (disposed || gen !== generation) return
       // MUHIM: muvaffaqiyatsiz `Room` ni tozalab, `room` ni `null` qilamiz —
       // aks holda "Qayta urinish" tugmasi hech qachon ishlamas edi
       // (`connect()` boshida `room !== null` bo'lib chiqib ketardi).
@@ -1352,7 +1442,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
       // Vaqtinchalik xato (internet yo'q, server qayta ishga tushmoqda) —
       // tugmani kutmasdan qayta urinamiz. Birinchi kirishda ham.
-      if (!isFatalJoinError(error)) {
+      // `reconnectEnabled` — urinish paytida `onDisconnected` uzilishni YAKUNIY
+      // deb belgilagan bo'lishi mumkin (boshqa oyna, chiqarib yuborish).
+      if (!isFatalJoinError(error) && reconnectEnabled) {
         lastFailureText = text
         report('connect-failed', { attempt: reconnectAttempt, detail: text })
         beginReconnect()
@@ -1366,7 +1458,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       status.value = 'failed'
       connectionError.value = text
     } finally {
-      connectInFlight = false
+      // Faqat SHU avlodning bayrog'i: `leave()` dan keyin boshlangan yangi
+      // urinishning bayrog'ini eski urinish tushirib yubormasin.
+      if (gen === generation) connectInFlight = false
     }
   }
 
@@ -1473,14 +1567,21 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   async function toggleMic(): Promise<void> {
     // Xona yo'q paytdagi bosish (qayta ulanish ketmoqda) niyatni O'ZGARTIRMAYDI —
     // `runToggle` u holda hech narsa qilmaydi, holat esa shunchaki `false`.
-    const connected = room !== null
+    // Amal paytida aloqa uzilsa ham niyat buzilmasin: faqat AYNI xona hali
+    // tirik bo'lsa yangilanadi. ⚠️ `state === Connected` TEKSHIRILMAYDI:
+    // "qayta ulanmoqda" paytida o'chirilgan mikrofon keyingi uzilishdan
+    // keyin o'zi yoqilib ketardi. Uzilish `room` ni SINXRON bo'shatadi.
+    const target = room
+    const seq = micModerationSeq
     await runToggle(
       isMicOn,
       micPending,
       (participant, next) => participant.setMicrophoneEnabled(next),
       readMicOn,
     )
-    if (connected) wantMic = isMicOn.value
+    if (target !== null && room === target && micModerationSeq === seq) {
+      wantMic = isMicOn.value
+    }
   }
 
   /** Taxta trekini (uzilish/tozalashda) mahalliy to'xtatadi — server bilan gaplashmasdan. */
@@ -1501,7 +1602,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   }
 
   async function toggleCamera(): Promise<void> {
-    const connected = room !== null
+    const target = room
+    const seq = cameraModerationSeq
     await runToggle(
       isCameraOn,
       cameraPending,
@@ -1546,7 +1648,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       },
       readCameraOn,
     )
-    if (connected) wantCamera = isCameraOn.value
+    if (target !== null && room === target && cameraModerationSeq === seq) {
+      wantCamera = isCameraOn.value
+    }
   }
 
   function toggleScreenShare(): Promise<void> {
@@ -1730,6 +1834,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   async function leave(): Promise<void> {
     // Foydalanuvchi O'ZI chiqdi — qayta ulanish ham, niyat ham tugaydi.
     report('left')
+    generation += 1
+    connectInFlight = false
     stopReconnect()
     reconnectEnabled = false
     wantMic = false
@@ -1754,9 +1860,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   onBeforeUnmount(() => {
     disposed = true
+    generation += 1
     stopReconnect()
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', onNetworkMayBeBack)
+      window.removeEventListener('pageshow', onPageShow)
       document.removeEventListener('visibilitychange', onPageVisibility)
     }
     wakeLock?.release()
