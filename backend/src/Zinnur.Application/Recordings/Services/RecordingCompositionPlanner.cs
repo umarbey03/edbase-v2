@@ -136,17 +136,27 @@ public static class RecordingCompositionPlanner
     /// qora chiziq bilan MARKAZLAB to'ldiriladi. Ekran ulashish 4:3 ham
     /// bo'lishi mumkin — cho'zish esa matnni o'qib bo'lmas qilardi.
     /// </summary>
+    ///
+    /// ★ <c>eval=frame</c> (2026-09-15): kirish o'lchami dars o'rtasida
+    /// o'zgaradi (WebRTC zaif kanalda kamerani kichraytiradi, telefon
+    /// buriladi). Composer bu kirishlarga <c>-reinit_filter 0</c> beradi —
+    /// aks holda ffmpeg HAR o'zgarishda BUTUN grafni bir oqimda qayta
+    /// quradi: 194-yozuv 91 daqiqalik dars uchun 8.5 soat, 1.2 yadroda
+    /// ishladi. Grafni qayta qurmasak, o'lcham va markazlash KADR sayin
+    /// hisoblanishi SHART — <c>eval=frame</c>siz portret video markazdan
+    /// siljib chap chetga yopishib qolardi (sinovda ko'rildi).
+    /// </summary>
     private static readonly string ScaleToCanvas = string.Create(
         CultureInfo.InvariantCulture,
-        $"scale={CanvasWidth}:{CanvasHeight}:force_original_aspect_ratio=decrease,"
-        + $"pad={CanvasWidth}:{CanvasHeight}:(ow-iw)/2:(oh-ih)/2");
+        $"scale={CanvasWidth}:{CanvasHeight}:force_original_aspect_ratio=decrease:eval=frame,"
+        + $"pad={CanvasWidth}:{CanvasHeight}:(ow-iw)/2:(oh-ih)/2:eval=frame");
 
     /// <summary>
     /// Kichik oyna: kenglik qat'iy, balandlik nisbatdan va JUFT
     /// (<c>-2</c>) — <c>yuv420p</c> toq balandlikni qabul qilmaydi.
     /// </summary>
     private static readonly string ScaleToInset =
-        string.Create(CultureInfo.InvariantCulture, $"scale={InsetWidth}:-2");
+        string.Create(CultureInfo.InvariantCulture, $"scale={InsetWidth}:-2:eval=frame");
 
     /// <summary>
     /// Ovoz oqimining oxirgi bo'g'ini.

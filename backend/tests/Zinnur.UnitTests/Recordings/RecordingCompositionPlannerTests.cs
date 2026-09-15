@@ -42,8 +42,8 @@ public sealed class RecordingCompositionPlannerTests
 
     /// <summary>Har kirish uchun takrorlanadigan masshtablash bo'g'ini.</summary>
     private const string Fit =
-        "scale=1920:1080:force_original_aspect_ratio=decrease,"
-        + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2";
+        "scale=1920:1080:force_original_aspect_ratio=decrease:eval=frame,"
+        + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:eval=frame";
 
     private const string Tail = "aresample=async=1:first_pts=0";
 
@@ -80,11 +80,11 @@ public sealed class RecordingCompositionPlannerTests
             // kirishlar: kamera ikki o'lchamda kerak (butun kadr + burchak)
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             "[2:v]split=2[v2a][v2b]",
             $"[v2a]{Fit}[v2full]",
-            "[v2b]scale=480:-2[v2pip]",
+            "[v2b]scale=480:-2:eval=frame[v2pip]",
 
             // ⚠️ `d=` SHART: fon manbai cheksiz, ffmpeg esa asosiy kirish
             //    tugaguncha kodlaydi.
@@ -156,7 +156,7 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             $"color=c=black:s=1920x1080:r=30:d={N(seconds)}[bg]",
             $"[bg][v0full]overlay=0:0:enable='between(t,0,{N(screenStart)})"
@@ -215,7 +215,7 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2[v0pip]",
+            "[v0b]scale=480:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             $"[2:v]{Fit}[v2full]",
             "color=c=black:s=1920x1080:r=30:d=1000[bg]",

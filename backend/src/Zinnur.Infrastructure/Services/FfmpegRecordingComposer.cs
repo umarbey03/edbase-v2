@@ -256,6 +256,17 @@ public sealed class FfmpegRecordingComposer(
 
         foreach (var input in plan.Inputs)
         {
+            // 🔴 VIDEO KIRISHDA O'LCHAM O'ZGARSA GRAF QAYTA QURILMAYDI
+            //    (2026-09-15). Sabab va unga majburiy juft — filtrlardagi
+            //    `eval=frame` — `RecordingCompositionPlanner.ScaleToCanvas`
+            //    izohida. Sinov: o'lchami har 5 s o'zgaradigan kirishda
+            //    38.6 s → 21.1 s (o'zgarmaydigan kirish 19.6 s).
+            if (input.Kind is RecordingTrackKind.CameraVideo or RecordingTrackKind.ScreenVideo)
+            {
+                args.Add("-reinit_filter");
+                args.Add("0");
+            }
+
             if (input.ItsOffsetSeconds > 0)
             {
                 args.Add("-itsoffset");
