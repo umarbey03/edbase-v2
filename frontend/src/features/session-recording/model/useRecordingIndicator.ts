@@ -82,11 +82,36 @@ export function useRecordingIndicator(
     refetchInterval: POLL_MS,
 
     /*
-      Fon oynada ham so'raladi. Foydalanuvchi boshqa ilovaga o'tib qaytganda
-      indikator ESKIRGAN bo'lishi mumkin emas — u ekranda "yozilmayapti"
-      deb turgan holda yozuv allaqachon boshlangan bo'lardi.
+      ════════════════════════════════════════════════════════════════════
+      FONDA SO'RALMAYDI (2026-09-16 da o'zgartirildi)
+      ════════════════════════════════════════════════════════════════════
+
+      ESKI YOZUV: "Fon oynada ham so'raladi. Foydalanuvchi boshqa ilovaga
+      o'tib qaytganda indikator ESKIRGAN bo'lishi mumkin emas."
+
+      🔴 MAQSAD TO'G'RI EDI, VOSITA QIMMAT CHIQDI. O'lchov (2026-09-15,
+         kechki 4 soat): shu so'rov 20 476 marta yuborilgan — API'ga
+         kelgan BUTUN trafikning ~75% i. Sababi: so'rovni xonadagi har
+         bir ishtirokchi yuboradi va sahifa fonda turganda ham davom
+         etadi, ya'ni dars davomida o'quvchining telefoni uzluksiz
+         internetga chiqib turadi (batareya va mobil trafik).
+
+      ★ ESKI MAQSAD SHU BILAN HAM BAJARILADI: pastdagi
+        `refetchOnWindowFocus` sahifa QAYTGAN ZAHOTI holatni qayta
+        so'raydi. Ya'ni foydalanuvchi ko'rgan birinchi kadr baribir
+        HAQIQIY holat bo'ladi — fonda turgan paytdagi so'rovlar esa hech
+        kimga ko'rinmasdi.
     */
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
+
+    /*
+      ⚠️ GLOBAL SOZLAMANI ATAYLAB BEKOR QILADI. `query-client.ts` da
+      `refetchOnWindowFocus: false` — butun ilova uchun to'g'ri qaror
+      (har tab almashganda ro'yxatlarni qayta yuklash shart emas). Bu
+      so'rov esa AYNAN qaytish lahzasiga muhtoj: yuqoridagi izohda
+      aytilgan "eskirgan indikator" holati faqat shu bilan yopiladi.
+    */
+    refetchOnWindowFocus: true,
 
     /*
       `staleTime: 0` — kesh qaytarmasin. Xonaga qayta kirganda birinchi

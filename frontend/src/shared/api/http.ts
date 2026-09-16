@@ -163,6 +163,34 @@ function endSession(): void {
   notifyAuthExpired()
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ * SESSIYANI QACHON TUGATISH MUMKIN (2026-09-16)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * 🔴 NIMA UCHUN BU ALOHIDA FUNKSIYA. Ilgari `performRefresh` HAR QANDAY
+ *    muvaffaqiyatsiz javobda (`!response.ok`) va `requestRaw` refresh
+ *    umuman yiqilganda (jumladan TARMOQ xatosi — `ApiError(0)`)
+ *    `endSession()` chaqirardi. Natijasi jonli darsda shunday edi:
+ *
+ *      access token 15 daqiqada tugaydi -> keyingi so'rov 401 -> refresh
+ *      AYNAN o'sha lahzada telefonning aloqasi uzilgani uchun yiqiladi ->
+ *      sessiya "tugadi" deb e'lon qilinadi -> `/login` ga yo'naltirish ->
+ *      `LiveRoomPage` unmount bo'ladi -> LiveKit `CLIENT_REQUEST_LEAVE` ->
+ *      Telegram qayta kiritadi -> o'quvchi darsga QAYTADAN ulanadi va
+ *      MIKROFONI O'CHIQ bo'ladi.
+ *
+ *    Ya'ni bir lahzalik tarmoq nosozligi butun sahifani qayta yuklatardi.
+ *
+ * ★ QOIDA: sessiyani FAQAT server uni rad etganda tugatamiz. 401/403 —
+ *   "bu token endi yaroqsiz", bu yagona ishonchli signal. 5xx, 429 va
+ *   tarmoq xatosi (`status === 0`) esa VAQTINCHALIK: token hali tirik,
+ *   keyingi so'rov qayta urinadi.
+ */
+function isSessionRejected(status: number): boolean {
+  return status === 401 || status === 403
+}
+
 async function performRefresh(): Promise<string> {
   const refreshToken = getRefreshToken()
   if (refreshToken === null) {
@@ -177,7 +205,9 @@ async function performRefresh(): Promise<string> {
   )
 
   if (!response.ok) {
-    endSession()
+    // Sababi yuqorida, `isSessionRejected` izohida: 5xx/429 da sessiya
+    // TUGAMAYDI — server nosoz, foydalanuvchi aybdor emas.
+    if (isSessionRejected(response.status)) endSession()
     throw await toApiError(response)
   }
 
@@ -231,9 +261,20 @@ async function requestRaw(path: string, options: RequestOptions = {}): Promise<R
     const freshToken = await ensureFreshAccessToken(tokenUsed)
     if (freshToken !== null) {
       response = await send(url, options, freshToken)
-    } else {
-      endSession()
     }
+    /*
+      ⚠️ BU YERDA `endSession()` YO'Q — VA BU ATAYLAB (2026-09-16).
+
+      Ilgari shu shoxda `endSession()` turardi, ya'ni refresh QANDAY
+      sabab bilan yiqilsa ham foydalanuvchi chiqarib yuborilardi —
+      telefon bir soniyaga aloqani yo'qotgan bo'lsa ham. Jonli darsda bu
+      sahifani qayta yuklatardi (batafsil: `isSessionRejected` izohi).
+
+      Sessiyani tugatish qarori endi FAQAT `performRefresh` da, va faqat
+      server 401/403 qaytarganda. Bu yerda esa so'rovning o'zi 401 bilan
+      yiqiladi (quyidagi `throw`), foydalanuvchi tizimda QOLADI va
+      keyingi so'rov refresh'ni qaytadan sinaydi.
+    */
   }
 
   if (!response.ok) throw await toApiError(response)

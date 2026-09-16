@@ -124,3 +124,73 @@ recipe), a real phone test on mobile data; Phase 3 also backend tests
 (`dotnet test`) including the RBAC case. There is no frontend unit
 test runner in this project — reconnect policy is kept as a pure function so
 one can be added without reshaping the code.
+
+---
+
+## Measured after Phases 0–3 (night of 2026-09-15, 7 lessons, 82 users)
+
+Phases 0–3 reached production at ~09:55 Tashkent on 2026-09-15, so every
+lesson that day ran on them. Sources: LiveKit container log and the Phase 3
+client events (2 463 of them — the telemetry works).
+
+| Metric | Baseline | Measured | |
+|---|---|---|---|
+| drop → back in room, median | 34 s | **4.3 s** | ✅ |
+| back within 5 s | — | 54% (139/256) | ✅ |
+| Screen Wake Lock | absent | 584 acquired, 1 error | ✅ |
+| student camera | 360p+180p ≈ 610 kbps | 426×240, 150 kbps, no simulcast | ✅ |
+| mic re-published after a gap | 72% | **73%** | ❌ unchanged |
+| connects per participant per lesson | ~4 (3 extra) | **3.2** (max 21) | ❌ unchanged |
+
+Phase 1 and 2 did what they were written to do. The two metrics that did not
+move are the ones this section exists for.
+
+### What the telemetry showed that server logs could not
+
+1. **The page is rebuilt, not reconnected.** 305 `page-closed` events, only
+   79 preceded by a real "Chiqish". The repeating shape is
+   `connected → wake-lock → page-closed (mic=true) → connected (mic=false)`.
+   `wantMic` lived in the composable, so a remount erased it — which is why
+   the mic-restored rate did not move: `restoreMedia()` was never reached.
+   In the evening window 204 of those were in-SPA navigations (the student
+   home page loaded 305 times) against 86 deliberate exits, on a route where
+   Telegram shows the back button and Android maps the system back gesture
+   to it.
+2. **Background reconnects cannot work.** 44 of 53 attempts were made with
+   the page hidden; 43 failed. Visible attempts: 7 of 9 succeeded. The failed
+   hidden attempts still drove the backoff to its 10 s cap and tripped the
+   30-second red-error banner, so the student returned to an error screen.
+3. **A network blip logged students out.** `performRefresh` ended the session
+   on any non-ok response, and `requestRaw` ended it whenever the refresh
+   threw — including a plain network error. With a 15-minute access token
+   each participant refreshes ~6 times per lesson (334 refreshes that
+   evening, 8 genuine expiries), and each unlucky one produced exactly the
+   remount above.
+4. **Cost of the recording indicator.** `recording-status` was polled
+   20 476 times in four hours — 75% of all API traffic — including while the
+   page was hidden.
+
+Everything else was healthy: zero unhandled server errors (the 500s in the
+HTTP log are a Serilog artifact — `UseSerilogRequestLogging` sits inside
+`ExceptionHandlingMiddleware`, so it records 500 for an exception the handler
+then maps to 409/401), and the night composition ran 14/14 in 2 h 43 min of a
+9-hour window.
+
+## Phase 4 — stop losing the page (implemented 2026-09-16)
+
+1. `liveMediaIntent.ts` — mic/camera intent in `localStorage`, per session,
+   10-minute validity, restored on a first connect as well as a reconnect.
+2. `http.ts` — the session ends only on 401/403 from the refresh endpoint.
+3. `useLiveKitRoom.ts` — no reconnect attempts while `document.hidden`
+   (re-check every 20 s, attempt counter untouched); returning to the page
+   resets the backoff and the red-error window.
+4. `LiveRoomPage.vue` — leaving a running lesson by navigation asks for
+   confirmation; `page-closed` now carries the reason that started it.
+5. `useRecordingIndicator.ts` — no background polling; refetch on focus.
+
+Post-deploy metrics to read from the next night's log:
+- share of rejoins with the mic re-published (baseline 73%);
+- connects per participant per lesson (baseline 3.2);
+- the `reason` distribution on `page-closed` — if `unknown` still dominates,
+  the remount is not navigation and the cause is elsewhere;
+- `recording-status` request count (baseline 20 476 per four hours).
