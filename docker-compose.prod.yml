@@ -500,6 +500,59 @@ services:
           track_composite_cpu_cost: 1.0      # transkodlaydi — arzon emas
           participant_cpu_cost: 1.0          # transkodlaydi — arzon emas
 
+        # ════════════════════════════════════════════════════════════════
+        # MIKSER KECHIKKAN OVOZNI TASHLAMASIN (2026-09-16)
+        # ════════════════════════════════════════════════════════════════
+        #
+        # 🔴 NIMA UCHUN. 2026-09-15 dagi har xona-ovozi egress'i yakunida
+        #    `audio qos stats` yozadi. 10 ta egress'dan 7 tasida mikser
+        #    minglab bufer tashlagan (6 036 … 33 612 ta; 20 ms dan ≈ 2–11
+        #    daqiqa ovoz, barcha treklar bo'yicha). Bu tungi montajdagi
+        #    "xom ovoz devor soatidan 0.3–3.7% qisqa" ogohlantirishining
+        #    MANBAI — `atempo` uni keyin yamaydi, lekin yo'qolgan ovozni
+        #    qaytara olmaydi.
+        #
+        #    CPU sabab EMAS: shu egress'lar avgCPU 0.13, maxCPU 0.5 yadro.
+        #
+        # ★ MEXANIZM (egress v1.14 manbasi, `appwriter.go`). Mikser
+        #   `pts < pipelineRunningTime - audio_mixer_latency` bo'lgan
+        #   buferni tashlaydi. Standart chegara 2.75 s. O'lchangan
+        #   kechikish (50 ta `packet PTS too far in the past` ogohlantirishi):
+        #   median 3.42 s, p90 3.81 s, max 5.39 s — ya'ni chegaradan
+        #   BIROZ o'tgan. Sabab tarmoq emas, telefon soatining siljishi:
+        #   o'sha kuni `ignoring sender report with unacceptable drift`
+        #   4 811 marta va `correcting PTS` ±5 s ofset bilan yozilgan.
+        #
+        # ★ QIYMATLAR:
+        #   • `audio_mixer_latency: 6s` — o'lchangan eng katta 5.39 s ni
+        #     qamraydi. Fayl yozuvi uchun narxi — chiqish bir necha soniya
+        #     kechroq yoziladi, bu esa hech kimga ko'rinmaydi (jonli efir
+        #     emas).
+        #   • `pipeline_latency: 6500ms` — MIKSERDAN KATTA BO'LISHI SHART.
+        #     U mikser oldidagi `queue` ning `max-size-time` i ham bo'ladi
+        #     (`builder/audio.go`); kichik qolsa, mikser ushlab turgan
+        #     buferlar navbatdan o'zi to'kilib ketardi va yutuq yo'qolardi.
+        #   • `jitter_buffer_latency: 2s` — O'ZGARMAGAN (standart), faqat
+        #     aniq ko'rinsin deb yozildi: mikser undan katta bo'lishi shart.
+        #
+        # ⚠️ Egress bu blok haqida "modifying these may break the service"
+        #    deb ogohlantiradi. Shuning uchun lokalda AYNI v1.14 bilan
+        #    A/B sinovdan o'tkazildi (2026-09-16):
+        #      – xona ovozi, prod so'rovining aynan nusxasi (audio_only,
+        #        OGG, disable_manifest), o'quvchi tarmog'ida 8 marta 3.5 s
+        #        to'xtash: mikser tashlashi 24 -> 0, fayl to'liq yakunlandi,
+        #        uzunlik to'g'ri;
+        #      – video `TrackEgress` (VP8, webm): `egress_complete`,
+        #        44 s, 0 ta dekod xatosi.
+        #    Sinov telefon soati siljishini EMAS, tarmoq kechikishini
+        #    taqlid qildi — u tuzatishning ta'sirini emas, XAVFSIZLIGINI
+        #    isbotlaydi. Ta'sirni keyingi darslarning `audio qos stats`
+        #    qatorida o'qing (baza yuqorida).
+        latency:
+          jitter_buffer_latency: 2s
+          audio_mixer_latency: 6s
+          pipeline_latency: 6500ms
+
     # `host.docker.internal` — Docker Desktop'da tayyor, LINUX'da esa
     # ATAYLAB e'lon qilinishi kerak. Busiz nom yechilmaydi va yozuv
     # "xonaga ulana olmadim" bilan tugaydi.
