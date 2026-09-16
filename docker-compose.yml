@@ -520,6 +520,13 @@ services:
         ws_url: ws://livekit:7880
         health_port: 9090
         log_level: info
+        # Prod bilan AYNI — lokalda yozuv prod kabi ishlasin. Sabab, o'lchov
+        # va sinov: `docker-compose.prod.yml` dagi "MIKSER KECHIKKAN OVOZNI
+        # TASHLAMASIN" izohi.
+        latency:
+          jitter_buffer_latency: 2s
+          audio_mixer_latency: 6s
+          pipeline_latency: 6500ms
 
     # 🔴 MAJBURIY: yozuv Chrome ichida chiziladi, Chrome esa o'z
     # "sandbox" ini yaratish uchun shu imkoniyatni talab qiladi. Busiz
