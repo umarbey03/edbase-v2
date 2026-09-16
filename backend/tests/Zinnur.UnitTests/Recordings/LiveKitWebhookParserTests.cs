@@ -266,4 +266,54 @@ public sealed class LiveKitWebhookParserTests
 
         result!.EgressId.Should().Be("EG_1");
     }
+
+    // ================================================================= fayl boshlanishi
+
+    /// <summary>
+    /// ★ FAYL BOSHLANISHI EGRESS BOSHLANISHIDAN AJRATIB O'QILADI (2026-09-16).
+    ///
+    /// Qiymatlar lokal takrorlashdan (egress v1.14): egress 13:49:35 da
+    /// so'ralgan, o'quvchi 31 s keyin kirgan, fayl 13:50:06 da boshlangan.
+    /// Ikkalasi bitta maydonga qo'shilib ketsa tungi yig'ish ovozni yana
+    /// 31 s oldinga qo'yardi.
+    /// </summary>
+    [Fact]
+    public void Parse_FileStartedAt_IsReadSeparatelyFromTheEgressStart()
+    {
+        var result = Parse("""
+            {"event":"egress_ended","egress_info":{
+              "egress_id":"EG_gKrRgMvb52oe",
+              "started_at":"1789566575463000000",
+              "ended_at":"1789566646363000000",
+              "file_results":[{"filename":"room.ogg","started_at":"1789566606155000000","duration":"40160000001"}]
+            }}
+            """);
+
+        result!.StartedAt.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1789566575463));
+        result.FileStartedAt.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1789566606155));
+    }
+
+    [Fact]
+    public void Parse_CamelCaseFileStartedAt_IsAccepted()
+    {
+        var result = Parse("""
+            {"event":"egress_ended","egressInfo":{"egressId":"EG_1",
+             "fileResults":[{"filename":"a.ogg","startedAt":1789566606155000000}]}}
+            """);
+
+        result!.FileStartedAt.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1789566606155));
+    }
+
+    /// <summary>
+    /// `egress_started` da fayl hali boshlanmagan — LiveKit 0 yuboradi.
+    /// 0 "1970-yil" bo'lib vaqt o'qini buzmasligi SHART.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"event":"egress_started","egress_info":{"egress_id":"EG_1","file_results":[{"filename":"a.ogg","started_at":"0"}]}}""")]
+    [InlineData("""{"event":"egress_started","egress_info":{"egress_id":"EG_1","file_results":[{"filename":"a.ogg"}]}}""")]
+    [InlineData("""{"event":"egress_ended","egress_info":{"egress_id":"EG_1"}}""")]
+    public void Parse_FileStartedAt_AbsentOrZero_StaysEmpty(string body)
+    {
+        Parse(body)!.FileStartedAt.Should().BeNull();
+    }
 }

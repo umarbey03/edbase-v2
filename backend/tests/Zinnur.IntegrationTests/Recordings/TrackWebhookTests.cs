@@ -189,6 +189,69 @@ public sealed class TrackWebhookTests(RecordingFactory factory)
     /// yo'qolsa mikser millisekundlar ichida, tiklash vazifasini
     /// kutmasdan yoqiladi.
     /// </summary>
+    /// <summary>
+    /// 🔴 PRODUKSIYADAGI NOSOZLIK (2026-09-15, yozuv 205): mikser 16:50:07
+    /// da so'ralgan, lekin xonada hali hech kim ovoz yubormagani uchun fayl
+    /// birinchi ovozli trek bilan 16:57:48 da boshlangan. Bo'lak vaqt o'qi
+    /// esa so'rov paytida qolib, tungi yig'ish ovozni 461 soniya OLDINGA
+    /// qo'ygan va "40.5% qisqa, tuzatib bo'lmaydi" deb tashlab ketgan.
+    ///
+    /// Kutilgan: <c>egress_ended</c> dagi <c>file_results[0].started_at</c>
+    /// vaqt o'qini faylning haqiqiy boshlanishiga suradi, tugash esa
+    /// o'zgarmaydi.
+    /// </summary>
+    [Fact]
+    public async Task RoomAudioEnded_WithALateFileStart_AlignsTheTimelineToTheFile()
+    {
+        var lesson = await NewLessonAsync();
+        var requested = new DateTimeOffset(2026, 9, 15, 16, 50, 7, TimeSpan.Zero);
+        var fileStarted = requested.AddSeconds(461);
+        var ended = new DateTimeOffset(2026, 9, 15, 17, 9, 5, TimeSpan.Zero);
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var mixer = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        await ActivateAsync(mixer.EgressId!, requested);
+
+        (await AckAsync(EgressEvent(
+            "egress_ended", mixer.EgressId!, "EGRESS_COMPLETE",
+            objectKey: mixer.ObjectKey, sizeBytes: 5_000,
+            startedAt: requested, endedAt: ended, fileStartedAt: fileStarted)))
+            .Should().Be("Completed");
+
+        var done = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        done.Status.Should().Be(RecordingStatus.Completed);
+        done.StartedAt.Should().Be(fileStarted, "vaqt o'qi FAYLNING boshlanishi, egress so'rovi emas");
+        done.EndedAt.Should().Be(ended);
+    }
+
+    /// <summary>
+    /// Fayl boshlanishi kelmagan (eski LiveKit yoki 0) — xatti-harakat
+    /// o'zgarmaydi: vaqt o'qi <c>egress_started</c> dagi qiymatda qoladi.
+    /// </summary>
+    [Fact]
+    public async Task RoomAudioEnded_WithoutAFileStart_KeepsTheEgressStart()
+    {
+        var lesson = await NewLessonAsync();
+        var requested = new DateTimeOffset(2026, 9, 15, 16, 50, 7, TimeSpan.Zero);
+        var ended = requested.AddMinutes(20);
+
+        (await AckAsync(TrackEvent("room_started", lesson.RoomName))).Should().Be("Started");
+
+        var mixer = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        await ActivateAsync(mixer.EgressId!, requested);
+
+        await CompleteAsync(mixer.EgressId!, mixer.ObjectKey, 5_000, requested, ended);
+
+        var done = await SingleTrackAsync(lesson, RecordingTrackKind.RoomAudio);
+
+        done.StartedAt.Should().Be(requested);
+        done.EndedAt.Should().Be(ended);
+    }
+
     [Fact]
     public async Task RoomStartedThenTrackPublished_CreatesExactlyOneRoomAudioRow()
     {
@@ -824,7 +887,8 @@ public sealed class TrackWebhookTests(RecordingFactory factory)
         long? sizeBytes = null,
         string? error = null,
         DateTimeOffset? startedAt = null,
-        DateTimeOffset? endedAt = null)
+        DateTimeOffset? endedAt = null,
+        DateTimeOffset? fileStartedAt = null)
     {
         var info = new JsonObject
         {
@@ -843,12 +907,18 @@ public sealed class TrackWebhookTests(RecordingFactory factory)
 
         if (objectKey is not null)
         {
-            info["file_results"] = new JsonArray(
-                new JsonObject
-                {
-                    ["filename"] = objectKey,
-                    ["size"] = (sizeBytes ?? 0).ToString(CultureInfo.InvariantCulture),
-                });
+            var file = new JsonObject
+            {
+                ["filename"] = objectKey,
+                ["size"] = (sizeBytes ?? 0).ToString(CultureInfo.InvariantCulture),
+            };
+
+            // Faylning O'Z boshlanishi — egress so'ralgan paytdan ayrim
+            // (`LiveKitWebhookEventDto.FileStartedAt`).
+            if (fileStartedAt is { } fileStart)
+                file["started_at"] = Nanos(fileStart);
+
+            info["file_results"] = new JsonArray(file);
         }
 
         return new JsonObject

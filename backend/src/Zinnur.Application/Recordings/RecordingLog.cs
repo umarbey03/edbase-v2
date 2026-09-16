@@ -217,6 +217,23 @@ internal static partial class RecordingLog
     internal static partial void TrackObjectKeyDiffers(
         ILogger logger, long trackId, string predicted, string actual);
 
+    /// <summary>
+    /// Bo'lakning vaqt o'qi faylning haqiqiy boshlanishiga surildi.
+    ///
+    /// ★ Information, Warning EMAS: bu xato emas, xona ovozining ODDIY
+    /// xatti-harakati (egress birinchi ovozli trekni kutadi). Lekin
+    /// soniyalar LOGDA qolishi kerak — tungi yig'ishdagi "xom ovoz
+    /// kutilganidan qisqa" ogohlantirishi endi deyarli yo'qolishi kerak va
+    /// yo'qolmasa, sababni shu qator bilan solishtirib topiladi.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 6573,
+        Level = LogLevel.Information,
+        Message = "Bo'lak vaqt o'qi fayl boshlanishiga tekislandi: bo'lak={TrackId} "
+                  + "kechikish={DelaySeconds:0.0}s")]
+    internal static partial void TrackAlignedToMediaStart(
+        ILogger logger, long trackId, double delaySeconds);
+
     // ================================================================= watchdog
 
     [LoggerMessage(

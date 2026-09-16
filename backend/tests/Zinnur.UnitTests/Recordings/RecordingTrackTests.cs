@@ -264,4 +264,112 @@ public sealed class RecordingTrackTests
     {
         RecordingTrack.RoomAudioSid.Should().NotStartWith("TR_");
     }
+
+    // ================================================================= fayl boshlanishiga tekislash
+
+    /// <summary>
+    /// ★ ASOSIY HOL (yozuv 205, 2026-09-15): egress 16:50:07 da so'ralgan,
+    /// fayl birinchi ovozli trek bilan 16:57:48 da boshlangan. Vaqt o'qi
+    /// 461 soniya oldinga surilishi SHART.
+    /// </summary>
+    [Fact]
+    public void AlignToMediaStart_LateFile_MovesTheTimelineForward()
+    {
+        var track = NewRoomAudio();
+        var requested = new DateTimeOffset(2026, 9, 15, 16, 50, 7, TimeSpan.Zero);
+        var fileStarted = new DateTimeOffset(2026, 9, 15, 16, 57, 48, TimeSpan.Zero);
+        var ended = new DateTimeOffset(2026, 9, 15, 17, 9, 5, TimeSpan.Zero);
+        track.MarkActive(requested, Now);
+
+        var shift = track.AlignToMediaStart(fileStarted, ended, Now);
+
+        track.StartedAt.Should().Be(fileStarted);
+        shift.Should().Be(TimeSpan.FromSeconds(461));
+    }
+
+    /// <summary>Fayl egress so'ralganidan OLDIN boshlana olmaydi — bunday qiymat buzuq.</summary>
+    [Fact]
+    public void AlignToMediaStart_EarlierFile_IsIgnored()
+    {
+        var track = NewRoomAudio();
+        track.MarkActive(Now, Now);
+
+        var shift = track.AlignToMediaStart(Now.AddSeconds(-30), null, Now);
+
+        track.StartedAt.Should().Be(Now);
+        shift.Should().Be(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void AlignToMediaStart_SameInstant_ChangesNothing()
+    {
+        var track = NewRoomAudio();
+        track.MarkActive(Now, Now);
+
+        track.AlignToMediaStart(Now, null, Now).Should().Be(TimeSpan.Zero);
+        track.StartedAt.Should().Be(Now);
+    }
+
+    /// <summary>
+    /// ⚠️ <c>egress_ended</c> ishlanayotganda <c>EndedAt</c> hali bo'sh —
+    /// chegara hodisaning o'z tugash vaqtidan olinadi.
+    /// </summary>
+    [Fact]
+    public void AlignToMediaStart_FileStartingAfterTheEventEnd_IsIgnored()
+    {
+        var track = NewRoomAudio();
+        track.MarkActive(Now, Now);
+
+        var shift = track.AlignToMediaStart(Now.AddMinutes(10), endedAt: Now.AddMinutes(5), Now);
+
+        track.StartedAt.Should().Be(Now);
+        shift.Should().Be(TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// Yakunlangan bo'lak MUZLATILGAN — u allaqachon yig'ilgan bo'lishi
+    /// mumkin va uning vaqt o'qini surish yig'ilgan video bilan
+    /// bazadagi ma'lumotni bir-biridan ajratardi.
+    /// </summary>
+    [Fact]
+    public void AlignToMediaStart_FinishedTrack_IsFrozen()
+    {
+        var track = NewRoomAudio();
+        track.MarkActive(Now, Now);
+        track.MarkCompleted(null, 10, 60, Now.AddMinutes(1), Now);
+
+        var shift = track.AlignToMediaStart(Now.AddSeconds(20), null, Now);
+
+        track.StartedAt.Should().Be(Now);
+        shift.Should().Be(TimeSpan.Zero);
+    }
+
+    /// <summary><c>egress_started</c> kelmagan bo'lsa fayl vaqti yagona manba.</summary>
+    [Fact]
+    public void AlignToMediaStart_WithoutAStart_AdoptsTheFileStart()
+    {
+        var track = NewRoomAudio();
+
+        track.AlignToMediaStart(Now, Now.AddMinutes(1), Now).Should().Be(TimeSpan.Zero);
+
+        track.StartedAt.Should().Be(Now);
+    }
+
+    /// <summary>
+    /// ★ `MarkCompleted` tekislangan qiymatni QAYTA YOZMAYDI — chaqiruv
+    /// tartibi (avval tekislash, keyin yakunlash) shunga tayanadi.
+    /// </summary>
+    [Fact]
+    public void AlignThenComplete_KeepsTheAlignedStart()
+    {
+        var track = NewRoomAudio();
+        track.MarkActive(Now, Now);
+
+        track.AlignToMediaStart(Now.AddSeconds(193), Now.AddMinutes(90), Now);
+        track.MarkCompleted(null, 10, null, Now.AddMinutes(90), Now);
+
+        track.StartedAt.Should().Be(Now.AddSeconds(193));
+        track.EndedAt.Should().Be(Now.AddMinutes(90));
+        track.Status.Should().Be(RecordingStatus.Completed);
+    }
 }

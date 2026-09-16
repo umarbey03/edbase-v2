@@ -376,6 +376,19 @@ public sealed record LiveKitEgressListResult(
 /// ⚠️ LiveKit uni bermasligi ham mumkin — hech qachon MAJBURIY
 /// deb hisoblanmaydi, faqat sababni ANIQROQ qilish uchun ishlatiladi.
 /// </param>
+/// <param name="FileStartedAt">
+/// FAYL haqiqatan yozila boshlagan payt — <c>file_results[0].started_at</c>.
+///
+/// 🔴 <see cref="StartedAt"/> DAN FARQI VA NEGA KERAK (2026-09-16):
+/// <see cref="StartedAt"/> (<c>egress_info.started_at</c>) — egress
+/// SO'RALGAN payt. Xona ovozi egress'i esa birinchi ovozli trek paydo
+/// bo'lgunicha pipeline'ni boshlamaydi, ya'ni fayl undan 7–461 soniya
+/// KEYIN boshlanadi (2026-09-15 o'lchovi). Tungi yig'ish vaqt o'qi uchun
+/// aynan shu maydon kerak — batafsil
+/// <c>RecordingTrack.AlignToMediaStart</c> izohida.
+///
+/// Faqat <c>egress_ended</c> da keladi; oldingi hodisalarda yo'q (0).
+/// </param>
 public sealed record LiveKitWebhookEventDto(
     string EventId,
     string EventName,
@@ -388,7 +401,8 @@ public sealed record LiveKitWebhookEventDto(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     string? Error,
-    string? Details = null);
+    string? Details = null,
+    DateTimeOffset? FileStartedAt = null);
 
 /// <summary>
 /// LiveKit webhook hodisasining TREK/XONA qismi — yangi yozuv quvuri
