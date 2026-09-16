@@ -227,6 +227,79 @@ public class RecordingTrack : BaseEntity
     }
 
     /// <summary>
+    /// Vaqt o'qini FAYLNING HAQIQIY boshlanishiga tekislaydi
+    /// (<c>file_results[0].started_at</c>). Qaytaradi: <see cref="StartedAt"/>
+    /// qancha oldinga surildi (surilmagan bo'lsa <see cref="TimeSpan.Zero"/>).
+    ///
+    /// ════════════════════════════════════════════════════════════════════
+    /// NIMA UCHUN <see cref="MarkActive"/> DAGI QOIDA BU YERDA BUZILADI
+    /// (2026-09-16)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 <c>egress_started</c> dagi <c>egress_info.started_at</c> — egress
+    ///    SO'RALGAN payt, fayl yozila boshlagan payt EMAS. Xona ovozi
+    ///    egress'i esa pipeline'ni BIRINCHI ovozli trek paydo bo'lgunicha
+    ///    ishga tushirmaydi. 2026-09-15 dagi har bir xona-ovozi egress'i
+    ///    shunday kechikkan: 7 s dan 461 s gacha.
+    ///
+    ///    Tungi yig'ish esa faylni <see cref="StartedAt"/> ga qo'yardi — ya'ni
+    ///    ovoz haqiqatdan SHUNCHA OLDINDA eshitilardi. O'lchov: montajning
+    ///    "xom ovoz kutilganidan qisqa" ogohlantirishi har bo'lakda AYNAN shu
+    ///    kechikishga teng chiqdi (193/195, 195/197, 173/176, 162/164,
+    ///    461/462 soniya). Ya'ni "drift" deb yamalgan narsaning deyarli
+    ///    hammasi aslida kech boshlanish edi, va `atempo` uni noto'g'ri
+    ///    cho'zardi. 5% dan katta holatda (yozuv 205, 461 s) umuman
+    ///    tuzatilmasdi.
+    ///
+    ///    Lokal takrorlash (egress v1.14, bo'sh xona, o'quvchi 31 s keyin
+    ///    kiradi): <c>egress_info.started_at</c> 13:49:35,
+    ///    <c>file_results[0].started_at</c> 13:50:06, fayl 40.19 s.
+    ///
+    /// ★ <see cref="MarkActive"/> "BIRINCHI qiymat qoladi" deydi, chunki
+    ///   KECH KELGAN hodisa vaqt o'qini noto'g'ri surib yubormasin. Bu esa
+    ///   kech kelgan hodisa emas — faylning o'zi aytgan HAQIQAT, va u faqat
+    ///   <c>egress_ended</c> da keladi. Shuning uchun alohida, aniq nomli
+    ///   metod va qat'iy chegaralar:
+    ///     • faqat OLDINGA suriladi — fayl egress so'ralganidan oldin
+    ///       boshlana olmaydi, orqaga surish buzuq qiymat belgisi;
+    ///     • bo'lak tugashidan (<paramref name="endedAt"/> yoki
+    ///       <see cref="EndedAt"/>) keyin bo'lsa qabul qilinmaydi;
+    ///     • yakunlangan bo'lak TEGILMAYDI — u allaqachon yig'ilgan bo'lishi
+    ///       mumkin (shu sababli chaqiruvchi buni <see cref="MarkCompleted"/>
+    ///       dan OLDIN chaqiradi).
+    /// </summary>
+    /// <param name="endedAt">
+    /// Hodisadagi tugash vaqti. ALOHIDA uzatiladi, chunki
+    /// <c>egress_ended</c> ishlanayotganda <see cref="EndedAt"/> hali bo'sh —
+    /// uni aynan keyingi <see cref="MarkCompleted"/> yozadi.
+    /// </param>
+    public TimeSpan AlignToMediaStart(
+        DateTimeOffset mediaStartedAt, DateTimeOffset? endedAt, DateTimeOffset now)
+    {
+        if (IsFinished) return TimeSpan.Zero;
+
+        // Tugashdan keyin boshlangan fayl — buzuq qiymat, hech narsa o'zgarmaydi.
+        if ((endedAt ?? EndedAt) is { } ended && mediaStartedAt >= ended) return TimeSpan.Zero;
+
+        if (StartedAt is null)
+        {
+            // `egress_started` kelmagan — fayl vaqti yagona manba.
+            StartedAt = mediaStartedAt;
+            UpdatedAt = now;
+            return TimeSpan.Zero;
+        }
+
+        if (mediaStartedAt <= StartedAt.Value) return TimeSpan.Zero;
+
+        var shift = mediaStartedAt - StartedAt.Value;
+
+        StartedAt = mediaStartedAt;
+        UpdatedAt = now;
+
+        return shift;
+    }
+
+    /// <summary>
     /// Xom fayl omborda. IDEMPOTENT va QAYTMAS.
     ///
     /// 🔴 <see cref="SessionRecording.MarkCompleted"/> DAN ATAYLAB

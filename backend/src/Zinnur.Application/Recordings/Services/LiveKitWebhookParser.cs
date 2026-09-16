@@ -89,6 +89,12 @@ public static class LiveKitWebhookParser
             var startedAt = NanoTime(info.Value, "started_at", "startedAt");
             var endedAt = NanoTime(info.Value, "ended_at", "endedAt");
 
+            // Faylning O'Z boshlanishi. `startedAt` (egress so'ralgan payt) dan
+            // ATAYLAB ayrim: sabab `LiveKitWebhookEventDto.FileStartedAt` da.
+            var fileStartedAt = file is null
+                ? null
+                : NanoTime(file.Value, "started_at", "startedAt");
+
             return new LiveKitWebhookEventDto(
                 EventId: eventId,
                 EventName: eventName,
@@ -101,7 +107,8 @@ public static class LiveKitWebhookParser
                 StartedAt: startedAt,
                 EndedAt: endedAt,
                 Error: Text(info.Value, "error"),
-                Details: Text(info.Value, "details"));
+                Details: Text(info.Value, "details"),
+                FileStartedAt: fileStartedAt);
         }
     }
 

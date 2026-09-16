@@ -691,6 +691,31 @@ public static class RecordingCompositionPlanner
     /// ⚠️ <c>atempo</c> TOVUSH BALANDLIGINI O'ZGARTIRMAYDI (u vaqt
     ///    bo'yicha cho'zadi, tezlikni emas), ya'ni ustozning ovozi
     ///    o'zgarmaydi. 0.5–2.5% oraliq baribir quloqqa sezilmaydi.
+    ///
+    /// ════════════════════════════════════════════════════════════════
+    /// 🔴 2026-09-16: YUQORIDAGI TASHXISNING KATTA QISMI NOTO'G'RI CHIQDI
+    /// ════════════════════════════════════════════════════════════════
+    ///
+    /// Yetishmovchilikning ASOSIY qismi siqilish emas, KECH BOSHLANISH edi.
+    /// Xona ovozi egress'i birinchi ovozli trek paydo bo'lgunicha
+    /// pipeline'ni boshlamaydi, bo'lakning vaqt o'qi esa egress SO'RALGAN
+    /// paytdan olinardi. 2026-09-15 dagi har bo'lakda yetishmovchilik
+    /// start kechikishiga 0–3 s farq bilan teng chiqdi (193/195, 195/197,
+    /// 173/176, 162/164, 461/462 s). Ya'ni bu metod ovozni BUTUN oraliq
+    /// bo'ylab tekis cho'zib, aslida o'z joyiga SURILISHI kerak bo'lgan
+    /// faylni buzardi: segment boshida ovoz videodan minutlab oldinda edi.
+    ///
+    /// ★ ENDI: vaqt o'qi <c>egress_ended</c> da faylning o'z boshlanishiga
+    ///   tekislanadi (<c>RecordingTrack.AlignToMediaStart</c>). Qolgan
+    ///   farq — mikser tashlagan buferlar (o'sha kuni +0…+3 s) — HAQIQIY
+    ///   siqilish, va bu metod aynan shunga qo'llanadi. Mikser
+    ///   tashlashining o'zi ham kamaytirildi (<c>audio_mixer_latency</c>,
+    ///   <c>docker-compose.prod.yml</c>). Shuning uchun metod ATAYLAB
+    ///   o'chirilmadi: u endi kichik, to'g'ri qoldiqni yopadi.
+    ///
+    /// ⚠️ Yuqoridagi "QISQALIK TESHIK EMAS, SIQILISH" xulosasi faqat shu
+    ///    qoldiq uchun to'g'ri. Uni "atempo kech boshlanishni ham yopadi"
+    ///    deb o'qimang — yopmaydi.
     /// </summary>
     private static string Stretch(RecordingTrack track, DateTimeOffset t0)
     {

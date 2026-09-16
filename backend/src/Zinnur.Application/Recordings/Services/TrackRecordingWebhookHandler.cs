@@ -389,6 +389,31 @@ public sealed class TrackRecordingWebhookHandler(
             RecordingLog.TrackObjectKeyDiffers(logger, track.Id, track.ObjectKey, evt.ObjectKey!);
         }
 
+        /*
+          VAQT O'QI FAYLNING O'ZIGA TEKISLANADI — `MarkCompleted` DAN OLDIN.
+
+          🔴 `egress_started` dagi vaqt egress SO'RALGAN payt edi; xona ovozi
+             fayli esa birinchi ovozli trek paydo bo'lgandagina boshlanadi
+             (2026-09-15 da 7–461 s kechikish). Tuzatilmasa tungi yig'ish
+             ovozni shuncha OLDINGA qo'yadi. Batafsil —
+             `RecordingTrack.AlignToMediaStart`.
+
+          ⚠️ TARTIB MUHIM: `MarkCompleted` bo'lakni yakunlaydi, yakunlangan
+             bo'lak esa tekislanmaydi.
+
+          ⚠️ ZAXIRA YO'L QAMRALMAYDI: webhook yo'qolsa bo'lakni
+             `RecordingTrackReconcileJob` ombordagi `HEAD` bilan yakunlaydi
+             va u fayl boshlanishini bilmaydi. Prod'da webhook'lar ishlaydi
+             (2026-09-15 kechasi 763 ta), ya'ni bu kamdan-kam holat.
+        */
+        if (evt.FileStartedAt is { } fileStartedAt)
+        {
+            var shift = track.AlignToMediaStart(fileStartedAt, evt.EndedAt, now);
+
+            if (shift >= TimeSpan.FromSeconds(1))
+                RecordingLog.TrackAlignedToMediaStart(logger, track.Id, shift.TotalSeconds);
+        }
+
         track.MarkCompleted(
             evt.ObjectKey, evt.FileSizeBytes, evt.DurationSeconds, evt.EndedAt ?? now, now);
 
