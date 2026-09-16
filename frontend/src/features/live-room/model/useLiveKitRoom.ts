@@ -28,6 +28,7 @@ import { fetchLiveKitJoin } from '@/entities/session'
 import { isApiError, toUserMessage } from '@/shared/api'
 
 import { createLiveEventReporter, createScreenWakeLock } from './liveClientEvents'
+import { clearMediaIntent, readMediaIntent, writeMediaIntent } from './liveMediaIntent'
 
 export type MediaStatus =
   | 'idle'
@@ -129,6 +130,11 @@ export interface UseLiveKitRoomResult {
   stopCanvasShare: () => Promise<void>
   connect: () => Promise<void>
   leave: () => Promise<void>
+  /**
+   * Sahifa NEGA yopilayotganini belgilaydi — `page-closed` diagnostika
+   * hodisasiga tushadi. Birinchi aytilgan sabab saqlanadi.
+   */
+  noteExit: (reason: string) => void
   toggleMic: () => Promise<void>
   toggleCamera: () => Promise<void>
   toggleScreenShare: () => Promise<void>
@@ -322,6 +328,16 @@ export function reconnectDelay(attempt: number): number {
   const base = RECONNECT_DELAYS_MS[attempt] ?? RECONNECT_MAX_DELAY_MS
   return Math.round(base * (0.7 + Math.random() * 0.6))
 }
+
+/**
+ * Sahifa FONDA turganda tekshiruvlar orasidagi kutish.
+ *
+ * Fonda urinishning o'zi qilinmaydi (sabab — `attemptReconnect` izohi), bu
+ * faqat zaxira taymer: `visibilitychange` kelmaydigan WebView'da sahifa
+ * qachon ko'rinib qolganini shu oraliqda bilib olamiz. Uzoq (20 s), chunki
+ * fonda tez-tez uyg'onish batareyani yeydi va hech narsa bermaydi.
+ */
+const HIDDEN_RECONNECT_DELAY_MS = 20_000
 
 /** Token so'rovi shundan uzoq osilib qolsa — bekor qilinadi va qayta uriniladi. */
 const JOIN_FETCH_TIMEOUT_MS = 10_000
@@ -529,6 +545,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   */
   let reconnectEnabled = false
   let disconnectedAt: number | null = null
+  /**
+   * Qizil xato taymerining boshlanishi. `disconnectedAt` dan farqi va nima
+   * uchun ikkita sana kerakligi — `armRetryWindow()` izohida.
+   */
+  let retryWindowStartedAt: number | null = null
   let reconnectAttempt = 0
   let reconnectTimer: number | null = null
   let connectInFlight = false
@@ -553,6 +574,43 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   */
   let wantMic = false
   let wantCamera = false
+  /*
+    ── NIYAT SAHIFA QAYTA QURILISHIDAN OMON QOLADI (2026-09-16) ──────────
+    🔴 Yuqoridagi izoh faqat UZILISH haqida edi. O'lchov esa ko'rsatdiki,
+       asosiy yo'qotish uzilishda emas: `LiveRoomPage` dars davomida
+       o'rtacha 3.2 marta qayta quriladi va o'shanda bu ikki o'zgaruvchi
+       kompozabl bilan birga o'ladi. Sabab va raqamlar — `liveMediaIntent.ts`.
+    ★ `intentStorageEnabled` — SSG/prerender paytida `window` yo'q, va
+      `sessionId` haqiqiy dars bo'lmasa saqlashning ma'nosi yo'q.
+  */
+  const intentStorageEnabled =
+    typeof window !== 'undefined' && Number.isInteger(sessionId) && sessionId > 0
+
+  /** Saqlangan niyatni O'ZGARUVCHILARGA joylaydi (`connect()` uni tiklaydi). */
+  function loadIntent(): void {
+    if (!intentStorageEnabled) return
+    const stored = readMediaIntent(sessionId)
+    if (stored === null) return
+    wantMic = stored.mic
+    wantCamera = stored.camera
+  }
+
+  /**
+   * Niyat HAR o'zgarganda chaqiriladi.
+   *
+   * ⚠️ `wantMic` / `wantCamera` ga yozadigan HAR bir joy buni chaqirishi
+   *    shart — aks holda saqlangan qiymat haqiqatdan ajralib qoladi va
+   *    ustoz o'chirgan mikrofon qayta qurilishdan keyin o'zi yonardi.
+   *    Joylar: tugmalar (`toggleMic` / `toggleCamera`), moderatsiya
+   *    (`handleRemoteModeration`), `restoreMedia` va `leave`.
+   */
+  function rememberIntent(): void {
+    if (!intentStorageEnabled) return
+    writeMediaIntent(sessionId, { mic: wantMic, camera: wantCamera })
+  }
+
+  loadIntent()
+
   /**
    * Har mute hodisasida oshadi. Tugma bosilgan paytda ustoz o'chirsa, tugma
    * natijasi (optimistik `true`) ustozning qarorini ustidan yozmasin.
@@ -562,6 +620,33 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   /** Ekran ulashish uzilishda to'xtadi — qayta ulangach ustozga aytiladi. */
   let screenShareLost = false
+
+  /*
+    ── SAHIFA NEGA YOPILDI (2026-09-16) ─────────────────────────────────
+    🔴 `page-closed` hodisasi 2026-09-15 kechasi 305 marta yozilgan, lekin
+       SABABSIZ — va aynan sabab kerak edi: ulardan faqat 79 tasi haqiqiy
+       "Chiqish" ekanligi boshqa hodisalardan TAXMIN qilindi. Qolgan ~226
+       tasining sababi noma'lum qoldi, ya'ni tuzatish o'rniga yana
+       taxmin qilishga to'g'ri kelardi.
+    Endi chiqishni BOSHLAGAN joy o'zini nomlaydi: "Chiqish" tugmasi —
+    `left`, marshrutdan chiqish — `navigate:<sahifa>`. Hech kim aytmasa
+    `unknown` qoladi va bu ham ma'lumot: demak komponentni Vue'ning o'zi
+    (yoki tashqi kod) yo'q qilgan.
+  */
+  let exitReason: string | null = null
+
+  /**
+   * Chiqish sababini belgilaydi — `page-closed` hodisasiga tushadi.
+   *
+   * ★ BIRINCHI AYTGAN YUTADI. "Chiqish" tugmasi bosilganda ketma-ket
+   *   ikkita signal keladi: `leave()` -> `left`, keyin marshrut
+   *   o'zgarishi -> `navigate:student-home`. Keyingisi ustidan yozsa,
+   *   jurnalda hamma chiqish `navigate:` bo'lib ko'rinardi va tugma
+   *   orqali chiqish bilan tasodifiy chiqishni ajratib bo'lmasdi.
+   */
+  function noteExit(reason: string): void {
+    if (exitReason === null) exitReason = reason
+  }
 
   const reporter =
     typeof window !== 'undefined' && Number.isInteger(sessionId) && sessionId > 0
@@ -863,10 +948,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (publication.source === Track.Source.Camera) {
       wantCamera = false
       cameraModerationSeq += 1
+      rememberIntent()
     }
     if (publication.source === Track.Source.Microphone) {
       wantMic = false
       micModerationSeq += 1
+      rememberIntent()
     }
 
     if (publication.source === Track.Source.Camera && !cameraPending.value) {
@@ -877,6 +964,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       }
       isCameraOn.value = false
       wantCamera = false
+      rememberIntent()
       moderationNotice.value = 'Ustoz kamerangizni o‘chirdi. Kerak bo‘lsa pastki paneldan qayta yoqing.'
       return
     }
@@ -884,6 +972,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (publication.source === Track.Source.Microphone && !micPending.value) {
       isMicOn.value = false
       wantMic = false
+      rememberIntent()
       void current.localParticipant.setMicrophoneEnabled(false).catch(() => undefined)
       moderationNotice.value = 'Ustoz mikrofoningizni o‘chirdi. Gapirish uchun pastki paneldan qayta yoqing.'
     }
@@ -1010,13 +1099,31 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (disconnectedAt === null) {
       disconnectedAt = Date.now()
       reconnectAttempt = 0
-      statusTimer = window.setTimeout(() => {
-        statusTimer = null
-        updateReconnectStatus()
-      }, RECONNECT_BUTTON_AFTER_MS)
+      armRetryWindow()
     }
     updateReconnectStatus()
     scheduleReconnect()
+  }
+
+  /**
+   * "Qizil xato + Qayta urinish tugmasi" hisobini SHU LAHZADAN boshlaydi.
+   *
+   * ★ NEGA `disconnectedAt` DAN AJRATILDI (2026-09-16). `disconnectedAt` —
+   *   uzilishning HAQIQIY boshlanishi va u `reconnected` hodisasidagi
+   *   "necha millisekund yo'qoldi" o'lchoviga kiradi; uni surib bo'lmaydi,
+   *   aks holda metrika yolg'on bo'lardi. Ammo sahifa FONDA turgan vaqt
+   *   "muvaffaqiyatsiz urinish" emas — telefon sahifani to'xtatib qo'ygan.
+   *   Shuning uchun UI taymeri alohida hisoblanadi va sahifa qaytganda
+   *   qaytadan boshlanadi: o'quvchi qaytishi bilanoq qizil xatoni emas,
+   *   "Qayta ulanmoqda…" ni ko'radi.
+   */
+  function armRetryWindow(): void {
+    retryWindowStartedAt = Date.now()
+    if (statusTimer !== null) window.clearTimeout(statusTimer)
+    statusTimer = window.setTimeout(() => {
+      statusTimer = null
+      updateReconnectStatus()
+    }, RECONNECT_BUTTON_AFTER_MS)
   }
 
   function stopReconnect(): void {
@@ -1026,6 +1133,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       statusTimer = null
     }
     disconnectedAt = null
+    retryWindowStartedAt = null
     reconnectAttempt = 0
     lastFailureText = null
   }
@@ -1041,6 +1149,37 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   async function attemptReconnect(): Promise<void> {
     if (disposed || disconnectedAt === null || room !== null || connectInFlight) return
+
+    /*
+      ════════════════════════════════════════════════════════════════════
+      FONDAGI SAHIFADA URINMAYMIZ (2026-09-16)
+      ════════════════════════════════════════════════════════════════════
+
+      🔴 O'LCHOV (2026-09-15 kechasi, 7 dars): 53 ta qayta ulanish
+         urinishidan 44 tasi sahifa FONDA turganida qilingan va ulardan
+         43 tasi yiqilgan. Ekran ko'rinib turgan 9 tasidan 7 tasi
+         muvaffaqiyatli bo'lgan.
+
+         Sabab: Android va Telegram WebView fondagi sahifaning tarmog'ini
+         va taymerlarini to'xtatadi — `getUserMedia` ham, WebSocket ham
+         ochilmaydi.
+
+      ZARARI shunchaki behuda urinish emas: har yiqilish `reconnectAttempt`
+      ni oshirardi, ya'ni o'quvchi telefoniga qaytganda backoff allaqachon
+      eng katta (10 s) qiymatda turardi va 30 soniyalik taymer ham
+      allaqachon ishlab, QIZIL xato ko'rsatilardi — vaholanki hali birorta
+      HAQIQIY urinish bo'lmagan.
+
+      ★ Endi fonda urinish o'tkazib yuboriladi va NAVBATDAGI tekshiruv
+        sekin oraliqda rejalashtiriladi (butunlay to'xtatib qo'ymaymiz:
+        `visibilitychange` ba'zi WebView'larda umuman kelmaydi, u holda
+        bu zaxira yo'l ishlaydi). Urinish soni OSHMAYDI.
+    */
+    if (typeof document !== 'undefined' && document.hidden) {
+      scheduleReconnect(HIDDEN_RECONNECT_DELAY_MS)
+      return
+    }
+
     reconnectAttempt += 1
     report('reconnect-attempt', { attempt: reconnectAttempt })
     updateReconnectStatus()
@@ -1053,8 +1192,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
    * urinishlar esa fonda davom etadi.
    */
   function updateReconnectStatus(): void {
-    if (disconnectedAt === null) return
-    if (Date.now() - disconnectedAt >= RECONNECT_BUTTON_AFTER_MS) {
+    if (disconnectedAt === null || retryWindowStartedAt === null) return
+    if (Date.now() - retryWindowStartedAt >= RECONNECT_BUTTON_AFTER_MS) {
       status.value = 'disconnected'
       // Aniq sabab (masalan UDP to'silgan) bo'lsa — o'shani aytamiz.
       connectionError.value = lastFailureText !== null
@@ -1070,6 +1209,15 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   function onNetworkMayBeBack(): void {
     // 0–1 s tasodifiy kutish — izoh `reconnectDelay` da.
     if (disconnectedAt !== null && room === null && !connectInFlight) {
+      /*
+        BACKOFF NOLGA QAYTADI. Sahifa fonda turganda (yoki internet
+        yo'qligida) o'tgan vaqt urinish emas edi — shuning uchun o'quvchi
+        qaytganda 10 soniyalik kutish ham, qizil xato ham ko'rsatilmaydi:
+        hisob shu lahzadan qaytadan boshlanadi.
+      */
+      reconnectAttempt = 0
+      armRetryWindow()
+      updateReconnectStatus()
       scheduleReconnect(Math.round(Math.random() * 1_000))
     }
   }
@@ -1111,6 +1259,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       // Shu orada ustoz o'chirgan bo'lsa — uning qarori saqlanadi.
       if (micModerationSeq === micSeq) wantMic = wantedMic
       if (cameraModerationSeq === cameraSeq) wantCamera = wantedCamera
+      rememberIntent()
       return
     }
 
@@ -1411,6 +1560,20 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         void restoreMedia()
       } else {
         report('connected')
+        /*
+          BIRINCHI ULANISH — LEKIN SAHIFA QAYTA QURILGAN BO'LISHI MUMKIN.
+
+          🔴 Ilgari bu shoxda niyat UMUMAN tiklanmasdi: kompozabl uchun
+             bu "birinchi ulanish", ya'ni tiklaydigan holat yo'q edi.
+             Amalda esa o'quvchining sahifasi dars davomida o'rtacha
+             3.2 marta qayta quriladi va HAR SAFAR mikrofon o'chib
+             qolardi (o'lchov: `liveMediaIntent.ts`).
+
+          Endi saqlangan niyat (10 daqiqagacha) shu yerda tiklanadi.
+          Niyat bo'lmasa `restoreMedia()` hech narsa qilmaydi, shuning
+          uchun oddiy birinchi kirish uchun xatti-harakat o'zgarmaydi.
+        */
+        if (wantMic || wantCamera) void restoreMedia()
       }
     } catch (error) {
       window.clearTimeout(abortTimer)
@@ -1581,6 +1744,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     )
     if (target !== null && room === target && micModerationSeq === seq) {
       wantMic = isMicOn.value
+      rememberIntent()
     }
   }
 
@@ -1650,6 +1814,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     )
     if (target !== null && room === target && cameraModerationSeq === seq) {
       wantCamera = isCameraOn.value
+      rememberIntent()
     }
   }
 
@@ -1833,6 +1998,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   async function leave(): Promise<void> {
     // Foydalanuvchi O'ZI chiqdi — qayta ulanish ham, niyat ham tugaydi.
+    noteExit('left')
     report('left')
     generation += 1
     connectInFlight = false
@@ -1840,6 +2006,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     reconnectEnabled = false
     wantMic = false
     wantCamera = false
+    // Foydalanuvchi O'ZI chiqdi — saqlangan niyat ham o'chadi, aks holda
+    // darsga qayta kirganda mikrofoni o'zidan yonardi.
+    if (intentStorageEnabled) clearMediaIntent(sessionId)
     screenShareLost = false
     wakeLock?.release()
     await teardown()
@@ -1868,7 +2037,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       document.removeEventListener('visibilitychange', onPageVisibility)
     }
     wakeLock?.release()
-    report('page-closed')
+    report('page-closed', { reason: exitReason ?? 'unknown' })
     reporter?.dispose()
     void teardown()
   })
@@ -1899,6 +2068,7 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     stopCanvasShare,
     connect,
     leave,
+    noteExit,
     toggleMic,
     toggleCamera,
     toggleScreenShare,

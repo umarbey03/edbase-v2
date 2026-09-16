@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { fetchRecentMessages } from '@/entities/message'
 import {
@@ -124,6 +124,7 @@ const {
   stopCanvasShare,
   connect: connectMedia,
   leave: leaveMedia,
+  noteExit,
   toggleMic,
   toggleCamera,
   toggleScreenShare,
@@ -449,10 +450,83 @@ const chatSheetStyle = computed(() =>
 
 const confirm = useConfirm()
 
+/*
+  ════════════════════════════════════════════════════════════════════════
+  DARSDAN BIR BOSISHDA CHIQIB KETIB BO'LMAYDI (2026-09-16)
+  ════════════════════════════════════════════════════════════════════════
+
+  🔴 O'LCHOV (2026-09-15 kechasi, 7 dars, 82 foydalanuvchi): bitta
+     ishtirokchi darsga o'rtacha 3.2 marta ulangan (max 21), `page-closed`
+     305 marta yozilgan va ulardan atigi 79 tasi "Chiqish" tugmasi orqali.
+     Har qaytish — LiveKit uchun to'liq qayta kirish, o'quvchi uchun esa
+     o'chib qolgan mikrofon.
+
+  ★ Telegram Mini App'da bu sahifada "orqaga" tugmasi KO'RINADI
+    (`telegram-shell.ts`: `live-room` ildiz marshrutlar ro'yxatida emas),
+    va Android'da tizim "orqaga" imorasi ham o'shanga ulanadi. Ya'ni dars
+    o'rtasida tasodifiy bitta imo — darsdan chiqish.
+
+  ★ NEGA TASDIQ, NEGA TUGMANI YASHIRISH EMAS: tugmani yashirsak, o'quvchi
+    darsdan chiqishning boshqa yo'lini qidiradi va "orqaga" Telegram'ning
+    o'z oynasini yopishga o'tib ketardi. Tasdiq esa NIYATNI so'raydi —
+    ataylab chiqqan o'quvchiga xalaqit bermaydi, tasodifiy imoni esa
+    to'xtatadi.
+
+  ★ Sabab `noteExit` orqali `page-closed` hodisasiga yoziladi — qolgan
+    "unknown" holatlar ertangi logda ochiq ko'rinsin.
+*/
+
+/** "Chiqish" tugmasi va tasdiqlangan chiqish — qayta so'ralmaydi. */
+let leavingOnPurpose = false
+
+/**
+ * Dars hali ketayotganda chiqish tasdiq talab qiladi.
+ *
+ * ⚠️ `sessionEnded` ALOHIDA tekshiriladi: ustoz darsni yakunlaganda
+ *    `leaveMedia()` ASINXRON ishlaydi, ya'ni bir necha kadr davomida holat
+ *    hali `connected` bo'lib turadi. Usiz dars tugagandan keyin "Darslarim
+ *    ro'yxatiga" bosgan o'quvchiga keraksiz tasdiq oynasi chiqardi.
+ */
+const liveNow = computed(
+  () => !sessionEnded.value
+    && (mediaStatus.value === 'connected'
+      || mediaStatus.value === 'reconnecting'
+      || mediaStatus.value === 'connecting'),
+)
+
 async function handleLeave(): Promise<void> {
+  leavingOnPurpose = true
   await leaveMedia()
   await router.push({ name: homeRoute.value })
 }
+
+onBeforeRouteLeave(async (to) => {
+  const reason = `navigate:${String(to.name ?? to.path)}`
+
+  // Tugma orqali yoki dars ketmayotganda — to'siqsiz o'tkazamiz.
+  if (leavingOnPurpose || !liveNow.value) {
+    noteExit(reason)
+    return true
+  }
+
+  const ok = await confirm({
+    title: 'Darsdan chiqasizmi?',
+    message: 'Dars hali davom etmoqda. Chiqsangiz ovoz va video uziladi.',
+    confirmLabel: 'Chiqish',
+    cancelLabel: 'Darsda qolaman',
+    tone: 'danger',
+  })
+
+  // Bekor qilindi — sahifa o'z joyida qoladi va sabab ham YOZILMAYDI
+  // (`noteExit` birinchi qiymatni saqlaydi, bekor qilingan urinish esa
+  //  keyingi haqiqiy chiqishning sababini bo'yab yuborardi).
+  if (!ok) return false
+
+  leavingOnPurpose = true
+  noteExit(reason)
+  await leaveMedia()
+  return true
+})
 
 /*
   KITOB TAXTASI (2026-09-09, loyiha egasi: "mobileda ustozlar ekran share
