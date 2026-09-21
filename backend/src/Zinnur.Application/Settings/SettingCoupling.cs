@@ -30,6 +30,19 @@ public sealed record SettingCouplingRule(
     string Explanation);
 
 /// <summary>
+/// Tanlov kaliti ma'lum qiymatda bo'lganda to'plam TO'LIQ bo'lishi SHART.
+/// </summary>
+/// <param name="SelectorKey">Tanlov kaliti (masalan <c>livekit.provider</c>).</param>
+/// <param name="ActiveValue">To'plamni ishga soladigan tanlov qiymati.</param>
+/// <param name="Set">Shu qiymatda ishlatiladigan bog'langan to'plam.</param>
+/// <param name="Explanation">Rad javobidagi tushuntirish.</param>
+public sealed record SettingActivationRule(
+    string SelectorKey,
+    string ActiveValue,
+    SettingCouplingRule Set,
+    string Explanation);
+
+/// <summary>
 /// ========================================================================
 /// «TO'LIQ YOKI BO'SH» HIMOYASI — ENDI YOZISH PAYTIDA
 /// ========================================================================
@@ -74,6 +87,24 @@ public sealed record SettingCouplingRule(
 public static class SettingCoupling
 {
     /// <summary>Barcha bog'langan to'plamlar.</summary>
+    /// <summary>
+    /// LiveKit Cloud to'plami (2026-09-21). Alohida xususiyat, chunki
+    /// <see cref="Activations"/> ham AYNI obyektga tayanadi.
+    ///
+    /// ⚠️ <see cref="Rules"/> DAN OLDIN turishi SHART: statik
+    /// initsializatorlar matn tartibida bajariladi, keyin tursa
+    /// <see cref="Rules"/> ichiga <c>null</c> tushardi.
+    /// </summary>
+    public static SettingCouplingRule LiveKitCloud { get; } = new(
+        "LiveKit Cloud",
+        [
+            SettingsRegistry.Keys.LiveKitCloudUrl,
+            SettingsRegistry.Keys.LiveKitCloudApiKey,
+            SettingsRegistry.Keys.LiveKitCloudApiSecret,
+        ],
+        "Cloud manzili, API kaliti va siri BIRGA ishlaydi: bittasi yetishmasa "
+        + "Cloud'ga ulanib bo'lmaydi.");
+
     public static IReadOnlyList<SettingCouplingRule> Rules { get; } =
     [
         new(
@@ -95,7 +126,56 @@ public static class SettingCoupling
             ],
             "Bot tokeni va webhook siri BIRGA ishlaydi: bittasi yetishsa "
             + "bot xabar ham yubormaydi, yangilanish ham qabul qilmaydi."),
+
+        LiveKitCloud,
     ];
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// FAOLLASHTIRISH QOIDALARI — «tanlov X bo'lsa, to'plam TO'LIQ bo'lsin»
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// ★ NIMA UCHUN <see cref="Rules"/> YETARLI EMAS: u faqat «TO'LIQ -&gt;
+    /// YARIM» ni to'sadi. Cloud to'plami esa BO'SH yoki YARIM holatda ham
+    /// INERT emas, agar tanlov <c>Cloud</c> ga qo'yilsa — shu paytdan BARCHA
+    /// jonli dars tokeni bo'sh kalit bilan imzolanib, hamma dars ochilmay
+    /// qolardi. Shuning uchun ikki yo'nalish ham to'siladi:
+    ///   • to'plam TO'LIQ bo'lmaguncha tanlovni <c>Cloud</c> ga qo'yish;
+    ///   • tanlov <c>Cloud</c> turganda to'plamni YARIM/BO'SH qilish
+    ///     (jumladan «standartga qaytarish» orqali).
+    ///
+    /// ★ ZAXIRA HAM BOR: baribir yarim holat yuzaga kelsa (masalan bazani
+    /// qo'lda tahrirlash), <c>RuntimeLiveKitOptions</c> o'z serverimizga
+    /// qaytadi — bu qoida esa uni panel orqali yuzaga keltirmaydi.
+    /// </summary>
+    public static IReadOnlyList<SettingActivationRule> Activations { get; } =
+    [
+        new(
+            SettingsRegistry.Keys.LiveKitProvider,
+            SettingsRegistry.LiveKitProviders.Cloud,
+            LiveKitCloud,
+            "«Qaysi server ishlatilsin» = Cloud faqat Cloud manzili, API kaliti va "
+            + "siri TO'LIQ to'ldirilganda ishlaydi. Avval ularni to'ldiring; Cloud "
+            + "sozlamalarini o'chirish uchun esa avval serverni SelfHosted ga qaytaring."),
+    ];
+
+    /// <summary>
+    /// O'zgarishdan KEYINGI holat faollashtirish qoidasini buzadimi.
+    /// Buzsa — foydalanuvchiga ko'rsatiladigan sabab, aks holda <c>null</c>.
+    /// </summary>
+    public static string? ActivationBreakage(SettingActivationRule rule, Func<string, string?> after)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        ArgumentNullException.ThrowIfNull(after);
+
+        if (!string.Equals(after(rule.SelectorKey)?.Trim(), rule.ActiveValue, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (StateOf(rule.Set, after) == SettingSetState.Complete)
+            return null;
+
+        return rule.Explanation;
+    }
 
     /// <summary>
     /// Kalit qaysi to'plamga tegishli. Hech qaysisiga tegishli bo'lmasa —

@@ -54,6 +54,15 @@ namespace Zinnur.Infrastructure.Services;
 /// (<see cref="IRuntimeOptions{TOptions}"/>): ular AYLANTIRILADIGAN
 /// ma'lumot va paneldan almashtirilishi mumkin. Kesim BIR MARTA olinadi —
 /// <c>iss</c> ni bir juftlikdan, imzoni boshqasidan tekshirish mumkin emas.
+///
+/// ★ IKKI JUFTLIK (2026-09-21, LiveKit Cloud zaxira yo'li): faol serverning
+/// juftligi va FAOL BO'LMAGAN serverniki (<c>StandbyApiKey</c>). Qaysi
+/// biri bilan tekshirish tokenning <c>iss</c> da'vosi bo'yicha TANLANADI —
+/// JWT'dagi <c>kid</c> bilan bir xil naqsh. Himoya zaiflashmaydi: ikkala
+/// sir ham BIZNIKI, <c>iss</c> faqat qaysi birini sinashni tanlaydi,
+/// imzo, muddat va tana xeshi esa o'sha juftlik bo'yicha TO'LIQ
+/// tekshiriladi. Sabab — almashtirishdan keyin eski serverdan kechikib
+/// keladigan <c>egress_ended</c> rad etilmasin.
 /// </summary>
 public sealed class LiveKitWebhookVerifier(
     IRuntimeOptions<LiveKitOptions> options, TimeProvider clock) : ILiveKitWebhookVerifier
@@ -129,11 +138,15 @@ public sealed class LiveKitWebhookVerifier(
         if (!HasExpectedAlgorithm(headerBytes))
             return WebhookVerification.Invalid("Token algoritmi HS256 emas.");
 
+        // Qaysi juftlik bilan tekshirish — faol yoki zaxira (izoh sinf
+        // tepasida). Tanlovdan keyin HAMMA bosqich o'sha juftlik bilan.
+        var (apiKey, apiSecret) = SelectKeyPair(settings, payloadBytes);
+
         // ---- (4) IMZO --------------------------------------------------
         Span<byte> expected = stackalloc byte[HMACSHA256.HashSizeInBytes];
 
         HMACSHA256.HashData(
-            Encoding.UTF8.GetBytes(settings.ApiSecret),
+            Encoding.UTF8.GetBytes(apiSecret),
             Encoding.UTF8.GetBytes(signingInput),
             expected);
 
@@ -144,7 +157,50 @@ public sealed class LiveKitWebhookVerifier(
             return WebhookVerification.Invalid("Imzo mos kelmadi.");
 
         // ---- (5)(6)(7) DA'VOLAR ----------------------------------------
-        return VerifyClaims(payloadBytes, body, settings.ApiKey);
+        return VerifyClaims(payloadBytes, body, apiKey);
+    }
+
+    /// <summary>
+    /// Tokenning <c>iss</c> da'vosi zaxira kalitga teng bo'lsa — zaxira
+    /// juftlik, aks holda (jumladan zaxira yo'q yoki <c>iss</c> o'qilmasa)
+    /// faol juftlik.
+    ///
+    /// ⚠️ <c>iss</c> bu yerda HALI TEKSHIRILMAGAN — u faqat KALIT TANLAYDI.
+    /// Qalbaki <c>iss</c> hech narsa bermaydi: imzo baribir tanlangan
+    /// juftlikning siri bilan tekshiriladi va sirsiz uni yasab bo'lmaydi.
+    /// </summary>
+    private static (string Key, string Secret) SelectKeyPair(LiveKitOptions settings, byte[] payloadBytes)
+    {
+        var active = (settings.ApiKey, settings.ApiSecret);
+
+        if (string.IsNullOrWhiteSpace(settings.StandbyApiKey)
+            || string.IsNullOrWhiteSpace(settings.StandbyApiSecret)
+            || string.Equals(settings.StandbyApiKey, settings.ApiKey, StringComparison.Ordinal))
+        {
+            return active;
+        }
+
+        return string.Equals(ReadIssuer(payloadBytes), settings.StandbyApiKey, StringComparison.Ordinal)
+            ? (settings.StandbyApiKey, settings.StandbyApiSecret)
+            : active;
+    }
+
+    private static string? ReadIssuer(byte[] payloadBytes)
+    {
+        try
+        {
+            using var payload = JsonDocument.Parse(payloadBytes);
+
+            return payload.RootElement.ValueKind == JsonValueKind.Object
+                && payload.RootElement.TryGetProperty("iss", out var issuer)
+                && issuer.ValueKind == JsonValueKind.String
+                    ? issuer.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

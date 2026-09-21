@@ -284,6 +284,163 @@ public class RuntimeOptionsTests
         current.Url.Should().Be("http://livekit:7880");
     }
 
+    // ================================================================= LiveKit Cloud (2026-09-21)
+
+    private static readonly LiveKitOptions SelfHostedSeed = new()
+    {
+        Url = "http://livekit:7880",
+        PublicUrl = "wss://livekit.zinnur.uz",
+        ApiKey = "muhit-kalit",
+        ApiSecret = "muhit-siri-kamida-32-belgi-0123456789",
+    };
+
+    /// <summary>
+    /// Cloud tanlanganda obyekt BUTUNLAY Cloud'dan: token, egress, webhook
+    /// va sog'liq tekshiruvi AYNI obyektni o'qiydi, ya'ni ular ham Cloud'ga
+    /// o'tadi. Brauzer — `wss://`, backend — `https://`.
+    /// </summary>
+    [Theory]
+    [InlineData("wss://zinnur-abc.livekit.cloud")]
+    [InlineData("https://zinnur-abc.livekit.cloud/")]
+    [InlineData("  wss://zinnur-abc.livekit.cloud  ")]
+    public void LiveKit_ProviderCloud_UsesCloudSetForEverything(string cloudUrl)
+    {
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitUrl] = "http://livekit:7880",
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+            [SettingsRegistry.Keys.LiveKitProvider] = "Cloud",
+            [SettingsRegistry.Keys.LiveKitCloudUrl] = cloudUrl,
+            [SettingsRegistry.Keys.LiveKitCloudApiKey] = "APIcloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiSecret] = "cloud-siri-kamida-32-belgi-0123456789",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed)).Current;
+
+        current.Url.Should().Be("https://zinnur-abc.livekit.cloud");
+        current.PublicUrl.Should().Be("wss://zinnur-abc.livekit.cloud");
+        current.EffectivePublicUrl.Should().Be("wss://zinnur-abc.livekit.cloud");
+        current.ApiKey.Should().Be("APIcloud");
+        current.ApiSecret.Should().Be("cloud-siri-kamida-32-belgi-0123456789");
+    }
+
+    /// <summary>Cloud to'plami to'ldirilgan, lekin tanlov o'z serverimizda — Cloud ishlatilmaydi.</summary>
+    [Fact]
+    public void LiveKit_ProviderSelfHosted_IgnoresCloudSet()
+    {
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+            [SettingsRegistry.Keys.LiveKitProvider] = "SelfHosted",
+            [SettingsRegistry.Keys.LiveKitCloudUrl] = "wss://zinnur-abc.livekit.cloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiKey] = "APIcloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiSecret] = "cloud-siri-kamida-32-belgi-0123456789",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed)).Current;
+
+        current.Url.Should().Be("http://livekit:7880");
+        current.PublicUrl.Should().Be("wss://livekit.zinnur.uz");
+        current.ApiKey.Should().Be("baza-kalit");
+    }
+
+    /// <summary>
+    /// 🔴 ZAXIRA: Cloud tanlangan, lekin to'plam yarim (panel buni to'sadi —
+    /// bu faqat bazani qo'lda tahrirlash holati). Bo'sh kalitli token HAMMA
+    /// darsni o'chirardi, shuning uchun o'z serverimizga qaytiladi.
+    /// </summary>
+    [Fact]
+    public void LiveKit_ProviderCloudWithPartialSet_FallsBackToSelfHosted()
+    {
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+            [SettingsRegistry.Keys.LiveKitProvider] = "Cloud",
+            [SettingsRegistry.Keys.LiveKitCloudUrl] = "wss://zinnur-abc.livekit.cloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiKey] = "APIcloud",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed)).Current;
+
+        current.Url.Should().Be("http://livekit:7880");
+        current.ApiKey.Should().Be("baza-kalit");
+    }
+
+    /// <summary>
+    /// Faol bo'lmagan serverning juftligi — webhook tekshiruvi uchun zaxira
+    /// (almashtirishdan keyin kechikkan `egress_ended` rad etilmasin).
+    /// </summary>
+    [Theory]
+    [InlineData("Cloud", "APIcloud", "baza-kalit")]
+    [InlineData("SelfHosted", "baza-kalit", "APIcloud")]
+    public void LiveKit_InactiveServerKeys_AreKeptAsStandby(string provider, string active, string standby)
+    {
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+            [SettingsRegistry.Keys.LiveKitProvider] = provider,
+            [SettingsRegistry.Keys.LiveKitCloudUrl] = "wss://zinnur-abc.livekit.cloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiKey] = "APIcloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiSecret] = "cloud-siri-kamida-32-belgi-0123456789",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed)).Current;
+
+        current.ApiKey.Should().Be(active);
+        current.StandbyApiKey.Should().Be(standby);
+        current.StandbyApiSecret.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>Cloud to'plami bo'sh — zaxira ham bo'sh (webhook faqat faol juftlik bilan).</summary>
+    [Fact]
+    public void LiveKit_WithoutCloudSet_HasNoStandby()
+    {
+        var runtime = new FakeRuntimeSettings(Snapshot(1, new()
+        {
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+        }));
+
+        var current = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed)).Current;
+
+        current.StandbyApiKey.Should().BeEmpty();
+        current.StandbyApiSecret.Should().BeEmpty();
+    }
+
+    /// <summary>Almashtirish DEPLOYSIZ: yangi kesim darhol boshqa serverni beradi.</summary>
+    [Fact]
+    public void LiveKit_SwitchingProvider_IsVisibleImmediately()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [SettingsRegistry.Keys.LiveKitApiKey] = "baza-kalit",
+            [SettingsRegistry.Keys.LiveKitApiSecret] = "baza-siri-kamida-32-belgi-0123456789",
+            [SettingsRegistry.Keys.LiveKitProvider] = "SelfHosted",
+            [SettingsRegistry.Keys.LiveKitCloudUrl] = "wss://zinnur-abc.livekit.cloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiKey] = "APIcloud",
+            [SettingsRegistry.Keys.LiveKitCloudApiSecret] = "cloud-siri-kamida-32-belgi-0123456789",
+        };
+
+        var runtime = new FakeRuntimeSettings(Snapshot(1, values));
+        var options = new RuntimeLiveKitOptions(runtime, Options.Create(SelfHostedSeed));
+
+        options.Current.ApiKey.Should().Be("baza-kalit");
+
+        values[SettingsRegistry.Keys.LiveKitProvider] = "Cloud";
+        runtime.Current = Snapshot(2, values);
+
+        options.Current.ApiKey.Should().Be("APIcloud");
+
+        values[SettingsRegistry.Keys.LiveKitProvider] = "SelfHosted";
+        runtime.Current = Snapshot(3, values);
+
+        options.Current.ApiKey.Should().Be("baza-kalit");
+    }
+
     // ================================================================= yordamchilar
 
     private static SettingsSnapshot Snapshot(long version, Dictionary<string, string?> values) =>
