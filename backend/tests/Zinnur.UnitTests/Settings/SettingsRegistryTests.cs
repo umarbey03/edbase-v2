@@ -123,6 +123,13 @@ public class SettingsRegistryTests
     //    ★ `livekit.public_url` ATAYLAB yuqoridagi (faqat o'qish) ro'yxatda
     //      qoldi — u sertifikat/DNS bilan juftlashgan.
     [InlineData("livekit.url")]
+
+    // 2026-09-21: LiveKit Cloud — zaxira yo'l. Butun ma'nosi shunda: o'z
+    // serverimiz nosoz bo'lganda DEPLOYSIZ, paneldan almashtirish.
+    [InlineData("livekit.provider")]
+    [InlineData("livekit.cloud_url")]
+    [InlineData("livekit.cloud_api_key")]
+    [InlineData("livekit.cloud_api_secret")]
     [InlineData("finance.block_threshold")]
     [InlineData("finance.block_scope")]
     public void RotatableKeys_AreRuntimeEditable(string key)

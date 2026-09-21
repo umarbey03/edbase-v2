@@ -86,6 +86,13 @@ public sealed class SettingsService(
         // yozish paytidagi o'rinbosari (izoh: `SettingCoupling`).
         await EnsureSetNotBrokenAsync(definition, normalized, ct).ConfigureAwait(false);
 
+        // «Cloud tanlangan, lekin Cloud kalitlari yo'q» holati panel orqali
+        // yuzaga kelmasin (izoh: `SettingCoupling.Activations`).
+        await EnsureActivationHoldsAsync(
+            definition.Key,
+            new Dictionary<string, string?>(StringComparer.Ordinal) { [definition.Key] = normalized },
+            ct).ConfigureAwait(false);
+
         var before = await resolver.ResolveAsync(definition, ct).ConfigureAwait(false);
 
         // Qiymat o'zgarmagan bo'lsa ham yozib qo'yamiz (idempotent PUT), lekin
@@ -126,6 +133,20 @@ public sealed class SettingsService(
         await EnsureNotOverriddenAsync(definition, actorId, ct).ConfigureAwait(false);
 
         var targets = await ResolveResetTargetsAsync(definition, ct).ConfigureAwait(false);
+
+        // Qaytarilgandan KEYINGI qiymatlar (baza qatori o'chsa muhit yoki
+        // standart) bo'yicha — Cloud ishlab turganda uning to'plami
+        // «standartga qaytarish» orqali bo'shatilmasin.
+        var fallbacks = new Dictionary<string, string?>(StringComparer.Ordinal);
+
+        foreach (var target in targets)
+        {
+            var fallback = await resolver.ResolveWithoutStoredAsync(target, ct).ConfigureAwait(false);
+            fallbacks[target.Key] = fallback.Value;
+        }
+
+        await EnsureActivationHoldsAsync(definition.Key, fallbacks, ct).ConfigureAwait(false);
+
         var anyRemoved = false;
 
         foreach (var target in targets)
@@ -233,6 +254,43 @@ public sealed class SettingsService(
             return [definition];
 
         return [.. rule.Keys.Select(k => SettingsRegistry.TryGet(k, out var member) ? member : null!)];
+    }
+
+    /// <summary>
+    /// O'zgarishlar (<paramref name="changes"/>: kalit -&gt; yangi qiymat)
+    /// qo'llangandan KEYIN birorta faollashtirish qoidasi buzilmasligini
+    /// tekshiradi. Qolgan kalitlar AMALDAGI qiymati bilan o'qiladi.
+    /// </summary>
+    private async Task EnsureActivationHoldsAsync(
+        string field, IReadOnlyDictionary<string, string?> changes, CancellationToken ct)
+    {
+        foreach (var rule in SettingCoupling.Activations)
+        {
+            var keys = rule.Set.Keys.Append(rule.SelectorKey).ToArray();
+
+            if (!keys.Any(changes.ContainsKey))
+                continue;
+
+            var definitions = keys
+                .Select(k => SettingsRegistry.TryGet(k, out var member) ? member : null!)
+                .ToArray();
+
+            var resolved = await resolver.ResolveManyAsync(definitions, ct).ConfigureAwait(false);
+
+            var after = resolved.ToDictionary(
+                r => r.Definition.Key, r => r.Value, StringComparer.Ordinal);
+
+            foreach (var (key, value) in changes)
+            {
+                if (after.ContainsKey(key))
+                    after[key] = value;
+            }
+
+            var breakage = SettingCoupling.ActivationBreakage(rule, k => after.GetValueOrDefault(k));
+
+            if (breakage is not null)
+                throw Invalid(field, breakage);
+        }
     }
 
     /// <summary>To'plam a'zolarining AMALDAGI qiymatlari.</summary>

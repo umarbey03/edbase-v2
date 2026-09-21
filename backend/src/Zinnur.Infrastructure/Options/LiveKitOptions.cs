@@ -45,6 +45,26 @@ public sealed class LiveKitOptions
     public string ApiSecret { get; init; } = string.Empty;
 
     /// <summary>
+    /// FAOL BO'LMAGAN serverning kalit nomi (o'z serverimiz yoki Cloud —
+    /// qaysi biri hozir tanlanmagan bo'lsa). Bo'sh — zaxira yo'q.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 FAQAT webhook imzosini tekshirish uchun (<c>LiveKitWebhookVerifier</c>).
+    /// Token, egress va xona boshqaruvi uni HECH QACHON ishlatmaydi.
+    ///
+    /// ★ NIMA UCHUN KERAK (2026-09-21): serverni almashtirgandan keyin eski
+    /// serverdan kechikkan hodisalar keladi — birinchi navbatda yozuv
+    /// fayli yuklanib bo'lgach yuboriladigan <c>egress_ended</c>. Faqat
+    /// faol kalit qabul qilinsa, ular "imzo mos kelmadi" deb rad etilib,
+    /// dars yozuvi faqat zaxira job orqali, vaqt o'qi to'g'rilanmagan
+    /// holda yakunlanardi.
+    /// </remarks>
+    public string StandbyApiKey { get; init; } = string.Empty;
+
+    /// <summary><see cref="StandbyApiKey"/> ning siri.</summary>
+    public string StandbyApiSecret { get; init; } = string.Empty;
+
+    /// <summary>
     /// Klientga beriladigan haqiqiy manzil: <see cref="PublicUrl"/>,
     /// u bo'sh bo'lsa <see cref="Url"/> (dev qulayligi).
     /// </summary>

@@ -323,7 +323,7 @@ public static class SettingsRegistry
         {
             Key = "livekit.url",
             Group = SettingGroup.LiveKit,
-            DisplayName = "Ichki manzil",
+            DisplayName = "O'z server: ichki manzil",
             Description =
                 "Backend LiveKit serveriga ulanadigan manzil (Docker tarmog'ida "
                 + "`http://livekit:7880`). ⚠️ Xato qiymatda jonli dars ochilmaydi va "
@@ -369,7 +369,7 @@ public static class SettingsRegistry
         {
             Key = "livekit.public_url",
             Group = SettingGroup.LiveKit,
-            DisplayName = "Brauzer uchun manzil",
+            DisplayName = "O'z server: brauzer uchun manzil",
             Description =
                 "O'quvchi brauzeri ulanadigan manzil. HTTPS sahifadan `ws://` ga ulanishni "
                 + "brauzer bloklaydi — prod'da `wss://` bo'lishi shart.",
@@ -387,7 +387,7 @@ public static class SettingsRegistry
         {
             Key = "livekit.api_key",
             Group = SettingGroup.LiveKit,
-            DisplayName = "API kalit nomi",
+            DisplayName = "O'z server: API kalit nomi",
             Description =
                 "LiveKit serveridagi `LIVEKIT_KEYS` dagi kalit nomi (masalan `devkey`). "
                 + "⚠️ Kalit nomi va siri LiveKit serveridagi qiymat bilan JUFTLIKDA ishlaydi: "
@@ -408,7 +408,7 @@ public static class SettingsRegistry
         {
             Key = "livekit.api_secret",
             Group = SettingGroup.LiveKit,
-            DisplayName = "API siri",
+            DisplayName = "O'z server: API siri",
             Description =
                 "Jonli dars tokenlarini imzolash kaliti (HS256, kamida 32 belgi). "
                 + "⚠️ LiveKit serveridagi qiymat bilan AYNAN bir xil bo'lishi shart — "
@@ -420,6 +420,95 @@ public static class SettingsRegistry
             // `LiveKitOptions.MinSecretLength` bilan AYNI raqam: ilgari uni
             // `ValidateOnStart` qo'riqlardi, endi paneldan ham qisqa kalit
             // yozib bo'lmasin.
+            MinLength = 32,
+        },
+
+        // ---------------------------------------------------------------- LIVEKIT CLOUD (zaxira yo'l)
+        //
+        // ★ NIMA UCHUN (2026-09-21): o'z serverimizdagi LiveKit'da ovoz
+        //   uzilishlari to'xtamadi va loyiha egasi VAQTINCHA LiveKit Cloud'ga
+        //   o'tib turishni so'radi — deploy qilmasdan, PANELDAN. Shuning
+        //   uchun Cloud kalitlari o'z serverimiz kalitlarining USTIGA
+        //   yozilmaydi, YONIDA alohida turadi: qaytish ham bitta tanlov.
+        //
+        // ★ ALMASHTIRISH BITTA JOYDA: `RuntimeLiveKitOptions.Compose`.
+        //   Token, egress, xona boshqaruvi, webhook va sog'liq tekshiruvi
+        //   HAMMASI `IRuntimeOptions<LiveKitOptions>` ni o'qiydi — ya'ni
+        //   ular qaysi server ishlatilayotganini bilmaydi ham.
+        //
+        // 🔴 YARIM SOZLANGAN CLOUD'GA O'TIB BO'LMAYDI: `SettingCoupling`
+        //   dagi faollashtirish qoidasi `Cloud` tanlovini to'plam TO'LIQ
+        //   bo'lmaguncha rad etadi, Cloud ishlab turganda esa to'plamni
+        //   bo'shatishni ham rad etadi. Aks holda bitta bosish BARCHA
+        //   jonli darslarni jimgina o'chirardi.
+
+        new()
+        {
+            Key = "livekit.provider",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Qaysi server ishlatilsin",
+            Description =
+                "`SelfHosted` — o'z serverimizdagi LiveKit (yuqoridagi sozlamalar). "
+                + "`Cloud` — LiveKit Cloud (pastdagi sozlamalar; avval ularni to'ldiring). "
+                + "O'zgarish YANGI ulanishlarga darhol ta'sir qiladi. "
+                + "⚠️ Ayni paytda davom etayotgan dars ESKI serverda qoladi: yangi "
+                + "kirganlar boshqa serverga tushib, bir-birini ko'rmaydi. Shuning "
+                + "uchun faqat darslar orasida almashtiring, dars ketayotgan bo'lsa — "
+                + "hamma sahifani yangilasin. "
+                + "⚠️ Cloud'da dars yozuvi (egress) ham Cloud'da ishlaydi va alohida "
+                + "hisoblanadi (pullik).",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+            ConfigurationKey = "LiveKit:Provider",
+            Choices = [LiveKitProviders.SelfHosted, LiveKitProviders.Cloud],
+            DefaultValue = LiveKitProviders.SelfHosted,
+        },
+
+        new()
+        {
+            Key = "livekit.cloud_url",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Cloud: loyiha manzili",
+            Description =
+                "LiveKit Cloud loyihasining manzili — Cloud panelidagi «Settings → "
+                + "Project» dan (masalan `wss://zinnur-abc123.livekit.cloud`). "
+                + "`https://` ko'rinishida kiritilsa ham bo'ladi: brauzer uchun "
+                + "`wss://`, backend uchun `https://` avtomatik yasaladi.",
+            Kind = SettingValueKind.Text,
+            Format = SettingFormat.Url,
+            Source = SettingSource.Database,
+            ConfigurationKey = "LiveKit:CloudUrl",
+            MaxLength = 300,
+        },
+
+        new()
+        {
+            Key = "livekit.cloud_api_key",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Cloud: API kalit",
+            Description =
+                "Cloud panelidagi «Settings → Keys» dan yaratilgan kalit nomi "
+                + "(`API...` bilan boshlanadi).",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            ConfigurationKey = "LiveKit:CloudApiKey",
+            MaxLength = 100,
+        },
+
+        new()
+        {
+            Key = "livekit.cloud_api_secret",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Cloud: API siri",
+            Description =
+                "O'sha kalitning siri. Cloud uni FAQAT yaratilgan paytda bir marta "
+                + "ko'rsatadi — yo'qolsa yangi kalit yarating.",
+            Kind = SettingValueKind.Secret,
+            Source = SettingSource.Database,
+            ConfigurationKey = "LiveKit:CloudApiSecret",
+
+            // `livekit.api_secret` bilan AYNI sabab: HS256 kaliti 32 baytdan
+            // qisqa bo'lmasin (`LiveKitOptions.MinSecretLength`).
             MinLength = 32,
         },
 
@@ -1214,6 +1303,17 @@ public static class SettingsRegistry
         public const string Scope = "payment_block_scope";
     }
 
+    /// <summary>
+    /// <c>livekit.provider</c> tanlovlari. <c>const</c> — registr,
+    /// <c>SettingCoupling</c> va <c>RuntimeLiveKitOptions</c> AYNI satrga
+    /// tayanadi.
+    /// </summary>
+    public static class LiveKitProviders
+    {
+        public const string SelfHosted = "SelfHosted";
+        public const string Cloud = "Cloud";
+    }
+
     /// <summary>Registrdagi ommaviy kalitlar (kod ichidan murojaat uchun).</summary>
     public static class Keys
     {
@@ -1233,6 +1333,12 @@ public static class SettingsRegistry
 
         public const string LiveKitApiKey = "livekit.api_key";
         public const string LiveKitApiSecret = "livekit.api_secret";
+
+        // 2026-09-21: LiveKit Cloud — zaxira yo'l (sabab registrda).
+        public const string LiveKitProvider = "livekit.provider";
+        public const string LiveKitCloudUrl = "livekit.cloud_url";
+        public const string LiveKitCloudApiKey = "livekit.cloud_api_key";
+        public const string LiveKitCloudApiSecret = "livekit.cloud_api_secret";
 
         public const string StorageServiceUrl = "storage.service_url";
 
@@ -1405,6 +1511,27 @@ public static class SettingsRegistry
                 if (!member.IsEditable)
                     problems.Add($"'{key}': bog'langan to'plam a'zosi, lekin tahrirlanmaydi.");
             }
+        }
+
+        // Faollashtirish qoidasining tanlov kaliti — tahrirlanadigan
+        // tanlov va faol qiymat uning ro'yxatida bo'lishi SHART. Aks holda
+        // qoida hech qachon ishga tushmasdi va himoya jimgina yo'qolardi.
+        foreach (var activation in SettingCoupling.Activations)
+        {
+            if (!Index.TryGetValue(activation.SelectorKey, out var selector))
+            {
+                problems.Add($"Faollashtirish qoidasida registrda yo'q kalit: '{activation.SelectorKey}'.");
+                continue;
+            }
+
+            if (selector.Kind != SettingValueKind.Choice || !selector.IsEditable)
+                problems.Add($"'{selector.Key}': faollashtirish tanlovi tahrirlanadigan Choice bo'lsin.");
+
+            if (!selector.Choices.Contains(activation.ActiveValue, StringComparer.Ordinal))
+                problems.Add($"'{selector.Key}': '{activation.ActiveValue}' tanlovlar ro'yxatida yo'q.");
+
+            if (!SettingCoupling.Rules.Contains(activation.Set))
+                problems.Add($"'{selector.Key}': faollashtirish to'plami `SettingCoupling.Rules` da yo'q.");
         }
 
         return problems;

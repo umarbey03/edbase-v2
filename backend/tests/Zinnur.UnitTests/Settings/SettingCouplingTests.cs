@@ -161,6 +161,69 @@ public class SettingCouplingTests
         SettingCoupling.Breakage(Storage, FullStorage(), Read()).Should().BeNull();
     }
 
+    // ================================================================= LiveKit Cloud (2026-09-21)
+
+    private static readonly SettingActivationRule CloudActivation =
+        SettingCoupling.Activations.Single(a => a.SelectorKey == SettingsRegistry.Keys.LiveKitProvider);
+
+    [Fact]
+    public void LiveKitCloud_IsCoupledSet_AndActivatedByProviderCloud()
+    {
+        SettingCoupling.RuleFor(SettingsRegistry.Keys.LiveKitCloudApiSecret)
+            .Should().BeSameAs(SettingCoupling.LiveKitCloud);
+
+        SettingCoupling.Rules.Should().Contain(SettingCoupling.LiveKitCloud);
+
+        CloudActivation.ActiveValue.Should().Be(SettingsRegistry.LiveKitProviders.Cloud);
+        CloudActivation.Set.Should().BeSameAs(SettingCoupling.LiveKitCloud);
+
+        // O'z serverimiz kalitlari Cloud to'plamiga KIRMAYDI — aks holda
+        // Cloud'ni sozlash o'z serverimizni ham "yarim" deb to'sardi.
+        SettingCoupling.RuleFor(SettingsRegistry.Keys.LiveKitApiKey).Should().BeNull();
+    }
+
+    /// <summary>🔴 Kalitsiz Cloud'ga o'tish — BARCHA jonli dars o'chardi.</summary>
+    [Fact]
+    public void Activation_CloudWithEmptySet_IsRejected()
+    {
+        var after = Read((SettingsRegistry.Keys.LiveKitProvider, "Cloud"));
+
+        SettingCoupling.ActivationBreakage(CloudActivation, after)
+            .Should().Be(CloudActivation.Explanation);
+    }
+
+    [Fact]
+    public void Activation_CloudWithPartialSet_IsRejected()
+    {
+        var after = Read(
+            (SettingsRegistry.Keys.LiveKitProvider, "cloud"),
+            (SettingsRegistry.Keys.LiveKitCloudUrl, "wss://zinnur.livekit.cloud"),
+            (SettingsRegistry.Keys.LiveKitCloudApiKey, "APIabc"));
+
+        SettingCoupling.ActivationBreakage(CloudActivation, after).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Activation_CloudWithFullSet_IsAllowed()
+    {
+        SettingCoupling.ActivationBreakage(CloudActivation, FullCloud("Cloud")).Should().BeNull();
+    }
+
+    /// <summary>O'z serverimizda Cloud to'plami bo'sh yoki yarim bo'lishi mumkin.</summary>
+    [Theory]
+    [InlineData("SelfHosted")]
+    [InlineData(null)]
+    public void Activation_SelfHosted_IgnoresCloudSet(string? provider)
+    {
+        var after = provider is null
+            ? Read((SettingsRegistry.Keys.LiveKitCloudApiKey, "APIabc"))
+            : Read(
+                (SettingsRegistry.Keys.LiveKitProvider, provider),
+                (SettingsRegistry.Keys.LiveKitCloudApiKey, "APIabc"));
+
+        SettingCoupling.ActivationBreakage(CloudActivation, after).Should().BeNull();
+    }
+
     // ================================================================= yordamchilar
 
     private static Func<string, string?> Read(params (string Key, string Value)[] values)
@@ -175,6 +238,12 @@ public class SettingCouplingTests
         (SettingsRegistry.Keys.StorageBucket, "zinnur"),
         (SettingsRegistry.Keys.StorageAccessKey, "kalit"),
         (SettingsRegistry.Keys.StorageSecretKey, "sir"));
+
+    private static Func<string, string?> FullCloud(string provider) => Read(
+        (SettingsRegistry.Keys.LiveKitProvider, provider),
+        (SettingsRegistry.Keys.LiveKitCloudUrl, "wss://zinnur.livekit.cloud"),
+        (SettingsRegistry.Keys.LiveKitCloudApiKey, "APIabc"),
+        (SettingsRegistry.Keys.LiveKitCloudApiSecret, "cloud-siri-kamida-32-belgi-0123456789"));
 
     private static Func<string, string?> FullTelegram() => Read(
         (SettingsRegistry.Keys.TelegramBotToken, "123456:AAH-token"),
