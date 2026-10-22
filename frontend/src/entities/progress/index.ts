@@ -1,1 +1,1 @@
-export { fetchAttendanceSummary } from './api/progress-api'
+export { fetchAttendanceSummary, markLessonVideoWatched } from './api/progress-api'

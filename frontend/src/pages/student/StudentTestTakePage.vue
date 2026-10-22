@@ -15,6 +15,7 @@ import {
 } from '@/entities/test'
 import TestResultCard from '@/features/test-take/ui/TestResultCard.vue'
 import TestRunner from '@/features/test-take/ui/TestRunner.vue'
+import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { useConfirm } from '@/shared/lib/useConfirm'
@@ -172,12 +173,12 @@ const submitMutation = useMutation({
  *
  * `assignments/mine` ham yangilanadi: dars testi topshirilgach server GATING
  * keshini bekor qiladi (`TestService` -> `gating.InvalidateAsync`), ya'ni
- * keyingi dars ochilib yangi vazifa paydo bo'lishi mumkin.
+ * keyingi dars ochilib yangi vazifa paydo bo'lishi mumkin. Kurs daraxti ham
+ * shu sababli yangilanadi (`invalidateGatedQueries`).
  */
 function invalidateAfterAttempt(): void {
-  void queryClient.invalidateQueries({ queryKey: ['tests', 'available'] })
+  invalidateGatedQueries(queryClient)
   void queryClient.invalidateQueries({ queryKey: ['tests', testId, 'my-result'] })
-  void queryClient.invalidateQueries({ queryKey: ['assignments', 'mine'] })
 }
 
 const confirm = useConfirm()

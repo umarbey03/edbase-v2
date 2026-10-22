@@ -26,6 +26,19 @@ import { useLessonAssetTicket } from '../model/useLessonAssetTicket'
  */
 const props = defineProps<{ assets: LessonAssetDto[] }>()
 
+/**
+ * `watched` — darsning OXIRGI video qismi oxirigacha (≥ 90%) ko'rildi.
+ * Pleer o'zi serverga yozmaydi: endpoint faqat o'quvchi uchun, pleer esa
+ * rolga bog'liq bo'lmagan blok — kim yozishini ota komponent hal qiladi.
+ */
+const emit = defineEmits<{ watched: [lessonId: number] }>()
+
+/** Qismning shu ulushi ko'rilganda "ko'rildi" sanaladi (titrlar, oxirgi soniyalar). */
+const WATCHED_RATIO = 0.9
+
+/** Har dars uchun `watched` BIR MARTA chiqadi (`timeupdate` soniyasiga ~4 marta keladi). */
+const reportedLessons = new Set<number>()
+
 const videoAssets = computed(() =>
   props.assets.filter((a) => a.kind === 'Video').slice().sort((a, b) => a.position - b.position),
 )
@@ -120,6 +133,26 @@ async function handleVideoError(): Promise<void> {
   )
 }
 
+/**
+ * Faqat OXIRGI qism hisobga olinadi: server belgini dars darajasida
+ * saqlaydi, qismlar bo'yicha emas. Birinchi qismni ko'rib to'xtagan
+ * o'quvchi darsni "tugatgan" bo'lib qolmasin.
+ */
+function reportProgress(): void {
+  const asset = activeAsset.value
+  const element = video.value
+  if (asset === null || element === null) return
+  if (activeIndex.value !== videoAssets.value.length - 1) return
+  if (reportedLessons.has(asset.lessonId)) return
+
+  const duration = element.duration
+  const finished = element.ended || (Number.isFinite(duration) && duration > 0 && element.currentTime / duration >= WATCHED_RATIO)
+  if (!finished) return
+
+  reportedLessons.add(asset.lessonId)
+  emit('watched', asset.lessonId)
+}
+
 function selectPart(index: number): void {
   if (index === activeIndex.value) return
   activeIndex.value = index
@@ -196,6 +229,8 @@ onBeforeUnmount(detachVideo)
           playsinline
           class="block max-h-[65dvh] w-full rounded-xl bg-black"
           @error="handleVideoError"
+          @timeupdate="reportProgress"
+          @ended="reportProgress"
         />
 
         <div

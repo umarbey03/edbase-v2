@@ -20,3 +20,16 @@ export function fetchAttendanceSummary(
     signal: options?.signal,
   })
 }
+
+/**
+ * `POST /api/v1/progress/lessons/{lessonId}/video-watched` — o'quvchi dars
+ * videosini oxirigacha ko'rdi.
+ *
+ * Server 2026-08-14 dan beri videoli darsni FAQAT shu belgi bilan "tugatilgan"
+ * deb hisoblaydi (`LessonGate.cs`: `!HasVideo || VideoWatched`). Belgi
+ * qo'yilmasa keyingi darslar `PreviousIncomplete` bo'lib yopiq qoladi.
+ * Idempotent: qayta chaqirish birinchi ko'rilgan vaqtni o'zgartirmaydi.
+ */
+export function markLessonVideoWatched(lessonId: number): Promise<unknown> {
+  return http.post<unknown>(`${BASE}/lessons/${lessonId}/video-watched`)
+}

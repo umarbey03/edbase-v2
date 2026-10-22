@@ -10,6 +10,7 @@ import {
 } from '@/entities/assignment'
 import SubmissionFeedbackFiles from '@/entities/assignment/ui/SubmissionFeedbackFiles.vue'
 import SubmitAssignmentDialog from '@/features/assignment-submit/ui/SubmitAssignmentDialog.vue'
+import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { StudentAssignmentDto } from '@/shared/types'
@@ -69,8 +70,8 @@ const submitting = ref<StudentAssignmentDto | null>(null)
 
 function handleSubmitted(): void {
   // Javob topshirilishi gating'ni ham o'zgartiradi (keyingi dars ochilishi
-  // mumkin) — shuning uchun butun ro'yxat qayta so'raladi.
-  void queryClient.invalidateQueries({ queryKey: ['assignments', 'mine'] })
+  // mumkin) — shuning uchun vazifalar, testlar va kurs daraxti yangilanadi.
+  invalidateGatedQueries(queryClient)
 }
 </script>
 

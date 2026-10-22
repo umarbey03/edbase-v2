@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { answerFormatsLabel, assignmentState, assignmentTitle, fetchMyAssignments } from '@/entities/assignment'
+import { markLessonVideoWatched } from '@/entities/progress'
 import {
   fetchAvailableTests,
   scoreLabel,
@@ -16,6 +17,7 @@ import {
 import SubmitAssignmentDialog from '@/features/assignment-submit/ui/SubmitAssignmentDialog.vue'
 import { LessonChatPanel } from '@/features/lesson-chat'
 import { LessonVideoPlayer } from '@/features/lesson-video-player'
+import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { CourseLessonDto, StudentAssignmentDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseModal } from '@/shared/ui'
@@ -137,7 +139,24 @@ function handleSubmitted(): void {
   submitting.value = null
   // Javob topshirilishi gating'ni ham o'zgartirishi mumkin (keyingi dars
   // ochilishi) — `StudentAssignmentsPage`dagi AYNI qoida.
-  void queryClient.invalidateQueries({ queryKey: ['assignments', 'mine'] })
+  invalidateGatedQueries(queryClient)
+}
+
+/**
+ * Video oxirigacha ko'rildi — serverga belgi qo'yiladi, keyin gating'ga
+ * bog'liq ro'yxatlar yangilanadi (keyingi dars shu zahoti ochiladi).
+ *
+ * Xato jim o'tkaziladi: o'quvchi videoni ko'rishda davom etadi, belgi
+ * esa keyingi ochilishda yana urinib ko'riladi (pleer qayta yaratiladi).
+ */
+async function handleVideoWatched(lessonId: number): Promise<void> {
+  if (props.lesson?.completed === true) return
+  try {
+    await markLessonVideoWatched(lessonId)
+  } catch {
+    return
+  }
+  invalidateGatedQueries(queryClient)
 }
 </script>
 
@@ -174,7 +193,10 @@ function handleSubmitted(): void {
 
       <!-- ------------------------------------------------------------- video -->
       <div class="mt-4">
-        <LessonVideoPlayer :assets="props.lesson.assets ?? []" />
+        <LessonVideoPlayer
+          :assets="props.lesson.assets ?? []"
+          @watched="handleVideoWatched"
+        />
       </div>
 
       <!-- ------------------------------------------- Vazifa/Test/Chat tablari -->
