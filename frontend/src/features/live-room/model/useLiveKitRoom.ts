@@ -943,6 +943,25 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     if (current === null || participant !== current.localParticipant) return
     if (!publication.isMuted) return
 
+    /*
+      ★ QURILMA UZILDI — BU USTOZ EMAS (2026-10-22).
+      Mikrofon treki brauzer tomonidan YAKUNLANSA (Bluetooth almashdi,
+      telefon qo'ng'irog'i yoki Siri keldi, boshqa ilova mikrofonni oldi,
+      quloqchin sug'urildi) livekit-client uni `restartTrack()` bilan
+      tiklashga urinadi, uddalay olmasa `track.mute()` qiladi — va AYNAN
+      shu `TrackMuted` hodisasi keladi. Ilgari bu ustozning o'chirishi deb
+      tushunilar edi: `wantMic=false` saqlanar, "Ustoz mikrofoningizni
+      o'chirdi" yozuvi chiqar va qayta ulanish mikrofonni tiklamas edi —
+      o'quvchi jim qolar va sababini bilmas edi.
+
+      Farqi: server o'chirganda trek TIRIK (`readyState === 'live'`) qoladi,
+      qurilma uzilganda esa `ended` bo'ladi.
+    */
+    if (publication.track?.mediaStreamTrack.readyState === 'ended') {
+      handleLocalDeviceLost(current, publication)
+      return
+    }
+
     // Niyat `pending` dan QAT'I NAZAR o'chadi: o'z o'chirishida ham to'g'ri,
     // yoqish kutilayotganda kelgan mute esa faqat ustozniki bo'lishi mumkin.
     if (publication.source === Track.Source.Camera) {
@@ -976,6 +995,62 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
       void current.localParticipant.setMicrophoneEnabled(false).catch(() => undefined)
       moderationNotice.value = 'Ustoz mikrofoningizni o‘chirdi. Gapirish uchun pastki paneldan qayta yoqing.'
     }
+  }
+
+  /**
+   * Brauzer yakunlagan trekni ko'rib chiqadi.
+   *
+   * ★ NIYAT SAQLANADI: `wantMic`/`wantCamera` o'zgarmaydi — o'quvchi o'zi
+   *   o'chirmagan. Shuning uchun qayta ulanish (`restoreMedia`) ham ularni
+   *   keyin tiklaydi.
+   * ★ MIKROFON DARHOL QAYTA OCHILADI (yangi `getUserMedia`, standart
+   *   qurilma): qo'ng'iroq tugagach yoki Bluetooth ulanib bo'lgach o'quvchi
+   *   hech narsa bosmasdan yana eshitiladi.
+   * ★ KAMERA QAYTA OCHILMAYDI: u qo'lda yaratiladi (`toggleCamera`) va
+   *   avtomatik qayta yoqish o'quvchini kutilmaganda efirga chiqarardi.
+   *   Faqat to'g'ri sabab aytiladi.
+   * ★ Telemetriya: bu hodisalar ilgari umuman ko'rinmasdi — "ovoz yo'qoldi"
+   *   shikoyatlarining sababini loglardan aniqlab bo'lmasdi.
+   */
+  function handleLocalDeviceLost(current: Room, publication: TrackPublication): void {
+    if (publication.source === Track.Source.Camera) {
+      report('camera-ended')
+      if (cameraPending.value) return
+      const track = localCameraTrack.value
+      localCameraTrack.value = null
+      if (track !== null) {
+        void current.localParticipant.unpublishTrack(track, true).catch(() => undefined)
+      }
+      isCameraOn.value = false
+      moderationNotice.value = 'Kamera uzilib qoldi. Kerak bo‘lsa pastki paneldan qayta yoqing.'
+      return
+    }
+
+    if (publication.source !== Track.Source.Microphone || micPending.value) return
+
+    report('mic-ended')
+    micPending.value = true
+
+    void (async () => {
+      await current.localParticipant.setMicrophoneEnabled(false)
+      await current.localParticipant.setMicrophoneEnabled(true)
+    })()
+      .then(() => {
+        if (room !== current) return
+        isMicOn.value = readMicOn(current.localParticipant)
+        report('mic-reopened')
+      })
+      .catch((error: unknown) => {
+        if (room !== current) return
+        isMicOn.value = false
+        report('mic-reopen-failed', { detail: error instanceof Error ? error.name : 'unknown' })
+        moderationNotice.value =
+          'Mikrofon uzilib qoldi (qurilma almashdi yoki qo‘ng‘iroq keldi). Gapirish uchun pastki paneldan qayta yoqing.'
+      })
+      .finally(() => {
+        if (room === current) micPending.value = false
+        scheduleRebuild()
+      })
   }
 
   function dismissModerationNotice(): void {
@@ -1367,7 +1442,11 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
    * o'quvchi esa "ovoz yo'q" deb o'ylardi. Endi banner chiqadi.
    */
   function onAudioPlaybackChanged(): void {
-    audioBlocked.value = room !== null && !room.canPlaybackAudio
+    const blocked = room !== null && !room.canPlaybackAudio
+    // Telemetriya: "ustozni eshitmayapman" shikoyatida avtomatik chalish
+    // bloki sababmi yoki yo'qmi — loglardan aniqlash uchun.
+    if (blocked !== audioBlocked.value) report(blocked ? 'audio-blocked' : 'audio-unblocked')
+    audioBlocked.value = blocked
   }
 
   function bindEvents(target: Room): void {
