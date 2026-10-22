@@ -51,7 +51,7 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
     /// ko'rinmaydi, video shunchaki ishlamaydi.
     /// </summary>
     [Fact]
-    public async Task CreateToken_ForHost_ReturnsLiveKitJoinPayload()
+    public async Task CreateToken_ForAdminObserver_ReturnsSubscribeOnlyPayload()
     {
         var tokens = await factory.LoginAsAdminAsync();
         using var client = factory.CreateAuthorizedClient(tokens.AccessToken);
@@ -69,7 +69,8 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
         join!.Token.Should().NotBeNullOrWhiteSpace();
         join.RoomName.Should().NotBeNullOrWhiteSpace();
         join.ServerUrl.Should().StartWith("ws", "brauzer WebSocket manzilini kutadi");
-        join.IsHost.Should().BeTrue("admin har doim host hisoblanadi");
+        join.IsHost.Should().BeFalse(
+            "2026-10-22 dan admin — KUZATUVCHI: darsni faqat uni olib boradigan bitta xodim boshqaradi");
 
         // JWT uch qismdan iborat va `video` grant'i BOR
         var parts = join.Token.Split('.');
@@ -79,6 +80,7 @@ public sealed class LiveSessionEndpointsTests(ZinnurApiFactory factory)
         payload.Should().Contain("\"video\"");
         payload.Should().Contain("\"roomJoin\":true");
         payload.Should().Contain("\"room\":");
+        payload.Should().Contain("\"canPublish\":false", "kuzatuvchi efirga chiqmaydi");
     }
 
     [Fact]

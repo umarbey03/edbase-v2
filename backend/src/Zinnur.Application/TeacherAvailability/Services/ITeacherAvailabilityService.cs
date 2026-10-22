@@ -80,4 +80,13 @@ public interface ITeacherAvailabilityService
     /// taklif yuborilgani va kim qanday javob bergani.
     /// </summary>
     Task<TeacherAvailabilityDetailDto> GetDetailAsync(long checkinId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O'quv bo'limi o'rinbosarni TASDIQLAYDI — darsning ustozi shu onda almashadi.
+    /// 404 — so'rov topilmadi; 409 — qaror allaqachon qilingan yoki dars boshlangan.
+    /// </summary>
+    Task ApproveCoverageAsync(long requestId, long approverId, CancellationToken ct = default);
+
+    /// <summary>O'quv bo'limi o'rinbosarni RAD ETADI — dars asl ustozda qoladi.</summary>
+    Task RejectCoverageAsync(long requestId, long approverId, CancellationToken ct = default);
 }

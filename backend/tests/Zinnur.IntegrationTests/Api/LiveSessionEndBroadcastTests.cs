@@ -216,4 +216,13 @@ public sealed class LiveSessionNotifierSpy : ILiveSessionNotifier
 
         StatusWhenNotified[sessionId] = status;
     }
+
+    /// <summary>Boshlangani xabar qilingan darslar.</summary>
+    public ConcurrentBag<long> Started { get; } = [];
+
+    public Task SessionStartedAsync(long sessionId, CancellationToken ct = default)
+    {
+        Started.Add(sessionId);
+        return Task.CompletedTask;
+    }
 }

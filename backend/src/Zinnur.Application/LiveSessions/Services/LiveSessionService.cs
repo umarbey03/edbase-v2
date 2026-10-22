@@ -212,7 +212,7 @@ public sealed class LiveSessionService(
             LocalWallClock.LocalDate(row.ScheduledStart, zone),
             row.ScheduledStart,
             row.ScheduledEnd,
-            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            IsHost(user, row.HostId, row.Type, row.TeacherId, row.AssistantId),
             row.MyAttendance?.ToString(),
             EffectiveHostId(row) is { } hostId && hostNames.TryGetValue(hostId, out var hostName)
                 ? hostName
@@ -338,7 +338,7 @@ public sealed class LiveSessionService(
             LiveSession.ActualMinutesOf(row.ActualStart, row.ActualEnd),
             row.StudentCount,
             row.AttendedCount,
-            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            IsHost(user, row.HostId, row.Type, row.TeacherId, row.AssistantId),
             row.ReviewVerdict is not null,
             row.ReviewVerdict?.ToString()));
 
@@ -355,7 +355,7 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
 
-        if (!IsHost(session, user))
+        if (!CanManage(session, user))
             throw new ForbiddenException("Faqat dars hosti darsni boshlay oladi.");
 
         session.Start(clock.GetUtcNow());       // biznes qoidalari Domain'da
@@ -467,6 +467,13 @@ public sealed class LiveSessionService(
                 "Bu dars boshqa so'rov bilan bir vaqtda boshlandi. Sahifani yangilang.");
         }
 
+        await RegisterWaitingStudentsAsync(session, ct);
+
+        // COMMIT-THEN-SEND (`EndAsync` dagi AYNI qoida): xonada kutayotgan
+        // o'quvchilar video ulanishini O'ZI boshlaydi — sahifani yangilashi
+        // yoki "Qayta urinish" ni bosishi shart emas.
+        await notifier.SessionStartedAsync(session.Id, ct);
+
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
 
@@ -488,7 +495,7 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
 
-        if (!IsHost(session, user))
+        if (!CanManage(session, user))
             throw new ForbiddenException("Faqat dars hosti darsni yakunlay oladi.");
 
         var now = clock.GetUtcNow();
@@ -536,6 +543,18 @@ public sealed class LiveSessionService(
         // shuning uchun bu yerda try/catch YO'Q: xato ikki joyda yutilsa
         // sababini topib bo'lmay qolardi.
         await notifier.SessionEndedAsync(sessionId, ct);
+
+        // Presence ro'yxati darhol tozalanadi — aks holda u 8 soatlik TTL
+        // tugaguncha "xonada N kishi" deb ko'rinib turardi. Xato darsni
+        // yakunlashni buzmaydi: TTL baribir tozalaydi.
+        try
+        {
+            await presence.ClearAsync(sessionId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LiveSessionLog.PresenceClearFailed(logger, ex, sessionId);
+        }
 
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
@@ -608,9 +627,15 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
         var host = IsHost(session, user);
+        var observer = IsObserver(session, user);
+
+        // Kuzatuvchi rejalashtirilgan xonani ham kuzata oladi (efirga
+        // chiqmaydi), lekin yakunlangan darsni qayta ochmaydi.
+        if (observer && session.Status is SessionStatus.Ended or SessionStatus.Cancelled)
+            throw new ConflictException("Dars yakunlangan.");
 
         // O'quvchi faqat dars BOSHLANGANDAN keyin kira oladi
-        if (!host)
+        if (!host && !observer)
         {
             if (session.Status == SessionStatus.Scheduled)
                 throw new ConflictException("Dars hali boshlanmagan — ustoz boshlaganda kira olasiz.");
@@ -636,7 +661,8 @@ public sealed class LiveSessionService(
             RoomName: session.RoomName,
             Identity: user.Id.ToString(CultureInfo.InvariantCulture),
             DisplayName: user.FullName,
-            CanPublish: true,
+            // Kuzatuvchi efirga chiqmaydi — faqat ko'radi va eshitadi.
+            CanPublish: !observer,
             IsHost: host,
             Ttl: JoinTokenTtl(session, clock.GetUtcNow())));
 
@@ -943,20 +969,93 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
 
-        if (IsHost(session, user)) return;      // host uchun davomat yozilmaydi
+        // Davomat faqat o'quvchiga: host ham, kuzatuvchi xodim ham yozilmaydi.
+        if (user.Role != UserRole.Student || IsHost(session, user) || IsObserver(session, user)) return;
 
+        // ════════════════════════════════════════════════════════════════
+        // 🔴 DAVOMAT FAQAT JONLI DARSDA (2026-10-22)
+        //
+        // Hub'ga ulanish ilgari dars holatidan qat'i nazar davomat yozardi:
+        // darsni o'tkazib yuborgan o'quvchi dars TUGAGANDAN keyin hub'ga
+        // ulanib, yakuniy "Absent" ini "Present" ga aylantira olardi
+        // (`Finalize` qayta ishlamaydi). Rejalashtirilgan darsga erta kirish
+        // esa soatni dars boshlanmasdan yurgizardi.
+        //
+        // ★ Hub'ga ulanish O'ZI to'silmaydi: erta kirgan o'quvchi xonada
+        //   kutadi va `SessionStarted` ni oladi. U kutayotgan paytda dars
+        //   boshlansa, davomati `StartAsync` da yoziladi.
+        // ════════════════════════════════════════════════════════════════
+        if (session.Status != SessionStatus.Live) return;
+
+        // To'lov bloki LiveKit tokeni yo'lida bor edi, hub yo'lida yo'q edi:
+        // video ko'ra olmaydigan qarzdor o'quvchi "Present" bo'lib qolardi.
+        var block = await paymentBlock.EvaluateAsync(userId, PaymentBlockScope.Live, ct);
+        if (block.Blocked) return;
+
+        await RegisterJoinCoreAsync(sessionId, userId, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Davomat qatorini topadi (yoki yaratadi) va kirishni yozadi. Saqlamaydi.</summary>
+    private async Task RegisterJoinCoreAsync(long sessionId, long studentId, CancellationToken ct)
+    {
         var att = await db.Attendances
             .AsTracking()
-            .FirstOrDefaultAsync(a => a.SessionId == sessionId && a.StudentId == userId, ct);
+            .FirstOrDefaultAsync(a => a.SessionId == sessionId && a.StudentId == studentId, ct);
 
         if (att is null)
         {
-            att = new Attendance { SessionId = sessionId, StudentId = userId };
+            att = new Attendance { SessionId = sessionId, StudentId = studentId };
             db.Attendances.Add(att);
         }
 
         att.RegisterJoin(clock.GetUtcNow());
-        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Dars boshlanganda xonada KUTIB TURGAN o'quvchilarning davomatini ochadi.
+    ///
+    /// ★ NEGA KERAK: davomat endi faqat jonli darsda yoziladi
+    /// (<see cref="RegisterJoinAsync"/>), o'quvchi esa xonaga 15 daqiqa
+    /// oldin kira oladi. Bu chaqiruvsiz erta kelgan o'quvchi — eng
+    /// intizomlisi — "Absent" bo'lib qolardi.
+    ///
+    /// Xato darsni boshlashni TO'XTATMAYDI: dars allaqachon jonli; xato
+    /// faqat logga yoziladi va o'quvchi qayta ulanganda davomat baribir ochiladi.
+    /// </summary>
+    private async Task RegisterWaitingStudentsAsync(LiveSession session, CancellationToken ct)
+    {
+        try
+        {
+            var present = await presence.ListAsync(session.Id, ct);
+            var studentIds = present
+                .Where(e => string.Equals(e.Role, nameof(UserRole.Student), StringComparison.Ordinal))
+                .Select(e => e.UserId)
+                .ToHashSet();
+
+            if (studentIds.Count == 0) return;
+
+            // Hali ham a'zo va faol bo'lganlargina — presence yozuvi eskirgan bo'lishi mumkin.
+            var members = await db.GroupMembers.AsNoTracking()
+                .Where(GroupMembershipScope.ActiveIn(session.GroupId))
+                .Where(m => studentIds.Contains(m.StudentId))
+                .Select(m => m.StudentId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var studentId in members)
+            {
+                var block = await paymentBlock.EvaluateAsync(studentId, PaymentBlockScope.Live, ct);
+                if (!block.Blocked)
+                    await RegisterJoinCoreAsync(session.Id, studentId, ct);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LiveSessionLog.WaitingAttendanceFailed(logger, ex, session.Id);
+        }
     }
 
     public async Task RegisterLeaveAsync(long sessionId, long userId, CancellationToken ct = default)
@@ -1008,7 +1107,7 @@ public sealed class LiveSessionService(
 
         var user = await LoadUserAsync(userId, ct);
 
-        if (IsHost(session, user)) return (session, user);
+        if (IsHost(session, user) || IsObserver(session, user)) return (session, user);
 
         // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi):
         //   ilgari bu yerda faqat `m.GroupId == session.GroupId` edi,
@@ -1031,7 +1130,30 @@ public sealed class LiveSessionService(
     }
 
     private static bool IsHost(LiveSession session, User user) =>
-        IsHost(user, session.HostId, session.Group?.TeacherId, session.Group?.AssistantId);
+        IsHost(user, session.HostId, session.Type, session.Group?.TeacherId, session.Group?.AssistantId);
+
+    /// <summary>
+    /// Darsga KUZATUVCHI bo'lib kira oladigan xodim (2026-10-22, loyiha egasi
+    /// qarori): o'quv bo'limi va administrator, guruhning ikkinchi xodimi
+    /// (ustoz darsida kurator, kurator darsida ustoz) va o'rinbosar tayinlangan
+    /// darsning asl ustozi. Kuzatuvchi ko'radi va eshitadi, lekin efirga
+    /// chiqmaydi va darsni boshqarmaydi (yakunlash, mikrofon o'chirish).
+    /// </summary>
+    private static bool IsObserver(LiveSession session, User user) =>
+        !IsHost(session, user)
+        && (user.Role is UserRole.Admin or UserRole.Academic
+            || session.Group?.TeacherId == user.Id
+            || session.Group?.AssistantId == user.Id
+            || session.OriginalHostId == user.Id);
+
+    /// <summary>
+    /// Darsni boshlash/yakunlash REST orqali: dars ustozi yoki o'quv
+    /// bo'limi/administrator (boshqaruv panelidan va avto-yakunlash fon
+    /// vazifasi — u tizim administratori nomidan ishlaydi). Xona ICHIDAGI
+    /// boshqaruv tugmalari esa faqat ustozda (`LiveSessionDto.IsHost`).
+    /// </summary>
+    private static bool CanManage(LiveSession session, User user) =>
+        IsHost(session, user) || user.Role is UserRole.Admin or UserRole.Academic;
 
     /// <summary>
     /// "Host" qoidasi — entity YUKLANMAGAN holat uchun ham.
@@ -1041,11 +1163,16 @@ public sealed class LiveSessionService(
     /// navigatsiyaga emas, ID'larga tayanadi. Ikki nusxa bo'lmasin deb
     /// entity'li variant ham shu metodni chaqiradi.
     /// </summary>
-    private static bool IsHost(User user, long? hostId, long? teacherId, long? assistantId) =>
-        user.Role is UserRole.Admin or UserRole.Academic
-        || hostId == user.Id
-        || teacherId == user.Id
-        || assistantId == user.Id;
+    /// <remarks>
+    /// ★ 2026-10-22 (loyiha egasi qarori): host — FAQAT darsni olib
+    /// boradigan BITTA xodim (<see cref="HostUserId"/> bilan bir xil qoida).
+    /// Ilgari guruhning ikkala xodimi va har qanday Admin/Academic host edi:
+    /// kurator ustoz darsini yakunlay olar, o'quv bo'limi esa efirga to'liq
+    /// huquq bilan chiqardi. O'rinbosar tayinlangach asl ustoz ham host
+    /// bo'lib qolardi. Endi qolganlar — kuzatuvchi (<see cref="IsObserver"/>).
+    /// </remarks>
+    private static bool IsHost(User user, long? hostId, SessionType type, long? teacherId, long? assistantId) =>
+        (hostId ?? (type == SessionType.Assistant ? assistantId : teacherId)) == user.Id;
 
     /// <summary>
     /// Rol bo'yicha ko'rinish filtri — <see cref="ListForUserAsync"/> va
@@ -1316,4 +1443,18 @@ internal static partial class LiveSessionLog
         Level = LogLevel.Warning,
         Message = "Xonadagilar sonini olib bo'lmadi (presence): dars={SessionId}")]
     internal static partial void PresenceUnavailable(ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>Dars boshlandi, lekin xonada kutganlarning davomati ochilmadi.</summary>
+    [LoggerMessage(
+        EventId = 6590,
+        Level = LogLevel.Warning,
+        Message = "Kutayotgan o'quvchilar davomatini ochib bo'lmadi: dars={SessionId}")]
+    internal static partial void WaitingAttendanceFailed(ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>Dars yakunlandi, presence ro'yxati tozalanmadi (TTL baribir tozalaydi).</summary>
+    [LoggerMessage(
+        EventId = 6591,
+        Level = LogLevel.Warning,
+        Message = "Dars yakunida presence tozalanmadi: dars={SessionId}")]
+    internal static partial void PresenceClearFailed(ILogger logger, Exception exception, long sessionId);
 }

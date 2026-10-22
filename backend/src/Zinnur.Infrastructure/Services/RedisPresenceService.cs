@@ -39,6 +39,37 @@ public sealed class RedisPresenceService : IPresenceService
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// KEYS[1] = ishtirokchilar, KEYS[2] = ulanishlar;
+    /// ARGV = connectionId, userId, yozuv JSON, TTL (s).
+    ///
+    /// ★ <c>HSETNX</c>: foydalanuvchi allaqachon ro'yxatda bo'lsa (ikkinchi
+    /// ulanish) yozuvi QAYTA YOZILMAYDI — aks holda qayta ulanish uning
+    /// ko'tarilgan qo'lini va kirgan vaqtini jimgina o'chirardi.
+    /// </summary>
+    private const string AddScript = """
+        redis.call('HSET', KEYS[2], ARGV[1], ARGV[2])
+        local added = redis.call('HSETNX', KEYS[1], ARGV[2], ARGV[3])
+        redis.call('EXPIRE', KEYS[1], ARGV[4])
+        redis.call('EXPIRE', KEYS[2], ARGV[4])
+        return added
+        """;
+
+    /// <summary>
+    /// KEYS[1] = ishtirokchilar, KEYS[2] = ulanishlar; ARGV = connectionId, userId.
+    /// Foydalanuvchining boshqa ulanishi qolmagan bo'lsagina uni chiqaradi.
+    /// <c>HVALS</c> — xonadagi ulanishlar soni (≤ ~400) bo'yicha, Redis ichida.
+    /// </summary>
+    private const string RemoveScript = """
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        local values = redis.call('HVALS', KEYS[2])
+        for i = 1, #values do
+            if values[i] == ARGV[2] then return 0 end
+        end
+        redis.call('HDEL', KEYS[1], ARGV[2])
+        return 1
+        """;
+
     private readonly IDatabase _db;
 
     public RedisPresenceService(IConnectionMultiplexer redis)
@@ -48,30 +79,37 @@ public sealed class RedisPresenceService : IPresenceService
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(long sessionId, PresenceEntry entry, CancellationToken ct = default)
+    public async Task<bool> AddAsync(
+        long sessionId, PresenceEntry entry, string connectionId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        ArgumentException.ThrowIfNullOrEmpty(connectionId);
         ct.ThrowIfCancellationRequested();
 
-        var key = Key(sessionId);
+        // Bitta skript = bitta tarmoq aylanishi va atomik natija.
+        var added = await _db.ScriptEvaluateAsync(
+                AddScript,
+                [Key(sessionId), ConnectionsKey(sessionId)],
+                [connectionId, Field(entry.UserId), Serialize(entry), (long)SessionTtl.TotalSeconds])
+            .ConfigureAwait(false);
 
-        // BATCH: HSET va EXPIRE bitta paketda ketadi — ikki marta tarmoq
-        // aylanishi (RTT) o'rniga bitta. 200 kishi bir daqiqada kirganda
-        // bu 400 emas, 200 ta aylanish demakdir.
-        var batch = _db.CreateBatch();
-        var set = batch.HashSetAsync(key, Field(entry.UserId), Serialize(entry));
-        var expire = batch.KeyExpireAsync(key, SessionTtl);
-        batch.Execute();
-
-        await Task.WhenAll(set, expire).ConfigureAwait(false);
+        return (long)added == 1;
     }
 
     /// <inheritdoc />
-    public async Task RemoveAsync(long sessionId, long userId, CancellationToken ct = default)
+    public async Task<bool> RemoveAsync(
+        long sessionId, long userId, string connectionId, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrEmpty(connectionId);
         ct.ThrowIfCancellationRequested();
 
-        await _db.HashDeleteAsync(Key(sessionId), Field(userId)).ConfigureAwait(false);
+        var gone = await _db.ScriptEvaluateAsync(
+                RemoveScript,
+                [Key(sessionId), ConnectionsKey(sessionId)],
+                [connectionId, Field(userId)])
+            .ConfigureAwait(false);
+
+        return (long)gone == 1;
     }
 
     /// <inheritdoc />
@@ -138,11 +176,19 @@ public sealed class RedisPresenceService : IPresenceService
     {
         ct.ThrowIfCancellationRequested();
 
-        await _db.KeyDeleteAsync(Key(sessionId)).ConfigureAwait(false);
+        await _db.KeyDeleteAsync([Key(sessionId), ConnectionsKey(sessionId)]).ConfigureAwait(false);
     }
 
     private static RedisKey Key(long sessionId) =>
         string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}{sessionId}");
+
+    /// <summary>
+    /// Ulanishlar xaritasi: maydon = SignalR <c>connectionId</c>, qiymat = userId.
+    /// Ishtirokchilar hash'i (<see cref="Key"/>) o'zgarmaydi — <c>HLEN</c>
+    /// hamon ODAMLAR sonini beradi, ulanishlar sonini emas.
+    /// </summary>
+    private static RedisKey ConnectionsKey(long sessionId) =>
+        string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}{sessionId}:conn");
 
     private static RedisValue Field(long userId) =>
         userId.ToString(CultureInfo.InvariantCulture);

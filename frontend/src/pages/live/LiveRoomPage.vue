@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { fetchRecentMessages } from '@/entities/message'
@@ -95,6 +95,10 @@ const sessionQuery = useQuery({
   queryFn: ({ signal }) => fetchLiveSession(sessionId, { signal }),
   enabled: isValidSession,
   staleTime: 15_000,
+  // Dars hali boshlanmagan bo'lsa holat vaqti-vaqti bilan qayta so'raladi —
+  // `SessionStarted` hub xabari yetib kelmasa ham (hub qayta ulanayotgan
+  // payt) kutayotgan o'quvchi darsga o'zi ulanadi.
+  refetchInterval: (query) => (query.state.data?.status === 'Scheduled' ? 20_000 : false),
 })
 
 /* --------------------------------- video ---------------------------------- */
@@ -140,6 +144,10 @@ const hub = useLiveHub({
   onSessionEnded: () => {
     // Dars yakunlandi — videodan ham darhol uzilamiz.
     void leaveMedia()
+  },
+  // Holat yangilanadi; videoga ulanishni pastdagi `watch` qiladi (bitta joyda).
+  onSessionStarted: () => {
+    void sessionQuery.refetch()
   },
 })
 const {
@@ -223,6 +231,28 @@ const headerTitle = computed(() => {
 })
 const groupName = computed(() => session.value?.groupName ?? '')
 const isLive = computed(() => session.value?.status === 'Live')
+
+/*
+  ★ ERTA KIRGAN O'QUVCHI USTOZNI KUTADI (2026-10-22).
+  "Kirish" tugmasi darsdan 15 daqiqa oldin ochiladi, server esa o'quvchiga
+  video tokenini faqat dars JONLI bo'lganda beradi (409). Ilgari 409 yakuniy
+  xato hisoblanar va o'quvchi qizil xato bilan qolib ketardi — dars
+  boshlangach ham "Qayta urinish" ni o'zi bosmaguncha videosiz edi.
+  Endi u kutish holatini ko'radi va dars boshlanishi bilan avtomatik ulanadi.
+*/
+const waitingForStart = computed(
+  () => session.value?.status === 'Scheduled' && session.value.isHost !== true && !isHost.value,
+)
+
+watch(
+  () => session.value?.status,
+  (status, previous) => {
+    if (status !== 'Live' || previous !== 'Scheduled') return
+    if (mediaStatus.value === 'failed' || mediaStatus.value === 'idle' || mediaStatus.value === 'disconnected') {
+      void connectMedia()
+    }
+  },
+)
 const canManageSession = computed(() => session.value?.isHost === true || isHost.value)
 
 /*
@@ -334,6 +364,9 @@ const isEndingSoon = computed(() => {
 type BannerTone = 'info' | 'warn' | 'error'
 const banner = computed<{ tone: BannerTone; text: string } | null>(() => {
   if (sessionEnded.value) return null
+  if (waitingForStart.value && mediaStatus.value !== 'connected') {
+    return { tone: 'info', text: 'Ustoz darsni hali boshlamadi — dars boshlanishi bilan avtomatik ulanasiz.' }
+  }
   if (mediaStatus.value === 'reconnecting' || chatStatus.value === 'reconnecting') {
     return { tone: 'warn', text: 'Aloqa uzildi — qayta ulanmoqda…' }
   }

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Common.Models;
@@ -58,4 +60,36 @@ public sealed class TeacherAvailabilityController(ITeacherAvailabilityService av
     public async Task<ActionResult<TeacherAvailabilityDetailDto>> Detail(
         long checkinId, CancellationToken ct) =>
         Ok(await availability.GetDetailAsync(checkinId, ct));
+
+    /// <summary>
+    /// O'rinbosarni TASDIQLASH — darsning ustozi shu onda almashadi
+    /// (loyiha egasi qarori, 2026-10-22: host faqat o'quv bo'limi
+    /// tasdig'idan keyin almashadi). Telegram'dagi "Tasdiqlash" tugmasi
+    /// bilan AYNI yo'l.
+    /// </summary>
+    [HttpPost("coverage/{requestId:long}/approve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ApproveCoverage(long requestId, CancellationToken ct)
+    {
+        await availability.ApproveCoverageAsync(requestId, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    /// <summary>O'rinbosarni RAD ETISH — dars asl ustozda qoladi.</summary>
+    [HttpPost("coverage/{requestId:long}/reject")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RejectCoverage(long requestId, CancellationToken ct)
+    {
+        await availability.RejectCoverageAsync(requestId, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    private long CurrentUserId =>
+        long.Parse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier)!,
+            CultureInfo.InvariantCulture);
 }

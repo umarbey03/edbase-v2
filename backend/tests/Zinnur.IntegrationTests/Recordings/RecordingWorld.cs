@@ -139,7 +139,8 @@ public class RecordingFactory : ZinnurApiFactory
                 DisplayName: "Test",
                 Role: "Teacher",
                 HandRaised: false,
-                JoinedAt: DateTimeOffset.UtcNow));
+                JoinedAt: DateTimeOffset.UtcNow),
+            connectionId: $"test-{userId}");
     }
 
     /// <summary>

@@ -91,6 +91,7 @@ public sealed record CoverageStatusDto(
 /// <param name="AffectedSessions">"Yo'q" javoblari ta'sir qilgan darslar soni.</param>
 /// <param name="CoverageResolved">Shulardan o'rinbosar TOPILGANI.</param>
 /// <param name="CoverageOpen">Shulardan hali OCHIQ (o'rinbosar kutilmoqda).</param>
+/// <param name="CoverageAwaitingApproval">Nomzod rozi, o'quv bo'limi tasdig'i kutilmoqda.</param>
 public sealed record TeacherAvailabilitySummaryDto(
     int Total,
     int Confirmed,
@@ -99,7 +100,8 @@ public sealed record TeacherAvailabilitySummaryDto(
     int InProgress,
     int AffectedSessions,
     int CoverageResolved,
-    int CoverageOpen);
+    int CoverageOpen,
+    int CoverageAwaitingApproval);
 
 /// <summary>
 /// Bitta yozuvning TO'LIQ tafsiloti (modal uchun) — jumladan KIMGA taklif
@@ -124,6 +126,7 @@ public sealed record TeacherAvailabilityDetailDto(
 /// <summary>Bitta dars uchun o'rinbosar qidiruvining to'liq tarixi.</summary>
 public sealed record CoverageDetailDto(
     long SessionId,
+    long? RequestId,
     string GroupName,
     DateTimeOffset ScheduledStart,
     string? Status,

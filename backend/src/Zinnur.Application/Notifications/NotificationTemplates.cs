@@ -82,6 +82,15 @@ public static class NotificationTemplates
     /// <param name="substituteName">O'rinbosar ustoz F.I.Sh.</param>
     /// <param name="originalTeacherName">Asl ustoz F.I.Sh.</param>
     /// <param name="groupName">Guruh nomi.</param>
+    /// <summary>O'rinbosar topildi, lekin o'quv bo'limi tasdig'i kerak (2026-10-22).</summary>
+    public static string SubstituteApprovalTitle() => "O'rinbosar tasdiqlashni kutmoqda";
+
+    public static string SubstituteApprovalBody(
+        string substituteName, string originalTeacherName, string groupName) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{substituteName} {originalTeacherName} o'rniga \"{groupName}\" darsini o'tib berishga rozi. Ustozlar bandligi bo'limida tasdiqlang yoki rad eting.");
+
     public static string SubstituteFoundBody(
         string substituteName, string originalTeacherName, string groupName) =>
         string.Create(

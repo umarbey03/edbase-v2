@@ -21,6 +21,8 @@ export const HubEvent = {
   PresenceChanged: 'PresenceChanged',
   HandRaised: 'HandRaised',
   SessionEnded: 'SessionEnded',
+  /** Dars boshlandi — xonada kutayotgan o'quvchi video ulanishini boshlaydi. */
+  SessionStarted: 'SessionStarted',
 } as const
 export type HubEventName = (typeof HubEvent)[keyof typeof HubEvent]
 

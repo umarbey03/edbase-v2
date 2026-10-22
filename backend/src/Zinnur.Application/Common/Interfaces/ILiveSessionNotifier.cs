@@ -31,4 +31,13 @@ public interface ILiveSessionNotifier
     /// Chaqiriladigan joy: ma'lumot bazaga YOZILGANDAN KEYIN (commit-then-send).
     /// </summary>
     Task SessionEndedAsync(long sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Dars boshlanganini bildiradi (klient `SessionStarted` ni tinglaydi).
+    /// Xonaga erta kirib kutayotgan o'quvchi shu xabar bilan video ulanishini
+    /// o'zi boshlaydi — ilgari u "dars hali boshlanmagan" xatosida qotib qolardi.
+    ///
+    /// Chaqiriladigan joy: ma'lumot bazaga YOZILGANDAN KEYIN (commit-then-send).
+    /// </summary>
+    Task SessionStartedAsync(long sessionId, CancellationToken ct = default);
 }

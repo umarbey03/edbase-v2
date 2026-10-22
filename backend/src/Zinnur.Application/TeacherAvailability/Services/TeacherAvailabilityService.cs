@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
@@ -20,6 +21,7 @@ public sealed class TeacherAvailabilityService(
     IApplicationDbContext db,
     INotificationOutbox outbox,
     IScheduleTimeZoneProvider timeZoneProvider,
+    ILogger<TeacherAvailabilityService> logger,
     TimeProvider clock) : ITeacherAvailabilityService
 {
     // ================================================================ so'rov
@@ -148,6 +150,7 @@ public sealed class TeacherAvailabilityService(
         {
             "av" => await HandleAvailabilityCallbackAsync(sender, parts, ct).ConfigureAwait(false),
             "of" => await HandleOfferCallbackAsync(sender, parts, ct).ConfigureAwait(false),
+            "cv" => await HandleApprovalCallbackAsync(sender, parts, ct).ConfigureAwait(false),
             _ => null,
         };
     }
@@ -256,9 +259,32 @@ public sealed class TeacherAvailabilityService(
 
         if (offer.Status != SubstituteOfferStatus.Sent) return "Allaqachon javob berilgan.";
 
+        // ════════════════════════════════════════════════════════════════
+        // 🔴 IKKI NOMZOD BIR VAQTDA "HA" DESA (2026-10-22)
+        //
+        // Ilgari tekshiruv (`Status == Open`) va saqlash orasida qulf yo'q
+        // edi: ikkalasiga ham "darsni oldingiz" deyilar, `HostId` ni esa
+        // oxirgi yozgan yutardi. Endi so'rov SHARTLI `UPDATE` bilan
+        // egallanadi — baza bitta yutuvchini kafolatlaydi.
+        // ════════════════════════════════════════════════════════════════
+        var claimed = await db.SessionCoverageRequests
+            .Where(r => r.Id == request.Id && r.Status == CoverageRequestStatus.Open)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(r => r.Status, CoverageRequestStatus.AwaitingApproval)
+                    .SetProperty(r => r.UpdatedAt, now),
+                ct)
+            .ConfigureAwait(false);
+
+        if (claimed == 0)
+            return "Kechirasiz, bu darsga allaqachon boshqa ustoz topilgan.";
+
         offer.Accept(now);
-        request.Resolve(sender.Id, now);
-        request.Session!.AssignSubstitute(sender.Id, now);
+
+        // ★ USTOZ HALI ALMASHMAYDI — O'QUV BO'LIMI TASDIQLAYDI (loyiha egasi
+        //   qarori, 2026-10-22). Kuzatilayotgan obyekt ham bazadagi holatga
+        //   keltiriladi, aks holda `SaveChanges` uni `Open` ga qaytarib yozardi.
+        request.AwaitApproval(now);
 
         foreach (var other in request.Offers.Where(o => o.Id != offer.Id && o.Status == SubstituteOfferStatus.Sent))
         {
@@ -284,11 +310,140 @@ public sealed class TeacherAvailabilityService(
                 .FirstOrDefaultAsync(u => u.Id == request.OriginalHostId, ct)
                 .ConfigureAwait(false);
 
-        await NotifyAcademicSubstituteFoundAsync(
-            sender, originalTeacher?.FullName ?? "", request.Session!.Group?.Name ?? "", ct)
+        await NotifyAcademicApprovalNeededAsync(
+            request, sender, originalTeacher?.FullName ?? "", ct).ConfigureAwait(false);
+
+        return "✅ Rahmat! O'quv bo'limi tasdiqlagach dars sizga o'tadi.";
+    }
+
+    // ================================================================ o'quv bo'limi tasdig'i
+
+    /// <summary>`cv:ok:{requestId}` / `cv:no:{requestId}` — o'quv bo'limi Telegram'dan qaror qiladi.</summary>
+    private async Task<string?> HandleApprovalCallbackAsync(User sender, string[] parts, CancellationToken ct)
+    {
+        if (!long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var requestId))
+            return null;
+
+        if (!sender.IsActive || sender.Role is not (UserRole.Academic or UserRole.Admin))
+            return "Bu tugma faqat o'quv bo'limi uchun.";
+
+        CoverageDecision? outcome = parts[1] switch
+        {
+            "ok" => await DecideCoverageAsync(requestId, approve: true, sender.Id, ct).ConfigureAwait(false),
+            "no" => await DecideCoverageAsync(requestId, approve: false, sender.Id, ct).ConfigureAwait(false),
+            _ => null,
+        };
+
+        return outcome switch
+        {
+            null => null,
+            CoverageDecision.Approved => "✅ Tasdiqlandi — dars o'rinbosarga o'tdi.",
+            CoverageDecision.Rejected => "Rad etildi — dars asl ustozda qoladi.",
+            CoverageDecision.AlreadyDecided => "Bu so'rov bo'yicha allaqachon qaror qabul qilingan.",
+            CoverageDecision.SessionNotScheduled => "Dars allaqachon boshlangan yoki yakunlangan — ustozni almashtirib bo'lmaydi.",
+            _ => "So'rov topilmadi.",
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task ApproveCoverageAsync(long requestId, long approverId, CancellationToken ct = default) =>
+        ThrowOnFailure(await DecideCoverageAsync(requestId, approve: true, approverId, ct).ConfigureAwait(false), requestId);
+
+    /// <inheritdoc />
+    public async Task RejectCoverageAsync(long requestId, long approverId, CancellationToken ct = default) =>
+        ThrowOnFailure(await DecideCoverageAsync(requestId, approve: false, approverId, ct).ConfigureAwait(false), requestId);
+
+    private static void ThrowOnFailure(CoverageDecision decision, long requestId)
+    {
+        switch (decision)
+        {
+            case CoverageDecision.NotFound:
+                throw new NotFoundException(nameof(SessionCoverageRequest), requestId);
+            case CoverageDecision.AlreadyDecided:
+                throw new ConflictException("Bu so'rov bo'yicha allaqachon qaror qabul qilingan.");
+            case CoverageDecision.SessionNotScheduled:
+                throw new ConflictException("Dars allaqachon boshlangan yoki yakunlangan — ustozni almashtirib bo'lmaydi.");
+        }
+    }
+
+    private enum CoverageDecision
+    {
+        Approved,
+        Rejected,
+        NotFound,
+        AlreadyDecided,
+        SessionNotScheduled,
+    }
+
+    /// <summary>
+    /// O'quv bo'limi qarori — Telegram tugmasi ham, web panel ham SHU yo'ldan o'tadi.
+    ///
+    /// ★ Tasdiqda <c>HostId</c> almashadi (<see cref="LiveSession.AssignSubstitute"/>);
+    ///   rad etishda dars asl ustozda qoladi. Ikkalasida ham o'rinbosarga xabar ketadi.
+    /// </summary>
+    private async Task<CoverageDecision> DecideCoverageAsync(
+        long requestId, bool approve, long approverId, CancellationToken ct)
+    {
+        var request = await db.SessionCoverageRequests
+            .Include(r => r.Session!).ThenInclude(s => s.Group)
+            .Include(r => r.Offers)
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == requestId, ct)
             .ConfigureAwait(false);
 
-        return "✅ Rahmat! Siz darsni oldingiz.";
+        if (request is null) return CoverageDecision.NotFound;
+        if (request.Status != CoverageRequestStatus.AwaitingApproval) return CoverageDecision.AlreadyDecided;
+
+        var offer = request.Offers.FirstOrDefault(o => o.Status == SubstituteOfferStatus.Accepted);
+        if (offer is null) return CoverageDecision.NotFound;
+
+        var now = clock.GetUtcNow();
+        var session = request.Session!;
+        var groupName = session.Group?.Name ?? "";
+
+        if (approve)
+        {
+            if (session.Status != SessionStatus.Scheduled) return CoverageDecision.SessionNotScheduled;
+
+            request.Resolve(offer.CandidateTeacherId, now);
+            session.AssignSubstitute(offer.CandidateTeacherId, now);
+        }
+        else
+        {
+            request.Reject(now);
+        }
+
+        var substitute = await db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == offer.CandidateTeacherId, ct)
+            .ConfigureAwait(false);
+
+        if (substitute is not null)
+        {
+            await SendPlainAsync(
+                substitute, TelegramTemplates.SubstituteApprovalDecision,
+                approve
+                    ? TelegramTemplates.SubstituteApprovedText(groupName)
+                    : TelegramTemplates.SubstituteRejectedText(groupName),
+                $"substitute_decision:{request.Id}", ct).ConfigureAwait(false);
+
+            if (approve)
+            {
+                var originalTeacher = request.OriginalHostId == 0
+                    ? null
+                    : await db.Users.AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == request.OriginalHostId, ct)
+                        .ConfigureAwait(false);
+
+                await NotifyAcademicSubstituteFoundAsync(
+                    substitute, originalTeacher?.FullName ?? "", groupName, ct).ConfigureAwait(false);
+            }
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        TeacherAvailabilityLog.CoverageDecided(logger, request.Id, approve, approverId);
+
+        return approve ? CoverageDecision.Approved : CoverageDecision.Rejected;
     }
 
     // ================================================================ erkin matn
@@ -458,7 +613,10 @@ public sealed class TeacherAvailabilityService(
         TeacherDailyCheckin checkin, long sessionId, User originalTeacher, CancellationToken ct)
     {
         var alreadyOpen = await db.SessionCoverageRequests
-            .AnyAsync(r => r.SessionId == sessionId && r.Status == CoverageRequestStatus.Open, ct)
+            .AnyAsync(
+                r => r.SessionId == sessionId
+                    && (r.Status == CoverageRequestStatus.Open || r.Status == CoverageRequestStatus.AwaitingApproval),
+                ct)
             .ConfigureAwait(false);
 
         if (alreadyOpen) return;
@@ -587,6 +745,49 @@ public sealed class TeacherAvailabilityService(
             ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// O'quv bo'limiga tasdiq so'rovi: ilova ichida bildirishnoma + Telegram'da
+    /// "Tasdiqlash / Rad etish" tugmalari.
+    /// </summary>
+    private async Task NotifyAcademicApprovalNeededAsync(
+        SessionCoverageRequest request, User substitute, string originalTeacherName, CancellationToken ct)
+    {
+        var session = request.Session!;
+        var groupName = session.Group?.Name ?? "";
+        var when = FormatTime(session);
+
+        var recipients = await db.Users
+            .Where(u => u.IsActive && (u.Role == UserRole.Academic || u.Role == UserRole.Admin))
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var now = clock.GetUtcNow();
+        var buttons = TelegramTemplates.EncodeButtons(
+        [
+            [
+                ("✅ Tasdiqlash", $"cv:ok:{request.Id}"),
+                ("❌ Rad etish", $"cv:no:{request.Id}"),
+            ],
+        ]);
+
+        foreach (var recipient in recipients)
+        {
+            db.Notifications.Add(Notification.Create(
+                recipient.Id,
+                NotificationKind.SubstituteFound,
+                NotificationTemplates.SubstituteApprovalTitle(),
+                NotificationTemplates.SubstituteApprovalBody(substitute.FullName, originalTeacherName, groupName),
+                substitute.Id,
+                now));
+
+            await SendPlainAsync(
+                recipient, TelegramTemplates.SubstituteApprovalRequest,
+                TelegramTemplates.SubstituteApprovalRequestText(substitute.FullName, originalTeacherName, groupName, when),
+                $"substitute_approval:{request.Id}:{recipient.Id}", ct,
+                callbackData: buttons).ConfigureAwait(false);
+        }
+    }
+
     private async Task NotifyAcademicAsync(
         NotificationKind kind,
         string title,
@@ -710,7 +911,8 @@ public sealed class TeacherAvailabilityService(
             InProgress: inProgress,
             AffectedSessions: sessionIds.Count,
             CoverageResolved: CoverageOf(CoverageRequestStatus.Resolved),
-            CoverageOpen: CoverageOf(CoverageRequestStatus.Open));
+            CoverageOpen: CoverageOf(CoverageRequestStatus.Open),
+            CoverageAwaitingApproval: CoverageOf(CoverageRequestStatus.AwaitingApproval));
     }
 
     /// <inheritdoc />
@@ -765,6 +967,7 @@ public sealed class TeacherAvailabilityService(
 
                 return new CoverageDetailDto(
                     a.SessionId,
+                    request?.Id,
                     a.Session?.Group?.Name ?? "",
                     a.Session?.ScheduledStart ?? default,
                     request?.Status.ToString(),
@@ -823,7 +1026,8 @@ public sealed class TeacherAvailabilityService(
             // bittasiga o'rinbosar HALI topilmagan.
             rows = rows.Where(c => c.AffectedSessions.Any(a =>
                 db.SessionCoverageRequests.Any(r =>
-                    r.SessionId == a.SessionId && r.Status == CoverageRequestStatus.Open)));
+                    r.SessionId == a.SessionId
+                    && (r.Status == CoverageRequestStatus.Open || r.Status == CoverageRequestStatus.AwaitingApproval))));
         }
 
         var term = NormalizeSearch(query.Search);
@@ -1179,4 +1383,15 @@ public sealed class TeacherAvailabilityService(
         return (LocalWallClock.StartOfDayUtc(date, tz),
                 LocalWallClock.StartOfDayUtc(date.AddDays(days), tz));
     }
+}
+
+/// <summary>Manba-generatsiyali log metodlari (CA1848).</summary>
+internal static partial class TeacherAvailabilityLog
+{
+    /// <summary>O'quv bo'limi o'rinbosar bo'yicha qaror qildi — kim, qachon (audit).</summary>
+    [LoggerMessage(
+        EventId = 6592,
+        Level = LogLevel.Information,
+        Message = "O'rinbosar qarori: so'rov={RequestId}, tasdiqlandi={Approved}, qaror qilgan={ApproverId}")]
+    internal static partial void CoverageDecided(ILogger logger, long requestId, bool approved, long approverId);
 }
