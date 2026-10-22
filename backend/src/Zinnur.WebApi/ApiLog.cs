@@ -60,6 +60,13 @@ internal static partial class ApiLog
     public static partial void SessionEndBroadcastFailed(
         ILogger logger, Exception exception, long sessionId);
 
+    [LoggerMessage(
+        EventId = 2009,
+        Level = LogLevel.Warning,
+        Message = "Dars boshlandi, lekin xabar yuborilmadi: session={SessionId}")]
+    public static partial void SessionStartBroadcastFailed(
+        ILogger logger, Exception exception, long sessionId);
+
     // ---------------------------------------------------------------- chat writer
 
     [LoggerMessage(

@@ -38,4 +38,22 @@ public sealed class LiveSessionNotifier(
             ApiLog.SessionEndBroadcastFailed(logger, ex, sessionId);
         }
     }
+
+    /// <inheritdoc />
+    public async Task SessionStartedAsync(long sessionId, CancellationToken ct = default)
+    {
+        try
+        {
+            await hub.Clients
+                .Group(LiveClassHub.GroupName(sessionId))
+                .SendAsync("SessionStarted", new SessionStartedEvent(sessionId), ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Port kelishuvi: dars BAZADA allaqachon jonli. Xabar yetmasa
+            // o'quvchi klienti holatni so'rov orqali baribir aniqlaydi.
+            ApiLog.SessionStartBroadcastFailed(logger, ex, sessionId);
+        }
+    }
 }

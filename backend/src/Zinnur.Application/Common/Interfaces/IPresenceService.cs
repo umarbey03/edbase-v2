@@ -10,9 +10,27 @@ namespace Zinnur.Application.Common.Interfaces;
 /// </summary>
 public interface IPresenceService
 {
-    Task AddAsync(long sessionId, PresenceEntry entry, CancellationToken ct = default);
+    /// <summary>
+    /// Ulanishni ro'yxatga qo'shadi.
+    ///
+    /// ★ ULANISH BO'YICHA (2026-10-22): bitta foydalanuvchining bir nechta
+    /// ulanishi bo'lishi mumkin — qayta ulanish (eski ulanish hali
+    /// uzilmagan), ikkinchi tab yoki qurilma. Ro'yxatda foydalanuvchi BIR
+    /// marta turadi; ulanishlar alohida sanaladi.
+    /// </summary>
+    /// <returns><c>true</c> — foydalanuvchi ro'yxatda YANGI paydo bo'ldi.</returns>
+    Task<bool> AddAsync(
+        long sessionId, PresenceEntry entry, string connectionId, CancellationToken ct = default);
 
-    Task RemoveAsync(long sessionId, long userId, CancellationToken ct = default);
+    /// <summary>
+    /// Ulanishni olib tashlaydi. Foydalanuvchi ro'yxatdan faqat uning
+    /// OXIRGI ulanishi yopilganda chiqadi — aks holda qayta ulangan
+    /// o'quvchi eski ulanish uzilganda darsda turib "chiqib ketgan"
+    /// bo'lib qolardi.
+    /// </summary>
+    /// <returns><c>true</c> — bu foydalanuvchining oxirgi ulanishi edi.</returns>
+    Task<bool> RemoveAsync(
+        long sessionId, long userId, string connectionId, CancellationToken ct = default);
 
     Task<IReadOnlyList<PresenceEntry>> ListAsync(long sessionId, CancellationToken ct = default);
 

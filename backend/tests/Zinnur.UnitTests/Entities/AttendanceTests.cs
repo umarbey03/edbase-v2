@@ -74,6 +74,23 @@ public class AttendanceTests
         attendance.LastJoinAt.Should().Be(AtMinute(20));
     }
 
+    /// <summary>
+    /// ★ QAYTA ULANISH "CHIQISH"SIZ KELADI: yangi ulanish eski ulanish
+    /// uzilishidan OLDIN qo'shiladi. Ilgari ikkinchi `RegisterJoin`
+    /// `LastJoinAt` ni qayta yozar va 19:00-19:20 oralig'i yo'qolardi.
+    /// </summary>
+    [Fact]
+    public void RegisterJoin_WhileSessionStillOpen_KeepsTheElapsedTime()
+    {
+        var attendance = NewAttendance();
+
+        attendance.RegisterJoin(AtMinute(0));    // 19:00
+        attendance.RegisterJoin(AtMinute(20));   // 19:20 — qayta ulandi, chiqish kelmagan
+        attendance.RegisterLeave(AtMinute(30));  // 19:30
+
+        attendance.DurationSeconds.Should().Be(30 * 60);
+    }
+
     [Fact]
     public void RegisterJoinAndLeave_WithThreeReconnects_SumsOnlyClosedSessions()
     {

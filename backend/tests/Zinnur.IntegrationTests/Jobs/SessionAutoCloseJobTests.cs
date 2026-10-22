@@ -411,7 +411,8 @@ public sealed class SessionAutoCloseJobTests(JobFactory factory) : IClassFixture
         var studentId = await factory.SeededStudentIdAsync();
 
         await Presence.AddAsync(sessionId, new PresenceEntry(
-            studentId, "Test o'quvchi", "Student", HandRaised: false, DateTimeOffset.UtcNow));
+            studentId, "Test o'quvchi", "Student", HandRaised: false, DateTimeOffset.UtcNow),
+            connectionId: $"test-{studentId}");
     }
 
     /// <summary>

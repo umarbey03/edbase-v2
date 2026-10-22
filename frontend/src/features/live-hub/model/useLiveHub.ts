@@ -57,6 +57,8 @@ export interface UseLiveHubOptions {
   sessionId: number
   /** `SessionEnded` kelganda chaqiriladi (video ulanishini ham yopish uchun). */
   onSessionEnded?: () => void
+  /** `SessionStarted` kelganda chaqiriladi (erta kirgan o'quvchi videoga ulanadi). */
+  onSessionStarted?: () => void
 }
 
 export interface UseLiveHubResult {
@@ -380,6 +382,13 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     options.onSessionEnded?.()
   }
 
+  function handleSessionStarted(payload: unknown): void {
+    if (isRecord(payload) && typeof payload['sessionId'] === 'number') {
+      if (payload['sessionId'] !== sessionId) return
+    }
+    options.onSessionStarted?.()
+  }
+
   /* ------------------------------- ulanish --------------------------------- */
 
   function buildConnection(): HubConnection {
@@ -405,6 +414,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     built.on(HubEvent.PresenceChanged, handlePresenceChanged)
     built.on(HubEvent.HandRaised, handleHandRaised)
     built.on(HubEvent.SessionEnded, handleSessionEnded)
+    built.on(HubEvent.SessionStarted, handleSessionStarted)
 
     built.onreconnecting(() => {
       if (disposed) return
@@ -433,6 +443,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     target.off(HubEvent.PresenceChanged, handlePresenceChanged)
     target.off(HubEvent.HandRaised, handleHandRaised)
     target.off(HubEvent.SessionEnded, handleSessionEnded)
+    target.off(HubEvent.SessionStarted, handleSessionStarted)
   }
 
   async function joinSession(target: HubConnection): Promise<void> {

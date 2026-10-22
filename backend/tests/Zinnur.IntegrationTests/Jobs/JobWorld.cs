@@ -351,12 +351,14 @@ public sealed class ScriptedPresenceService : IPresenceService
     // ── Qolganlari bu testlarda ishlatilmaydi ────────────────────────────
 
     /// <inheritdoc />
-    public Task AddAsync(long sessionId, PresenceEntry entry, CancellationToken ct = default) =>
-        Task.CompletedTask;
+    public Task<bool> AddAsync(
+        long sessionId, PresenceEntry entry, string connectionId, CancellationToken ct = default) =>
+        Task.FromResult(true);
 
     /// <inheritdoc />
-    public Task RemoveAsync(long sessionId, long userId, CancellationToken ct = default) =>
-        Task.CompletedTask;
+    public Task<bool> RemoveAsync(
+        long sessionId, long userId, string connectionId, CancellationToken ct = default) =>
+        Task.FromResult(true);
 
     /// <inheritdoc />
     public Task<IReadOnlyList<PresenceEntry>> ListAsync(

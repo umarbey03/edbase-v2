@@ -467,6 +467,13 @@ public sealed class LiveSessionService(
                 "Bu dars boshqa so'rov bilan bir vaqtda boshlandi. Sahifani yangilang.");
         }
 
+        await RegisterWaitingStudentsAsync(session, ct);
+
+        // COMMIT-THEN-SEND (`EndAsync` dagi AYNI qoida): xonada kutayotgan
+        // o'quvchilar video ulanishini O'ZI boshlaydi — sahifani yangilashi
+        // yoki "Qayta urinish" ni bosishi shart emas.
+        await notifier.SessionStartedAsync(session.Id, ct);
+
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
 
@@ -536,6 +543,18 @@ public sealed class LiveSessionService(
         // shuning uchun bu yerda try/catch YO'Q: xato ikki joyda yutilsa
         // sababini topib bo'lmay qolardi.
         await notifier.SessionEndedAsync(sessionId, ct);
+
+        // Presence ro'yxati darhol tozalanadi — aks holda u 8 soatlik TTL
+        // tugaguncha "xonada N kishi" deb ko'rinib turardi. Xato darsni
+        // yakunlashni buzmaydi: TTL baribir tozalaydi.
+        try
+        {
+            await presence.ClearAsync(sessionId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LiveSessionLog.PresenceClearFailed(logger, ex, sessionId);
+        }
 
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
     }
@@ -945,18 +964,90 @@ public sealed class LiveSessionService(
 
         if (IsHost(session, user)) return;      // host uchun davomat yozilmaydi
 
+        // ════════════════════════════════════════════════════════════════
+        // 🔴 DAVOMAT FAQAT JONLI DARSDA (2026-10-22)
+        //
+        // Hub'ga ulanish ilgari dars holatidan qat'i nazar davomat yozardi:
+        // darsni o'tkazib yuborgan o'quvchi dars TUGAGANDAN keyin hub'ga
+        // ulanib, yakuniy "Absent" ini "Present" ga aylantira olardi
+        // (`Finalize` qayta ishlamaydi). Rejalashtirilgan darsga erta kirish
+        // esa soatni dars boshlanmasdan yurgizardi.
+        //
+        // ★ Hub'ga ulanish O'ZI to'silmaydi: erta kirgan o'quvchi xonada
+        //   kutadi va `SessionStarted` ni oladi. U kutayotgan paytda dars
+        //   boshlansa, davomati `StartAsync` da yoziladi.
+        // ════════════════════════════════════════════════════════════════
+        if (session.Status != SessionStatus.Live) return;
+
+        // To'lov bloki LiveKit tokeni yo'lida bor edi, hub yo'lida yo'q edi:
+        // video ko'ra olmaydigan qarzdor o'quvchi "Present" bo'lib qolardi.
+        var block = await paymentBlock.EvaluateAsync(userId, PaymentBlockScope.Live, ct);
+        if (block.Blocked) return;
+
+        await RegisterJoinCoreAsync(sessionId, userId, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Davomat qatorini topadi (yoki yaratadi) va kirishni yozadi. Saqlamaydi.</summary>
+    private async Task RegisterJoinCoreAsync(long sessionId, long studentId, CancellationToken ct)
+    {
         var att = await db.Attendances
             .AsTracking()
-            .FirstOrDefaultAsync(a => a.SessionId == sessionId && a.StudentId == userId, ct);
+            .FirstOrDefaultAsync(a => a.SessionId == sessionId && a.StudentId == studentId, ct);
 
         if (att is null)
         {
-            att = new Attendance { SessionId = sessionId, StudentId = userId };
+            att = new Attendance { SessionId = sessionId, StudentId = studentId };
             db.Attendances.Add(att);
         }
 
         att.RegisterJoin(clock.GetUtcNow());
-        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Dars boshlanganda xonada KUTIB TURGAN o'quvchilarning davomatini ochadi.
+    ///
+    /// ★ NEGA KERAK: davomat endi faqat jonli darsda yoziladi
+    /// (<see cref="RegisterJoinAsync"/>), o'quvchi esa xonaga 15 daqiqa
+    /// oldin kira oladi. Bu chaqiruvsiz erta kelgan o'quvchi — eng
+    /// intizomlisi — "Absent" bo'lib qolardi.
+    ///
+    /// Xato darsni boshlashni TO'XTATMAYDI: dars allaqachon jonli; xato
+    /// faqat logga yoziladi va o'quvchi qayta ulanganda davomat baribir ochiladi.
+    /// </summary>
+    private async Task RegisterWaitingStudentsAsync(LiveSession session, CancellationToken ct)
+    {
+        try
+        {
+            var present = await presence.ListAsync(session.Id, ct);
+            var studentIds = present
+                .Where(e => string.Equals(e.Role, nameof(UserRole.Student), StringComparison.Ordinal))
+                .Select(e => e.UserId)
+                .ToHashSet();
+
+            if (studentIds.Count == 0) return;
+
+            // Hali ham a'zo va faol bo'lganlargina — presence yozuvi eskirgan bo'lishi mumkin.
+            var members = await db.GroupMembers.AsNoTracking()
+                .Where(GroupMembershipScope.ActiveIn(session.GroupId))
+                .Where(m => studentIds.Contains(m.StudentId))
+                .Select(m => m.StudentId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var studentId in members)
+            {
+                var block = await paymentBlock.EvaluateAsync(studentId, PaymentBlockScope.Live, ct);
+                if (!block.Blocked)
+                    await RegisterJoinCoreAsync(session.Id, studentId, ct);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LiveSessionLog.WaitingAttendanceFailed(logger, ex, session.Id);
+        }
     }
 
     public async Task RegisterLeaveAsync(long sessionId, long userId, CancellationToken ct = default)
@@ -1316,4 +1407,18 @@ internal static partial class LiveSessionLog
         Level = LogLevel.Warning,
         Message = "Xonadagilar sonini olib bo'lmadi (presence): dars={SessionId}")]
     internal static partial void PresenceUnavailable(ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>Dars boshlandi, lekin xonada kutganlarning davomati ochilmadi.</summary>
+    [LoggerMessage(
+        EventId = 6590,
+        Level = LogLevel.Warning,
+        Message = "Kutayotgan o'quvchilar davomatini ochib bo'lmadi: dars={SessionId}")]
+    internal static partial void WaitingAttendanceFailed(ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>Dars yakunlandi, presence ro'yxati tozalanmadi (TTL baribir tozalaydi).</summary>
+    [LoggerMessage(
+        EventId = 6591,
+        Level = LogLevel.Warning,
+        Message = "Dars yakunida presence tozalanmadi: dars={SessionId}")]
+    internal static partial void PresenceClearFailed(ILogger logger, Exception exception, long sessionId);
 }

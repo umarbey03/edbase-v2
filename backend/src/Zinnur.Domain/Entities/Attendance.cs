@@ -137,6 +137,13 @@ public class Attendance : BaseEntity
     /// <summary>O'quvchi xonaga kirdi (birinchi marta yoki qayta ulandi).</summary>
     public void RegisterJoin(DateTimeOffset now)
     {
+        // ★ OCHIQ SEANS AVVAL YOPILADI (2026-10-22): qayta ulanish yoki
+        // ikkinchi tab `RegisterLeave`siz keladi (eski ulanish keyinroq,
+        // ~30-45 s da uziladi). Ilgari `LastJoinAt` shunchaki qayta
+        // yozilar va o'tgan daqiqalar JIMGINA yo'qolardi.
+        if (LastJoinAt is { } open && now > open)
+            DurationSeconds += (int)(now - open).TotalSeconds;
+
         FirstJoinAt ??= now;      // tarix — o'zgarmaydi
         LastJoinAt = now;         // joriy seans boshlanishi
         LeftAt = null;

@@ -162,11 +162,17 @@ public sealed class LiveClassHub(
         var dto = await HubErrors.TranslateAsync(
             () => sessions.GetAsync(sessionId, userId, Context.ConnectionAborted));
 
+        // ★ BOSHQA DARSDAN AVVAL CHIQILADI: bir ulanish ikkinchi darsga
+        // qo'shilsa, oldingi darsning guruhi, presence yozuvi va ochiq
+        // davomati abadiy qolib ketardi (`Context.Items` jimgina qayta yozilardi).
+        if (CurrentSessionId is { } previous && previous != sessionId)
+            await RemoveFromSessionAsync(previous, userId);
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(sessionId), Context.ConnectionAborted);
         Context.Items[SessionItemKey] = sessionId;
 
         var entry = new PresenceEntry(userId, DisplayName, RoleName, HandRaised: false, DateTimeOffset.UtcNow);
-        await presence.AddAsync(sessionId, entry, Context.ConnectionAborted);
+        await presence.AddAsync(sessionId, entry, Context.ConnectionId, Context.ConnectionAborted);
 
         // Davomat (host uchun yozilmaydi — servis o'zi hal qiladi).
         // Bu ham AYNI ruxsat tekshiruvidan o'tadi, ya'ni AYNI istisnolarni
@@ -189,6 +195,10 @@ public sealed class LiveClassHub(
 
     public async Task LeaveSession(long sessionId)
     {
+        // Faqat O'Z darsidan chiqish mumkin: tekshiruvsiz istalgan
+        // foydalanuvchi begona darsga soxta "chiqdi" xabarini yubora olardi.
+        if (CurrentSessionId != sessionId) return;
+
         await RemoveFromSessionAsync(sessionId, UserId);
     }
 
@@ -345,7 +355,16 @@ public sealed class LiveClassHub(
     private async Task RemoveFromSessionAsync(long sessionId, long userId)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(sessionId));
-        await presence.RemoveAsync(sessionId, userId);
+        Context.Items.Remove(SessionItemKey);
+
+        // ★ FAQAT OXIRGI ULANISH YOPILGANDA "CHIQDI" (2026-10-22): qayta
+        // ulangan o'quvchining ESKI ulanishi ~30-45 s keyin uziladi. Ilgari
+        // shu payt u darsda turib ro'yxatdan o'char va davomatiga "chiqdi"
+        // yozilardi. Boshqa ulanishi (yangi ulanish, ikkinchi tab) bo'lsa
+        // hech narsa o'zgarmaydi.
+        var gone = await presence.RemoveAsync(sessionId, userId, Context.ConnectionId);
+        if (!gone) return;
+
         await sessions.RegisterLeaveAsync(sessionId, userId);
 
         var count = await presence.CountAsync(sessionId);
@@ -353,8 +372,6 @@ public sealed class LiveClassHub(
         await Clients.OthersInGroup(GroupName(sessionId)).SendAsync(
             "PresenceChanged",
             new PresenceDelta(userId, DisplayName, RoleName, Joined: false, count));
-
-        Context.Items.Remove(SessionItemKey);
     }
 }
 
@@ -382,3 +399,9 @@ public sealed record HandRaisedEvent(long UserId, string DisplayName, bool Raise
 /// orqali ham chaqiriladi.
 /// </summary>
 public sealed record SessionEndedEvent(long SessionId);
+
+/// <summary>
+/// <c>SessionStarted</c> — dars boshlandi. Xonada kutayotgan klient video
+/// ulanishini boshlaydi (`useLiveHub.handleSessionStarted`).
+/// </summary>
+public sealed record SessionStartedEvent(long SessionId);
