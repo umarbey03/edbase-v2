@@ -7,6 +7,7 @@ import type { SubmitTestRequest, TakeQuestionDto, TakeTestDto } from '@/shared/t
 import { AppIcon, BaseBadge, BaseButton, BaseModal } from '@/shared/ui'
 
 import { answeredCount, isSelected, toggleOption, toSubmitRequest } from '../model/answers'
+import { loadDraft, saveDraft } from '../model/answerDraft'
 import type { AnswerMap } from '../model/answers'
 import { useAttemptCountdown } from '../model/useAttemptCountdown'
 
@@ -42,18 +43,23 @@ const questions = computed<TakeQuestionDto[]>(() => props.take.questions ?? [])
 
 // `shallowRef`: xarita HAR DOIM butunligicha almashtiriladi (`toggleOption`
 // yangi obyekt qaytaradi), ya'ni chuqur reaktivlik ortiqcha xarajat bo'lardi.
-const answers = shallowRef<AnswerMap>({})
+const answers = shallowRef<AnswerMap>(loadDraft(props.take.attemptId))
 
-// Boshqa testga o'tilsa (yoki varaqa qayta yuklansa) tanlovlar tozalanadi —
-// aks holda eski savol ID'lari yangi testga "yopishib" qolardi.
+// Boshqa testga o'tilsa (yoki varaqa qayta yuklansa) tanlovlar shu urinishning
+// qoralamasidan tiklanadi — eski savol ID'lari yangi testga "yopishib" qolmaydi,
+// chunki qoralama `attemptId` bo'yicha saqlanadi.
 watch(
   () => props.take.attemptId,
-  () => {
-    answers.value = {}
+  (attemptId) => {
+    answers.value = loadDraft(attemptId)
     autoSubmitted.value = false
     confirmOpen.value = false
   },
 )
+
+// Har o'zgarishda qoralama yangilanadi: telefon brauzeri fon tabini qayta
+// yuklasa ham (taymer serverda davom etadi) belgilangan javoblar yo'qolmaydi.
+watch(answers, (value) => saveDraft(props.take.attemptId, value))
 
 /*
   `computed` ishlatiladi, `toRef(props.take, 'deadline')` EMAS: `toRef` obyekt

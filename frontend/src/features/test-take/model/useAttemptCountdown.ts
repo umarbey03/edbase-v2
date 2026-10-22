@@ -34,9 +34,20 @@ const URGENT_MS = 2 * 60_000
  * KLIENT SOATI SERVERDAN FARQ QILISHI MUMKIN (telefon vaqti noto'g'ri
  * sozlangan bo'lishi odatiy). Shu sababli ham qaror serverga qoldiriladi;
  * server esa `Test.SubmitGracePeriod` (60 s) tolerantligini `deadline` ichiga
- * ALLAQACHON qo'shib yuborgan, ya'ni bu yerda yana qo'shish KERAK EMAS —
- * aks holda tolerantlik ikki marta hisoblanardi.
+ * ALLAQACHON qo'shib yuborgan.
+ *
+ * ★ TAYMER TOLERANTLIKNI AYIRIB KO'RSATADI (2026-10-22 da tuzatildi):
+ *   ilgari taymer serverning `deadline`iga (tolerantlik BILAN) qarab
+ *   sanardi va avto-topshirish aynan o'sha onda ketardi. 1 soniyalik
+ *   tik + tarmoq kechikishi tufayli so'rov serverga DOIM muddatdan keyin
+ *   yetardi va server urinishni 0 ball bilan yopib javoblarni tashlardi.
+ *   Endi taymer haqiqiy vaqt chegarasini (deadline − 60 s) ko'rsatadi va
+ *   avto-topshirish shu onda ketadi — tolerantlik o'z vazifasini, ya'ni
+ *   tarmoq va soat farqini yutishni bajaradi.
  */
+/** `Test.SubmitGracePeriod` (backend `Test.cs`) bilan BIR XIL bo'lishi shart. */
+export const SUBMIT_GRACE_MS = 60_000
+
 export function useAttemptCountdown(deadline: Ref<string | null>): AttemptCountdown {
   const nowMs = ref(Date.now())
   let timer: number | null = null
@@ -45,7 +56,7 @@ export function useAttemptCountdown(deadline: Ref<string | null>): AttemptCountd
     const iso = deadline.value
     if (iso === null) return null
     const parsed = new Date(iso).getTime()
-    return Number.isNaN(parsed) ? null : parsed
+    return Number.isNaN(parsed) ? null : parsed - SUBMIT_GRACE_MS
   })
 
   function stop(): void {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -14,9 +14,10 @@ import {
   testTitle,
 } from '@/entities/test'
 import TestResultCard from '@/features/test-take/ui/TestResultCard.vue'
+import { clearDraft } from '@/features/test-take/model/answerDraft'
 import TestRunner from '@/features/test-take/ui/TestRunner.vue'
 import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
-import { toUserMessage } from '@/shared/api'
+import { isApiError, toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { MyResultDto, SubmitTestRequest } from '@/shared/types'
@@ -136,6 +137,22 @@ const takeError = computed(() =>
   takeQuery.error.value !== null ? toUserMessage(takeQuery.error.value) : null,
 )
 
+/*
+  ★ VARAQA 409 QAYTARSA — URINISH ALLAQACHON YOPIQ.
+  Server `GET /take` da muddati o'tgan urinishni o'zi yopadi (0 ball) va 409
+  qaytaradi; testni boshqa qurilmada topshirilgan bo'lsa ham 409. Ikkalasida
+  ham "Qayta urinish" faqat yana 409 beradi — o'quvchi xatoda qotib qolardi.
+  Shuning uchun natija so'raladi va ro'yxatlar yangilanadi.
+*/
+watch(
+  () => takeQuery.error.value,
+  (error) => {
+    if (!isApiError(error) || error.status !== 409) return
+    resultRequested.value = true
+    invalidateAfterAttempt()
+  },
+)
+
 /* -------------------------------------------------------------- topshirish */
 
 const submitError = ref<string | null>(null)
@@ -145,6 +162,8 @@ const submitMutation = useMutation({
   onSuccess: (data) => {
     submittedResult.value = data
     submitError.value = null
+    const attemptId = takeQuery.data.value?.attemptId
+    if (attemptId !== undefined) clearDraft(attemptId)
     invalidateAfterAttempt()
   },
   onError: (error: Error) => {
