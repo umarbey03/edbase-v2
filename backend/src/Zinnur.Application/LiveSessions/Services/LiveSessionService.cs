@@ -212,7 +212,7 @@ public sealed class LiveSessionService(
             LocalWallClock.LocalDate(row.ScheduledStart, zone),
             row.ScheduledStart,
             row.ScheduledEnd,
-            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            IsHost(user, row.HostId, row.Type, row.TeacherId, row.AssistantId),
             row.MyAttendance?.ToString(),
             EffectiveHostId(row) is { } hostId && hostNames.TryGetValue(hostId, out var hostName)
                 ? hostName
@@ -338,7 +338,7 @@ public sealed class LiveSessionService(
             LiveSession.ActualMinutesOf(row.ActualStart, row.ActualEnd),
             row.StudentCount,
             row.AttendedCount,
-            IsHost(user, row.HostId, row.TeacherId, row.AssistantId),
+            IsHost(user, row.HostId, row.Type, row.TeacherId, row.AssistantId),
             row.ReviewVerdict is not null,
             row.ReviewVerdict?.ToString()));
 
@@ -355,7 +355,7 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
 
-        if (!IsHost(session, user))
+        if (!CanManage(session, user))
             throw new ForbiddenException("Faqat dars hosti darsni boshlay oladi.");
 
         session.Start(clock.GetUtcNow());       // biznes qoidalari Domain'da
@@ -495,7 +495,7 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct, tracking: true);
 
-        if (!IsHost(session, user))
+        if (!CanManage(session, user))
             throw new ForbiddenException("Faqat dars hosti darsni yakunlay oladi.");
 
         var now = clock.GetUtcNow();
@@ -627,9 +627,15 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
         var host = IsHost(session, user);
+        var observer = IsObserver(session, user);
+
+        // Kuzatuvchi rejalashtirilgan xonani ham kuzata oladi (efirga
+        // chiqmaydi), lekin yakunlangan darsni qayta ochmaydi.
+        if (observer && session.Status is SessionStatus.Ended or SessionStatus.Cancelled)
+            throw new ConflictException("Dars yakunlangan.");
 
         // O'quvchi faqat dars BOSHLANGANDAN keyin kira oladi
-        if (!host)
+        if (!host && !observer)
         {
             if (session.Status == SessionStatus.Scheduled)
                 throw new ConflictException("Dars hali boshlanmagan — ustoz boshlaganda kira olasiz.");
@@ -655,7 +661,8 @@ public sealed class LiveSessionService(
             RoomName: session.RoomName,
             Identity: user.Id.ToString(CultureInfo.InvariantCulture),
             DisplayName: user.FullName,
-            CanPublish: true,
+            // Kuzatuvchi efirga chiqmaydi — faqat ko'radi va eshitadi.
+            CanPublish: !observer,
             IsHost: host,
             Ttl: JoinTokenTtl(session, clock.GetUtcNow())));
 
@@ -962,7 +969,8 @@ public sealed class LiveSessionService(
     {
         var (session, user) = await LoadAndAuthorizeAsync(sessionId, userId, ct);
 
-        if (IsHost(session, user)) return;      // host uchun davomat yozilmaydi
+        // Davomat faqat o'quvchiga: host ham, kuzatuvchi xodim ham yozilmaydi.
+        if (user.Role != UserRole.Student || IsHost(session, user) || IsObserver(session, user)) return;
 
         // ════════════════════════════════════════════════════════════════
         // 🔴 DAVOMAT FAQAT JONLI DARSDA (2026-10-22)
@@ -1099,7 +1107,7 @@ public sealed class LiveSessionService(
 
         var user = await LoadUserAsync(userId, ct);
 
-        if (IsHost(session, user)) return (session, user);
+        if (IsHost(session, user) || IsObserver(session, user)) return (session, user);
 
         // ★ KURATOR GURUHI HISOBGA OLINADI (2026-08-18 da to'g'rilandi):
         //   ilgari bu yerda faqat `m.GroupId == session.GroupId` edi,
@@ -1122,7 +1130,30 @@ public sealed class LiveSessionService(
     }
 
     private static bool IsHost(LiveSession session, User user) =>
-        IsHost(user, session.HostId, session.Group?.TeacherId, session.Group?.AssistantId);
+        IsHost(user, session.HostId, session.Type, session.Group?.TeacherId, session.Group?.AssistantId);
+
+    /// <summary>
+    /// Darsga KUZATUVCHI bo'lib kira oladigan xodim (2026-10-22, loyiha egasi
+    /// qarori): o'quv bo'limi va administrator, guruhning ikkinchi xodimi
+    /// (ustoz darsida kurator, kurator darsida ustoz) va o'rinbosar tayinlangan
+    /// darsning asl ustozi. Kuzatuvchi ko'radi va eshitadi, lekin efirga
+    /// chiqmaydi va darsni boshqarmaydi (yakunlash, mikrofon o'chirish).
+    /// </summary>
+    private static bool IsObserver(LiveSession session, User user) =>
+        !IsHost(session, user)
+        && (user.Role is UserRole.Admin or UserRole.Academic
+            || session.Group?.TeacherId == user.Id
+            || session.Group?.AssistantId == user.Id
+            || session.OriginalHostId == user.Id);
+
+    /// <summary>
+    /// Darsni boshlash/yakunlash REST orqali: dars ustozi yoki o'quv
+    /// bo'limi/administrator (boshqaruv panelidan va avto-yakunlash fon
+    /// vazifasi — u tizim administratori nomidan ishlaydi). Xona ICHIDAGI
+    /// boshqaruv tugmalari esa faqat ustozda (`LiveSessionDto.IsHost`).
+    /// </summary>
+    private static bool CanManage(LiveSession session, User user) =>
+        IsHost(session, user) || user.Role is UserRole.Admin or UserRole.Academic;
 
     /// <summary>
     /// "Host" qoidasi — entity YUKLANMAGAN holat uchun ham.
@@ -1132,11 +1163,16 @@ public sealed class LiveSessionService(
     /// navigatsiyaga emas, ID'larga tayanadi. Ikki nusxa bo'lmasin deb
     /// entity'li variant ham shu metodni chaqiradi.
     /// </summary>
-    private static bool IsHost(User user, long? hostId, long? teacherId, long? assistantId) =>
-        user.Role is UserRole.Admin or UserRole.Academic
-        || hostId == user.Id
-        || teacherId == user.Id
-        || assistantId == user.Id;
+    /// <remarks>
+    /// ★ 2026-10-22 (loyiha egasi qarori): host — FAQAT darsni olib
+    /// boradigan BITTA xodim (<see cref="HostUserId"/> bilan bir xil qoida).
+    /// Ilgari guruhning ikkala xodimi va har qanday Admin/Academic host edi:
+    /// kurator ustoz darsini yakunlay olar, o'quv bo'limi esa efirga to'liq
+    /// huquq bilan chiqardi. O'rinbosar tayinlangach asl ustoz ham host
+    /// bo'lib qolardi. Endi qolganlar — kuzatuvchi (<see cref="IsObserver"/>).
+    /// </remarks>
+    private static bool IsHost(User user, long? hostId, SessionType type, long? teacherId, long? assistantId) =>
+        (hostId ?? (type == SessionType.Assistant ? assistantId : teacherId)) == user.Id;
 
     /// <summary>
     /// Rol bo'yicha ko'rinish filtri — <see cref="ListForUserAsync"/> va

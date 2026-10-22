@@ -322,6 +322,12 @@ public enum CoverageRequestStatus
 
     /// <summary>Bekor qilindi (masalan dars o'zi bekor qilindi).</summary>
     Cancelled = 2,
+
+    /// <summary>
+    /// Nomzod rozi bo'ldi, lekin o'quv bo'limi hali TASDIQLAMAGAN (2026-10-22).
+    /// Darsning ustozi (<c>HostId</c>) faqat tasdiqdan keyin almashadi.
+    /// </summary>
+    AwaitingApproval = 3,
 }
 
 // ============================================================================

@@ -198,6 +198,39 @@ public static class TelegramTemplates
     /// <summary>"Boshqa sabab" bosilgach: sababni yozishni so'rovchi yo'riq (2026-08-18).</summary>
     public const string AbsenceReplyPrompt = "absence_reply_prompt";
 
+    /* ===== 2026-10-22 · O'RINBOSAR — O'QUV BO'LIMI TASDIG'I ===== */
+
+    /// <summary>O'quv bo'limiga: nomzod rozi bo'ldi, tasdiq kerak.</summary>
+    public const string SubstituteApprovalRequest = "substitute_approval_request";
+
+    /// <summary>O'rinbosarga: o'quv bo'limi qarori.</summary>
+    public const string SubstituteApprovalDecision = "substitute_approval_decision";
+
+    /// <summary>Nomzod rozi bo'lganda unga javob — dars hali unga o'tmagan.</summary>
+    /// <param name="groupName">Guruh nomi.</param>
+    public static string SubstituteAwaitingApprovalText(string groupName) =>
+        $"✅ Rahmat! <b>{NotificationText.Parameter(groupName, 100)}</b> darsi o'quv bo'limi "
+        + "tasdiqlagandan keyin sizga o'tadi — tasdiq haqida xabar beramiz.";
+
+    /// <summary>O'quv bo'limiga: o'rinbosarni tasdiqlash so'rovi (tugmalar bilan).</summary>
+    public static string SubstituteApprovalRequestText(
+        string substituteName, string originalTeacherName, string groupName, string when) =>
+        $"🔁 <b>{NotificationText.Parameter(substituteName)}</b> "
+        + $"<b>{NotificationText.Parameter(originalTeacherName)}</b> o'rniga "
+        + $"<b>{NotificationText.Parameter(groupName, 100)}</b> darsini ({NotificationText.Parameter(when, 40)}) "
+        + "o'tib berishga rozi. Tasdiqlaysizmi?";
+
+    /// <summary>O'rinbosarga: tasdiqlandi.</summary>
+    public static string SubstituteApprovedText(string groupName) =>
+        $"✅ O'quv bo'limi tasdiqladi: <b>{NotificationText.Parameter(groupName, 100)}</b> darsini siz o'tasiz.";
+
+    /// <summary>O'rinbosarga: rad etildi.</summary>
+    public static string SubstituteRejectedText(string groupName) =>
+        $"ℹ️ O'quv bo'limi <b>{NotificationText.Parameter(groupName, 100)}</b> darsi uchun "
+        + "boshqa qaror qabul qildi — dars sizga o'tmaydi. Rahmat!";
+
+    /* ===== /2026-10-22 ===== */
+
     /* ===== /2026-08-17 ===== */
 
     // ---------------------------------------------------------------- tugmalar
