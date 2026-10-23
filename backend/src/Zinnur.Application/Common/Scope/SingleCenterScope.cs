@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Subscriptions;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -36,7 +37,7 @@ namespace Zinnur.Application.Common.Scope;
 /// qoida): kirish tokeni 15 daqiqa yashaydi va endi o'chirilgan hisob
 /// eski token bilan markaz jadvalini ochib qo'ymasligi kerak.
 /// </summary>
-public sealed class SingleCenterScope(IApplicationDbContext db) : ILearningCenterScope
+public sealed class SingleCenterScope(IApplicationDbContext db, ISubscriptionAccess subscriptions) : ILearningCenterScope
 {
     /// <summary>
     /// Bugungi markaz belgisi. <c>"solo"</c> — RAQAM EMAS, ATAYLAB:
@@ -47,10 +48,43 @@ public sealed class SingleCenterScope(IApplicationDbContext db) : ILearningCente
     /// </summary>
     private const string SoloCenter = "solo";
 
+    /// <summary>Mustaqil o'quvchilar jadvali — alohida kesh kaliti (2026-10-23).</summary>
+    private const string SelfStudyCenter = "solo:self";
+
     public async Task<LearningCenterAudience> ResolveForViewerAsync(
         long viewerId, CancellationToken ct = default)
     {
-        await EnsureViewerBelongsToCenterAsync(viewerId, ct).ConfigureAwait(false);
+        var viewer = await EnsureViewerBelongsToCenterAsync(viewerId, ct).ConfigureAwait(false);
+
+        // ══════════════════════════════════════════════════════════════
+        // ★ IKKI ALOHIDA AUDITORIYA (2026-10-23, mustaqil o'qish obunasi).
+        //
+        // Mustaqil o'quvchi FAQAT boshqa mustaqil o'quvchilar orasida
+        // reytingini ko'radi; guruh o'quvchilari va xodimlar esa mustaqil
+        // o'quvchilarni ko'rmaydi. Ikki aholi bir jadvalda bo'lsa, arzon
+        // obuna olgan har kim guruh o'quvchilarining ismlari va Id'larini
+        // ko'rardi (va aksincha) — audit shu teshikni topgan.
+        // ══════════════════════════════════════════════════════════════
+        var selfStudyIds = subscriptions.ActiveStudentIds()
+            .Where(id => !db.GroupMembers.Any(m => m.StudentId == id
+                                                 && m.Status == MemberStatus.Active
+                                                 && m.Group!.IsActive
+                                                 && m.Group.Type != GroupType.Curator));
+
+        if (viewer.Role == UserRole.Student
+            && await selfStudyIds.AnyAsync(id => id == viewer.Id, ct).ConfigureAwait(false))
+        {
+            var selfStudents = await db.Users.AsNoTracking()
+                .Where(u => selfStudyIds.Contains(u.Id))
+                .Select(u => new StudentRow(u.Id, u.FullName))
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            return new LearningCenterAudience(
+                SelfStudyCenter,
+                selfStudents.ConvertAll(s => new CenterStudent(s.Id, s.FullName, PrimaryGroupId: null)),
+                []);
+        }
 
         // ------------------------------------------------------------ o'quvchilar
         //
@@ -61,7 +95,7 @@ public sealed class SingleCenterScope(IApplicationDbContext db) : ILearningCente
         // 🔴 KELAJAK: shu `Where` ga `&& u.LearningCenterId == centerId`
         //    qo'shiladi — boshqa hech qayerga emas.
         var students = await db.Users.AsNoTracking()
-            .Where(u => u.Role == UserRole.Student && u.IsActive)
+            .Where(u => u.Role == UserRole.Student && u.IsActive && !selfStudyIds.Contains(u.Id))
             .Select(u => new StudentRow(u.Id, u.FullName))
             .ToListAsync(ct)
             .ConfigureAwait(false);
@@ -118,24 +152,26 @@ public sealed class SingleCenterScope(IApplicationDbContext db) : ILearningCente
     ///    Bugun markaz ustuni yo'q, shuning uchun yagona shart — profil
     ///    FAOLLIGI.
     /// </summary>
-    private async Task EnsureViewerBelongsToCenterAsync(long viewerId, CancellationToken ct)
+    private async Task<ViewerRow> EnsureViewerBelongsToCenterAsync(long viewerId, CancellationToken ct)
     {
         var viewer = await db.Users.AsNoTracking()
             .Where(u => u.Id == viewerId)
             // Kerakli ustunlar SANAB olinadi — `PasswordHash` bazadan
             // umuman chiqmaydi (loyihadagi umumiy naqsh).
-            .Select(u => new ViewerRow(u.Id, u.IsActive))
+            .Select(u => new ViewerRow(u.Id, u.IsActive, u.Role))
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false)
             ?? throw new NotFoundException(nameof(User), viewerId);
 
         if (!viewer.IsActive)
             throw new ForbiddenException("Profilingiz faol emas.");
+
+        return viewer;
     }
 
     // ---------------------------------------------------------------- ichki shakllar
 
-    private sealed record ViewerRow(long Id, bool IsActive);
+    private sealed record ViewerRow(long Id, bool IsActive, UserRole Role);
 
     private sealed record StudentRow(long Id, string FullName);
 

@@ -7,6 +7,7 @@ using Zinnur.Application.Courses.Dtos;
 using Zinnur.Application.Gating.Dtos;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Subscriptions;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -77,7 +78,8 @@ namespace Zinnur.Application.Courses.Services;
 public sealed class CourseService(
     IApplicationDbContext db,
     IGatingService gating,
-    IPaymentBlockService paymentBlock) : ICourseService
+    IPaymentBlockService paymentBlock,
+    ISubscriptionAccess subscriptions) : ICourseService
 {
     // ================================================================= o'qish
 
@@ -545,8 +547,14 @@ public sealed class CourseService(
     /// bilan bir xil: FAOL guruh, FAOL a'zolik, kursi bor, `GroupId`
     /// bo'yicha eng kichigi.
     /// </summary>
-    private async Task<long?> StudentCourseIdAsync(long studentId, CancellationToken ct) =>
-        await db.GroupMembers.AsNoTracking()
+    /// <remarks>
+    /// ★ GURUH YO'Q BO'LSA — MUSTAQIL O'QISH OBUNASINING KURSI (2026-10-23).
+    ///   Obuna muddati tugagan bo'lsa ham kurs qaytariladi: daraxt ko'rinadi,
+    ///   darslar esa gating'da <c>SubscriptionExpired</c> bilan yopiq turadi.
+    /// </remarks>
+    private async Task<long?> StudentCourseIdAsync(long studentId, CancellationToken ct)
+    {
+        var fromGroup = await db.GroupMembers.AsNoTracking()
             .Where(m => m.StudentId == studentId
                      && m.Status == MemberStatus.Active
                      && m.Group!.IsActive
@@ -554,6 +562,11 @@ public sealed class CourseService(
             .OrderBy(m => m.GroupId)
             .Select(m => m.Group!.CourseId)
             .FirstOrDefaultAsync(ct);
+
+        if (fromGroup is not null) return fromGroup;
+
+        return (await subscriptions.GetStateAsync(studentId, ct))?.CourseId;
+    }
 
     // ================================================================= O'CHIRISH HIMOYASI
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Gating.Dtos;
+using Zinnur.Application.Subscriptions;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -52,8 +53,22 @@ namespace Zinnur.Application.Gating.Services;
 public sealed class GatingService(
     IApplicationDbContext db,
     ICacheService cache,
+    ISubscriptionAccess subscriptions,
     TimeProvider clock) : IGatingService
 {
+    /// <summary>
+    /// MUSTAQIL O'QUVCHI SUR'ATI (2026-10-23): ustoz yo'q, ya'ni "ustoz bu
+    /// darsga yetmagan" qoidasi qo'llanmaydi — faqat "oldingi darsni tugat".
+    /// </summary>
+    internal const int SelfStudyPace = int.MaxValue;
+
+    /// <summary>
+    /// Obunasi tugagan mustaqil o'quvchi. Sur'at qiymati ATAYLAB alohida:
+    /// keshdagi snapshot (<see cref="IsFresh"/>) faol obuna paytida
+    /// yozilgan bo'lsa, muddat tugashi bilan u yaroqsiz deb topiladi.
+    /// </summary>
+    internal const int SelfStudyExpiredPace = -1;
+
     /// <summary>
     /// So'rov ichidagi memo. Servis SCOPED, ya'ni bu maydon BITTA HTTP
     /// so'rovi umriga tegishli — instance boshqa so'rov bilan bo'lishilmaydi.
@@ -103,6 +118,9 @@ public sealed class GatingService(
         // aks holda begona guruhning darslari ochilib qolardi.)
         if (pace.CourseId is not { } courseId)
             return Locked(moduleLessonId, index: 0, LessonLockReason.NotInCourse);
+
+        if (pace.TaughtLessonCount == SelfStudyExpiredPace)
+            return Locked(moduleLessonId, index: 0, LessonLockReason.SubscriptionExpired);
 
         var cached = await cache.GetAsync<CourseGateDto>(CacheKey(studentId), ct);
 
@@ -179,6 +197,9 @@ public sealed class GatingService(
                 "Guruhingiz kursni bu qismdan boshlamagan — dars sizning o'quv "
                 + "rejangizga kirmaydi. Kerak bo'lsa o'quv bo'limi uni alohida "
                 + "ochib berishi mumkin.",
+
+            LessonLockReason.SubscriptionExpired =>
+                "Obunangiz muddati tugagan — darslarni davom ettirish uchun obunani uzaytiring.",
 
             _ => "Bu dars sizning kursingizga tegishli emas.",
         });
@@ -263,12 +284,25 @@ public sealed class GatingService(
         //   qo'shimcha so'rov yo'q (O(n) bitta o'tish).
         var startIndex = StartIndexOf(facts, pace.VideoStartLessonId);
 
+        var lessons = LessonGate.EvaluateAll(facts, pace.TaughtLessonCount, startIndex);
+
+        // Obuna tugagan: kurs daraxti ko'rinadi (nima o'tilgani va nima
+        // qolgani), lekin BIRORTA dars ochilmaydi.
+        if (pace.TaughtLessonCount == SelfStudyExpiredPace)
+        {
+            lessons = [.. lessons.Select(l => l with
+            {
+                Unlocked = false,
+                LockReason = LessonLockReason.SubscriptionExpired,
+            })];
+        }
+
         return new CourseGateDto(
             courseId,
             pace.TaughtLessonCount,
             pace.VideoStartLessonId,
             startIndex,
-            LessonGate.EvaluateAll(facts, pace.TaughtLessonCount, startIndex));
+            lessons);
     }
 
     /// <summary>
@@ -459,7 +493,17 @@ public sealed class GatingService(
             .ToListAsync(ct);
 
         if (memberships.Count == 0)
-            return new PaceSnapshot(null, 0, null);
+        {
+            // Guruh yo'q — mustaqil o'qish obunasi bormi (2026-10-23).
+            var subscription = await subscriptions.GetStateAsync(studentId, ct);
+
+            return subscription is null
+                ? new PaceSnapshot(null, 0, null)
+                : new PaceSnapshot(
+                    subscription.CourseId,
+                    subscription.IsActive ? SelfStudyPace : SelfStudyExpiredPace,
+                    VideoStartLessonId: null);
+        }
 
         var courseId = memberships[0].CourseId;
 

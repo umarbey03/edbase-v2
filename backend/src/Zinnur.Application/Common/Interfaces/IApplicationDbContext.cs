@@ -116,6 +116,10 @@ public interface IApplicationDbContext
     DbSet<TestAnswer> TestAnswers { get; }
     DbSet<LessonProgress> LessonProgress { get; }
 
+    DbSet<SubscriptionPlan> SubscriptionPlans { get; }
+
+    DbSet<SubscriptionPeriod> SubscriptionPeriods { get; }
+
     // ---------------------------------------------------------------- WAVE 1: dars mediasi
 
     /// <summary>
