@@ -62,7 +62,16 @@ public interface IProfileService
     /// 🔴 LEKIN AUTENTIFIKATSIYA SHART: manzil ochiq qoldirilsa,
     /// foydalanuvchi Id'sini ketma-ket sanab, butun bazadagi rasmlarni
     /// yuklab olish mumkin bo'lardi.
+    ///
+    /// 🔴 2026-10-23: autentifikatsiya YETARLI EMAS EDI — har qanday kirgan
+    /// foydalanuvchi Id'ni sanab, boshqalarning (ustozlar ham) rasmini
+    /// yuklab olardi. Endi o'quvchi FAQAT O'Z rasmini oladi; xodimlar
+    /// hammasini. Ruxsatsiz so'rov "rasm yo'q" (<c>null</c> → 404) bilan
+    /// AYNI javob oladi — kimning rasmi borligi ham sezilmasin.
     /// </summary>
-    /// <returns>Rasm yo'q bo'lsa <c>null</c> (klient ism harfini chizadi).</returns>
-    Task<LessonAssetDownload?> OpenAvatarAsync(long targetUserId, CancellationToken ct = default);
+    /// <param name="viewerId">So'rov yuborgan foydalanuvchi.</param>
+    /// <param name="targetUserId">Kimning rasmi.</param>
+    /// <param name="ct">Bekor qilish.</param>
+    /// <returns>Rasm yo'q yoki ko'rishga ruxsat bo'lmasa <c>null</c> (klient ism harfini chizadi).</returns>
+    Task<LessonAssetDownload?> OpenAvatarAsync(long viewerId, long targetUserId, CancellationToken ct = default);
 }

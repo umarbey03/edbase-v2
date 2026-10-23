@@ -9,6 +9,7 @@ using Zinnur.Application.Profile.Dtos;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Entities;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Profile.Services;
 
@@ -118,8 +119,20 @@ public sealed class ProfileService(
 
     /// <inheritdoc />
     public async Task<LessonAssetDownload?> OpenAvatarAsync(
-        long targetUserId, CancellationToken ct = default)
+        long viewerId, long targetUserId, CancellationToken ct = default)
     {
+        if (viewerId != targetUserId)
+        {
+            var viewerRole = await db.Users.AsNoTracking()
+                .Where(u => u.Id == viewerId && u.IsActive)
+                .Select(u => (UserRole?)u.Role)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+
+            // O'quvchi (va topilmagan foydalanuvchi) — faqat o'z rasmi.
+            if (viewerRole is null or UserRole.Student) return null;
+        }
+
         var key = await db.Users.AsNoTracking()
             .Where(u => u.Id == targetUserId)
             .Select(u => u.AvatarKey)
