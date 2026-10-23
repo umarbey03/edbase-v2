@@ -325,6 +325,16 @@ const countdown = computed(() => {
   const remaining = remainingMs.value
   return remaining !== null && remaining > 0 ? formatCountdown(remaining) : null
 })
+/*
+  ★ VAQT TUGAGACH HISOBLAGICH YO'QOLMAYDI (2026-10-23): ilgari vaqt
+  tugashi bilan u jimgina g'oyib bo'lardi, dars esa jonli davom etardi —
+  ustoz va o'quvchilar "vaqt qayerga ketdi" deb qolardi. Endi dars jonli
+  ekan, qancha vaqt oshib ketgani qizil rangda ko'rinadi.
+*/
+const overtime = computed(() => {
+  const remaining = remainingMs.value
+  return isLive.value && remaining !== null && remaining <= 0 ? formatCountdown(-remaining) : null
+})
 const isEndingSoon = computed(() => {
   const remaining = remainingMs.value
   return remaining !== null && remaining > 0 && remaining < 5 * 60_000
@@ -883,6 +893,17 @@ onBeforeUnmount(() => {
             :size="14"
           />
           {{ countdown }}
+        </span>
+        <span
+          v-else-if="overtime !== null"
+          class="hidden items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-medium tabular-nums text-red-300 ring-1 ring-inset ring-red-500/40 sm:inline-flex"
+          title="Dars vaqti tugadi — qancha oshib ketgani"
+        >
+          <AppIcon
+            name="clock"
+            :size="14"
+          />
+          Vaqt tugadi +{{ overtime }}
         </span>
 
         <!--
