@@ -25,7 +25,7 @@ public sealed class BreakoutsController(IBreakoutService breakouts) : Controller
     public async Task<ActionResult<BreakoutStateDto>> Get(long id, CancellationToken ct) =>
         Ok(await breakouts.GetAsync(id, CurrentUserId, ct));
 
-    /// <summary>Darsdagi o'quvchilarni 2..4 kishilik guruhlarga tasodifiy bo'ladi.</summary>
+    /// <summary>Darsdagi o'quvchilarni ko'pi bilan 4 kishilik guruhlarga tasodifiy bo'ladi.</summary>
     [HttpPost]
     [ProducesResponseType<BreakoutStateDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

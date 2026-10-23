@@ -4,11 +4,13 @@ namespace Zinnur.UnitTests.LiveSessions;
 
 /// <summary>
 /// <see cref="BreakoutService.Split"/> — loyiha egasi qoidasi: har guruhda
-/// kamida 2, ko'pi bilan 4 o'quvchi, hech kim tushib qolmaydi va takrorlanmaydi.
+/// ko'pi bilan 4 o'quvchi, avtomatik bo'lishda (2+ o'quvchi) hech kim yolg'iz
+/// qolmaydi, hech kim tushib qolmaydi va takrorlanmaydi.
 /// </summary>
 public class BreakoutSplitTests
 {
     [Theory]
+    [InlineData(1, 1)]
     [InlineData(2, 1)]
     [InlineData(4, 1)]
     [InlineData(5, 2)]
@@ -28,6 +30,10 @@ public class BreakoutSplitTests
         rooms.Should().OnlyContain(room =>
             room.StudentIds.Count >= BreakoutService.MinGroupSize
             && room.StudentIds.Count <= BreakoutService.MaxGroupSize);
+
+        // Ikki va undan ko'p o'quvchida hech kim yolg'iz qolmaydi.
+        if (students >= 2)
+            rooms.Should().OnlyContain(room => room.StudentIds.Count >= 2);
         rooms.SelectMany(room => room.StudentIds).Should().BeEquivalentTo(ids);
 
         var sizes = rooms.Select(room => room.StudentIds.Count).ToList();

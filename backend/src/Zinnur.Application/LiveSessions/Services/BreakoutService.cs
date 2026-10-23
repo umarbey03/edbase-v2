@@ -30,8 +30,12 @@ public sealed class BreakoutService(
     ILiveSessionNotifier notifier,
     TimeProvider clock) : IBreakoutService
 {
-    /// <summary>Loyiha egasi talabi: guruhda kamida 2, ko'pi bilan 4 o'quvchi.</summary>
-    public const int MinGroupSize = 2;
+    /// <summary>
+    /// Loyiha egasi talabi: ko'pi bilan 4 o'quvchi. Minimum 2026-10-23 da
+    /// 2 dan 1 ga tushirildi — kichik guruhda (yoki bitta o'quvchi bilan)
+    /// ham ichki guruh ochish mumkin bo'lsin.
+    /// </summary>
+    public const int MinGroupSize = 1;
 
     public const int MaxGroupSize = 4;
 
@@ -297,7 +301,7 @@ public sealed class BreakoutService(
     /// <summary>
     /// Tasodifiy, teng bo'lish: guruhlar soni = ⌈n/4⌉, o'lchamlar farqi ≤ 1.
     /// n ≥ 2 bo'lganda har guruhda kamida 2 kishi chiqadi (masalan 5 → 3+2,
-    /// 7 → 4+3, 9 → 3+3+3).
+    /// 7 → 4+3, 9 → 3+3+3); n = 1 — bitta guruhda bitta o'quvchi.
     /// </summary>
     public static List<BreakoutRoomState> Split(IReadOnlyList<long> students)
     {

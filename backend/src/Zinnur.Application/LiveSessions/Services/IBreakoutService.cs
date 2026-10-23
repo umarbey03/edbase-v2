@@ -14,7 +14,7 @@ public interface IBreakoutService
 {
     Task<BreakoutStateDto> GetAsync(long sessionId, long userId, CancellationToken ct = default);
 
-    /// <summary>Darsdagi o'quvchilarni 2..4 kishilik guruhlarga tasodifiy bo'ladi.</summary>
+    /// <summary>Darsdagi o'quvchilarni ko'pi bilan 4 kishilik guruhlarga tasodifiy bo'ladi.</summary>
     Task<BreakoutStateDto> StartAsync(
         long sessionId, StartBreakoutsRequest request, long userId, CancellationToken ct = default);
 

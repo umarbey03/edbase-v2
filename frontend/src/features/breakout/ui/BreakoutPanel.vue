@@ -54,7 +54,7 @@ const helpCount = computed(() => rooms.value.filter((room) => room.helpRequested
 /** Bo'lish natijasi oldindan: masalan 7 o'quvchi -> "4 + 3". */
 const splitPreview = computed(() => {
   const n = props.studentCount
-  if (n < 2) return null
+  if (n < 1) return null
   const count = Math.ceil(n / MAX_GROUP_SIZE)
   const sizes = Array.from({ length: count }, (_, i) => Math.floor(n / count) + (i < n % count ? 1 : 0))
   return `${count} ta guruh: ${sizes.join(' + ')}`
@@ -125,7 +125,7 @@ function moveOptions(currentRoom: number): Array<{ value: number; label: string;
       class="space-y-4 p-4"
     >
       <p class="text-sm text-slate-400">
-        Darsdagi o‘quvchilar 2–4 kishilik guruhlarga tasodifiy bo‘linadi. Keyin ularni
+        Darsdagi o‘quvchilar ko‘pi bilan 4 kishilik guruhlarga tasodifiy bo‘linadi. Keyin ularni
         qo‘lda boshqa guruhga o‘tkazishingiz mumkin.
       </p>
       <label class="block space-y-1.5">
@@ -144,12 +144,12 @@ function moveOptions(currentRoom: number): Array<{ value: number; label: string;
         </select>
       </label>
       <p class="text-xs text-slate-500">
-        {{ splitPreview ?? 'Bo‘lish uchun darsda kamida 2 o‘quvchi bo‘lishi kerak.' }}
+        {{ splitPreview ?? 'Bo‘lish uchun darsda kamida 1 o‘quvchi bo‘lishi kerak.' }}
       </p>
       <BaseButton
         block
         :loading="props.busy"
-        :disabled="props.studentCount < 2"
+        :disabled="props.studentCount < 1"
         @click="emit('start', duration)"
       >
         Guruhlarga bo‘lish
@@ -203,13 +203,6 @@ function moveOptions(currentRoom: number): Array<{ value: number; label: string;
                 :size="12"
               />
               Chaqiryapti
-            </BaseBadge>
-            <BaseBadge
-              v-else-if="room.members.length > 0 && room.members.length < 2"
-              tone="neutral"
-              size="xs"
-            >
-              1 kishi
             </BaseBadge>
             <BaseButton
               class="ml-auto"
