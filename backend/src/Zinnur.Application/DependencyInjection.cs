@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Subscriptions;
 using Zinnur.Application.Absentees.Services;
 using Zinnur.Application.AnalysisCriteria.Services;
 using Zinnur.Application.Assignments.Services;
@@ -284,6 +285,8 @@ public static class DependencyInjection
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IPointsService, PointsService>();
         services.AddScoped<IPointsSyncService, PointsSyncService>();
+        services.AddScoped<ISubscriptionAccess, SubscriptionAccess>();
+        services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
         // O'QUVCHINING O'Z DARS BAHOLARI (R24 ning o'quvchi tomoni).

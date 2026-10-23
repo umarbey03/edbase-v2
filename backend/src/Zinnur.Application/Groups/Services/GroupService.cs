@@ -427,6 +427,24 @@ public sealed class GroupService(
                 + "chiqaring yoki \"Ko'chirish\" (Move) funksiyasidan foydalaning.");
         }
 
+        // ★ MUSTAQIL O'QUVCHI GURUHGA QO'SHILMAYDI (2026-10-23): guruh
+        //   a'zoligi chat, jonli dars, yozuvlar va sinfdoshlar ro'yxatini
+        //   ochadi, obuna esa ularning birortasini bermaydi. Ikkalasi bir
+        //   vaqtda bo'lsa o'quvchi pullik guruh imkoniyatlarini obuna
+        //   narxida olardi. Avval obuna bekor qilinadi.
+        var now = clock.GetUtcNow();
+        var hasSubscription = await db.SubscriptionPeriods.AsNoTracking()
+            .AnyAsync(p => p.StudentId == student.Id
+                        && p.CancelledAt == null
+                        && p.EndsAt > now, ct);
+
+        if (hasSubscription)
+        {
+            throw new ConflictException(
+                "O'quvchida mustaqil o'qish obunasi bor. Guruhga qo'shishdan oldin "
+                + "obunani bekor qiling.");
+        }
+
         var member = await db.GroupMembers.AsTracking()
             .FirstOrDefaultAsync(m => m.GroupId == group.Id && m.StudentId == student.Id, ct);
 

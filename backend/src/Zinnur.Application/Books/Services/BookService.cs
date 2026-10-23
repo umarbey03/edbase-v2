@@ -35,7 +35,7 @@ public sealed class BookService(
     public async Task<IReadOnlyList<BookDto>> ListAsync(
         long actorId, bool includeInactive, CancellationToken ct = default)
     {
-        var actor = await LoadActorAsync(actorId, ct).ConfigureAwait(false);
+        var actor = await LoadStaffAsync(actorId, ct).ConfigureAwait(false);
 
         // Arxivni faqat boshqaruvchi ko'radi — ustozga jonli darsda kerak emas.
         var showInactive = includeInactive && IsManager(actor);
@@ -160,10 +160,11 @@ public sealed class BookService(
     public async Task<LessonAssetDownload> OpenAsync(
         long bookId, string? rangeHeader, long actorId, CancellationToken ct = default)
     {
-        await LoadActorAsync(actorId, ct).ConfigureAwait(false);
+        var actor = await LoadStaffAsync(actorId, ct).ConfigureAwait(false);
+        var showInactive = IsManager(actor);
 
         var book = await db.Books.AsNoTracking()
-            .Where(b => b.Id == bookId)
+            .Where(b => b.Id == bookId && (showInactive || b.IsActive))
             .Select(b => new { b.Id, b.Title, b.ObjectKey, b.ContentType, b.SizeBytes })
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false)
@@ -196,10 +197,11 @@ public sealed class BookService(
     public async Task<MediaAccessTicket> CreateTicketAsync(
         long bookId, long actorId, CancellationToken ct = default)
     {
-        var actor = await LoadActorAsync(actorId, ct).ConfigureAwait(false);
+        var actor = await LoadStaffAsync(actorId, ct).ConfigureAwait(false);
+        var showInactive = IsManager(actor);
 
         var exists = await db.Books.AsNoTracking()
-            .AnyAsync(b => b.Id == bookId, ct)
+            .AnyAsync(b => b.Id == bookId && (showInactive || b.IsActive), ct)
             .ConfigureAwait(false);
 
         if (!exists)
@@ -271,6 +273,24 @@ public sealed class BookService(
 
         if (!actor.IsActive)
             throw new ForbiddenException("Profilingiz faol emas.");
+
+        return actor;
+    }
+
+    /// <summary>
+    /// ★ KUTUBXONA — FAQAT XODIMLAR (2026-10-23): kitobni darsda ustoz
+    ///   ulashadi (o'quvchi uni video oqimida ko'radi), ro'yxatni esa
+    ///   boshqaruv sahifasi ishlatadi. Ilgari har qanday kirgan
+    ///   foydalanuvchi — o'quvchi ham — butun PDF'ni yuklab olardi va
+    ///   arxivlangan kitobni ham Id orqali ochardi.
+    /// </summary>
+    private async Task<User> LoadStaffAsync(long actorId, CancellationToken ct)
+    {
+        var actor = await LoadActorAsync(actorId, ct).ConfigureAwait(false);
+
+        // 404 — o'quvchiga kutubxona borligi ham sezilmasin.
+        if (actor.Role == UserRole.Student)
+            throw new NotFoundException(nameof(Book), 0);
 
         return actor;
     }

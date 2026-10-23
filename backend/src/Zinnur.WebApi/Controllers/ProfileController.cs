@@ -107,7 +107,7 @@ public sealed class ProfileController(IProfileService profile) : ControllerBase
     {
         _ = v;
 
-        var media = await profile.OpenAvatarAsync(userId, ct);
+        var media = await profile.OpenAvatarAsync(CurrentUserId, userId, ct);
 
         return media is null
             ? NotFound()

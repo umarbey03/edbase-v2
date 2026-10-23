@@ -12,6 +12,9 @@ public enum LessonLockReason
     /// <summary>Dars o'quvchining kursiga tegishli emas (yoki guruhga kurs biriktirilmagan).</summary>
     NotInCourse = 2,
 
+    /// <summary>Mustaqil o'qish obunasi muddati tugagan (2026-10-23).</summary>
+    SubscriptionExpired = 4,
+
     /// <summary>
     /// ★ Dars GURUH boshlagan qismdan OLDINDA.
     ///
