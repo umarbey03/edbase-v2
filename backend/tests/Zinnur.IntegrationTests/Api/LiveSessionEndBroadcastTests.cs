@@ -220,6 +220,9 @@ public sealed class LiveSessionNotifierSpy : ILiveSessionNotifier
     /// <summary>Boshlangani xabar qilingan darslar.</summary>
     public ConcurrentBag<long> Started { get; } = [];
 
+    public Task BreakoutsChangedAsync(long sessionId, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
     public Task SessionStartedAsync(long sessionId, CancellationToken ct = default)
     {
         Started.Add(sessionId);

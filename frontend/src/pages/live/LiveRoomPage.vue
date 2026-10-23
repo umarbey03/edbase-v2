@@ -17,6 +17,10 @@ import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { useBookBoard } from '@/features/book-share/model/useBookBoard'
 import BookSharePanel from '@/features/book-share/ui/BookSharePanel.vue'
+import { useBreakoutMonitor } from '@/features/breakout/model/useBreakoutMonitor'
+import { useBreakouts } from '@/features/breakout/model/useBreakouts'
+import BreakoutBanner from '@/features/breakout/ui/BreakoutBanner.vue'
+import BreakoutPanel from '@/features/breakout/ui/BreakoutPanel.vue'
 import ChatPanel from '@/features/chat/ui/ChatPanel.vue'
 import { useLiveHub } from '@/features/live-hub/model/useLiveHub'
 import { useLiveKitRoom } from '@/features/live-room/model/useLiveKitRoom'
@@ -128,6 +132,8 @@ const {
   shareCanvas,
   stopCanvasShare,
   connect: connectMedia,
+  switchRoom,
+  currentRoomKey,
   leave: leaveMedia,
   noteExit,
   toggleMic,
@@ -149,6 +155,9 @@ const hub = useLiveHub({
   // Holat yangilanadi; videoga ulanishni pastdagi `watch` qiladi (bitta joyda).
   onSessionStarted: () => {
     void sessionQuery.refetch()
+  },
+  onBreakoutsChanged: () => {
+    void breakouts.refresh()
   },
 })
 const {
@@ -270,6 +279,30 @@ const rosterQuery = useQuery({
   staleTime: 60_000,
   refetchInterval: 60_000,
 })
+
+/*
+  ★ ICHKI GURUHLAR (2026-10-23). O'quvchini qaysi xonaga ulashni server
+  aytadi (`useBreakouts`); ustoz esa guruhlarga o'zi kirib-chiqadi va har
+  guruhda kim gapirayotganini ko'rinmas tinglovchi ulanishlari orqali
+  ko'radi (`useBreakoutMonitor`).
+*/
+const breakouts = useBreakouts(sessionId, { switchRoom, currentRoomKey }, isLive)
+const breakoutState = breakouts.state
+const breakoutsPanelOpen = ref(false)
+const canManageBreakouts = computed(() => breakoutState.value?.canManage === true && isLive.value)
+const breakoutRoomNumbers = computed(() =>
+  breakouts.active.value ? (breakoutState.value?.rooms ?? []).map((room) => room.number) : [],
+)
+const breakoutMonitor = useBreakoutMonitor(sessionId, breakoutRoomNumbers, canManageBreakouts)
+const breakoutHelpCount = computed(
+  () => (breakoutState.value?.rooms ?? []).filter((room) => room.helpRequested).length,
+)
+const onlineStudentCount = computed(
+  () => participants.value.filter((entry) => entry.role === 'Student').length,
+)
+const showStudentBreakoutBanner = computed(
+  () => breakouts.active.value && breakoutState.value !== null && !breakoutState.value.canManage && isStudent.value,
+)
 
 const absentMembers = computed(() => {
   const rows = rosterQuery.data.value?.rows ?? []
@@ -928,6 +961,24 @@ onBeforeUnmount(() => {
           Komponentning O'ZI ham yozuv yo'q bo'lsa hech narsa chizmaydi,
           shuning uchun bu yerda ikkinchi shart kerak emas.
         ================================================================= -->
+        <button
+          v-if="canManageBreakouts"
+          type="button"
+          class="relative inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors"
+          :class="breakouts.active.value ? 'bg-brand-500/15 text-brand-200 ring-brand-500/40' : 'bg-ink-800 text-slate-300 ring-line hover:bg-ink-750'"
+          @click="breakoutsPanelOpen = !breakoutsPanelOpen"
+        >
+          <AppIcon
+            name="grid"
+            :size="14"
+          />
+          Guruhlar
+          <span
+            v-if="breakoutHelpCount > 0"
+            class="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-ink-950"
+          >{{ breakoutHelpCount }}</span>
+        </button>
+
         <span
           v-if="isHidden"
           class="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-line"
@@ -1230,13 +1281,23 @@ onBeforeUnmount(() => {
         class="relative flex min-w-0 flex-1 flex-col bg-ink-950"
         :class="isShortLandscape ? 'p-2' : 'gap-3 p-3'"
       >
+        <BreakoutBanner
+          v-if="showStudentBreakoutBanner && breakoutState !== null"
+          class="-mx-3 -mt-3"
+          :state="breakoutState"
+          :remaining-ms="breakouts.remainingMs.value"
+          :help-raised="breakouts.helpRaised.value"
+          :busy="breakouts.busy.value"
+          @help="breakouts.toggleHelp"
+        />
+
         <VideoStage
           :tiles="tiles"
           :host-user-id="hostUserId"
           :status="mediaStatus"
           :role-by-user-id="roleByUserId"
           :connection-error="mediaConnectionError"
-          :can-moderate="canManageSession"
+          :can-moderate="canManageSession && currentRoomKey === null"
           :moderating="moderating"
           @retry="handleRetry"
           @moderate="handleModerate"
@@ -1266,7 +1327,7 @@ onBeforeUnmount(() => {
             :is-mic-on="isMicOn"
             :is-camera-on="isCameraOn"
             :is-screen-sharing="isScreenSharing"
-            :can-share-screen="isHost"
+            :can-share-screen="isHost || currentRoomKey !== null"
             :can-share-book="isHost"
             :is-book-sharing="isCanvasSharing"
             :hand-raised="handRaised"
@@ -1290,6 +1351,28 @@ onBeforeUnmount(() => {
           />
         </div>
       </main>
+
+      <!-- Ustozning ichki guruhlar paneli — o'ng tomonda suzadi. -->
+      <div
+        v-if="canManageBreakouts && breakoutsPanelOpen"
+        class="fixed inset-y-0 right-0 z-50 flex w-full border-l border-line shadow-2xl md:w-[380px]"
+      >
+        <BreakoutPanel
+          class="w-full"
+          :state="breakoutState"
+          :busy="breakouts.busy.value"
+          :remaining-ms="breakouts.remainingMs.value"
+          :current-room="currentRoomKey"
+          :speaking="breakoutMonitor.speaking.value"
+          :connected="breakoutMonitor.connected.value"
+          :student-count="onlineStudentCount"
+          @start="breakouts.start"
+          @move="breakouts.move"
+          @close="breakouts.close"
+          @visit="breakouts.visit"
+          @dismiss="breakoutsPanelOpen = false"
+        />
+      </div>
 
       <!--
         Suzuvchi panel uchun fon qoplamasi. `bg-black/60` ATAYLAB qoldirildi

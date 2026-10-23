@@ -59,6 +59,8 @@ export interface UseLiveHubOptions {
   onSessionEnded?: () => void
   /** `SessionStarted` kelganda chaqiriladi (erta kirgan o'quvchi videoga ulanadi). */
   onSessionStarted?: () => void
+  /** `BreakoutsChanged` kelganda chaqiriladi (ichki guruhlar holati yangilanadi). */
+  onBreakoutsChanged?: () => void
 }
 
 export interface UseLiveHubResult {
@@ -395,6 +397,13 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     options.onSessionStarted?.()
   }
 
+  function handleBreakoutsChanged(payload: unknown): void {
+    if (isRecord(payload) && typeof payload['sessionId'] === 'number') {
+      if (payload['sessionId'] !== sessionId) return
+    }
+    options.onBreakoutsChanged?.()
+  }
+
   /* ------------------------------- ulanish --------------------------------- */
 
   function buildConnection(): HubConnection {
@@ -421,6 +430,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     built.on(HubEvent.HandRaised, handleHandRaised)
     built.on(HubEvent.SessionEnded, handleSessionEnded)
     built.on(HubEvent.SessionStarted, handleSessionStarted)
+    built.on(HubEvent.BreakoutsChanged, handleBreakoutsChanged)
 
     built.onreconnecting(() => {
       if (disposed) return
@@ -450,6 +460,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     target.off(HubEvent.HandRaised, handleHandRaised)
     target.off(HubEvent.SessionEnded, handleSessionEnded)
     target.off(HubEvent.SessionStarted, handleSessionStarted)
+    target.off(HubEvent.BreakoutsChanged, handleBreakoutsChanged)
   }
 
   async function joinSession(target: HubConnection): Promise<void> {

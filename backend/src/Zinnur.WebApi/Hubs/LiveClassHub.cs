@@ -440,3 +440,6 @@ public sealed record SessionEndedEvent(long SessionId);
 /// ulanishini boshlaydi (`useLiveHub.handleSessionStarted`).
 /// </summary>
 public sealed record SessionStartedEvent(long SessionId);
+
+/// <summary><c>BreakoutsChanged</c> — ichki guruhlar o'zgardi (holat REST orqali olinadi).</summary>
+public sealed record BreakoutsChangedEvent(long SessionId);

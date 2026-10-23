@@ -40,4 +40,10 @@ public interface ILiveSessionNotifier
     /// Chaqiriladigan joy: ma'lumot bazaga YOZILGANDAN KEYIN (commit-then-send).
     /// </summary>
     Task SessionStartedAsync(long sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ichki guruhlar o'zgardi. Faqat SIGNAL — holatni har mijoz o'zi so'raydi
+    /// (<c>GET /breakouts</c>), chunki o'quvchi faqat o'z guruhini ko'rishi kerak.
+    /// </summary>
+    Task BreakoutsChangedAsync(long sessionId, CancellationToken ct = default);
 }

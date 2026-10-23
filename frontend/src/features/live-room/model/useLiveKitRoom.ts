@@ -25,6 +25,7 @@ import { onBeforeUnmount, ref, shallowRef } from 'vue'
 import type { Ref, ShallowRef } from 'vue'
 
 import { fetchLiveKitJoin } from '@/entities/session'
+import type { LiveKitJoinDto } from '@/shared/types'
 import { isApiError, toUserMessage } from '@/shared/api'
 
 import { createLiveEventReporter, createScreenWakeLock } from './liveClientEvents'
@@ -129,6 +130,13 @@ export interface UseLiveKitRoomResult {
   shareCanvas: (canvas: HTMLCanvasElement) => Promise<void>
   stopCanvasShare: () => Promise<void>
   connect: () => Promise<void>
+  /**
+   * Boshqa LiveKit xonasiga o'tadi (ichki guruh yoki asosiy xona).
+   * `fetchJoin = null` — asosiy xona. Mikrofon/kamera niyati saqlanadi.
+   */
+  switchRoom: (key: number | null, fetchJoin: JoinFetcher | null) => Promise<void>
+  /** Hozirgi xona: `null` — asosiy, raqam — ichki guruh. */
+  currentRoomKey: Ref<number | null>
   leave: () => Promise<void>
   /**
    * Sahifa NEGA yopilayotganini belgilaydi — `page-closed` diagnostika
@@ -142,6 +150,9 @@ export interface UseLiveKitRoomResult {
   dismissMediaError: () => void
   dismissLinkWarning: () => void
 }
+
+/** LiveKit tokenini oladigan funksiya (xona almashtirishda beriladi). */
+export type JoinFetcher = (signal: AbortSignal) => Promise<LiveKitJoinDto>
 
 function parseUserId(identity: string): number | null {
   const parsed = Number.parseInt(identity, 10)
@@ -461,6 +472,8 @@ const WEAK_LINK_HOST_TEXT =
 export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
   const status = ref<MediaStatus>('idle')
   const isHost = ref(false)
+  const currentRoomKey = ref<number | null>(null)
+  let joinFetcher: JoinFetcher | null = null
   const roomName = ref<string | null>(null)
   const endsAt = ref<string | null>(null)
   const isMicOn = ref(false)
@@ -1539,10 +1552,12 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
     try {
       // SPEC 5: POST /api/v1/live-sessions/{id}/token -> LiveKitJoinDto
-      const join = await fetchLiveKitJoin(sessionId, abort.signal)
+      const join = await (joinFetcher ?? ((signal) => fetchLiveKitJoin(sessionId, signal)))(abort.signal)
       window.clearTimeout(abortTimer)
       if (disposed || gen !== generation) return
 
+      // Ichki guruhda ustoz ham `isHost` bo'lib qoladi (server shunday beradi),
+      // o'quvchi esa asosiy xonadagidek oddiy ishtirokchi.
       isHost.value = join.isHost
       roomName.value = join.roomName
       endsAt.value = join.endsAt
@@ -2090,6 +2105,27 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     }
   }
 
+  /**
+   * ★ XONA ALMASHTIRISH (ichki guruhlar, 2026-10-23): eski ulanish yopiladi,
+   *   yangisi ochiladi. `leave()` dan farqi — mikrofon/kamera NIYATI
+   *   (`wantMic`/`wantCamera`) SAQLANADI: o'quvchi guruhga o'tganda gapirib
+   *   turgan bo'lsa, yangi xonada ham mikrofoni yoqilgan bo'ladi.
+   */
+  async function switchRoom(key: number | null, fetchJoin: JoinFetcher | null): Promise<void> {
+    if (disposed) return
+    if (currentRoomKey.value === key && room !== null) return
+    currentRoomKey.value = key
+    joinFetcher = fetchJoin
+    generation += 1
+    connectInFlight = false
+    stopReconnect()
+    screenShareLost = false
+    await teardown()
+    status.value = 'loading'
+    connectionError.value = null
+    await openRoom()
+  }
+
   async function leave(): Promise<void> {
     // Foydalanuvchi O'ZI chiqdi — qayta ulanish ham, niyat ham tugaydi.
     noteExit('left')
@@ -2104,6 +2140,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     // darsga qayta kirganda mikrofoni o'zidan yonardi.
     if (intentStorageEnabled) clearMediaIntent(sessionId)
     screenShareLost = false
+    currentRoomKey.value = null
+    joinFetcher = null
     wakeLock?.release()
     await teardown()
     /*
@@ -2161,6 +2199,8 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
     shareCanvas,
     stopCanvasShare,
     connect,
+    switchRoom,
+    currentRoomKey,
     leave,
     noteExit,
     toggleMic,

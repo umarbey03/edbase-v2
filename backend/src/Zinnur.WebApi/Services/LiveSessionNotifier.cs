@@ -56,4 +56,22 @@ public sealed class LiveSessionNotifier(
             ApiLog.SessionStartBroadcastFailed(logger, ex, sessionId);
         }
     }
+
+    /// <inheritdoc />
+    public async Task BreakoutsChangedAsync(long sessionId, CancellationToken ct = default)
+    {
+        try
+        {
+            await hub.Clients
+                .Group(LiveClassHub.GroupName(sessionId))
+                .SendAsync("BreakoutsChanged", new BreakoutsChangedEvent(sessionId), ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Holat Redis'da allaqachon yozilgan; signal yetmasa mijozlar
+            // holatni davriy so'rov bilan baribir oladi.
+            ApiLog.SessionStartBroadcastFailed(logger, ex, sessionId);
+        }
+    }
 }
