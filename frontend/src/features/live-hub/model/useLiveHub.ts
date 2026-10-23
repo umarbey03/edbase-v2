@@ -75,6 +75,11 @@ export interface UseLiveHubResult {
   notice: Ref<string | null>
   cooldownRemainingMs: Ref<number>
   canSend: ComputedRef<boolean>
+  /**
+   * Ko'rinmas kuzatuvchi (admin / o'quv bo'limi): ro'yxatda yo'q, chatga
+   * yoza olmaydi — server `JoinSessionResult.hidden` bilan aytadi.
+   */
+  isHidden: Ref<boolean>
   isSending: Ref<boolean>
   handRaised: Ref<boolean>
   start: () => Promise<void>
@@ -153,6 +158,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
    */
   const messages = shallowRef<ChatMessage[]>([])
   const participants = shallowRef<PresenceEntry[]>([])
+  const isHidden = ref(false)
   const raisedHands = shallowRef<PresenceEntry[]>([])
   const roleByUserId = shallowRef<ReadonlyMap<number, UserRoleName>>(new Map())
 
@@ -460,6 +466,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
       // bilan qo'shilardi. Xato ham chiqmagani uchun ko'zga tashlanmagan.
       const result: unknown = await target.invoke(HubMethod.JoinSession, sessionId)
       const participants = isRecord(result) ? result['participants'] : null
+      isHidden.value = isRecord(result) && result['hidden'] === true
 
       if (Array.isArray(participants)) {
         presence.clear()
@@ -578,7 +585,11 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
   }
 
   const canSend = computed(
-    () => status.value === 'connected' && cooldownRemainingMs.value <= 0 && !sessionEnded.value,
+    () =>
+      status.value === 'connected'
+      && cooldownRemainingMs.value <= 0
+      && !sessionEnded.value
+      && !isHidden.value,
   )
 
   /**
@@ -700,6 +711,7 @@ export function useLiveHub(options: UseLiveHubOptions): UseLiveHubResult {
     notice,
     cooldownRemainingMs,
     canSend,
+    isHidden,
     isSending,
     handRaised,
     start,

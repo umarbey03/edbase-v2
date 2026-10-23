@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
+import { fetchSessionAttendance } from '@/entities/attendance'
 import { fetchRecentMessages } from '@/entities/message'
 import {
   endLiveSession,
@@ -161,6 +162,7 @@ const {
   notice: chatNotice,
   cooldownRemainingMs,
   canSend,
+  isHidden,
   isSending,
   handRaised,
   sendMessage,
@@ -254,6 +256,33 @@ watch(
   },
 )
 const canManageSession = computed(() => session.value?.isHost === true || isHost.value)
+
+/*
+  ★ DARSGA KIRMAGANLAR (2026-10-23): ustoz ro'yxatda faqat xonadagilarni
+  emas, guruhning QOLGAN a'zolarini ham ko'radi. Manba — davomat varag'i
+  (guruhning faol a'zolari); hozir xonada bo'lmaganlar "Kirmagan" bo'lib
+  chiqadi. Ro'yxat kam o'zgaradi, shuning uchun daqiqada bir yangilanadi.
+*/
+const rosterQuery = useQuery({
+  queryKey: ['live-session-roster', sessionId],
+  queryFn: ({ signal }) => fetchSessionAttendance(sessionId, { signal }),
+  enabled: computed(() => isValidSession && canManageSession.value),
+  staleTime: 60_000,
+  refetchInterval: 60_000,
+})
+
+const absentMembers = computed(() => {
+  const rows = rosterQuery.data.value?.rows ?? []
+  const present = new Set(participants.value.map((entry) => entry.userId))
+  return rows
+    .filter((row) => !present.has(row.studentId))
+    .map((row) => ({
+      userId: row.studentId,
+      displayName: row.studentName ?? `#${row.studentId}`,
+      leftEarly: row.firstJoinAt !== null,
+      isExcused: row.isExcused,
+    }))
+})
 
 /*
   QO'L KO'TARISH — FAQAT O'QUVCHIDA (R1; loyiha egasi: "livechatda teacher
@@ -899,6 +928,18 @@ onBeforeUnmount(() => {
           Komponentning O'ZI ham yozuv yo'q bo'lsa hech narsa chizmaydi,
           shuning uchun bu yerda ikkinchi shart kerak emas.
         ================================================================= -->
+        <span
+          v-if="isHidden"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-line"
+          title="Ustoz va o‘quvchilar sizni ko‘rmaydi"
+        >
+          <AppIcon
+            name="eye-off"
+            :size="14"
+          />
+          Ko‘rinmas kuzatuvchi
+        </span>
+
         <RecordingIndicator
           v-if="isLive && isValidSession"
           :session-id="sessionId"
@@ -1318,6 +1359,7 @@ onBeforeUnmount(() => {
           :current-user-id="auth.userId"
           :role-by-user-id="roleByUserId"
           :participants="participants"
+          :absent-members="absentMembers"
           :participant-count="participantCount"
           :raised-hands="raisedHands"
           :status="chatStatus"

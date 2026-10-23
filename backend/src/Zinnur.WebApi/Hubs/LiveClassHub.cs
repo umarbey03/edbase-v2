@@ -94,6 +94,7 @@ public sealed class LiveClassHub(
     private const int MaxClientIdLength = 64;
 
     private const string SessionItemKey = "sessionId";
+    private const string HiddenItemKey = "hidden";
 
     // ---------------------------------------------------------------- yordamchi
 
@@ -134,6 +135,20 @@ public sealed class LiveClassHub(
     private bool CanRaiseHand =>
         string.Equals(RoleName, nameof(UserRole.Student), StringComparison.Ordinal);
 
+    /// <summary>
+    /// Ko'rinmas kuzatuvchi (2026-10-23): admin va o'quv bo'limi darsni
+    /// boshqarmasdan kirganda ustoz va o'quvchilarga ko'rinmaydi. Ular
+    /// presence ro'yxatiga YOZILMAYDI va "kirdi/chiqdi" xabari tarqatilmaydi.
+    /// LiveKit tomonida xuddi shu qoida — tokendagi <c>hidden</c> grant'i
+    /// (<c>LiveSessionService.CreateJoinTokenAsync</c>).
+    /// </summary>
+    private static bool IsHiddenObserver(LiveSessionDto session, string role) =>
+        !session.IsHost
+        && role is nameof(UserRole.Admin) or nameof(UserRole.Academic);
+
+    private bool IsHidden =>
+        Context.Items.TryGetValue(HiddenItemKey, out var v) && v is true;
+
     /// <summary>Ulanish kontekstida saqlangan sessiya (ruxsat allaqachon tekshirilgan).</summary>
     private long? CurrentSessionId =>
         Context.Items.TryGetValue(SessionItemKey, out var v) && v is long id ? id : null;
@@ -170,6 +185,18 @@ public sealed class LiveClassHub(
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(sessionId), Context.ConnectionAborted);
         Context.Items[SessionItemKey] = sessionId;
+
+        var hidden = IsHiddenObserver(dto, RoleName);
+        Context.Items[HiddenItemKey] = hidden;
+
+        // Ko'rinmas kuzatuvchi ro'yxatni oladi, lekin o'zi unga tushmaydi.
+        // Davomat ham yozilmaydi — kuzatuvchi uchun servis baribir yozmaydi.
+        if (hidden)
+        {
+            var visible = await presence.ListAsync(sessionId, Context.ConnectionAborted);
+            ApiLog.SessionJoined(logger, sessionId, userId, visible.Count);
+            return new JoinSessionResult(dto, visible, visible.Count, Hidden: true);
+        }
 
         var entry = new PresenceEntry(userId, DisplayName, RoleName, HandRaised: false, DateTimeOffset.UtcNow);
         await presence.AddAsync(sessionId, entry, Context.ConnectionId, Context.ConnectionAborted);
@@ -218,6 +245,10 @@ public sealed class LiveClassHub(
 
         if (CurrentSessionId != sessionId)
             throw new HubException("Avval darsga qo'shiling.");
+
+        // Ko'rinmas kuzatuvchining xabari uni oshkor qilib qo'yardi.
+        if (IsHidden)
+            throw new HubException("Kuzatuvchi rejimida chatga yozib bo'lmaydi.");
 
         // --- Tezlik chegarasi: oynada N ta xabar (Redis atomar hisoblagichi) ---
         var key = $"chatrate:{sessionId.ToString(CultureInfo.InvariantCulture)}:{userId.ToString(CultureInfo.InvariantCulture)}";
@@ -357,6 +388,9 @@ public sealed class LiveClassHub(
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(sessionId));
         Context.Items.Remove(SessionItemKey);
 
+        // Ko'rinmas kuzatuvchi presence'ga yozilmagan — olib tashlanadigan narsa yo'q.
+        if (Context.Items.Remove(HiddenItemKey, out var hidden) && hidden is true) return;
+
         // ★ FAQAT OXIRGI ULANISH YOPILGANDA "CHIQDI" (2026-10-22): qayta
         // ulangan o'quvchining ESKI ulanishi ~30-45 s keyin uziladi. Ilgari
         // shu payt u darsda turib ro'yxatdan o'char va davomatiga "chiqdi"
@@ -381,7 +415,8 @@ public sealed class LiveClassHub(
 public sealed record JoinSessionResult(
     LiveSessionDto Session,
     IReadOnlyList<PresenceEntry> Participants,
-    int Count);
+    int Count,
+    bool Hidden = false);
 
 /// <summary>Ishtirokchi o'zgarishi — faqat DELTA (to'liq ro'yxat emas).</summary>
 public sealed record PresenceDelta(

@@ -13,10 +13,15 @@ namespace Zinnur.Application.Common.Models;
 /// serverdan qaytarib bo'lmaydi. Namuna hisob-kitob —
 /// <c>LiveSessionService.JoinTokenTtl</c> (dars tugashi + 30 daqiqa).
 /// </param>
+/// <param name="Hidden">
+/// Xonadagilarga KO'RINMAYDI (LiveKit <c>hidden</c> grant'i) — admin va
+/// o'quv bo'limi kuzatuvchi bo'lib kirganda.
+/// </param>
 public sealed record LiveKitTokenRequest(
     string RoomName,
     string Identity,
     string DisplayName,
     bool CanPublish,
     bool IsHost,
-    TimeSpan? Ttl = null);
+    TimeSpan? Ttl = null,
+    bool Hidden = false);
