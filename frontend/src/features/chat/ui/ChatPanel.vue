@@ -3,6 +3,7 @@ import { computed, ref, toRef, watch } from 'vue'
 
 import type { ChatMessage } from '@/entities/message'
 import ParticipantList from '@/features/presence/ui/ParticipantList.vue'
+import type { AbsentMember } from '@/features/presence/ui/ParticipantList.vue'
 import type { HubStatus, PresenceEntry, UserRoleName } from '@/shared/types'
 import { AppIcon, BaseSpinner } from '@/shared/ui'
 
@@ -18,6 +19,8 @@ const props = defineProps<{
   /** userId -> rol. Xabar rozetkalari uchun O(1) qidiruv. */
   roleByUserId: ReadonlyMap<number, UserRoleName>
   participants: readonly PresenceEntry[]
+  /** Guruhda bor, lekin xonada yo'q o'quvchilar — faqat ustozga beriladi. */
+  absentMembers?: readonly AbsentMember[]
   participantCount: number
   raisedHands: readonly PresenceEntry[]
   status: HubStatus
@@ -186,6 +189,7 @@ function roleOf(senderId: number): string {
     <ParticipantList
       v-if="tab === 'people'"
       :participants="props.participants"
+      :absent="props.absentMembers ?? []"
       :total-count="props.participantCount"
       :current-user-id="props.currentUserId"
     />

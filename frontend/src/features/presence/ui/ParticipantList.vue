@@ -1,3 +1,14 @@
+<script lang="ts">
+/** Guruh a'zosi, hozir xonada yo'q (ustoz ro'yxati uchun). */
+export interface AbsentMember {
+  userId: number
+  displayName: string
+  /** Darsga kirgan, keyin chiqib ketgan. */
+  leftEarly: boolean
+  isExcused: boolean
+}
+</script>
+
 <script setup lang="ts">
 import { computed } from 'vue'
 
@@ -7,6 +18,7 @@ import { AppIcon, BaseAvatar, BaseBadge } from '@/shared/ui'
 
 const props = defineProps<{
   participants: readonly PresenceEntry[]
+  absent?: readonly AbsentMember[]
   totalCount: number
   currentUserId: number | null
 }>()
@@ -20,6 +32,7 @@ const VISIBLE_LIMIT = 50
 
 const visible = computed(() => props.participants.slice(0, VISIBLE_LIMIT))
 const hiddenCount = computed(() => Math.max(0, props.totalCount - visible.value.length))
+const absent = computed(() => props.absent ?? [])
 </script>
 
 <template>
@@ -72,5 +85,40 @@ const hiddenCount = computed(() => Math.max(0, props.totalCount - visible.value.
     >
       Ishtirokchilar ro‘yxati yuklanmoqda…
     </p>
+
+    <template v-if="absent.length > 0">
+      <p class="mt-3 border-t border-line px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Kirmagan ({{ absent.length }})
+      </p>
+      <ul class="space-y-0.5 px-2">
+        <li
+          v-for="member in absent"
+          :key="member.userId"
+          class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 opacity-60"
+        >
+          <BaseAvatar
+            :name="member.displayName"
+            size="sm"
+          />
+          <p class="min-w-0 flex-1 truncate text-sm text-slate-300">
+            {{ member.displayName }}
+          </p>
+          <BaseBadge
+            v-if="member.isExcused"
+            tone="neutral"
+            size="xs"
+          >
+            Uzrli
+          </BaseBadge>
+          <BaseBadge
+            v-else-if="member.leftEarly"
+            tone="warning"
+            size="xs"
+          >
+            Chiqib ketdi
+          </BaseBadge>
+        </li>
+      </ul>
+    </template>
   </div>
 </template>

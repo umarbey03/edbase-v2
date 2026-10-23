@@ -142,6 +142,8 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
             json.WriteBoolean("canSubscribe", true);
             json.WriteBoolean("canPublishData", true);      // chat/signal ma'lumotlari uchun
             json.WriteBoolean("roomAdmin", request.IsHost); // host xonani boshqara oladi
+            // Ko'rinmas kuzatuvchi: boshqa ishtirokchilar uni umuman ko'rmaydi.
+            if (request.Hidden) json.WriteBoolean("hidden", true);
             json.WriteEndObject();
 
             json.WriteEndObject();

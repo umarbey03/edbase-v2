@@ -664,7 +664,11 @@ public sealed class LiveSessionService(
             // Kuzatuvchi efirga chiqmaydi — faqat ko'radi va eshitadi.
             CanPublish: !observer,
             IsHost: host,
-            Ttl: JoinTokenTtl(session, clock.GetUtcNow())));
+            Ttl: JoinTokenTtl(session, clock.GetUtcNow()),
+            // Admin va o'quv bo'limi kuzatuvchi bo'lsa — ustoz va o'quvchilarga
+            // ko'rinmaydi (2026-10-23, loyiha egasi qarori). Kurator va asl
+            // ustoz kuzatuvchi bo'lsa ham ko'rinib turadi.
+            Hidden: observer && user.Role is UserRole.Admin or UserRole.Academic));
 
         return new LiveKitJoinDto(liveKit.ServerUrl, token, session.RoomName, host, session.EndsAt);
     }

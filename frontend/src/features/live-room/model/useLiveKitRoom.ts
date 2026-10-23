@@ -431,12 +431,17 @@ const HOST_AUDIO_PRESET = { maxBitrate: 32_000, priority: 'high' as const }
     o'rtacha; 1080p/15 kadr — kuchli kanal va DARS YOZUVI (egress eng
     yuqori qatlamni oladi, ya'ni yozuv sifati pasaymaydi).
   ★ Slayd va hujjat uchun 15 kadr yetarli — ekranda harakat kam.
+
+  ★ 2026-10-23: o'rta qatlam 720p/5 kadr/500 kbit/s matn uchun juda xira
+    edi (jonli sinovda o'quvchilar slaydni o'qiy olmadi). Endi 720p/8 kadr/
+    900 kbit/s va yuqori qatlam 2.5 Mbit/s. Eng past 360p qatlam O'ZGARMADI —
+    zaif telefon himoyasi shu qatlamda.
 */
-const SCREEN_SHARE_ENCODING = { maxBitrate: 1_500_000, maxFramerate: 15 }
+const SCREEN_SHARE_ENCODING = { maxBitrate: 2_500_000, maxFramerate: 15 }
 
 const SCREEN_SHARE_LAYERS = [
   new VideoPreset(640, 360, 150_000, 3),
-  new VideoPreset(1280, 720, 500_000, 5),
+  new VideoPreset(1280, 720, 900_000, 8),
 ]
 
 const SCREEN_SHARE_CAPTURE = { width: 1920, height: 1080, frameRate: 15 }
@@ -893,9 +898,16 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
 
   function onTrackSubscribed(
     track: RemoteTrack,
-    _publication: RemoteTrackPublication,
+    publication: RemoteTrackPublication,
     _participant: RemoteParticipant,
   ): void {
+    // ★ EKRAN — ENG YUQORI QATLAM SO'RALADI (2026-10-23): `adaptiveStream`
+    // qatlamni katakcha o'lchamiga qarab tanlaydi va matnli slayd uchun
+    // ko'pincha 360p/3 kadrni berardi — o'quvchilar ekranni xira ko'rardi.
+    // Bu faqat YUQORI CHEGARA: kanal yetmasa SFU baribir pastroq qatlam beradi.
+    if (publication.source === Track.Source.ScreenShare) {
+      publication.setVideoDimensions(SCREEN_SHARE_CAPTURE)
+    }
     attachAudio(track)
     scheduleRebuild()
   }
@@ -1851,6 +1863,9 @@ export function useLiveKitRoom(sessionId: number): UseLiveKitRoomResult {
         await participant.setScreenShareEnabled(next, {
           audio: true,
           resolution: SCREEN_SHARE_CAPTURE,
+          // Brauzer kodlovchisiga "matn/detal" deyiladi: kanal torayganda
+          // o'lchamni emas, kadr sonini kamaytiradi — harflar xiralashmaydi.
+          contentHint: 'detail',
         })
       },
       (participant) => participant.isScreenShareEnabled,
