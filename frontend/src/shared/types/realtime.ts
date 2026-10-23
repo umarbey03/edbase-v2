@@ -23,6 +23,8 @@ export const HubEvent = {
   SessionEnded: 'SessionEnded',
   /** Dars boshlandi — xonada kutayotgan o'quvchi video ulanishini boshlaydi. */
   SessionStarted: 'SessionStarted',
+  /** Ichki guruhlar o'zgardi — holat `GET /breakouts` orqali qayta olinadi. */
+  BreakoutsChanged: 'BreakoutsChanged',
 } as const
 export type HubEventName = (typeof HubEvent)[keyof typeof HubEvent]
 
