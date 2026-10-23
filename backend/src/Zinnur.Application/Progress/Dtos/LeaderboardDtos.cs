@@ -10,6 +10,21 @@ namespace Zinnur.Application.Progress.Dtos;
 /// (batafsil <c>LeaderboardService</c> izohida). v2 da qamrov hech qayerda
 /// SAQLANMAYDI.
 /// </summary>
+/// <summary>
+/// Reyting nima bo'yicha tuziladi (2026-10-23).
+///
+/// <see cref="Percent"/> — 4 mezon foizi (davomat, vazifa, test, dars bahosi):
+/// xodimlar tahlili. <see cref="Points"/> — ball tizimi (<c>StudentPoints</c>):
+/// o'quvchilar ko'radigan reyting. Ikkalasi bir xil a'zolar, ruxsat va kesh
+/// qoidalaridan foydalanadi; farq faqat ball hisobida.
+/// </summary>
+public enum LeaderboardMetric
+{
+    Percent,
+
+    Points,
+}
+
 public enum LeaderboardScope
 {
     /// <summary>O'quvchining o'z guruhi.</summary>

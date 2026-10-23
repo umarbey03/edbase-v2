@@ -138,6 +138,15 @@ internal sealed class JobsOptions
     /// <summary>Jarima skaneri oralig'i (daqiqa).</summary>
     public int PenaltyScanIntervalMinutes { get; private init; } = 30;
 
+    /// <summary>
+    /// Ball daftarini tenglashtirish oralig'i (daqiqa). 2 — eski platformadagi
+    /// tick: dars yakunlangach o'quvchi balini tezda ko'radi.
+    /// </summary>
+    public int PointsSyncIntervalMinutes { get; private init; } = 2;
+
+    public PointsSyncSettings PointsSync =>
+        new(Interval: TimeSpan.FromMinutes(PointsSyncIntervalMinutes));
+
     public PenaltyScanSettings PenaltyScan =>
         new(Interval: TimeSpan.FromMinutes(PenaltyScanIntervalMinutes));
 
@@ -219,6 +228,10 @@ internal sealed class JobsOptions
             ChatRetentionIntervalMinutes = Number(
                 configuration, $"{SectionName}:ChatRetention:IntervalMinutes",
                 defaults.ChatRetentionIntervalMinutes, 5, 1440),
+
+            PointsSyncIntervalMinutes = Number(
+                configuration, $"{SectionName}:PointsSync:IntervalMinutes",
+                defaults.PointsSyncIntervalMinutes, 1, 1440),
 
             // Yuqori chegara 20 000: undan katta paket uzoq tranzaksiya va
             // katta WAL demakdir — ya'ni fon tozalashi ilovaning O'ZINI

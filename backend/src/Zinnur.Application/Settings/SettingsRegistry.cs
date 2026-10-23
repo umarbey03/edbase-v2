@@ -75,6 +75,7 @@ public static class SettingsRegistry
         SettingGroup.Security => "Xavfsizlik",
         SettingGroup.Content => "O'quv kontenti",
         SettingGroup.Chat => "Guruh chati",
+        SettingGroup.Gamification => "Ball tizimi",
         _ => group.ToString(),
     };
 
@@ -90,6 +91,7 @@ public static class SettingsRegistry
         SettingGroup.Content => "Dars videosi va rasmlari uchun hajm chegaralari.",
         SettingGroup.Chat =>
             "Guruh chati tarixini avtomatik tozalash. 🔴 O'chirish QAYTARILMAYDI.",
+        SettingGroup.Gamification => "O'quvchilar balli, reytingi va darsdan keyingi xabarlar.",
         _ => string.Empty,
     };
 
@@ -1233,6 +1235,44 @@ public static class SettingsRegistry
                 + "panelga kirgan odam butun xato oqimini (ichida so'rov konteksti bilan) "
                 + "o'z serveriga burib yubora olardi. " + StartupBoundReason,
         },
+
+        // ================================================================ BALL TIZIMI
+        //
+        // Ikkalasini `PointsSyncJob` HAR YURISHDA o'qiydi (`ChatRetentionJob`
+        // naqshi): panelda o'zgartirilgan qiymat keyingi yurishdayoq ishlaydi.
+
+        new()
+        {
+            Key = "gamification.points_enabled",
+            Group = SettingGroup.Gamification,
+            DisplayName = "Ball tizimi",
+            Description =
+                "O'quvchilar darsga kelish, baho, vazifa, test va dars videosi uchun ball oladi; "
+                + "darsga kelmaganda ball ayiriladi. O'quvchilar reytingi shu ball bo'yicha "
+                + "tuziladi. O'chirilsa yangi ball yozilmaydi, eski ballar saqlanadi.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Gamification:PointsEnabled",
+            DefaultValue = "true",
+        },
+
+        new()
+        {
+            Key = "gamification.lesson_message_enabled",
+            Group = SettingGroup.Gamification,
+            DisplayName = "Darsdan keyin ball haqida Telegram xabari",
+            Description =
+                "Dars yakunlanib davomat yozilgach o'quvchiga Telegram orqali qisqa xabar boradi: "
+                + "nechta ball oldi, shu oydagi jami va guruhdagi o'rni. 22:00 dan 08:00 gacha "
+                + "xabarlar ertalabga qoldiriladi. Faqat oxirgi 24 soatdagi darslar uchun.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Gamification:LessonMessageEnabled",
+
+            // ★ STANDART — O'CHIQ: yangi versiya chiqqan kuni hamma o'quvchiga
+            // kutilmagan xabar ketmasin. Administrator matnni ko'rib, o'zi yoqadi.
+            DefaultValue = "false",
+        },
     ];
 
     /// <summary>
@@ -1362,6 +1402,10 @@ public static class SettingsRegistry
         // qiymatni tahrirlardi.
         public const string ChatRetentionEnabled = "chat.retention_enabled";
         public const string ChatRetentionMonths = "chat.retention_months";
+
+        // ---------------------------------------------------------------- ball tizimi
+        public const string PointsEnabled = "gamification.points_enabled";
+        public const string PointsLessonMessageEnabled = "gamification.lesson_message_enabled";
 
         // ---------------------------------------------------------------- R5: yozuv ko'rinishi
         //

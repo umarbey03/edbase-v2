@@ -174,6 +174,9 @@ public enum SettingGroup
     /// qolib ketmasligi kerak.
     /// </summary>
     Chat = 7,
+
+    /// <summary>O'quvchilar uchun ball tizimi (2026-10-23).</summary>
+    Gamification = 8,
 }
 
 /// <summary>

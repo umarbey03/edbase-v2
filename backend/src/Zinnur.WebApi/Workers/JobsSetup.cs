@@ -3,6 +3,7 @@ using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Media;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Progress.Services;
 using Zinnur.Application.Penalties.Services;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings.Services;
@@ -105,6 +106,12 @@ internal static class JobsSetup
         services.AddScoped<IScheduledJob>(sp => new PenaltyScanJob(
             sp.GetRequiredService<IPenaltyService>(),
             options.PenaltyScan));
+
+        // ★ BALL DAFTARI (2026-10-23) — SHARTSIZ, jarima skaneri bilan AYNI
+        //   sabab: yoqish qarori paneldagi `gamification.points_enabled`.
+        services.AddScoped<IScheduledJob>(sp => new PointsSyncJob(
+            sp.GetRequiredService<IPointsSyncService>(),
+            options.PointsSync));
 
         // ================================================================
         // 🔴 CHAT TARIXINI TOZALASH — SHARTSIZ RO'YXATDAN O'TADI.

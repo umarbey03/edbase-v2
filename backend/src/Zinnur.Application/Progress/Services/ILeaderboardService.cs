@@ -59,7 +59,8 @@ public interface ILeaderboardService
     /// </summary>
     /// <param name="period"><c>YYYY-MM</c>; <c>null</c> — joriy oy (markaz vaqti).</param>
     Task<GroupLeaderboardDto> GetGroupBoardAsync(
-        long groupId, long viewerId, string? period, CancellationToken ct = default);
+        long groupId, long viewerId, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default);
 
     /// <summary>
     /// BUTUN O'QUV MARKAZ bo'yicha jadval: eng yaxshi
@@ -72,7 +73,8 @@ public interface ILeaderboardService
     /// </summary>
     /// <param name="period"><c>YYYY-MM</c>; <c>null</c> — joriy oy (markaz vaqti).</param>
     Task<CenterLeaderboardDto> GetCenterBoardAsync(
-        long viewerId, string? period, CancellationToken ct = default);
+        long viewerId, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default);
 
     /// <summary>
     /// O'quvchining o'z o'rni (jadvalsiz).
@@ -84,5 +86,6 @@ public interface ILeaderboardService
     /// va <c>GroupId</c> HAR DOIM <c>null</c>.
     /// </summary>
     Task<MyRankDto> GetMyRankAsync(
-        long studentId, LeaderboardScope scope, string? period, CancellationToken ct = default);
+        long studentId, LeaderboardScope scope, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default);
 }

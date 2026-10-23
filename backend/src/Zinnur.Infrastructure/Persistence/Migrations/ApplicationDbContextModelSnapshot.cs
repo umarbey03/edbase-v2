@@ -3005,6 +3005,55 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("StudentNotes", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.StudentPoint", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Delta")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("Ref")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long?>("SessionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_StudentPoints_OccurredAt");
+
+                    b.HasIndex("StudentId", "OccurredAt")
+                        .HasDatabaseName("IX_StudentPoints_StudentId_OccurredAt");
+
+                    b.HasIndex("StudentId", "Ref")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentPoints_StudentId_Ref");
+
+                    b.ToTable("StudentPoints", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.Submission", b =>
                 {
                     b.Property<long>("Id")
@@ -4793,6 +4842,17 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Author");
 
                     b.Navigation("Group");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.StudentPoint", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Student");
                 });
