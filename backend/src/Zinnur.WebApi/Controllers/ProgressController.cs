@@ -17,8 +17,21 @@ namespace Zinnur.WebApi.Controllers;
 public sealed class ProgressController(
     IAttendanceSummaryService attendance,
     ILessonGradeSummaryService lessonGrades,
+    IPointsService points,
     IGatingService gating) : ControllerBase
 {
+    /// <summary>
+    /// "Mening ballim": oydagi jami ball, guruhdagi o'rin, ketma-ketlik va
+    /// keyingi bonus, tur bo'yicha tafsilot va oxirgi yozuvlar (2026-10-23).
+    /// </summary>
+    /// <param name="period">Oy (<c>YYYY-MM</c>); bo'sh — joriy oy.</param>
+    [HttpGet("points")]
+    [ProducesResponseType<MyPointsDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<MyPointsDto>> Points([FromQuery] string? period, CancellationToken ct) =>
+        Ok(await points.GetMineAsync(CurrentUserId, period, ct));
+
     /// <summary>
     /// Davomat xulosasi: qatnashgan / qoldirgan / jami va foiz
     /// (ustoz va kurator darslari alohida) + ketma-ket qatnashish seriyasi.

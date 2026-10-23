@@ -2,6 +2,7 @@ import { http } from '@/shared/api'
 import type {
   CenterLeaderboardDto,
   GroupLeaderboardDto,
+  LeaderboardMetricName,
   LeaderboardScopeName,
   MyRankDto,
 } from '@/shared/types'
@@ -18,10 +19,10 @@ const BASE = '/api/v1/leaderboard'
 export function fetchGroupLeaderboard(
   groupId: number,
   period?: string,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; metric?: LeaderboardMetricName },
 ): Promise<GroupLeaderboardDto> {
   return http.get<GroupLeaderboardDto>(`${BASE}/groups/${groupId}`, {
-    query: { period },
+    query: { period, metric: options?.metric },
     signal: options?.signal,
   })
 }
@@ -42,10 +43,10 @@ export function fetchGroupLeaderboard(
  */
 export function fetchCenterLeaderboard(
   period?: string,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; metric?: LeaderboardMetricName },
 ): Promise<CenterLeaderboardDto> {
   return http.get<CenterLeaderboardDto>(`${BASE}/center`, {
-    query: { period },
+    query: { period, metric: options?.metric },
     signal: options?.signal,
   })
 }
@@ -61,10 +62,10 @@ export function fetchCenterLeaderboard(
  */
 export function fetchMyRank(
   period?: string,
-  options?: { signal?: AbortSignal; scope?: LeaderboardScopeName },
+  options?: { signal?: AbortSignal; scope?: LeaderboardScopeName; metric?: LeaderboardMetricName },
 ): Promise<MyRankDto> {
   return http.get<MyRankDto>(`${BASE}/me`, {
-    query: { period, scope: options?.scope },
+    query: { period, scope: options?.scope, metric: options?.metric },
     signal: options?.signal,
   })
 }

@@ -102,6 +102,7 @@ export type {
   HolidayImpactDto,
   /* ===== /Bayram kalendari ===== */
   LeaderboardRowDto,
+  LeaderboardMetricName,
   LeaderboardScopeName,
   LessonAssetDto,
   LessonAssetKindName,

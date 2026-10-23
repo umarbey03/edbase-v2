@@ -282,6 +282,8 @@ public static class DependencyInjection
         services.AddScoped<ILearningCenterScope, SingleCenterScope>();
 
         services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IPointsService, PointsService>();
+        services.AddScoped<IPointsSyncService, PointsSyncService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
         // O'QUVCHINING O'Z DARS BAHOLARI (R24 ning o'quvchi tomoni).

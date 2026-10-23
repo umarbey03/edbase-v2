@@ -450,3 +450,34 @@ public enum EnrollmentApplicationStatus
     /// <summary>Rad etildi yoki o'zi voz kechdi.</summary>
     Rejected = 3,
 }
+
+/// <summary>
+/// O'quvchi balli manbasi (2026-10-23, ball tizimi). Qiymatlar va qoidalar —
+/// <c>PointRules</c>; yozuvlarni <c>PointsSyncService</c> manba jadvallaridan yasaydi.
+/// </summary>
+public enum PointKind
+{
+    /// <summary>Darsga keldi (Present, Late, Partial).</summary>
+    Present = 0,
+
+    /// <summary>Darsga kelmadi.</summary>
+    Absent = 1,
+
+    /// <summary>Uzrli sabab bilan kelmadi — kamroq ayiriladi.</summary>
+    Excused = 2,
+
+    /// <summary>Ketma-ket qatnashish bonusi (4 va 8 darsda).</summary>
+    StreakBonus = 3,
+
+    /// <summary>Ustozning dars bahosi.</summary>
+    LessonGrade = 4,
+
+    /// <summary>Tekshirilgan uy vazifasi.</summary>
+    Assignment = 5,
+
+    /// <summary>Topshirilgan test.</summary>
+    Test = 6,
+
+    /// <summary>Dars videosi oxirigacha ko'rildi.</summary>
+    VideoWatched = 7,
+}
