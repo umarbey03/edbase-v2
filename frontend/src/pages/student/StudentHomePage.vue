@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { fetchRecordingSection } from '@/entities/recording'
 import { ClassroomModal } from '@/features/classroom'
+import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import NextLessonCard from '@/features/student-schedule/ui/NextLessonCard.vue'
 import { useNow } from '@/shared/lib/use-now'
@@ -335,6 +336,9 @@ const classroomOpen = ref(false)
           Ketma-ket {{ attendanceQuery.data.value?.streak }} darsda qatnashdingiz.
         </p>
       </section>
+
+      <!-- Ball tizimi (2026-10-23): oydagi ball, o'rin, keyingi bonus. -->
+      <MyPointsCard />
     </div>
   </div>
 

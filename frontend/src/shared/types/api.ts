@@ -1614,6 +1614,13 @@ export interface GroupLeaderboardDto {
 export type LeaderboardScopeName = 'Group' | 'Center'
 
 /**
+ * Reyting nima bo'yicha (2026-10-23): `Percent` — 4 mezon foizi (xodimlar
+ * tahlili), `Points` — ball tizimi (o'quvchi reytingi). `Points` da
+ * `total` — butun ball, `rank = 0` — ball yo'q, mezon foizlari `null`.
+ */
+export type LeaderboardMetricName = 'Percent' | 'Points'
+
+/**
  * Butun o'quv markaz bo'yicha jadval.
  *
  * ★ `rows` TO'LIQ EMAS: server eng yaxshi `topCount` ta qatorni yuboradi.
