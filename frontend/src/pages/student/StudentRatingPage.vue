@@ -13,6 +13,7 @@ import { fetchMyPoints, formatDelta, pointKindLabel } from '@/entities/points'
 import { currentPeriod, isValidPeriod, periodLabel } from '@/entities/payment'
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { sessionTypeShortLabel } from '@/entities/session'
+import { useMySubscription } from '@/entities/subscription'
 import { toUserMessage } from '@/shared/api'
 import { formatDate } from '@/shared/lib/datetime'
 import type { LeaderboardRowDto } from '@/shared/types'
@@ -50,6 +51,20 @@ import { AppIcon, BaseAvatar, BaseSheet, DataStatus } from '@/shared/ui'
 type BoardScope = 'group' | 'center'
 
 const scope = ref<BoardScope>('group')
+
+/*
+  ★ MUSTAQIL O'QUVCHI (2026-10-23): guruhi yo'q, ya'ni faqat markaz
+  jadvali — server unga FAQAT boshqa mustaqil o'quvchilarni beradi.
+  Qamrov tablari yashiriladi va jadval darhol markaz ko'rinishida ochiladi.
+*/
+const { isSelfStudy } = useMySubscription()
+watch(
+  isSelfStudy,
+  (selfStudy) => {
+    if (selfStudy) scope.value = 'center'
+  },
+  { immediate: true },
+)
 
 const isCenter = computed(() => scope.value === 'center')
 
@@ -163,7 +178,9 @@ const rows = computed<LeaderboardRowDto[]>(() => board.value?.rows ?? [])
 
 /** Sarlavha: guruh nomi yoki markaz yorlig'i. */
 const boardTitle = computed(() =>
-  isCenter.value ? 'O‘quv markaz' : (groupBoard.value?.groupName ?? 'Guruh'),
+  isSelfStudy.value
+    ? 'Mustaqil o‘quvchilar'
+    : isCenter.value ? 'O‘quv markaz' : (groupBoard.value?.groupName ?? 'Guruh'),
 )
 
 /**
@@ -466,6 +483,7 @@ const myGradesError = computed(() =>
     -->
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <div
+        v-if="!isSelfStudy"
         class="flex w-full gap-2 lg:w-auto"
         role="tablist"
       >

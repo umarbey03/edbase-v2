@@ -2,7 +2,8 @@ import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { navItemsForRole } from '@/entities/user'
+import { useMySubscription } from '@/entities/subscription'
+import { navItemsForRole, SELF_STUDY_NAV } from '@/entities/user'
 import type { NavItem } from '@/entities/user'
 
 /**
@@ -31,7 +32,9 @@ export interface StudentNav {
 export function useStudentNav(): StudentNav {
   const route = useRoute()
 
-  const items = computed(() => navItemsForRole('Student'))
+  // Mustaqil o'quvchida Kalendar va Chat o'rniga Profil (2026-10-23).
+  const { isSelfStudy } = useMySubscription()
+  const items = computed(() => (isSelfStudy.value ? SELF_STUDY_NAV : navItemsForRole('Student')))
 
   /*
     ★ `active-class` / `exact-active-class` YETMAYDI: "O'quv" bandi `/oquv`

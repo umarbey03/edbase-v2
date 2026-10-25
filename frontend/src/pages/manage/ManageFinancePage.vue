@@ -19,6 +19,7 @@ import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDial
 import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDialog.vue'
 import WaivePaymentDialog from '@/features/payment-actions/ui/WaivePaymentDialog.vue'
 import StudentAccountDialog from '@/features/student-account/ui/StudentAccountDialog.vue'
+import SubscriptionPlansCard from '@/features/subscription/ui/SubscriptionPlansCard.vue'
 import TariffsCard from '@/features/tariff-manage/ui/TariffsCard.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatMoney, sumMoney } from '@/shared/lib/money'
@@ -187,6 +188,7 @@ function canWaive(payment: PaymentDto): boolean {
     <div class="mt-4 grid gap-4 xl:grid-cols-2">
       <BlockSettingsCard />
       <TariffsCard />
+      <SubscriptionPlansCard />
       <StudentDiscountsCard class="xl:col-span-2" />
     </div>
 

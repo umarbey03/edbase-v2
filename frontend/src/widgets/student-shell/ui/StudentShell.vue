@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { RouterView, useRouter } from 'vue-router'
+import { onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 
+import { useMySubscription } from '@/entities/subscription'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { useNotificationHub } from '@/features/notifications'
@@ -10,6 +11,7 @@ import { markMiniAppLogout } from '@/features/telegram-auth'
 import { closeMiniApp, isTelegramMiniApp } from '@/shared/lib/telegram-web-app'
 import { useNow } from '@/shared/lib/use-now'
 
+import { STUDENT_SHELL_ACTIONS } from './shellActions'
 import StudentAppBar from './StudentAppBar.vue'
 import StudentProfileSheet from './StudentProfileSheet.vue'
 import StudentSidebar from './StudentSidebar.vue'
@@ -159,6 +161,34 @@ async function handleLogout(): Promise<void> {
 
   await router.replace({ name: 'login' })
 }
+
+// Profil sahifasi karkasning tahrirlash oynasi va chiqish oqimini ishlatadi.
+provide(STUDENT_SHELL_ACTIONS, {
+  openProfileEdit: () => {
+    editOpen.value = true
+  },
+  logout: handleLogout,
+})
+
+/*
+  ★ MUSTAQIL O'QUVCHI GURUH SAHIFALARIGA KIRMAYDI (2026-10-23). Tabda ular
+  yo'q, lekin eski havola yoki qo'lda yozilgan manzil bilan kelishi mumkin.
+  Bu FAQAT qulaylik: sahifalar baribir bo'sh chiqardi, chunki server
+  mustaqil o'quvchiga guruh ma'lumotini umuman bermaydi.
+*/
+const route = useRoute()
+const { isSelfStudy } = useMySubscription()
+const GROUP_ONLY_ROUTES = new Set(['student-calendar', 'student-chat', 'student-recordings'])
+
+watch(
+  [isSelfStudy, () => route.name],
+  ([selfStudy, name]) => {
+    if (selfStudy && typeof name === 'string' && GROUP_ONLY_ROUTES.has(name)) {
+      void router.replace({ name: 'student-home' })
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

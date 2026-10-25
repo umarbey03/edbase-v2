@@ -47,8 +47,11 @@ const filled = computed(() => (data.value === null ? 0 : STEPS - data.value.less
           <template v-if="data.rank !== null">
             Guruhda <b class="text-slate-200">{{ data.rank }}-o‘rin</b>
           </template>
-          <template v-else>
+          <template v-else-if="data.total === 0">
             Bu oyda hali ball yo‘q — birinchi darsdan boshlanadi
+          </template>
+          <template v-else>
+            Bu oy uchun
           </template>
         </p>
       </div>
@@ -64,7 +67,11 @@ const filled = computed(() => (data.value === null ? 0 : STEPS - data.value.less
       </RouterLink>
     </div>
 
-    <div class="mt-4 border-t border-line pt-3">
+    <!-- Ketma-ket darsga kelish bonusi — faqat guruh (jonli dars) o'quvchisiga. -->
+    <div
+      v-if="data.groupName !== null"
+      class="mt-4 border-t border-line pt-3"
+    >
       <div class="flex gap-1.5">
         <span
           v-for="step in STEPS"

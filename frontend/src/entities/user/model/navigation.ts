@@ -78,6 +78,21 @@ const STUDENT_NAV: NavItem[] = [
   { routeName: 'student-chat', label: 'Chat', icon: 'message-circle' },
 ]
 
+/**
+ * MUSTAQIL O'QUVCHI — 4 tab (2026-10-23, mustaqil o'qish obunasi).
+ *
+ * Guruh o'quvchisining 5 tabi O'ZGARMAYDI (yuqoridagi izoh). Mustaqil
+ * o'quvchida jonli dars ham, chat ham yo'q — "Kalendar" va "Chat" o'rniga
+ * "Profil" (obuna holati va to'lovlar tarixi shu yerda). Tartib qolgan
+ * bandlar uchun AYNAN yuqoridagidek.
+ */
+export const SELF_STUDY_NAV: NavItem[] = [
+  { routeName: 'student-home', label: 'Bosh sahifa', icon: 'home' },
+  { routeName: 'student-learn', label: 'O‘quv', icon: 'book' },
+  { routeName: 'student-rating', label: 'Reyting', icon: 'chart' },
+  { routeName: 'student-profile', label: 'Profil', icon: 'user' },
+]
+
 /*
   ★ "Chatlar" — eski `teacher.html` menyusidagi band (657-qator). U yerda
   AYNAN "Tekshirish" dan KEYIN turgan, shu nisbiy o'rni saqlandi. Mavjud
