@@ -30,6 +30,7 @@ const LOCK_MESSAGES: Record<string, string> = {
   TeacherPace: "Ustoz bu darsga hali yetmagan — jonli darsda o'tilgach ochiladi",
   PreviousIncomplete: "Avvalgi darsni to'liq tugating (video, vazifa va test)",
   NotInCourse: "Guruhingiz kursning boshqa qismidan boshlagan",
+  SubscriptionExpired: "Obunangiz muddati tugagan — davom ettirish uchun obunani uzaytiring",
 }
 
 /** Eski ilovadagi `LOCK_SHORT` — dars qatorining o'ng chekkasidagi qisqa yorliq. */
@@ -37,6 +38,7 @@ const LOCK_SHORT: Record<string, string> = {
   TeacherPace: 'Ustoz kutilmoqda',
   PreviousIncomplete: 'Avvalgi dars',
   NotInCourse: 'Boshqa qism',
+  SubscriptionExpired: 'Obuna tugagan',
 }
 
 export function lockMessage(reason: string | null): string {

@@ -186,6 +186,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Chat', roles: STUDENT },
       },
       {
+        // Mustaqil o'quvchining 4-tabi (2026-10-23); guruh o'quvchisi ham ocha oladi.
+        path: 'profil',
+        name: 'student-profile',
+        component: () => import('@/pages/student/StudentProfilePage.vue'),
+        meta: { title: 'Profil', roles: STUDENT },
+      },
+      {
         path: 'oquv/vazifalarim',
         name: 'student-assignments',
         component: () => import('@/pages/student/StudentAssignmentsPage.vue'),

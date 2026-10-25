@@ -24,6 +24,7 @@ const LOCK_REASON_LABELS: Record<LessonLockReasonName, string> = {
     (`GatingService`: "Guruhingiz kursni bu qismdan boshlamagan…").
   */
   BeforeGroupStart: 'Guruh bu qismdan boshlamaydi',
+  SubscriptionExpired: 'Obuna muddati tugagan',
 }
 
 export function lessonLockReasonLabel(value: string): string {

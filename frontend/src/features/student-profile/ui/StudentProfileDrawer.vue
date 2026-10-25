@@ -18,6 +18,7 @@ import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDi
 import StaffGroupsSection from '@/features/staff-profile/ui/StaffGroupsSection.vue'
 import StaffPayrollSection from '@/features/staff-profile/ui/StaffPayrollSection.vue'
 import StudentNotesSection from '@/features/student-notes/ui/StudentNotesSection.vue'
+import StudentSubscriptionSection from '@/features/subscription/ui/StudentSubscriptionSection.vue'
 import { toUserMessage } from '@/shared/api'
 import type { UserRoleName } from '@/shared/types'
 import { AppIcon, BaseAvatar, BaseBadge, BaseDrawer, DataStatus, SectionLoader } from '@/shared/ui'
@@ -354,6 +355,12 @@ function openGroup(groupId: number): void {
             @reverse="reverseOpen = true"
             @show-transactions="transactionsOpen = true"
             @open-lesson-charges="openLessonCharges"
+          />
+
+          <!-- Mustaqil o'qish obunasi (2026-10-23) — faqat o'quv bo'limi/admin. -->
+          <StudentSubscriptionSection
+            v-if="canUnlink && props.userId !== null"
+            :student-id="props.userId"
           />
 
           <!-- 3 ---------------------------------------------------- guruhlar -->

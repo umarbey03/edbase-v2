@@ -1419,6 +1419,8 @@ export type LessonLockReasonName =
   | 'TeacherPace'
   | 'NotInCourse'
   | 'BeforeGroupStart'
+  /** Mustaqil o'qish obunasi muddati tugagan (2026-10-23). */
+  | 'SubscriptionExpired'
 
 /**
  * `GET /api/v1/courses` qatori — daraxtsiz, yengil.

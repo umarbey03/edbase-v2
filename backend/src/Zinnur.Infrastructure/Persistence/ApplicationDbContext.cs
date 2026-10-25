@@ -80,9 +80,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<TestAnswer> TestAnswers => Set<TestAnswer>();
 
     public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
-    public DbSet<StudentPoint> StudentPoints => Set<StudentPoint>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<SubscriptionPeriod> SubscriptionPeriods => Set<SubscriptionPeriod>();
+    public DbSet<StudentPoint> StudentPoints => Set<StudentPoint>();
 
     // ---------------------------------------------------------------- WAVE 1: dars mediasi
 

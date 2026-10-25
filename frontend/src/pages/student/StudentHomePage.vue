@@ -4,8 +4,10 @@ import { computed, ref } from 'vue'
 
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { fetchRecordingSection } from '@/entities/recording'
+import { useMySubscription } from '@/entities/subscription'
 import { ClassroomModal } from '@/features/classroom'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
+import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import NextLessonCard from '@/features/student-schedule/ui/NextLessonCard.vue'
 import { useNow } from '@/shared/lib/use-now'
@@ -85,6 +87,14 @@ const recordingsVisible = computed(() => sectionQuery.data.value?.visible ?? tru
   (`enabled: open`), bosh sahifa yuklanishini sekinlashtirmasin uchun.
 */
 const classroomOpen = ref(false)
+
+/*
+  ★ MUSTAQIL O'QUVCHI (2026-10-23): jadval, davomat va "Mening guruhim"
+  unda yo'q — ularning o'rnida obuna holati va "darsni davom ettirish".
+  Guruh o'quvchisining sahifasi O'ZGARMAYDI.
+*/
+const subscription = useMySubscription()
+const isSelfStudy = subscription.isSelfStudy
 </script>
 
 <template>
@@ -111,7 +121,49 @@ const classroomOpen = ref(false)
     Telefonda bu klasslarning BIRORTASI qo'llanmaydi — ildiz `<div>` avvalgidek
     oddiy blok bo'lib qoladi (Telegram Mini App yo'li).
   -->
-  <div class="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
+  <!-- ==================== Mustaqil o'quvchi (2026-10-23) ==================== -->
+  <div
+    v-if="isSelfStudy && subscription.data.value !== null"
+    class="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6"
+  >
+    <div class="space-y-4 lg:min-w-0">
+      <SubscriptionStatusCard :data="subscription.data.value" />
+
+      <RouterLink
+        v-if="subscription.data.value.isActive"
+        :to="{ name: 'student-learn' }"
+        class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-brand-500/40 bg-brand-500/10 p-[15px] transition-colors hover:bg-brand-500/15"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="play"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Darsni davom ettirish</b>
+          <span class="block text-xs text-dim">Video, vazifa va test — o‘z tezligingizda</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim transition-transform group-hover:translate-x-0.5"
+        />
+      </RouterLink>
+    </div>
+
+    <div class="lg:sticky lg:top-24">
+      <MyPointsCard />
+    </div>
+  </div>
+
+  <div
+    v-else
+    class="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6"
+  >
     <!-- ======================= Chap ustun: keyingi dars ======================= -->
     <!--
       ★ Bu o'ram DESKTOP UCHUN qo'shildi, lekin telefonda ZARARSIZ: yagona
@@ -346,7 +398,10 @@ const classroomOpen = ref(false)
     ==================== Mening guruhim (2026-08-17) ====================
     Ustoz, kurator, guruhdoshlar va bog'lanish kontakti — `ClassroomModal`.
   -->
-  <div class="mt-6">
+  <div
+    v-if="!isSelfStudy"
+    class="mt-6"
+  >
     <h2
       class="mb-3 ml-1 flex items-center gap-[7px] text-xs font-bold uppercase tracking-[1.4px] text-slate-400"
     >
@@ -453,7 +508,7 @@ const classroomOpen = ref(false)
       </RouterLink>
 
       <RouterLink
-        v-if="recordingsVisible"
+        v-if="recordingsVisible && !isSelfStudy"
         :to="{ name: 'student-recordings' }"
         class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-line bg-ink-900 p-[15px] transition-colors hover:border-line-strong hover:bg-ink-800"
       >
