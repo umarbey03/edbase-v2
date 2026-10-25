@@ -158,12 +158,13 @@ public sealed class LeaderboardService(
     private static readonly TimeSpan PastPeriodTtl = TimeSpan.FromMinutes(10);
 
     public async Task<GroupLeaderboardDto> GetGroupBoardAsync(
-        long groupId, long viewerId, string? period, CancellationToken ct = default)
+        long groupId, long viewerId, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default)
     {
         var group = await LoadGroupForViewerAsync(groupId, viewerId, ct);
         var resolved = ResolvePeriod(period);
 
-        var board = await GetBoardAsync(group, resolved, ct);
+        var board = await GetBoardAsync(group, resolved, metric, ct);
 
         // "Men" bayrog'i KESHDAN KEYIN — sabab sinf izohida.
         var rows = board.Rows.Count == 0
@@ -180,7 +181,8 @@ public sealed class LeaderboardService(
     }
 
     public async Task<CenterLeaderboardDto> GetCenterBoardAsync(
-        long viewerId, string? period, CancellationToken ct = default)
+        long viewerId, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default)
     {
         // ★ AVVAL `period`, KEYIN QAMROV — guruh yo'lidagidan farqli tartib.
         // Sabab: `ResolvePeriod` sof funksiya (bazaga bormaydi), qamrov esa
@@ -191,7 +193,7 @@ public sealed class LeaderboardService(
         // Ruxsat SHU YERDA hal bo'ladi — servis qoidani takrorlamaydi.
         var audience = await center.ResolveForViewerAsync(viewerId, ct);
 
-        var board = await CenterBoardAsync(audience, resolved, ct);
+        var board = await CenterBoardAsync(audience, resolved, metric, ct);
 
         // ★ KESISH KESHDAN KEYIN: keshdagi ro'yxat NEYTRAL va TO'LIQ.
         var rows = board.Rows.Count <= CenterTopRows
@@ -217,13 +219,14 @@ public sealed class LeaderboardService(
     }
 
     public Task<MyRankDto> GetMyRankAsync(
-        long studentId, LeaderboardScope scope, string? period, CancellationToken ct = default) =>
+        long studentId, LeaderboardScope scope, string? period,
+        LeaderboardMetric metric = LeaderboardMetric.Percent, CancellationToken ct = default) =>
         scope == LeaderboardScope.Center
-            ? CenterRankAsync(studentId, period, ct)
-            : GroupRankAsync(studentId, period, ct);
+            ? CenterRankAsync(studentId, period, metric, ct)
+            : GroupRankAsync(studentId, period, metric, ct);
 
     private async Task<MyRankDto> GroupRankAsync(
-        long studentId, string? period, CancellationToken ct)
+        long studentId, string? period, LeaderboardMetric metric, CancellationToken ct)
     {
         await LoadUserAsync(studentId, ct);
         var resolved = ResolvePeriod(period);
@@ -233,7 +236,7 @@ public sealed class LeaderboardService(
         if (group is null)
             return new MyRankDto(LeaderboardScope.Group, null, null, resolved.ToString(), 0, null);
 
-        var board = await GetBoardAsync(group, resolved, ct);
+        var board = await GetBoardAsync(group, resolved, metric, ct);
 
         var me = board.Rows.FirstOrDefault(r => r.StudentId == studentId);
 
@@ -253,12 +256,12 @@ public sealed class LeaderboardService(
     /// o'quvchi 847-o'rinda bo'lsa ham berilishi kerak.
     /// </summary>
     private async Task<MyRankDto> CenterRankAsync(
-        long studentId, string? period, CancellationToken ct)
+        long studentId, string? period, LeaderboardMetric metric, CancellationToken ct)
     {
         var resolved = ResolvePeriod(period);
 
         var audience = await center.ResolveForViewerAsync(studentId, ct);
-        var board = await CenterBoardAsync(audience, resolved, ct);
+        var board = await CenterBoardAsync(audience, resolved, metric, ct);
 
         var me = board.Rows.FirstOrDefault(r => r.StudentId == studentId);
 
@@ -276,14 +279,16 @@ public sealed class LeaderboardService(
     // ================================================================= kesh
 
     private async Task<CachedLeaderboard> GetBoardAsync(
-        Group group, BillingPeriod period, CancellationToken ct)
+        Group group, BillingPeriod period, LeaderboardMetric metric, CancellationToken ct)
     {
-        var key = CacheKey(group.Id, period);
+        var key = CacheKey(group.Id, period, metric);
 
         var cached = await cache.GetAsync<CachedLeaderboard>(key, ct);
         if (cached is not null) return cached;
 
-        var computed = await ComputeAsync(group.Id, period, ct);
+        var computed = metric == LeaderboardMetric.Points
+            ? await ComputePointsAsync(group.Id, period, ct)
+            : await ComputeAsync(group.Id, period, ct);
 
         var ttl = period == CurrentPeriod() ? CurrentPeriodTtl : PastPeriodTtl;
         await cache.SetAsync(key, computed, ttl, ct);
@@ -292,14 +297,16 @@ public sealed class LeaderboardService(
     }
 
     private async Task<CachedLeaderboard> CenterBoardAsync(
-        LearningCenterAudience audience, BillingPeriod period, CancellationToken ct)
+        LearningCenterAudience audience, BillingPeriod period, LeaderboardMetric metric, CancellationToken ct)
     {
-        var key = CenterCacheKey(audience.CacheDiscriminator, period);
+        var key = CenterCacheKey(audience.CacheDiscriminator, period, metric);
 
         var cached = await cache.GetAsync<CachedLeaderboard>(key, ct);
         if (cached is not null) return cached;
 
-        var computed = await ComputeCenterAsync(audience, period, ct);
+        var computed = metric == LeaderboardMetric.Points
+            ? await ComputeCenterPointsAsync(audience, period, ct)
+            : await ComputeCenterAsync(audience, period, ct);
 
         var ttl = period == CurrentPeriod() ? CurrentPeriodTtl : PastPeriodTtl;
         await cache.SetAsync(key, computed, ttl, ct);
@@ -307,15 +314,21 @@ public sealed class LeaderboardService(
         return computed;
     }
 
-    private static string CacheKey(long groupId, BillingPeriod period) =>
-        string.Create(CultureInfo.InvariantCulture, $"leaderboard:g{groupId}:{period}");
+    private static string CacheKey(long groupId, BillingPeriod period, LeaderboardMetric metric) =>
+        string.Create(CultureInfo.InvariantCulture, $"leaderboard:g{groupId}:{period}{MetricSuffix(metric)}");
+
+    /// <summary>Foiz jadvali kaliti O'ZGARMAYDI (eski kesh yozuvlari ham to'g'ri qoladi).</summary>
+    private static string MetricSuffix(LeaderboardMetric metric) =>
+        metric == LeaderboardMetric.Points ? ":pts" : string.Empty;
 
     /// <summary>
     /// Markaz kaliti. Markaz belgisi kalit ICHIDA — sinf izohidagi uch
     /// qoidaning birinchisi.
     /// </summary>
-    private static string CenterCacheKey(string discriminator, BillingPeriod period) =>
-        string.Create(CultureInfo.InvariantCulture, $"leaderboard:center:{discriminator}:{period}");
+    private static string CenterCacheKey(string discriminator, BillingPeriod period, LeaderboardMetric metric) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"leaderboard:center:{discriminator}:{period}{MetricSuffix(metric)}");
 
     // ================================================================= hisob
 
@@ -737,6 +750,79 @@ public sealed class LeaderboardService(
 
         return new CachedLeaderboard(audience.Students.Count, rows);
     }
+
+    // ================================================================= ball jadvali
+
+    /// <summary>
+    /// BALL BO'YICHA GURUH JADVALI (2026-10-23). A'zolar foiz jadvalidagidek
+    /// (<see cref="GroupMembershipScope"/>), ball esa shu oydagi
+    /// <c>StudentPoints</c> yig'indisi (manfiyga tushmaydi). Tartib —
+    /// <see cref="PointsRanking"/>: teng ball teng o'rin, tenglar ichida
+    /// kunlik aralashtirish (alifbo emas).
+    /// </summary>
+    private async Task<CachedLeaderboard> ComputePointsAsync(
+        long groupId, BillingPeriod period, CancellationToken ct)
+    {
+        var members = await db.GroupMembers.AsNoTracking()
+            .Where(GroupMembershipScope.ActiveIn(groupId))
+            .Select(m => new MemberRow(m.StudentId, m.Student!.FullName))
+            .ToListAsync(ct);
+
+        if (members.Count == 0)
+            return new CachedLeaderboard(0, []);
+
+        // Bir o'quvchi guruhda ham, kurator guruhida ham a'zo bo'lishi mumkin.
+        members = [.. members.DistinctBy(m => m.StudentId)];
+
+        var totals = await PointTotalsAsync([.. members.Select(m => m.StudentId)], period, ct);
+
+        var rows = PointRows(members.Select(m =>
+            new PointsStanding(m.StudentId, m.FullName, totals.GetValueOrDefault(m.StudentId))));
+
+        return new CachedLeaderboard(members.Count, rows);
+    }
+
+    private async Task<CachedLeaderboard> ComputeCenterPointsAsync(
+        LearningCenterAudience audience, BillingPeriod period, CancellationToken ct)
+    {
+        if (audience.Students.Count == 0)
+            return new CachedLeaderboard(0, []);
+
+        var totals = await PointTotalsAsync([.. audience.Students.Select(s => s.StudentId)], period, ct);
+
+        var rows = PointRows(audience.Students.Select(s =>
+            new PointsStanding(s.StudentId, s.FullName, totals.GetValueOrDefault(s.StudentId))));
+
+        return new CachedLeaderboard(audience.Students.Count, rows);
+    }
+
+    private async Task<Dictionary<long, int>> PointTotalsAsync(
+        List<long> studentIds, BillingPeriod period, CancellationToken ct)
+    {
+        var (startUtc, endUtc) = period.UtcRange(timeZone.TimeZone);
+
+        var sums = await db.StudentPoints.AsNoTracking()
+            .Where(p => studentIds.Contains(p.StudentId)
+                     && p.OccurredAt >= startUtc
+                     && p.OccurredAt < endUtc)
+            .GroupBy(p => p.StudentId)
+            .Select(g => new { StudentId = g.Key, Sum = g.Sum(p => p.Delta) })
+            .ToListAsync(ct);
+
+        // Oylik jami manfiyga tushmaydi (PointRules.MonthTotal qoidasi).
+        return sums.ToDictionary(s => s.StudentId, s => Math.Max(0, s.Sum));
+    }
+
+    private List<LeaderboardRowDto> PointRows(IEnumerable<PointsStanding> standings) =>
+        [.. PointsRanking.Rank(standings, LocalWallClockToday()).Select(r => new LeaderboardRowDto(
+            r.Standing.StudentId,
+            r.Standing.StudentName,
+            r.Rank,
+            r.Standing.Points,
+            AttendancePercent: null,
+            AssignmentPercent: null,
+            TestPercent: null,
+            IsMe: false))];
 
     // ================================================================= yordamchi
 

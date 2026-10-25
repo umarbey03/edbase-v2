@@ -7,6 +7,8 @@ import type { LeaderboardRowDto } from '@/shared/types'
  * shakl qo'shishdan arzon va o'quvchi ularni bir qarashda taniydi.
  */
 export function rankBadge(rank: number): string {
+  // Ball reytingida 0 — "ball yo'q, o'rin berilmaydi" (server qoidasi).
+  if (rank <= 0) return '—'
   if (rank === 1) return '🥇'
   if (rank === 2) return '🥈'
   if (rank === 3) return '🥉'

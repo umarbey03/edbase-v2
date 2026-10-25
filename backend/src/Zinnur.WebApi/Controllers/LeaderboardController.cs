@@ -43,8 +43,11 @@ public sealed class LeaderboardController(ILeaderboardService leaderboard) : Con
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<GroupLeaderboardDto>> GroupBoard(
-        long groupId, [FromQuery] string? period, CancellationToken ct) =>
-        Ok(await leaderboard.GetGroupBoardAsync(groupId, CurrentUserId, period, ct));
+        long groupId,
+        [FromQuery] string? period,
+        [FromQuery] LeaderboardMetric metric = LeaderboardMetric.Percent,
+        CancellationToken ct = default) =>
+        Ok(await leaderboard.GetGroupBoardAsync(groupId, CurrentUserId, period, metric, ct));
 
     /// <summary>
     /// BUTUN O'QUV MARKAZ bo'yicha jadval.
@@ -62,8 +65,10 @@ public sealed class LeaderboardController(ILeaderboardService leaderboard) : Con
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<CenterLeaderboardDto>> CenterBoard(
-        [FromQuery] string? period, CancellationToken ct) =>
-        Ok(await leaderboard.GetCenterBoardAsync(CurrentUserId, period, ct));
+        [FromQuery] string? period,
+        [FromQuery] LeaderboardMetric metric = LeaderboardMetric.Percent,
+        CancellationToken ct = default) =>
+        Ok(await leaderboard.GetCenterBoardAsync(CurrentUserId, period, metric, ct));
 
     /// <summary>
     /// O'quvchining o'z o'rni — jadvalsiz, yengil ko'rinish (bosh sahifa kartochkasi).
@@ -84,8 +89,9 @@ public sealed class LeaderboardController(ILeaderboardService leaderboard) : Con
     public async Task<ActionResult<MyRankDto>> MyRank(
         [FromQuery] string? period,
         [FromQuery] LeaderboardScope scope = LeaderboardScope.Group,
+        [FromQuery] LeaderboardMetric metric = LeaderboardMetric.Percent,
         CancellationToken ct = default) =>
-        Ok(await leaderboard.GetMyRankAsync(CurrentUserId, scope, period, ct));
+        Ok(await leaderboard.GetMyRankAsync(CurrentUserId, scope, period, metric, ct));
 
     private long CurrentUserId =>
         long.Parse(

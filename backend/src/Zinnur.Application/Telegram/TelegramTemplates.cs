@@ -177,6 +177,14 @@ public static class TelegramTemplates
     public const string SessionStarted = "session_started";
 
     /// <summary>
+    /// Darsdan keyingi ball xabari (2026-10-23, ball tizimi): nechta ball
+    /// oldi yoki ayirildi, ketma-ketlik va oydagi jami. Sozlamada o'chiq
+    /// bo'lsa umuman yozilmaydi (<c>gamification.lesson_message_enabled</c>).
+    /// Tugmasi — «Ilovani ochish»: o'quvchi reytingdagi o'rnini ko'radi.
+    /// </summary>
+    public const string PointsLesson = "points_lesson";
+
+    /// <summary>
     /// Darsga kelmagan o'quvchiga yuborilgan xabar (2026-08-18).
     ///
     /// ★ MATN SHU YERDA EMAS: uni o'quv bo'limi xodimi o'zi yozadi
@@ -237,6 +245,8 @@ public static class TelegramTemplates
 
         // Dars boshlandi — «🚀 Ilovani ochish» (sabab kalit izohida).
         SessionStarted => TelegramMarkup.OpenApp,
+
+        PointsLesson => TelegramMarkup.OpenApp,
 
         // Kelmaganlik xabari — «Ilovani ochish» tugmasi bilan: o'quvchi
         // dars yozuvini ko'rishi yoki jadvalni tekshirishi mumkin, ya'ni
@@ -680,6 +690,59 @@ public static class TelegramTemplates
     }
 
     /* ===== /2026-08-18 ===== */
+
+    /* ===== 2026-10-23 · BALL TIZIMI ===== */
+
+    private static readonly string[] MonthNames =
+    [
+        "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+        "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr",
+    ];
+
+    /// <summary>
+    /// Darsdan keyingi ball xabari.
+    ///
+    /// ★ OHANG — AYBLOVSIZ: kelmagan o'quvchiga ham "keyingi darsda kutamiz"
+    ///   deyiladi; minus ball yashirilmaydi (tizim shaffof bo'lishi kerak),
+    ///   lekin xabar uni sharmanda qilmaydi.
+    /// </summary>
+    /// <param name="studentName">O'quvchi ismi.</param>
+    /// <param name="groupName">Guruh nomi.</param>
+    /// <param name="attended">Darsga keldimi.</param>
+    /// <param name="lessonPoints">Shu dars uchun jami (davomat + bonus + baho).</param>
+    /// <param name="streak">Ketma-ket qatnashilgan darslar (kelgan bo'lsa).</param>
+    /// <param name="streakBonus">Shu darsda berilgan bonus (bo'lmasa <c>null</c>).</param>
+    /// <param name="month">Oy raqami (1..12).</param>
+    /// <param name="monthTotal">Oydagi jami ball.</param>
+    public static string PointsLessonText(
+        string studentName, string groupName, bool attended, int lessonPoints,
+        int streak, int? streakBonus, int month, int monthTotal)
+    {
+        var name = NotificationText.Parameter(studentName, 60);
+        var group = NotificationText.Parameter(groupName, 100);
+        var monthName = MonthNames[Math.Clamp(month, 1, 12) - 1];
+        var signed = lessonPoints > 0 ? $"+{lessonPoints}" : lessonPoints.ToString(CultureInfo.InvariantCulture);
+
+        string text;
+        if (attended)
+        {
+            text = $"✅ {name}, «{group}» darsida qatnashdingiz: <b>{signed}</b> ball";
+
+            if (streakBonus is { } bonus)
+                text += $"\n🔥 Ketma-ket {streak} dars — <b>+{bonus}</b> bonus!";
+            else if (streak >= 2)
+                text += $"\n🔥 Ketma-ket {streak} dars";
+        }
+        else
+        {
+            text = $"{name}, «{group}» darsiga kelmadingiz: <b>{signed}</b> ball.\n"
+                + "Keyingi darsda kutamiz — har bir kelgan dars uchun +10 ball.";
+        }
+
+        return text + $"\n\n🏆 {monthName}: jami <b>{monthTotal}</b> ball";
+    }
+
+    /* ===== /2026-10-23 ===== */
 }
 
 /// <summary>

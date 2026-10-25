@@ -120,6 +120,8 @@ public interface IApplicationDbContext
 
     DbSet<SubscriptionPeriod> SubscriptionPeriods { get; }
 
+    DbSet<StudentPoint> StudentPoints { get; }
+
     // ---------------------------------------------------------------- WAVE 1: dars mediasi
 
     /// <summary>

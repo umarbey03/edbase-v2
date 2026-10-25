@@ -7,9 +7,9 @@ import {
   fetchGroupLeaderboard,
   fetchMyRank,
   rankBadge,
-  scoreParts,
 } from '@/entities/leaderboard'
 import { fetchMyLessonGrades } from '@/entities/lesson-grade'
+import { fetchMyPoints, formatDelta, pointKindLabel } from '@/entities/points'
 import { currentPeriod, isValidPeriod, periodLabel } from '@/entities/payment'
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { sessionTypeShortLabel } from '@/entities/session'
@@ -114,8 +114,8 @@ const isArchive = computed(
  *    hisobotga yozildi.
  */
 const myRankQuery = useQuery({
-  queryKey: ['leaderboard', 'me'],
-  queryFn: ({ signal }) => fetchMyRank(undefined, { signal }),
+  queryKey: ['leaderboard', 'me', 'points'],
+  queryFn: ({ signal }) => fetchMyRank(undefined, { signal, metric: 'Points' }),
 })
 
 const groupId = computed(() => myRankQuery.data.value?.groupId ?? null)
@@ -123,9 +123,9 @@ const groupId = computed(() => myRankQuery.data.value?.groupId ?? null)
 const boardQuery = useQuery({
   // Davr KALIT ICHIDA: har oy alohida keshlanadi, ya'ni arxivda oldinga-
   // orqaga varaqlash takroriy so'rov yubormaydi.
-  queryKey: ['leaderboard', 'group', groupId, effectivePeriod],
+  queryKey: ['leaderboard', 'group', groupId, effectivePeriod, 'points'],
   queryFn: ({ signal }) =>
-    fetchGroupLeaderboard(groupId.value as number, effectivePeriod.value, { signal }),
+    fetchGroupLeaderboard(groupId.value as number, effectivePeriod.value, { signal, metric: 'Points' }),
   // Guruh aniqlanmaguncha so'rov yuborilmaydi (aks holda `null` bilan 404 ketardi).
   enabled: computed(() => groupId.value !== null),
 })
@@ -145,8 +145,8 @@ const boardQuery = useQuery({
  * ★ KALITDA GURUH YO'Q — jadval qamrovi guruhga bog'liq emas.
  */
 const centerQuery = useQuery({
-  queryKey: ['leaderboard', 'center', effectivePeriod],
-  queryFn: ({ signal }) => fetchCenterLeaderboard(effectivePeriod.value, { signal }),
+  queryKey: ['leaderboard', 'center', effectivePeriod, 'points'],
+  queryFn: ({ signal }) => fetchCenterLeaderboard(effectivePeriod.value, { signal, metric: 'Points' }),
   enabled: isCenter,
 })
 
@@ -345,11 +345,6 @@ watch(effectivePeriod, () => {
   detailRow.value = null
 })
 
-/** `null` — "hisobga olinmagan", NOL EMAS. Shuning uchun chiziqcha. */
-function formatPercent(value: number | null): string {
-  return value === null ? '—' : `${Math.round(value)}%`
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
    O'ZINING DARS BAHOLARI — "bu foiz qaysi darslardan chiqdi?" (R24)
 
@@ -392,6 +387,18 @@ const myGradesRange = computed(() => {
 })
 
 const myGradesOpen = computed(() => detailRow.value?.isMe === true)
+
+/*
+  ★ BALL TAFSILOTI FAQAT O'ZIGA (2026-10-23): reyting jadvalida boshqalarga
+  faqat JAMI ko'rinadi. Tur bo'yicha yoyilma (minus ballar bilan) — faqat
+  o'z qatorida: ochiq joyda faqat ijobiy ma'lumot qoidasi.
+*/
+const myPointsQuery = useQuery({
+  queryKey: ['progress', 'points', myGradesPeriod],
+  queryFn: ({ signal }) => fetchMyPoints(myGradesPeriod.value, { signal }),
+  enabled: myGradesOpen,
+})
+const myPoints = computed(() => myPointsQuery.data.value ?? null)
 
 const myGradesQuery = useQuery({
   queryKey: ['progress', 'lesson-grades', myGradesPeriod],
@@ -821,43 +828,78 @@ const myGradesError = computed(() =>
       @close="detailRow = null"
     >
       <p class="text-xs text-slate-400">
-        <!-- R24 dan keyin mezon TO'RTTA, lekin son ATAYLAB yozilmadi:
-             "—" bo'lgan mezon o'rtachaga umuman kirmaydi, ya'ni aniq
-             son har oy o'zgarib turadi va yolg'on gapirardi. -->
-        Yakuniy ball mezonlarning o‘rtachasi. “—” — shu oyda bu mezon
-        bo‘yicha ma’lumot yo‘q (nol emas) va u o‘rtachaga kirmaydi.
+        Ball darsga kelish, dars bahosi, uy vazifasi, test va dars videosi uchun
+        beriladi; darsga kelmaganda ball ayiriladi. Har oy noldan boshlanadi.
       </p>
 
-      <dl
+      <div
         v-if="detailRow !== null"
-        class="mt-3 space-y-2"
+        class="mt-3 flex items-center justify-between rounded-xl border border-brand-500/40 bg-brand-500/10 px-3.5 py-2.5"
       >
-        <div
-          v-for="part in scoreParts(detailRow)"
-          :key="part.label"
-          class="flex items-center justify-between rounded-xl border border-line bg-ink-950 px-3.5 py-2.5"
-        >
-          <dt
-            class="text-[13px] text-slate-300"
-            v-text="part.label"
-          />
-          <dd
-            class="text-sm font-bold tabular-nums text-slate-100"
-            v-text="formatPercent(part.percent)"
-          />
-        </div>
+        <span class="text-[13px] font-bold text-brand-200">Jami ball</span>
+        <span class="text-base font-extrabold tabular-nums text-brand-300">
+          {{ Math.round(detailRow.total) }}
+        </span>
+      </div>
 
-        <div
-          class="flex items-center justify-between rounded-xl border border-brand-500/40 bg-brand-500/10 px-3.5 py-2.5"
+      <p
+        v-if="detailRow !== null && !detailRow.isMe"
+        class="mt-2 text-[11px] text-dim"
+      >
+        Ball tafsiloti faqat o‘quvchining o‘ziga ko‘rinadi.
+      </p>
+
+      <section
+        v-if="myGradesOpen && myPoints !== null"
+        class="mt-4"
+      >
+        <h3 class="mb-2 text-[11px] font-bold uppercase tracking-[1.2px] text-dim">
+          Ball qayerdan keldi
+        </h3>
+        <dl class="space-y-2">
+          <div
+            v-for="part in myPoints.breakdown"
+            :key="part.kind"
+            class="flex items-center justify-between rounded-xl border border-line bg-ink-950 px-3.5 py-2.5"
+          >
+            <dt class="text-[13px] text-slate-300">
+              {{ pointKindLabel(part.kind) }}
+              <span class="text-dim">× {{ part.count }}</span>
+            </dt>
+            <dd
+              class="text-sm font-bold tabular-nums"
+              :class="part.points < 0 ? 'text-rose-300' : 'text-slate-100'"
+              v-text="formatDelta(part.points)"
+            />
+          </div>
+        </dl>
+
+        <h3
+          v-if="myPoints.recent.length > 0"
+          class="mb-2 mt-4 text-[11px] font-bold uppercase tracking-[1.2px] text-dim"
         >
-          <dt class="text-[13px] font-bold text-brand-200">
-            Yakuniy ball
-          </dt>
-          <dd class="text-base font-extrabold tabular-nums text-brand-300">
-            {{ Math.round(detailRow.total) }}
-          </dd>
-        </div>
-      </dl>
+          Oxirgi ballar
+        </h3>
+        <ul class="space-y-1.5">
+          <li
+            v-for="(event, index) in myPoints.recent"
+            :key="index"
+            class="flex items-center justify-between gap-3 rounded-lg px-1 py-1"
+          >
+            <span class="min-w-0">
+              <span class="block truncate text-[13px] text-slate-200">{{ pointKindLabel(event.kind) }}</span>
+              <span class="block truncate text-[11px] text-dim">
+                {{ formatDate(event.occurredAt) }}<template v-if="event.title !== null"> · {{ event.title }}</template>
+              </span>
+            </span>
+            <span
+              class="shrink-0 text-sm font-bold tabular-nums"
+              :class="event.delta < 0 ? 'text-rose-300' : 'text-emerald-300'"
+              v-text="formatDelta(event.delta)"
+            />
+          </li>
+        </ul>
+      </section>
 
       <!--
         ══════════════════════════════════════════════════════════════════
