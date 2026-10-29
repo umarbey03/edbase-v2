@@ -2,9 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
 import { EnrollmentRequestForm } from '@/features/enrollment-request'
-import { PublicPlans } from '@/features/shop-offers'
 import { LevelTestModal } from '@/features/level-test'
+import { useQuery } from '@tanstack/vue-query'
+
+import { fetchShopOffers } from '@/entities/shop'
 import { COURSE_FACTS } from '@/shared/config/course-facts'
+import { formatMoney } from '@/shared/lib/money'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
 import {
@@ -246,13 +249,26 @@ onBeforeUnmount(() => {
   sectionObserver?.disconnect()
 })
 
+/*
+  MUSTAQIL TARIF — BAZADAN (2026-10-29). O'quv bo'limi «Moliya» sahifasida
+  «Saytda ko'rsatish» belgilagan eng arzon mustaqil reja. So'rov yiqilsa
+  yoki reja yo'q bo'lsa bo'lim faqat Milliy tarifni ko'rsatadi.
+*/
+const offersQuery = useQuery({
+  queryKey: ['shop', 'offers'],
+  queryFn: ({ signal }) => fetchShopOffers({ signal }),
+  staleTime: 5 * 60_000,
+})
+const selfStudyPlan = computed(
+  () => offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy') ?? null,
+)
+
 const NAV: readonly { href: string, label: string }[] = [
   { href: '#dars', label: 'Bepul dars' },
   { href: '#natija', label: 'Natija' },
   { href: '#kurs', label: 'Kurs tuzilmasi' },
   { href: '#daraja', label: 'Daraja testi' },
-  { href: '#narx', label: 'Narx' },
-  { href: '#tariflar', label: 'Tariflar' },
+  { href: '#narx', label: 'Tariflar' },
   { href: '#savollar', label: 'Savollar' },
 ]
 
@@ -2156,6 +2172,16 @@ const year = new Date().getFullYear()
            `text-slate-*` va `text-brand-500` o'z-o'zidan to'q sirt
            qiymatlarini oladi (aksent u yerda shampan).
       -->
+      <!--
+        ★ 2026-10-29 — IKKI TARIF, BITTA BO'LIM. Ilgari narx bo'limi faqat
+          guruh kursini ko'rsatardi, uning ostida esa bazadan kelgan alohida
+          «Onlayn tariflar» bo'limi turardi — ikkalasi bir-biriga zid edi
+          ("8 ta dars uchun" va "oyiga"). Endi ikkala tarif yonma-yon:
+            • MILLIY — guruhda jonli darslar (narx `PRICE`, statik);
+            • MUSTAQIL — video darslar, vazifa va testlar (narx BAZADAN,
+              «Saytda ko'rsatish» belgilangan mustaqil reja).
+          Mustaqil reja yo'q bo'lsa o'ng ustunda avvalgi «nima kiradi» kartasi.
+      -->
       <section
         id="narx"
         class="relative mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24"
@@ -2164,40 +2190,33 @@ const year = new Date().getFullYear()
           <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
             {{ PRICE.eyebrow }}
           </span>
-          <!--
-            🔴 "OYLIK TO'LOV" EMAS (2026-08-30). Sarlavhaning o'zi
-               ham narxni oyga bog'lab qo'yardi — sabab
-               `content.ts` dagi `PRICE` izohida.
-          -->
           <h2
             class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
           >
-            Kurs to‘lovi
+            {{ selfStudyPlan === null ? 'Kurs to‘lovi' : 'Ikki xil o‘qish shakli' }}
           </h2>
           <p class="mx-auto mt-4 max-w-[60ch] text-base leading-relaxed text-slate-400">
-            {{ PRICE.lead }}
+            {{ selfStudyPlan === null ? PRICE.lead : PRICE.leadTwoPlans }}
           </p>
         </div>
 
         <div class="mt-12 grid items-stretch gap-5 lg:grid-cols-2">
-          <!-- ══════════════════════════════════ NARX KARTASI ═══ -->
+          <!-- ═══════════════════════════════════ MILLIY (GURUH) ═══ -->
           <div class="price-card surface-brand relative overflow-hidden rounded-3xl p-8 sm:p-10">
-            <!--
-              Fondagi arabcha «٨» (sakkiz) — kurs 8 oy va to'lov 8 ta
-              dars uchun. Bezak juda xira (5%), ya'ni matnga xalaqit
-              bermaydi; `aria-hidden` — u o'qilmaydi.
-            -->
             <span
               class="price-deco lt-arabic"
               aria-hidden="true"
             >٨</span>
 
-            <div class="relative">
+            <div class="relative flex h-full flex-col">
               <p class="text-[13px] font-bold uppercase tracking-[0.13em] text-slate-400">
-                ATF · Arab tili Fonetika
+                {{ PRICE.planName }} · ATF · Arab tili Fonetika
+              </p>
+              <p class="mt-1 text-sm text-slate-300">
+                {{ PRICE.planTagline }}
               </p>
 
-              <div class="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <span class="price-amount font-display text-5xl font-semibold tracking-tight sm:text-6xl">
                   {{ PRICE.amount }}
                 </span>
@@ -2206,7 +2225,7 @@ const year = new Date().getFullYear()
               </div>
 
               <p
-                class="mt-4 inline-flex items-center gap-2 rounded-full border border-line-strong bg-ink-900 px-4 py-2 text-[13px] font-semibold text-slate-200"
+                class="mt-4 inline-flex items-center gap-2 self-start rounded-full border border-line-strong bg-ink-900 px-4 py-2 text-[13px] font-semibold text-slate-200"
               >
                 <AppIcon
                   class="text-brand-500"
@@ -2215,6 +2234,25 @@ const year = new Date().getFullYear()
                 />
                 {{ PRICE.perLesson }}
               </p>
+
+              <!-- Mustaqil tarif bor bo'lsa «nima kiradi» shu kartaning ichida. -->
+              <ul
+                v-if="selfStudyPlan !== null"
+                class="mt-5"
+              >
+                <li
+                  v-for="item in PRICE.includes"
+                  :key="item"
+                  class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
+                >
+                  <AppIcon
+                    class="mt-0.5 shrink-0 text-brand-500"
+                    name="check"
+                    :size="15"
+                  />
+                  <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
+                </li>
+              </ul>
 
               <p class="mt-5 text-sm leading-relaxed text-slate-400">
                 {{ PRICE.note }}
@@ -2230,36 +2268,93 @@ const year = new Date().getFullYear()
                 />
               </div>
 
-              <!--
-                ★ TUGMA OQ, SHAMPAN EMAS: to'q yashil kartada oq
-                  to'ldirish eng kuchli kontrastni beradi va bu
-                  kartadagi YAGONA harakatga chaqiruv.
-              -->
-              <button
-                type="button"
-                class="price-cta mt-7 inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold"
-                @click="scrollToSection('#ariza')"
+              <div class="mt-auto pt-7">
+                <button
+                  type="button"
+                  class="price-cta inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold"
+                  @click="scrollToSection('#ariza')"
+                >
+                  Joyni band qilish
+                  <AppIcon
+                    name="chevron-right"
+                    :size="17"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══════════════════════════════ MUSTAQIL (BAZADAN) ═══ -->
+          <div
+            v-if="selfStudyPlan !== null"
+            class="flex flex-col rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
+          >
+            <p class="text-[13px] font-bold uppercase tracking-[0.13em] text-brand-500">
+              {{ selfStudyPlan.name }} · {{ selfStudyPlan.courseName }}
+            </p>
+            <p class="mt-1 text-sm text-slate-400">
+              {{ PRICE.selfTagline }}
+            </p>
+
+            <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span class="font-display text-5xl font-semibold tracking-tight text-slate-100 sm:text-6xl">
+                {{ formatMoney(selfStudyPlan.price) }}
+              </span>
+              <span class="text-xl font-semibold text-brand-500">so‘m</span>
+              <span class="text-sm text-slate-400">/ {{ selfStudyPlan.months === 1 ? 'oy' : `${selfStudyPlan.months} oy` }}</span>
+            </div>
+
+            <ul class="mt-5">
+              <li
+                v-for="item in selfStudyPlan.features"
+                :key="item"
+                class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
               >
-                Joyni band qilish
+                <span
+                  class="price-tick mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-on-brand"
+                >
+                  <AppIcon
+                    name="check"
+                    :size="13"
+                  />
+                </span>
+                <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
+              </li>
+            </ul>
+
+            <p
+              class="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-ink-950 p-4 text-sm leading-relaxed text-slate-400"
+            >
+              <AppIcon
+                class="mt-0.5 shrink-0 text-slate-500"
+                name="alert"
+                :size="18"
+              />
+              {{ PRICE.selfExcludes }}
+            </p>
+
+            <div class="mt-auto pt-7">
+              <RouterLink
+                :to="{ name: 'login', query: { redirect: '/tariflar' } }"
+                class="inline-flex h-12 items-center justify-center gap-2.5 rounded-full bg-brand-500 px-7 text-base font-semibold text-on-brand hover:bg-brand-600"
+              >
+                Sotib olish
                 <AppIcon
                   name="chevron-right"
                   :size="17"
                 />
-              </button>
+              </RouterLink>
             </div>
           </div>
 
-          <!-- ═══════════════════════════ NIMA KIRADI (OQ KARTA) ═══ -->
-          <div class="rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9">
+          <!-- Mustaqil tarif sotuvda bo'lmasa — avvalgi «nima kiradi» kartasi. -->
+          <div
+            v-else
+            class="rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
+          >
             <h3 class="font-display text-xl font-semibold tracking-tight text-slate-100">
               To‘lov ichiga nima kiradi
             </h3>
-
-            <!--
-              PUNKTIR AJRATGICHLAR — to'liq chiziq emas. Ro'yxat beshta
-              va qattiq chiziqlar uni jadvalga o'xshatib qo'yardi;
-              punktir esa punktlarni ajratadi, lekin "katak" yasamaydi.
-            -->
             <ul class="mt-5">
               <li
                 v-for="item in PRICE.includes"
@@ -2277,7 +2372,6 @@ const year = new Date().getFullYear()
                 <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
               </li>
             </ul>
-
             <p
               class="mt-6 flex items-start gap-3 rounded-2xl border border-amber-800 bg-amber-950 p-4 text-sm leading-relaxed text-amber-200"
             >
@@ -2290,11 +2384,14 @@ const year = new Date().getFullYear()
             </p>
           </div>
         </div>
+
+        <p
+          v-if="selfStudyPlan !== null"
+          class="mt-5 text-center text-sm text-slate-400"
+        >
+          {{ PRICE.booksNote }}
+        </p>
       </section>
-
-
-      <!-- Onlayn tariflar (2026-10-29) — bazadan; tarif bo'lmasa chizilmaydi. -->
-      <PublicPlans />
 
       <!-- ═══════════════════════════════════════════ ARIZA ═══ -->
       <section

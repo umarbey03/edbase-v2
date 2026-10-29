@@ -236,7 +236,7 @@ export const STATS: readonly { value: string, label: string }[] = [
   { value: COURSE_FACTS.courseDuration, label: 'Fonetika kursi' },
   { value: COURSE_FACTS.weeklyLessonDays, label: 'haftasiga dars' },
   { value: COURSE_FACTS.groupSize, label: 'kishilik guruh' },
-  { value: COURSE_FACTS.price, label: `so‘m / ${COURSE_FACTS.lessonsPerPayment}` },
+  { value: COURSE_FACTS.price, label: `so‘m / ${COURSE_FACTS.lessonsPerPayment} · Milliy` },
 ]
 
 /* ──────────────────────── BEPUL DARS (VIDEO) ──────────────────────── */
@@ -645,7 +645,7 @@ export const BOOKS = {
   points: [
     'Respublikaning istalgan viloyatiga — uyingizga eng yaqin Uzpost pochtasiga',
     '5–7 kun ichida yetkaziladi',
-    'Narxi oylik to‘lov ichida, alohida pul to‘lanmaydi',
+    'Narxi kurs to‘lovi ichida, alohida pul to‘lanmaydi',
     'Telefonda ko‘z og‘ritmaysiz — qog‘oz kitobdan dars qilasiz',
   ],
 } as const
@@ -674,7 +674,16 @@ export const BOOKS = {
      narxni yana oyga bog'lab qo'yardi.
 */
 export const PRICE = {
-  eyebrow: 'To‘lov',
+  eyebrow: 'Tariflar',
+  planName: 'Milliy',
+  planTagline: 'Ustoz bilan guruhda jonli darslar, support teacher va kitoblar',
+  selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
+  selfExcludes:
+    'Vazifa va testlaringiz tekshirib beriladi. Jonli dars, support teacher '
+    + 'darslari va guruh chati bu tarifga kirmaydi.',
+  leadTwoPlans:
+    'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
+    + 'Mustaqil — video darslar, vazifa va testlar, to‘lov oyiga.',
   amount: '540 000',
   currency: 'so‘m',
   period: '8 ta dars',
@@ -904,6 +913,15 @@ export const FAQ: readonly Faq[] = [
       + '67 500 so‘m. Buni ataylab oyga emas, darsga bog‘laganmiz: ba’zi '
       + 'oylarda darslar soni 9 taga to‘g‘ri keladi va o‘shanda siz faqat '
       + 'haqiqiy dars soni uchun to‘laysiz.',
+  },
+  {
+    question: 'Milliy va Mustaqil tariflarining farqi nima?',
+    answer:
+      'Milliy — ustoz bilan guruhda jonli darslar (haftasiga 2 kun asosiy ustoz, '
+      + '3 kun support teacher), kitoblar va dars yozuvlari; to‘lov 8 ta dars '
+      + 'uchun 540 000 so‘m. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
+      + 'qulay vaqtda ko‘rasiz, vazifa va testlarni bajarasiz, ular tekshirib '
+      + 'beriladi; to‘lov oyiga. Mustaqil tarifni saytning o‘zida sotib olasiz.',
   },
   {
     question: 'Darsga ulgurmasam nima bo‘ladi?',
