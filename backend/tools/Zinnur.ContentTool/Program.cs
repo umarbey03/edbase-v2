@@ -28,16 +28,20 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        if (args.Length < 2 || args[0] is not ("verify" or "import"))
+        if (args.Length < 2 || args[0] is not ("verify" or "import" or "preview"))
         {
             await Console.Error.WriteLineAsync(
                 "Foydalanish:\n"
                 + "  verify <kitob-papkasi> [--book ATF-1] [--allow fayl]\n"
-                + "  import <kitob-papkasi> --book ATF-1 [--course-id N] [--map fayl] [--dry-run] [--allow fayl]");
+                + "  import <kitob-papkasi> --book ATF-1 [--course-id N] [--map fayl] [--dry-run] [--allow fayl]\n"
+                + "  preview <birlik-papkasi>   (o'quvchi ko'radigan JSON — kontentni ko'rib chiqish uchun)");
             return 2;
         }
 
         var command = args[0];
+
+        if (command == "preview") return await PreviewAsync(Path.GetFullPath(args[1]));
+
         var bookDir = Path.GetFullPath(args[1]);
         var options = ParseOptions(args.Skip(2).ToArray());
 
@@ -54,6 +58,46 @@ public static class Program
         return command == "verify"
             ? await VerifyAsync(bookDir, bookCode, allow)
             : await ImportAsync(bookDir, bookCode, allow, options);
+    }
+
+    /// <summary>
+    /// O'quvchiga boradigan proyeksiya (oq ro'yxatdan o'tgan JSON) — kontent
+    /// muallifi va dizayn tekshiruvi uchun. Bazaga ham, omborga ham tegmaydi.
+    /// ⚠️ `audioMap` (belgi → id) FAQAT shu lokal buyruqda; server uni hech
+    /// qachon yubormaydi. Imzo kaliti — tasodifiy, ya'ni belgilar prod bilan mos emas.
+    /// </summary>
+    private static async Task<int> PreviewAsync(string unitDir)
+    {
+        var unit = UnitJson.Parse(await File.ReadAllTextAsync(Path.Combine(unitDir, "dars.json")));
+        var signer = new PreviewSigner();
+        var audio = new AudioHandleCodec(signer);
+        var projected = new StudentUnitProjector(audio, new MatchTokenCodec(signer)).Project(unit, 1);
+
+        var map = new System.Text.Json.Nodes.JsonObject();
+        foreach (var id in ContentVerifier.AudioIds(unit))
+        {
+            map[audio.Handle(1, id, AudioHandleCodec.Display)] = id;
+            map[audio.Handle(1, id, AudioHandleCodec.Quiz)] = id;
+        }
+
+        var output = new System.Text.Json.Nodes.JsonObject
+        {
+            ["unit"] = projected,
+            ["test"] = Zinnur.Application.Interactive.Grading.MiniTest.Questions(unit, 1, audio),
+            ["audioMap"] = map,
+        };
+
+        Console.WriteLine(output.ToJsonString(Indented));
+        return 0;
+    }
+
+    private sealed class PreviewSigner : IInteractiveSigner
+    {
+        private readonly byte[] _key = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+
+        public byte[] Sign(string purpose, string message) =>
+            System.Security.Cryptography.HMACSHA256.HashData(
+                _key, System.Text.Encoding.UTF8.GetBytes(purpose + "\n" + message));
     }
 
     private static async Task<int> VerifyAsync(string bookDir, string bookCode, IReadOnlyList<ForbiddenTermAllow> allow)
