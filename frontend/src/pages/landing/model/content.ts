@@ -678,8 +678,6 @@ export const PRICE = {
   planName: 'Milliy',
   planTagline: 'Ustoz bilan guruhda jonli darslar, support teacher va kitoblar',
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
-  selfExcludes:
-    'Jonli dars, support teacher darslari va guruh chati bu tarifga kirmaydi.',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
     + 'Mustaqil — video darslar, vazifa va testlar, to‘lov oyiga.',
@@ -722,6 +720,25 @@ export const PRICE = {
   */
   booksNote: 'Kitoblar uchun alohida pul to‘lanmaydi — hammasi shu to‘lov ichida.',
   booksNoteMilliy: 'Milliy tarifda kitoblar uchun alohida pul to‘lanmaydi — hammasi kurs to‘lovi ichida.',
+  /*
+    TARIFLAR SOLISHTIRMASI — ikkala kartada BIR XIL qatorlar, har birida
+    ✓ yoki ✗.
+
+    ★ NEGA BIR XIL RO'YXAT: odam ikki kartani yonma-yon qo'yib solishtiradi.
+      Qatorlar bir xil va bir xil tartibda bo'lsa, farq bir qarashda
+      ko'rinadi; har kartada o'z ro'yxati bo'lsa, odam nima YO'QLIGINI
+      o'zi topishi kerak bo'lardi.
+    🔴 Mustaqil tarifda kitob yetkazib berilmaydi (loyiha egasi, 2026-10-29).
+  */
+  compare: [
+    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, group: true },
+    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, group: true },
+    { label: 'Shaxsiy kabinet va reyting', self: true, group: true },
+    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, group: true },
+    { label: 'Haftasiga 3 kun support teacher darsi', self: false, group: true },
+    { label: 'Guruh chati va dars yozuvlari', self: false, group: true },
+    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, group: true },
+  ],
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
     'Haftasiga 3 kun support teacher darsi',
