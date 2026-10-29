@@ -49,6 +49,13 @@ public class SubscriptionPlan : BaseEntity
     /// <summary>Saytda ko'rinadimi (faol bo'lsa ham ichki reja bo'lishi mumkin).</summary>
     public bool IsPublic { get; set; }
 
+    /// <summary>
+    /// Tarifga interaktiv darslik kiradimi («Mustaqil+», 2026-10-29). Saytdagi
+    /// solishtirmada shu belgi bo'yicha «Interaktiv darslik» qatori ✓ bo'ladi;
+    /// darslik platformaga qo'shilganda unga kirish ham shu belgiga bog'lanadi.
+    /// </summary>
+    public bool IncludesInteractiveBook { get; set; }
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Name) || Name.Length > MaxNameLength)

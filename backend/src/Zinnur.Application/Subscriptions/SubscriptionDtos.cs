@@ -12,7 +12,8 @@ public sealed record SubscriptionPlanDto(
     bool IsActive,
     PlanKind Kind,
     string? Description,
-    bool IsPublic);
+    bool IsPublic,
+    bool IncludesInteractiveBook);
 
 public sealed record SaveSubscriptionPlanRequest(
     string Name,
@@ -22,7 +23,8 @@ public sealed record SaveSubscriptionPlanRequest(
     bool IsActive = true,
     PlanKind Kind = PlanKind.SelfStudy,
     string? Description = null,
-    bool IsPublic = false);
+    bool IsPublic = false,
+    bool IncludesInteractiveBook = false);
 
 /// <summary>Obuna berish yoki uzaytirish (to'lov qo'lda qabul qilingan).</summary>
 public sealed record GrantSubscriptionRequest(

@@ -66,7 +66,7 @@ public sealed class SubscriptionService(
             .ThenBy(p => p.Months)
             .Select(p => new SubscriptionPlanDto(
                 p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive,
-                p.Kind, p.Description, p.IsPublic))
+                p.Kind, p.Description, p.IsPublic, p.IncludesInteractiveBook))
             .ToListAsync(ct);
     }
 
@@ -113,6 +113,7 @@ public sealed class SubscriptionService(
         plan.IsActive = request.IsActive;
         plan.Kind = request.Kind;
         plan.IsPublic = request.IsPublic;
+        plan.IncludesInteractiveBook = request.IncludesInteractiveBook;
 
         var description = request.Description?.Trim();
         plan.Description = string.IsNullOrEmpty(description) ? null : description;
@@ -132,7 +133,7 @@ public sealed class SubscriptionService(
             .Where(p => p.Id == planId)
             .Select(p => new SubscriptionPlanDto(
                 p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive,
-                p.Kind, p.Description, p.IsPublic))
+                p.Kind, p.Description, p.IsPublic, p.IncludesInteractiveBook))
             .FirstAsync(ct);
 
     // ================================================================ obuna

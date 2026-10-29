@@ -54,6 +54,7 @@ function emptyForm(): SaveSubscriptionPlanRequest {
     kind: 'SelfStudy',
     description: null,
     isPublic: false,
+    includesInteractiveBook: false,
   }
 }
 
@@ -74,6 +75,7 @@ function openEdit(plan: SubscriptionPlanDto): void {
     kind: plan.kind,
     description: plan.description,
     isPublic: plan.isPublic,
+    includesInteractiveBook: plan.includesInteractiveBook,
   }
   formOpen.value = true
 }
@@ -206,6 +208,13 @@ const save = useMutation({
         >
         Saytda ko‘rsatish (o‘quvchilar o‘zi sotib oladi)
       </label>
+      <label class="flex items-center gap-2 text-sm text-slate-300 sm:col-span-2">
+        <input
+          v-model="form.includesInteractiveBook"
+          type="checkbox"
+        >
+        Interaktiv darslik kiradi (Mustaqil+)
+      </label>
       <div class="flex justify-end gap-2 sm:col-span-2">
         <BaseButton
           size="sm"
@@ -261,6 +270,12 @@ const save = useMutation({
               tone="accent"
             >
               Saytda
+            </BaseBadge>
+            <BaseBadge
+              v-if="plan.includesInteractiveBook"
+              tone="neutral"
+            >
+              Darslik
             </BaseBadge>
           </div>
           <p class="mt-0.5 text-[11px] text-slate-400">

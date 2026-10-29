@@ -21,6 +21,7 @@ public sealed class SubscriptionPlanConfiguration : IEntityTypeConfiguration<Sub
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Name).HasMaxLength(SubscriptionPlan.MaxNameLength).IsRequired();
         builder.Property(p => p.Description).HasMaxLength(SubscriptionPlan.MaxDescriptionLength);
+        builder.Property(p => p.IncludesInteractiveBook).HasDefaultValue(false);
         builder.Property(p => p.Price).HasPrecision(PaymentConfiguration.MoneyPrecision, PaymentConfiguration.MoneyScale);
 
         builder.HasOne(p => p.Course)

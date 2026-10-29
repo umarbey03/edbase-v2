@@ -260,8 +260,21 @@ const offersQuery = useQuery({
   staleTime: 5 * 60_000,
 })
 const selfStudyPlan = computed(
-  () => offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy') ?? null,
+  () => offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy' && !plan.includesInteractiveBook) ?? null,
 )
+/*
+  MUSTAQIL+ (2026-10-29) — «Interaktiv darslik kiradi» belgilangan mustaqil
+  reja. Faqat oddiy Mustaqil ham sotuvda bo'lsa chiqadi: solishtirma uchun
+  pastki pog'ona kerak.
+*/
+const plusPlan = computed(() => selfStudyPlan.value === null
+  ? null
+  : offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy' && plan.includesInteractiveBook) ?? null)
+const selfPlans = computed(() => [selfStudyPlan.value, plusPlan.value].filter((plan) => plan !== null))
+const compareRows = computed(() => PRICE.compare.filter((row) => !row.bookOnly || plusPlan.value !== null))
+function has(row: (typeof PRICE.compare)[number], plan: { includesInteractiveBook: boolean }): boolean {
+  return plan.includesInteractiveBook ? row.plus : row.self
+}
 
 const NAV: readonly { href: string, label: string }[] = [
   { href: '#dars', label: 'Bepul dars' },
@@ -2193,19 +2206,22 @@ const year = new Date().getFullYear()
           <h2
             class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
           >
-            {{ selfStudyPlan === null ? 'Kurs to‘lovi' : 'Ikki xil o‘qish shakli' }}
+            {{ selfStudyPlan === null ? 'Kurs to‘lovi' : plusPlan === null ? 'Ikki xil o‘qish shakli' : 'Uch xil o‘qish shakli' }}
           </h2>
           <p class="mx-auto mt-4 max-w-[60ch] text-base leading-relaxed text-slate-400">
-            {{ selfStudyPlan === null ? PRICE.lead : PRICE.leadTwoPlans }}
+            {{ selfStudyPlan === null ? PRICE.lead : plusPlan === null ? PRICE.leadTwoPlans : PRICE.leadThreePlans }}
           </p>
         </div>
 
-        <div class="mt-12 grid items-stretch gap-5 lg:grid-cols-2">
+        <div
+          class="mt-12 grid items-stretch gap-5"
+          :class="plusPlan === null ? 'lg:grid-cols-2' : 'lg:grid-cols-3'"
+        >
           <!-- ═══════════════════════════════════ MILLIY (GURUH) ═══ -->
           <!-- Mustaqil sotuvda bo'lsa Milliy O'NG ustunda (loyiha egasi, 2026-10-29). -->
           <div
             class="price-card surface-brand relative overflow-hidden rounded-3xl p-8 sm:p-10"
-            :class="selfStudyPlan !== null ? 'order-2' : ''"
+            :class="selfStudyPlan !== null ? 'order-last' : ''"
           >
             <span
               class="price-deco lt-arabic"
@@ -2221,7 +2237,10 @@ const year = new Date().getFullYear()
               </p>
 
               <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                <span class="price-amount font-display text-5xl font-semibold tracking-tight sm:text-6xl">
+                <span
+                  class="price-amount font-display text-5xl font-semibold tracking-tight sm:text-6xl"
+                  :class="plusPlan === null ? '' : 'lg:text-5xl'"
+                >
                   {{ PRICE.amount }}
                 </span>
                 <span class="text-xl font-semibold text-brand-500">{{ PRICE.currency }}</span>
@@ -2245,7 +2264,7 @@ const year = new Date().getFullYear()
                 class="mt-5"
               >
                 <li
-                  v-for="row in PRICE.compare"
+                  v-for="row in compareRows"
                   :key="row.label"
                   class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
                 >
@@ -2305,24 +2324,33 @@ const year = new Date().getFullYear()
             </div>
           </div>
 
-          <!-- ═══════════════════════════════ MUSTAQIL (BAZADAN) ═══ -->
+          <!-- ═══════════════════════ MUSTAQIL va MUSTAQIL+ (BAZADAN) ═══ -->
           <div
-            v-if="selfStudyPlan !== null"
-            class="flex flex-col rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
+            v-for="plan in selfPlans"
+            :key="plan.id"
+            class="flex flex-col rounded-3xl bg-ink-900 p-7 shadow-xs sm:p-9"
+            :class="plan.includesInteractiveBook ? 'border-2 border-brand-500' : 'border border-line'"
           >
-            <p class="text-[13px] font-bold uppercase tracking-[0.13em] text-brand-500">
-              {{ selfStudyPlan.name }} · {{ selfStudyPlan.courseName }}
+            <p class="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-[0.13em] text-brand-500">
+              {{ plan.name }} · {{ plan.courseName }}
+              <span
+                v-if="plan.includesInteractiveBook"
+                class="rounded-full bg-brand-500 px-2.5 py-0.5 text-[11px] tracking-normal text-on-brand normal-case"
+              >Yangi</span>
             </p>
             <p class="mt-1 text-sm text-slate-400">
               {{ PRICE.selfTagline }}
             </p>
 
             <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <span class="font-display text-5xl font-semibold tracking-tight text-slate-100 sm:text-6xl">
-                {{ formatMoney(selfStudyPlan.price) }}
+              <span
+                class="font-display text-5xl font-semibold tracking-tight text-slate-100 sm:text-6xl"
+                :class="plusPlan === null ? '' : 'lg:text-5xl'"
+              >
+                {{ formatMoney(plan.price) }}
               </span>
               <span class="text-xl font-semibold text-brand-500">so‘m</span>
-              <span class="text-sm text-slate-400">/ {{ selfStudyPlan.months === 1 ? 'oy' : `${selfStudyPlan.months} oy` }}</span>
+              <span class="text-sm text-slate-400">/ {{ plan.months === 1 ? 'oy' : `${plan.months} oy` }}</span>
             </div>
 
             <!--
@@ -2331,25 +2359,32 @@ const year = new Date().getFullYear()
             -->
             <ul class="mt-5">
               <li
-                v-for="row in PRICE.compare"
+                v-for="row in compareRows"
                 :key="row.label"
                 class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
               >
                 <span
                   class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg"
-                  :class="row.self ? 'price-tick text-on-brand' : 'border border-line text-slate-500'"
+                  :class="has(row, plan) ? 'price-tick text-on-brand' : 'border border-line text-slate-500'"
                 >
                   <AppIcon
-                    :name="row.self ? 'check' : 'close'"
+                    :name="has(row, plan) ? 'check' : 'close'"
                     :size="13"
                   />
                 </span>
                 <span
                   class="text-sm leading-relaxed"
-                  :class="row.self ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
+                  :class="has(row, plan) ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
                 >{{ row.label }}</span>
               </li>
             </ul>
+
+            <p
+              v-if="plan.includesInteractiveBook"
+              class="mt-4 text-[13px] leading-relaxed text-slate-400"
+            >
+              {{ PRICE.plusNote }}
+            </p>
 
             <div class="mt-auto pt-7">
               <RouterLink
@@ -2367,7 +2402,7 @@ const year = new Date().getFullYear()
 
           <!-- Mustaqil tarif sotuvda bo'lmasa — avvalgi «nima kiradi» kartasi. -->
           <div
-            v-else
+            v-if="selfStudyPlan === null"
             class="rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
           >
             <h3 class="font-display text-xl font-semibold tracking-tight text-slate-100">
