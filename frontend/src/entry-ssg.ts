@@ -1,3 +1,4 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createSSRApp } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -83,6 +84,16 @@ export async function render(): Promise<string> {
   })
 
   app.use(router)
+
+  /*
+    ⚠️ 2026-10-29 — VUE QUERY ULANDI. Landing tariflarni `useQuery` bilan
+       so'raydi (offers API). Plaginsiz `useQuery` setup paytida xato
+       tashlardi va prerender (`npm run build`) yiqilardi. Serverda so'rov
+       YUBORILMAYDI — vue-query SSR'da faqat holatni yaratadi; HTML'ga
+       zaxira holat (faqat Milliy kartasi) tushadi, brauzer esa tariflarni
+       o'zi yuklab oladi.
+  */
+  app.use(VueQueryPlugin, { queryClient: new QueryClient() })
 
   await router.push('/')
   await router.isReady()
