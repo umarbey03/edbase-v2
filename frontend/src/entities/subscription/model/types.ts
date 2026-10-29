@@ -71,6 +71,8 @@ export interface MySubscriptionDto {
   endsAt: string | null
   daysLeft: number | null
   history: SubscriptionPeriodDto[]
+  /** Hozirgi tarif nomi («Mustaqil», «Mustaqil+»). */
+  planName?: string | null
 }
 
 /** Davr holati: bekor qilingan, kelajakda, faol yoki tugagan. */

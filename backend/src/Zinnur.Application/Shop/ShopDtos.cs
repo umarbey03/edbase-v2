@@ -33,7 +33,8 @@ public sealed record ShopOrderDto(
     PurchaseOrderStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset? DecidedAt,
-    string? DecisionNote);
+    string? DecisionNote,
+    DateTimeOffset? PaidClaimedAt);
 
 /// <summary>O'quvchining do'kon holati: qaysi tariflar unga mos va buyurtmalari.</summary>
 /// <param name="InGroup">Faol guruh a'zoligi bor — mustaqil o'qish tarifi unga sotilmaydi.</param>
@@ -60,7 +61,8 @@ public sealed record StaffOrderDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? DecidedAt,
     string? DecidedByName,
-    string? DecisionNote);
+    string? DecisionNote,
+    DateTimeOffset? PaidClaimedAt);
 
 public sealed record CreateOrderRequest(long PlanId);
 

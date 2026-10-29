@@ -284,7 +284,15 @@ public sealed class SubscriptionService(
             ? Math.Max(0, (int)Math.Floor((state.EndsAt - clock.GetUtcNow()).TotalDays))
             : null;
 
-        return new MySubscriptionDto(true, state.IsActive, state.CourseId, courseName, state.EndsAt, daysLeft, history);
+        // ★ TARIF NOMI (audit, 2026-10-29): «Mustaqil» yoki «Mustaqil+» — kartada
+        //   ko'rinsin. Hozirgi (bo'lmasa — eng so'nggi) bekor qilinmagan davr.
+        var now = clock.GetUtcNow();
+        var live = history.Where(p => p.CancelledAt is null).ToList();
+        var planName = (live.FirstOrDefault(p => p.StartsAt <= now && now < p.EndsAt)
+                        ?? live.MaxBy(p => p.EndsAt))?.PlanName;
+
+        return new MySubscriptionDto(
+            true, state.IsActive, state.CourseId, courseName, state.EndsAt, daysLeft, history, planName);
     }
 
     // ================================================================ yordamchi

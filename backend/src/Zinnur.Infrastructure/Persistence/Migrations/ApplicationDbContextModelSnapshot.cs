@@ -2450,6 +2450,9 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<int>("Months")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("PaidClaimedAt")
+                        .HasColumnType("timestamptz");
+
                     b.Property<long?>("PaymentTransactionId")
                         .HasColumnType("bigint");
 

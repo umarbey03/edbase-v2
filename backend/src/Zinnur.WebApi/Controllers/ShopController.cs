@@ -48,6 +48,13 @@ public sealed class ShopController(IShopService shop) : ControllerBase
     public async Task<ActionResult<ShopOrderDto>> CancelOrder(long id, CancellationToken ct) =>
         Ok(await shop.CancelOrderAsync(CurrentUserId, id, ct));
 
+    [HttpPost("orders/{id:long}/paid")]
+    [Authorize(Roles = "Student")]
+    [ProducesResponseType<ShopOrderDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ShopOrderDto>> ClaimPaid(long id, CancellationToken ct) =>
+        Ok(await shop.ClaimPaidAsync(CurrentUserId, id, ct));
+
     [HttpGet("orders")]
     [Authorize(Roles = ManageRoles)]
     [ProducesResponseType<IReadOnlyList<StaffOrderDto>>(StatusCodes.Status200OK)]

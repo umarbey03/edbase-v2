@@ -61,4 +61,5 @@ public sealed record MySubscriptionDto(
     string? CourseName,
     DateTimeOffset? EndsAt,
     int? DaysLeft,
-    IReadOnlyList<SubscriptionPeriodDto> History);
+    IReadOnlyList<SubscriptionPeriodDto> History,
+    string? PlanName = null);
