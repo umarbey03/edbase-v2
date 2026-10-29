@@ -36,8 +36,16 @@ internal static class MediaResponse
     /// yetarli emas: javob obyekti yopilmasa ombor bilan ulanish hovuzga
     /// qaytmaydi va sekin, ko'rinmas soket oqishi paydo bo'ladi.
     /// </summary>
+    internal static Task<IActionResult> WriteAsync(
+        ControllerBase controller, LessonAssetDownload download, CancellationToken ct) =>
+        WriteAsync(controller, download, "private, max-age=3600", ct);
+
+    /// <summary>
+    /// AYNI yozuv, kesh siyosati bilan (2026-10-29): darslik audiosi kontent
+    /// manzilli va o'zgarmaydi — <c>immutable</c> bilan brauzer uni bir marta yuklaydi.
+    /// </summary>
     internal static async Task<IActionResult> WriteAsync(
-        ControllerBase controller, LessonAssetDownload download, CancellationToken ct)
+        ControllerBase controller, LessonAssetDownload download, string cacheControl, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(controller);
         ArgumentNullException.ThrowIfNull(download);
@@ -66,7 +74,7 @@ internal static class MediaResponse
         // `private` — faqat BRAUZER keshi (oraliq proksi saqlamaydi): fayl
         // ruxsat tekshiruvi ostida turadi, ya'ni umumiy kesh uni boshqa
         // foydalanuvchiga bermasligi kerak.
-        response.Headers.CacheControl = "private, max-age=3600";
+        response.Headers.CacheControl = cacheControl;
 
         response.ContentType = download.ContentType;
 

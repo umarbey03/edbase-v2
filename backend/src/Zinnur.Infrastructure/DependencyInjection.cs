@@ -486,6 +486,11 @@ public static class DependencyInjection
         // 🔴 Chipta RUXSAT BERMAYDI — u faqat "kim" ekanini aytadi.
         //    Batafsil: `IMediaAccessTicketService` izohi.
         services.AddSingleton<IMediaAccessTicketService, HmacMediaAccessTicketService>();
+
+        // 2026-10-29 · INTERAKTIV DARSLIK: audio belgisi, `ula` belgisi va audio
+        // chiptasi uchun HMAC. Kalit JWT siridan, LEKIN alohida maqsad bilan
+        // hosil qilinadi — darslik imzosi token yoki media chiptasi bo'lib o'tmaydi.
+        services.AddSingleton<Zinnur.Application.Interactive.Content.IInteractiveSigner, HmacInteractiveSigner>();
     }
 
     /// <summary>

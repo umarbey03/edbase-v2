@@ -214,6 +214,16 @@ public static class DependencyInjection
         // KUTUBXONA (2026-09-09): PDF kitoblar — jonli darsda ulashish uchun.
         services.AddScoped<Books.Services.IBookService, Books.Services.BookService>();
 
+        // 2026-10-29 · INTERAKTIV DARSLIK. Kodeklar holatsiz (imzo har chaqiruvda
+        // hisoblanadi) — singleton; servislar `DbContext` ga tayanadi — scoped.
+        services.AddSingleton<Interactive.Content.AudioHandleCodec>();
+        services.AddSingleton<Interactive.Content.MatchTokenCodec>();
+        services.AddSingleton<Interactive.Content.UnitTicketCodec>();
+        services.AddSingleton<Interactive.Content.StudentUnitProjector>();
+        services.AddScoped<Interactive.Access.IInteractiveBookAccess, Interactive.Access.InteractiveBookAccess>();
+        services.AddScoped<Interactive.Services.IInteractiveUnitService, Interactive.Services.InteractiveUnitService>();
+        services.AddScoped<Interactive.Import.InteractiveImporter>();
+
         // R37: USTOZ tekshirishda biriktiradigan fayllar. AYNI sabablar
         // bilan SCOPED va ALOHIDA interfeys — u ham `IMediaStorage` bilan
         // oqim orqali ishlaydi va ruxsat uchun `IAssignmentService` ning
