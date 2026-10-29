@@ -93,9 +93,19 @@ public sealed class SingleCenterScope(IApplicationDbContext db, ISubscriptionAcc
         //   hali na guruhi, na obunasi bor o'quvchi. U hech kimning ismini
         //   ko'rmasligi kerak — aks holda bot orqali profil ochgan har kim
         //   markazdagi barcha o'quvchilar ro'yxatini olardi.
+        //
+        // 🔴 FAOL A'ZOLIK SHART (audit, 2026-10-29): ilgari "biror GroupMembers
+        //    qatori bormi" tekshirilardi — guruhdan chiqqan (yoki obunasi
+        //    tugagan sobiq guruh) o'quvchi hamon butun markaz reytingini
+        //    (Id, ism, ball) olardi. Endi: faol guruh, kurator guruhi emas va
+        //    a'zolik Active yoki Paused. ★ Paused — ta'tildagi o'quvchi, u
+        //    hamon guruhniki; Stopped/Moved esa endi bu guruhda emas.
         // ══════════════════════════════════════════════════════════════
         if (viewer.Role == UserRole.Student
-            && !await db.GroupMembers.AnyAsync(m => m.StudentId == viewer.Id, ct).ConfigureAwait(false))
+            && !await db.GroupMembers.AnyAsync(m => m.StudentId == viewer.Id
+                                                  && (m.Status == MemberStatus.Active || m.Status == MemberStatus.Paused)
+                                                  && m.Group!.IsActive
+                                                  && m.Group.Type != GroupType.Curator, ct).ConfigureAwait(false))
         {
             return new LearningCenterAudience(GuestCenter, [], []);
         }

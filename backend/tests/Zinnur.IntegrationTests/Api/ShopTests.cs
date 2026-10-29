@@ -189,6 +189,22 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     }
 
     [Fact]
+    public async Task Former_group_student_sees_no_center_leaderboard()
+    {
+        var former = await WorldBuilder.CreateAsync(factory, "shop-former");
+        var active = await WorldBuilder.CreateAsync(factory, "shop-active");
+
+        await factory.WithDbAsync(db => db.GroupMembers
+            .Where(m => m.StudentId == former.Student.Id && m.GroupId == former.GroupId)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, MemberStatus.Stopped)));
+
+        using var client = await WorldBuilder.ClientAsync(factory, former.Student);
+        var board = await client.GetStringAsync("/api/v1/leaderboard/center?metric=Points");
+
+        board.Should().NotContain("shop-active Student");
+    }
+
+    [Fact]
     public async Task Guest_student_sees_no_group_world()
     {
         var setup = await SetUpAsync("shop-guest");

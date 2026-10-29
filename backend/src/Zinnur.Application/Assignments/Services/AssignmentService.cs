@@ -1343,6 +1343,15 @@ public sealed class AssignmentService(
             if (gate.LockReason == LessonLockReason.NotInCourse)
                 throw new ForbiddenException("Bu vazifa sizning kursingizga tegishli emas.");
 
+            // 🔴 OBUNA TUGAGAN (audit, 2026-10-29): mustaqil o'quvchining
+            //    obunasi tugasa kurs yopiladi — vazifa matni va ilovalari ham.
+            //    Ilgari faqat `NotInCourse` tekshirilardi va muddati o'tgan
+            //    o'quvchi vazifani ham, faylini ham ola berardi.
+            //    Sur'at qulflari (`PreviousIncomplete`, `TeacherPace`) bu yerda
+            //    ATAYLAB to'xtatilmaydi — ular ruxsat emas, tartib masalasi.
+            if (gate.LockReason == LessonLockReason.SubscriptionExpired)
+                throw new ForbiddenException("Obuna muddati tugagan — vazifa yopiq.");
+
             return;
         }
 
