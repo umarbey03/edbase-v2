@@ -66,7 +66,7 @@ const buyLink = { name: 'login', query: { redirect: '/tariflar' } }
         :key="plan.id"
         class="flex flex-col rounded-3xl p-7 sm:p-9"
         :class="plan.kind === 'Group'
-          ? 'surface-brand'
+          ? 'plan-featured surface-brand'
           : 'border border-line bg-ink-900 shadow-xs'"
       >
         <span
@@ -128,3 +128,20 @@ const buyLink = { name: 'login', query: { redirect: '/tariflar' } }
     </div>
   </section>
 </template>
+
+<style scoped>
+/*
+  Guruh tarifi — landing'dagi narx kartasi bilan AYNI fon (`LandingPage.vue`,
+  `.price-card`). `surface-brand` ichida `--color-green-*` to'q ohanglarga
+  aylanadi, ya'ni gradient to'q yashil chiqadi va matn tokenlari unga mos.
+*/
+.plan-featured {
+  background: linear-gradient(
+    155deg,
+    var(--color-green-200),
+    var(--color-green-100) 48%,
+    var(--color-green-50)
+  );
+  box-shadow: 0 34px 80px -28px rgb(2 42 26 / 0.55);
+}
+</style>
