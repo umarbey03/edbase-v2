@@ -179,7 +179,8 @@ provide(STUDENT_SHELL_ACTIONS, {
 */
 const route = useRoute()
 const { isSelfStudy } = useMySubscription()
-const { isGuest } = useShopMe()
+const shopMe = useShopMe()
+const { isGuest } = shopMe
 const GROUP_ONLY_ROUTES = new Set(['student-calendar', 'student-chat', 'student-recordings'])
 
 /*
@@ -303,9 +304,42 @@ watch(
 
       <!-- Eski `.wrap { padding: 4px 16px 24px }` -->
       <main class="px-4 pb-6 pt-1 md:px-6 lg:px-8 lg:pb-12">
-        <RouterView v-slot="{ Component }">
-          <component :is="Component" />
-        </RouterView>
+        <!--
+          ★ O'QUVCHI TURI ANIQLANGUNCHA SKELET (audit, 2026-10-29). So'rov
+            yiqilsa — ogohlantirish va «Qayta urinish», lekin sahifa baribir
+            chiziladi: ma'lumotni server himoya qiladi, butun ilovani bitta
+            yordamchi so'rov uchun to'xtatish esa guruh o'quvchisini ham
+            darsdan qoldirardi.
+        -->
+        <div
+          v-if="!shopMe.isLoaded.value && !shopMe.isError.value"
+          class="space-y-3 pt-3"
+          aria-busy="true"
+          aria-label="Yuklanmoqda"
+        >
+          <div class="h-28 animate-pulse rounded-xl bg-ink-900" />
+          <div class="h-20 animate-pulse rounded-xl bg-ink-900" />
+          <div class="h-40 animate-pulse rounded-xl bg-ink-900" />
+        </div>
+        <template v-else>
+          <div
+            v-if="shopMe.isError.value"
+            class="mb-3 mt-2 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-[13px] text-amber-200"
+            role="alert"
+          >
+            <span>Ma’lumotlar to‘liq yuklanmadi.</span>
+            <button
+              type="button"
+              class="shrink-0 font-semibold underline underline-offset-2"
+              @click="shopMe.retry()"
+            >
+              Qayta urinish
+            </button>
+          </div>
+          <RouterView v-slot="{ Component }">
+            <component :is="Component" />
+          </RouterView>
+        </template>
       </main>
     </div>
 

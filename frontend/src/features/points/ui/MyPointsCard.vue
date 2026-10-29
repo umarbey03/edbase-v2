@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 
 import { fetchMyPoints } from '@/entities/points'
+import { useMySubscription } from '@/entities/subscription'
 import { AppIcon } from '@/shared/ui'
 
 /**
@@ -22,6 +23,9 @@ const query = useQuery({
 })
 
 const data = computed(() => query.data.value ?? null)
+
+// Mustaqil o'quvchining o'rni — mustaqil o'quvchilar orasida (guruhi yo'q).
+const { isSelfStudy } = useMySubscription()
 const STEPS = 4
 const filled = computed(() => (data.value === null ? 0 : STEPS - data.value.lessonsToNextBonus))
 </script>
@@ -45,7 +49,8 @@ const filled = computed(() => (data.value === null ? 0 : STEPS - data.value.less
         </p>
         <p class="mt-1.5 text-xs text-slate-400">
           <template v-if="data.rank !== null">
-            Guruhda <b class="text-slate-200">{{ data.rank }}-o‘rin</b>
+            {{ isSelfStudy ? 'Mustaqil o‘quvchilar orasida' : 'Guruhda' }}
+            <b class="text-slate-200">{{ data.rank }}-o‘rin</b>
           </template>
           <template v-else-if="data.total === 0">
             Bu oyda hali ball yo‘q — birinchi darsdan boshlanadi
@@ -81,7 +86,7 @@ const filled = computed(() => (data.value === null ? 0 : STEPS - data.value.less
         />
       </div>
       <p class="mt-2 text-xs text-slate-300">
-        Yana <b>{{ data.lessonsToNextBonus }}</b> dars ketma-ket kelsang —
+        Yana <b>{{ data.lessonsToNextBonus }}</b> dars ketma-ket kelsangiz —
         <b class="text-brand-300">+{{ data.nextBonus }}</b> bonus
       </p>
     </div>

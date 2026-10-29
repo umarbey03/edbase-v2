@@ -224,7 +224,12 @@ function redirectTarget(): string | null {
  * ══════════════════════════════════════════════════════════════════════
  */
 async function goAfterLogin(user: User, target: string | null): Promise<void> {
-  if (user.role === 'Student' && shouldGreetToday(user.id)) {
+  /*
+    ★ XARID OQIMI (audit, 2026-10-29): saytdagi «Sotib olish» `/tariflar` ga
+      yuboradi — odam to'lov qilmoqchi, salomlashuv uni to'xtatmasin.
+  */
+  const buying = target !== null && target.startsWith('/tariflar')
+  if (user.role === 'Student' && !buying && shouldGreetToday(user.id)) {
     await router.replace({
       name: 'student-greeting',
       query: target !== null ? { keyin: target } : {},

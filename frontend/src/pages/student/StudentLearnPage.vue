@@ -7,6 +7,7 @@ import {
 } from '@/features/student-course/model/useStudentCourse'
 import CourseLessonPath from '@/features/student-course/ui/CourseLessonPath.vue'
 import LessonDashboard from '@/features/lesson-dashboard/ui/LessonDashboard.vue'
+import { useMySubscription } from '@/entities/subscription'
 import { MascotAvatar, useStudentMood } from '@/features/mascot'
 import type { MascotMood } from '@/features/mascot'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
@@ -47,6 +48,7 @@ const course = useStudentCourse()
     sahifada ikki xil Nuri bo'lmasin. So'rovlar keshdan keladi.
 */
 const now = useNow()
+const { isSelfStudy } = useMySubscription()
 const mood = useStudentMood(now, useStudentSchedule(now))
 
 /** Dars tugab, hozirgi dars almashganda — bir martalik bayram. */
@@ -218,7 +220,11 @@ function plannedCount(lessons: CourseLessonDto[]): number {
         Kurs hali biriktirilmagan
       </p>
       <p class="mt-[7px] text-[13px] leading-relaxed text-slate-400">
-        Guruhingizga video kurs ulanmagan. O‘quv bo‘limi ulagach shu yerda paydo bo‘ladi.
+        {{
+          isSelfStudy
+            ? 'Kurs hali ochilmagan. To‘lov tasdiqlangach darslar shu yerda paydo bo‘ladi.'
+            : 'Guruhingizga video kurs ulanmagan. O‘quv bo‘limi ulagach shu yerda paydo bo‘ladi.'
+        }}
       </p>
     </div>
 

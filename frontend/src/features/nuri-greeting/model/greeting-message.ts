@@ -61,6 +61,7 @@ import type {
 
 /** Tanlangan holat kaliti — ekranda ko'rinmaydi, sozlash va tahlil uchun. */
 export type GreetingKey =
+  | 'mehmon'
   | 'tanishuv'
   | 'jonli'
   | 'qoldirgan'
@@ -96,6 +97,11 @@ export interface GreetingInput {
   assignments: StudentAssignmentDto[] | null
   /** To'lov qarzi. `null` — ma'lumot yo'q yoki o'quvchi to'lovdan istisno. */
   debt: number | null
+  /**
+   * O'quvchi turi (2026-10-29): guruh, mustaqil yoki mehmon (na guruhi,
+   * na obunasi bor). Noma'lum bo'lsa — `group` (eski xatti-harakat).
+   */
+  audience: 'group' | 'self' | 'guest'
 }
 
 /**
@@ -173,14 +179,34 @@ export function pickGreeting(input: GreetingInput): GreetingMessage {
     noaniqlikda "sen yangisan" deyishdan ko'ra oddiy salom aytish
     xavfsizroq.
   */
+  /*
+    🔴 MEHMON (audit, 2026-10-29): unda hali dars ham, vazifa ham yo'q —
+       "darsing shu yerda" degan gap yolg'on bo'lardi. Unga yagona
+       qadam aytiladi: tarif tanlash.
+  */
+  if (input.audience === 'guest') {
+    return {
+      key: 'mehmon',
+      text: addressed(
+        name,
+        'xush kelibsan! Men Nuri. Tarifni tanlasang, darslar shu zahoti '
+        + 'ochiladi — yo‘lda birga bo‘lamiz.',
+      ),
+    }
+  }
+
   const noLessonsYet = input.attendance !== null && input.attendance.overall.total === 0
   if (!input.greetedBefore && noLessonsYet) {
     return {
       key: 'tanishuv',
       text: addressed(
         name,
-        'tanishib qo‘yaylik — men Nuri. Darsing, vazifang va natijalaring '
-        + 'shu yerda. Yo‘lda birga bo‘lamiz!',
+        input.audience === 'self'
+          // Mustaqil o'quvchida jonli dars va ustoz yo'q — o'z sur'atida.
+          ? 'tanishib qo‘yaylik — men Nuri. Video darslar, vazifa va testlar '
+            + 'shu yerda — o‘zingga qulay vaqtda o‘qiysan. Yo‘lda birga bo‘lamiz!'
+          : 'tanishib qo‘yaylik — men Nuri. Darsing, vazifang va natijalaring '
+            + 'shu yerda. Yo‘lda birga bo‘lamiz!',
       ),
     }
   }
@@ -284,7 +310,9 @@ export function pickGreeting(input: GreetingInput): GreetingMessage {
       key: 'qarz',
       text: addressed(
         name,
-        `to‘lov bo‘yicha ${formatSum(input.debt)} qarz turibdi — uyda eslatib qo‘ysang bo‘ldi.`,
+        // ★ "uyda eslatib qo'ysang" OLIB TASHLANDI (audit): o'quvchi bola deb
+        //   faraz qilinardi, kattalar uchun g'alati edi.
+        `to‘lov bo‘yicha ${formatSum(input.debt)} qarz turibdi. Profil bo‘limida batafsil ko‘rasan.`,
       ),
     }
   }
@@ -326,6 +354,7 @@ export function pickGreeting(input: GreetingInput): GreetingMessage {
  *   qilamiz" yuzi (`features/mascot/model/mood.ts` dagi qoida).
  */
 const GREETING_MOOD: Record<GreetingKey, MascotMood> = {
+  mehmon: 'encouraging',
   tanishuv: 'happy',
   jonli: 'thinking',
   qoldirgan: 'concerned',

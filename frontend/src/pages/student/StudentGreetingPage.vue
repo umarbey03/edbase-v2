@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { fetchMyAssignments } from '@/entities/assignment'
 import { fetchBlockStatus } from '@/entities/payment'
+import { useShopMe } from '@/entities/shop'
+import { useMySubscription } from '@/entities/subscription'
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
@@ -169,10 +171,23 @@ const debt = computed(() => {
   return status.debt
 })
 
-/** To'rt so'rovning hammasi javob berdimi (xato ham javob hisoblanadi). */
+/*
+  O'quvchi turi — mehmon va mustaqil o'quvchiga boshqa gap aytiladi.
+  ★ So'rov yiqilsa `group` (eski xatti-harakat): salomlashuv ma'lumotga
+    bog'liq bo'lmasligi kerak.
+*/
+const shopMe = useShopMe()
+const subscription = useMySubscription()
+const audience = computed<'group' | 'self' | 'guest'>(() => {
+  if (shopMe.isGuest.value) return 'guest'
+  return subscription.isSelfStudy.value ? 'self' : 'group'
+})
+
+/** So'rovlarning hammasi javob berdimi (xato ham javob hisoblanadi). */
 const dataSettled = computed(
   () =>
-    !schedule.isPending.value
+    (shopMe.isLoaded.value || shopMe.isError.value)
+    && !schedule.isPending.value
     && !attendanceQuery.isPending.value
     && !assignmentsQuery.isPending.value
     // O'chirilgan so'rov abadiy `pending` bo'lib qoladi — uni kutmaymiz.
@@ -228,6 +243,7 @@ function reveal(): void {
     attendance: attendanceQuery.data.value ?? null,
     assignments: assignmentsQuery.data.value ?? null,
     debt: debt.value,
+    audience: audience.value,
   })
 
   message.value = picked
@@ -326,6 +342,11 @@ function nextTarget(): string | { name: string } {
  * "orqaga" tugmasi o'quvchini bugun ko'rib bo'lgan ekraniga qaytarardi.
  */
 async function goOn(): Promise<void> {
+  // Mehmon uchun yagona yo'l — Tariflar (shell baribir u yerga qaytarardi).
+  if (audience.value === 'guest') {
+    await router.replace({ name: 'student-plans' })
+    return
+  }
   await router.replace(nextTarget())
 }
 </script>
@@ -453,7 +474,7 @@ async function goOn(): Promise<void> {
         block
         @click="goOn"
       >
-        Boshladik!
+        {{ audience === 'guest' ? 'Tariflarni ko‘rish' : 'Boshladik!' }}
       </BaseButton>
     </div>
   </div>

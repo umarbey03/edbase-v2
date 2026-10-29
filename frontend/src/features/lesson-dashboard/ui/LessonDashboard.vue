@@ -15,6 +15,7 @@ import {
   testTitle,
 } from '@/entities/test'
 import SubmitAssignmentDialog from '@/features/assignment-submit/ui/SubmitAssignmentDialog.vue'
+import { useMySubscription } from '@/entities/subscription'
 import { LessonChatPanel } from '@/features/lesson-chat'
 import { LessonVideoPlayer } from '@/features/lesson-video-player'
 import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
@@ -110,11 +111,19 @@ const submitting = ref<StudentAssignmentDto | null>(null)
 */
 type DashboardTab = 'assignment' | 'test' | 'chat'
 
+/*
+  🔴 MUSTAQIL O'QUVCHIDA «SAVOL-JAVOB» YO'Q (audit, 2026-10-29): savollarga
+     guruh kuratori javob beradi, mustaqil o'quvchining esa kuratori yo'q —
+     tab "Sizga hali kurator biriktirilmagan" deb, hech qachon bo'lmaydigan
+     narsani va'da qilardi. Mustaqil tarif saytda ham shunday sotiladi.
+*/
+const { isSelfStudy } = useMySubscription()
+
 const tabs = computed<{ key: DashboardTab; label: string; icon: IconName }[]>(() => {
   const list: { key: DashboardTab; label: string; icon: IconName }[] = []
   if (assignmentRows.value.length > 0) list.push({ key: 'assignment', label: 'Vazifa', icon: 'clipboard' })
   if (testRows.value.length > 0) list.push({ key: 'test', label: 'Test', icon: 'award' })
-  list.push({ key: 'chat', label: 'Savol-javob', icon: 'chat' })
+  if (!isSelfStudy.value) list.push({ key: 'chat', label: 'Savol-javob', icon: 'chat' })
   return list
 })
 
@@ -201,6 +210,7 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
 
       <!-- ------------------------------------------- Vazifa/Test/Chat tablari -->
       <div
+        v-if="tabs.length > 0"
         class="mt-5 inline-flex gap-1 rounded-2xl border border-line bg-ink-900 p-1"
         role="tablist"
       >
@@ -413,7 +423,7 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
 
       <!-- ------------------------------------------------------- savol-javob -->
       <div
-        v-if="activeTab === 'chat'"
+        v-if="activeTab === 'chat' && !isSelfStudy"
         class="mt-3"
       >
         <LessonChatPanel :lesson-id="props.lesson.id" />
