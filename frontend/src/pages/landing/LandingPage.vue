@@ -2202,7 +2202,11 @@ const year = new Date().getFullYear()
 
         <div class="mt-12 grid items-stretch gap-5 lg:grid-cols-2">
           <!-- ═══════════════════════════════════ MILLIY (GURUH) ═══ -->
-          <div class="price-card surface-brand relative overflow-hidden rounded-3xl p-8 sm:p-10">
+          <!-- Mustaqil sotuvda bo'lsa Milliy O'NG ustunda (loyiha egasi, 2026-10-29). -->
+          <div
+            class="price-card surface-brand relative overflow-hidden rounded-3xl p-8 sm:p-10"
+            :class="selfStudyPlan !== null ? 'order-2' : ''"
+          >
             <span
               class="price-deco lt-arabic"
               aria-hidden="true"
@@ -2235,22 +2239,29 @@ const year = new Date().getFullYear()
                 {{ PRICE.perLesson }}
               </p>
 
-              <!-- Mustaqil tarif bor bo'lsa «nima kiradi» shu kartaning ichida. -->
+              <!-- Mustaqil tarif bor bo'lsa solishtirma shu kartaning ichida. -->
               <ul
                 v-if="selfStudyPlan !== null"
                 class="mt-5"
               >
                 <li
-                  v-for="item in PRICE.includes"
-                  :key="item"
+                  v-for="row in PRICE.compare"
+                  :key="row.label"
                   class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
                 >
-                  <AppIcon
-                    class="mt-0.5 shrink-0 text-brand-500"
-                    name="check"
-                    :size="15"
-                  />
-                  <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
+                  <span
+                    class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg"
+                    :class="row.group ? 'price-tick text-on-brand' : 'border border-line text-slate-500'"
+                  >
+                    <AppIcon
+                      :name="row.group ? 'check' : 'close'"
+                      :size="13"
+                    />
+                  </span>
+                  <span
+                    class="text-sm leading-relaxed"
+                    :class="row.group ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
+                  >{{ row.label }}</span>
                 </li>
               </ul>
 
@@ -2304,34 +2315,31 @@ const year = new Date().getFullYear()
               <span class="text-sm text-slate-400">/ {{ selfStudyPlan.months === 1 ? 'oy' : `${selfStudyPlan.months} oy` }}</span>
             </div>
 
+            <!--
+              ★ Bazadagi tavsif (`features`) bu yerda EMAS, tariflar sahifasida.
+                Bu yerda ikki karta bir xil qatorlar bilan solishtiriladi.
+            -->
             <ul class="mt-5">
               <li
-                v-for="item in selfStudyPlan.features"
-                :key="item"
+                v-for="row in PRICE.compare"
+                :key="row.label"
                 class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
               >
                 <span
-                  class="price-tick mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-on-brand"
+                  class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg"
+                  :class="row.self ? 'price-tick text-on-brand' : 'border border-line text-slate-500'"
                 >
                   <AppIcon
-                    name="check"
+                    :name="row.self ? 'check' : 'close'"
                     :size="13"
                   />
                 </span>
-                <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
+                <span
+                  class="text-sm leading-relaxed"
+                  :class="row.self ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
+                >{{ row.label }}</span>
               </li>
             </ul>
-
-            <p
-              class="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-ink-950 p-4 text-sm leading-relaxed text-slate-400"
-            >
-              <AppIcon
-                class="mt-0.5 shrink-0 text-slate-500"
-                name="alert"
-                :size="18"
-              />
-              {{ PRICE.selfExcludes }}
-            </p>
 
             <div class="mt-auto pt-7">
               <RouterLink
