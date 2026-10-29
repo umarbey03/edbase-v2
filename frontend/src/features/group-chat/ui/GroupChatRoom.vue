@@ -6,7 +6,8 @@ import { LiveIndicator, useLiveGroups } from '@/entities/session'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { formatFileSize } from '@/shared/lib/text'
 import type { GroupChatChannelName } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseSpinner, DataStatus, ImageLightbox } from '@/shared/ui'
+import { findSensitiveWords } from '@/shared/lib/sensitive-words'
+import { AppIcon, BaseBadge, BaseSpinner, DataStatus, ImageLightbox, SensitiveWordsNotice } from '@/shared/ui'
 
 import { CHAT_ATTACHMENT_MAX_FILES } from '../lib/send-chat-attachments'
 import { useGroupChatRoom } from '../model/useGroupChatRoom'
@@ -254,8 +255,22 @@ const zoomUrl = ref<string | null>(null)
  */
 const showCounter = computed(() => draft.value.length > GROUP_CHAT_BODY_MAX - 200)
 
+/*
+  Diniy atama — yuborishdan oldin yumshoq ogohlantirish (`shared/lib/sensitive-words.ts`).
+  Ogohlantirish chiqqach matn tuzatilgan sari o'zi yangilanadi va yo'qoladi.
+*/
+const sensitiveWords = ref<string[]>([])
+watch(draft, (value) => {
+  if (sensitiveWords.value.length > 0) sensitiveWords.value = findSensitiveWords(value)
+})
+
 async function submit(): Promise<void> {
   if (!canSubmit.value) return
+  const sensitiveHits = findSensitiveWords(draft.value)
+  if (sensitiveHits.length > 0) {
+    sensitiveWords.value = sensitiveHits
+    return
+  }
 
   const body = trimmed.value
   const files = pendingFiles.value
@@ -523,6 +538,11 @@ watch(
       sababi amaliy: barmoq uchun ikkita yirik nishon qoladi, qolgani
       esa matn maydonining bir qismi.
     -->
+    <SensitiveWordsNotice
+      v-if="sensitiveWords.length > 0"
+      class="mt-2"
+      :words="sensitiveWords"
+    />
     <form
       class="mt-2 flex shrink-0 items-end gap-2"
       novalidate

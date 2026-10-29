@@ -16,7 +16,8 @@ import { formatDateTime } from '@/shared/lib/datetime'
 import { formatFileSize } from '@/shared/lib/text'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { StudentAssignmentDto } from '@/shared/types'
-import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
+import { findSensitiveWords } from '@/shared/lib/sensitive-words'
+import { AppIcon, BaseButton, BaseField, BaseModal, SensitiveWordsNotice } from '@/shared/ui'
 
 import VoiceRecorder from './VoiceRecorder.vue'
 
@@ -188,9 +189,23 @@ const confirm = useConfirm()
  * Ogohlantirish sahifada bor edi, lekin u FORMA USTIDAGI matn — fayl
  * tanlab, pastdagi "Yuborish" ga yetguncha ekrandan chiqib ketadi.
  */
+/*
+  Diniy atama — yuborishdan oldin yumshoq ogohlantirish (`shared/lib/sensitive-words.ts`).
+  Ogohlantirish chiqqach matn tuzatilgan sari o'zi yangilanadi va yo'qoladi.
+*/
+const sensitiveWords = ref<string[]>([])
+watch(text, (value) => {
+  if (sensitiveWords.value.length > 0) sensitiveWords.value = findSensitiveWords(value)
+})
+
 async function handleSubmit(): Promise<void> {
   const assignment = props.assignment
   if (assignment === null || !canSubmit.value) return
+  const sensitiveHits = findSensitiveWords(text.value)
+  if (sensitiveHits.length > 0) {
+    sensitiveWords.value = sensitiveHits
+    return
+  }
 
   if (isResubmit.value) {
     const previousScore = assignment.mySubmission?.score ?? null
@@ -284,6 +299,11 @@ async function handleSubmit(): Promise<void> {
             class="zn-input min-h-32 resize-y"
             rows="5"
             placeholder="Javobingizni yozing"
+          />
+          <SensitiveWordsNotice
+            v-if="sensitiveWords.length > 0"
+            class="mt-2"
+            :words="sensitiveWords"
           />
         </BaseField>
 

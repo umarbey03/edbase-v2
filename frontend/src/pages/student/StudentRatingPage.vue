@@ -98,6 +98,24 @@ const isCenter = computed(() => scope.value === 'center')
 */
 const period = ref(currentPeriod())
 
+/*
+  ★ OY TANLASH — O'ZBEKCHA RO'YXAT (2026-10-29). `<input type="month">`
+    kalendarini brauzer o'z tilida chizadi va o'quvchilar telefonida u
+    inglizcha ("October 2026") chiqardi. Endi oddiy `<select>`: joriy oy va
+    oldingi 11 oy, nomlari `periodLabel` dan ("oktyabr 2026"). Kelajakdagi
+    oy ro'yxatda umuman yo'q.
+*/
+const periodOptions = computed(() => {
+  const now = new Date()
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const month = d.getMonth() + 1
+    const value = `${d.getFullYear()}-${month < 10 ? '0' : ''}${month}`
+    const label = periodLabel(value)
+    return { value, label: label.charAt(0).toUpperCase() + label.slice(1) }
+  })
+})
+
 /**
  * Serverga YUBORILADIGAN qiymat.
  *
@@ -526,13 +544,19 @@ const myGradesError = computed(() =>
       >
         Natijalar oyi
       </label>
-      <input
+      <select
         id="board-period"
         v-model="period"
         class="zn-input w-full lg:ml-auto lg:w-44"
-        type="month"
-        :max="currentPeriod()"
       >
+        <option
+          v-for="option in periodOptions"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
     </div>
 
     <!--

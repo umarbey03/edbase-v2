@@ -2,7 +2,8 @@
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 
 import { CHAT_RATE_MAX_MESSAGES, MAX_MESSAGE_LENGTH } from '@/entities/message'
-import { AppIcon, BaseSpinner } from '@/shared/ui'
+import { findSensitiveWords } from '@/shared/lib/sensitive-words'
+import { AppIcon, BaseSpinner, SensitiveWordsNotice } from '@/shared/ui'
 
 const props = defineProps<{
   /**
@@ -74,8 +75,22 @@ async function clearDraft(): Promise<void> {
   autoResize()
 }
 
+/*
+  Diniy atama — yuborishdan oldin yumshoq ogohlantirish (`shared/lib/sensitive-words.ts`).
+  Ogohlantirish chiqqach matn tuzatilgan sari o'zi yangilanadi va yo'qoladi.
+*/
+const sensitiveWords = ref<string[]>([])
+watch(draft, (value) => {
+  if (sensitiveWords.value.length > 0) sensitiveWords.value = findSensitiveWords(value)
+})
+
 async function submit(): Promise<void> {
   if (!canSubmit.value) return
+  const sensitiveHits = findSensitiveWords(draft.value)
+  if (sensitiveHits.length > 0) {
+    sensitiveWords.value = sensitiveHits
+    return
+  }
 
   if (isCoolingDown.value || !props.canSend) {
     blockedAttempt.value = true
@@ -115,6 +130,11 @@ function onKeydown(event: KeyboardEvent): void {
     class="border-t border-line bg-ink-900 p-3"
     @submit.prevent="submit"
   >
+    <SensitiveWordsNotice
+      v-if="sensitiveWords.length > 0"
+      class="mb-2"
+      :words="sensitiveWords"
+    />
     <div
       class="flex items-end gap-2 rounded-xl bg-ink-850 p-1.5 ring-1 ring-inset transition-colors"
       :class="props.disabled ? 'ring-line opacity-60' : 'ring-line focus-within:ring-brand-500/70'"
