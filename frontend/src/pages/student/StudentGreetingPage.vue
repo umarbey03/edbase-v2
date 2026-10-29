@@ -8,10 +8,12 @@ import { fetchBlockStatus } from '@/entities/payment'
 import { fetchAttendanceSummary } from '@/entities/progress'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { MascotAvatar } from '@/features/mascot'
+import type { MascotMood } from '@/features/mascot'
 import {
+  greetingMood,
   hasGreetedBefore,
   markGreeted,
-  NuriMascot,
   pickGreeting,
   useTypewriter,
 } from '@/features/nuri-greeting'
@@ -27,7 +29,7 @@ import { BaseButton } from '@/shared/ui'
  * ════════════════════════════════════════════════════════════════════════
  *
  * Loyiha egasining talabi: kirishdan keyin o'quvchi darhol bosh sahifaga
- * tushmasin. Maskot (boyqush «Nuri») uni ISM bilan kutib oladi va gapi
+ * tushmasin. Maskot (fonus «Nuri») uni ISM bilan kutib oladi va gapi
  * O'QUVCHINING HOLATIGA qarab o'zgaradi.
  *
  * ══════════════════════════════════════════════════════════════════════
@@ -68,7 +70,7 @@ import { BaseButton } from '@/shared/ui'
  *
  * To'rt so'rov ketadi va ularsiz gap tanlab bo'lmaydi. Lekin salomlashuv
  * — YUKLANISH EKRANI EMAS: mobil internet sekin bo'lsa o'quvchi
- * boyqushga qarab turishi mumkin emas. Shuning uchun ikki chegara bor:
+ * maskotga qarab turishi mumkin emas. Shuning uchun ikki chegara bor:
  *   • `MASCOT_MS` — eng KAM kutish. Maskot paydo bo'lish animatsiyasi
  *     tugasin, keyin pufak chiqsin (aks holda kesh to'liq bo'lganda
  *     hammasi bir zumda "paydo bo'lib qolardi").
@@ -190,6 +192,15 @@ const maxElapsed = ref(false)
 
 const message = ref<GreetingMessage | null>(null)
 const typer = useTypewriter()
+
+/*
+  Maskot yuzi GAP BILAN BIRGA almashadi. Gap tanlanguncha (ma'lumot
+  kutilayotgan yarim soniya) — oddiy xursand yuz: bu kutib olish, holat
+  haqida hali hech nima aytilmagan.
+*/
+const mascotMood = computed<MascotMood>(() =>
+  message.value === null ? 'happy' : greetingMood(message.value.key),
+)
 
 /**
  * Hozir jonli ketayotgan dars.
@@ -337,14 +348,21 @@ async function goOn(): Promise<void> {
         Maskot. `size-40` (160px) — telefonda ekranning uchdan biri, ya'ni
         u "ikonka" emas, PERSONAJ bo'lib ko'rinadi.
       -->
-      <NuriMascot class="mx-auto size-40" />
+      <!--
+        `animate-pop` o'ramda, maskotning o'z (doimiy) animatsiyalari
+        ichkarida — ikkalasi bitta elementda bo'lsa biri ikkinchisini
+        bekor qilardi (CSS'da `animation` xossasi yagona).
+      -->
+      <div class="mx-auto h-[180px] w-40 animate-pop">
+        <MascotAvatar :mood="mascotMood" />
+      </div>
 
       <!--
         ══════════════════ GAP PUFAGI ══════════════════
         Pufak matn TANLANGANDAN KEYIN paydo bo'ladi: shu tartibda sahna
         "maskot -> pufak -> yozuv" bo'lib chiqadi (loyiha egasining
         talabi). Ma'lumot kutilayotgan yarim soniyada ekranda yolg'iz
-        boyqush turadi — bu bo'shliq emas, kirish qismi.
+        maskot turadi — bu bo'shliq emas, kirish qismi.
       -->
       <div
         v-if="message !== null"
