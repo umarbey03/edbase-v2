@@ -685,6 +685,12 @@ export const PRICE = {
   */
   bonusNote: '«Qo‘shimcha» — kurs narxiga kirmaydi, ular uchun alohida pul olinmaydi.',
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
+  leadThreePlans:
+    'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
+    + 'Mustaqil va Mustaqil+ — jonli darssiz, to‘lov oyiga; Mustaqil+ da '
+    + 'interaktiv darslik ham bor.',
+  /** Mustaqil+ kartasidagi eslatma — darslik hali to'liq emas (2026-10-29). */
+  plusNote: 'Interaktiv darslik ATF kursidan boshlab bosqichma-bosqich ochiladi.',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
     + 'Mustaqil — video darslar, vazifa va testlar, to‘lov oyiga.',
@@ -738,14 +744,17 @@ export const PRICE = {
     🔴 Mustaqil tarifda kitob yetkazib berilmaydi (loyiha egasi, 2026-10-29).
   */
   compare: [
+    // `self` — Mustaqil, `plus` — Mustaqil+ (interaktiv darslik bilan), `group` — Milliy.
     // `bonus` — Milliy kartasida «qo'shimcha» belgisi: narxga kirmaydi.
-    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, group: true, bonus: true },
-    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, group: true, bonus: true },
-    { label: 'Shaxsiy kabinet va reyting', self: true, group: true, bonus: true },
-    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, group: true, bonus: false },
-    { label: 'Haftasiga 3 kun support teacher darsi', self: false, group: true, bonus: true },
-    { label: 'Guruh chati va dars yozuvlari', self: false, group: true, bonus: true },
-    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, group: true, bonus: true },
+    // `bookOnly` — qator faqat Mustaqil+ sotuvda bo'lsa ko'rinadi.
+    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, plus: true, group: true, bonus: true, bookOnly: false },
+    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, plus: true, group: true, bonus: true, bookOnly: false },
+    { label: 'Shaxsiy kabinet va reyting', self: true, plus: true, group: true, bonus: true, bookOnly: false },
+    { label: 'Interaktiv darslik: audio, mashqlar, harf yozish, mini-test', self: false, plus: true, group: true, bonus: true, bookOnly: true },
+    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, plus: false, group: true, bonus: false, bookOnly: false },
+    { label: 'Haftasiga 3 kun support teacher darsi', self: false, plus: false, group: true, bonus: true, bookOnly: false },
+    { label: 'Guruh chati va dars yozuvlari', self: false, plus: false, group: true, bonus: true, bookOnly: false },
+    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, plus: false, group: true, bonus: true, bookOnly: false },
   ],
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',

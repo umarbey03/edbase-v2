@@ -17,6 +17,8 @@ export interface ShopPlanDto {
   price: number
   /** Taklif matnining qatorlari. */
   features: string[]
+  /** Tarifga interaktiv darslik kiradi (Mustaqil+). */
+  includesInteractiveBook: boolean
 }
 
 export interface ShopOffersDto {

@@ -33,6 +33,34 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     }
 
     [Fact]
+    public async Task Offers_mark_the_plan_with_the_interactive_book()
+    {
+        var setup = await SetUpAsync("shop-plus");
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+
+        var plusName = $"shop-plus mustaqil+ {Guid.NewGuid():N}"[..40];
+        var create = await admin.PostAsJsonAsync("/api/v1/subscriptions/plans", new
+        {
+            name = plusName,
+            courseId = setup.CourseId,
+            months = 1,
+            price = 249_000m,
+            kind = PlanKind.SelfStudy.ToString(),
+            isPublic = true,
+            includesInteractiveBook = true,
+        });
+        create.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(create));
+
+        using var anonymous = factory.CreateClient();
+        var offers = await anonymous.GetFromJsonAsync<OffersRow>("/api/v1/shop/offers");
+
+        offers!.Plans.Should().ContainSingle(p => p.Name == plusName)
+            .Which.IncludesInteractiveBook.Should().BeTrue();
+        offers.Plans.Where(p => p.Name == setup.SelfPlanName).Should().NotBeEmpty()
+            .And.OnlyContain(p => !p.IncludesInteractiveBook);
+    }
+
+    [Fact]
     public async Task Confirmed_self_study_order_opens_the_course_once()
     {
         var setup = await SetUpAsync("shop-self");
@@ -209,6 +237,10 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     private sealed record OrderRow(long Id, string Code, string Status, decimal Amount);
 
     private sealed record IdRow(long Id);
+
+    private sealed record OfferPlanRow(string Name, bool IncludesInteractiveBook);
+
+    private sealed record OffersRow(IReadOnlyList<OfferPlanRow> Plans);
 
     private static async Task<OrderRow> CreateOrderAsync(HttpClient client, long planId)
     {

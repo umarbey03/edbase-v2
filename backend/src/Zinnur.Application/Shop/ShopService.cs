@@ -87,7 +87,7 @@ public sealed class ShopService(
             .Where(p => p.IsActive && p.IsPublic && p.Course!.IsActive)
             .OrderBy(p => p.Kind)
             .ThenBy(p => p.Price)
-            .Select(p => new { p.Id, p.Name, p.Kind, CourseName = p.Course!.Name, p.Months, p.Price, p.Description })
+            .Select(p => new { p.Id, p.Name, p.Kind, CourseName = p.Course!.Name, p.Months, p.Price, p.Description, p.IncludesInteractiveBook })
             .ToListAsync(ct);
 
         var values = await settings.ResolveManyAsync(
@@ -98,7 +98,8 @@ public sealed class ShopService(
 
         return new ShopOffersDto(
             plans.ConvertAll(p => new ShopPlanDto(
-                p.Id, p.Name, p.Kind, p.CourseName, p.Months, p.Price, Features(p.Description))),
+                p.Id, p.Name, p.Kind, p.CourseName, p.Months, p.Price, Features(p.Description),
+                p.IncludesInteractiveBook)),
             Blank(values[0].Value),
             Blank(values[1].Value),
             Blank(values[2].Value));

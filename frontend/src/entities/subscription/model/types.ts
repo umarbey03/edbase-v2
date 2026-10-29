@@ -31,6 +31,8 @@ export interface SubscriptionPlanDto {
   description: string | null
   /** Saytdagi tariflar ro'yxatida ko'rinadimi. */
   isPublic: boolean
+  /** Tarifga interaktiv darslik kiradimi (Mustaqil+). */
+  includesInteractiveBook: boolean
 }
 
 export interface SaveSubscriptionPlanRequest {
@@ -42,6 +44,7 @@ export interface SaveSubscriptionPlanRequest {
   kind: PlanKindName
   description: string | null
   isPublic: boolean
+  includesInteractiveBook: boolean
 }
 
 export interface SubscriptionPeriodDto {

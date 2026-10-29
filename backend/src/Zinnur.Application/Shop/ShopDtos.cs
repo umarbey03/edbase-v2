@@ -3,6 +3,7 @@ using Zinnur.Domain.Enums;
 namespace Zinnur.Application.Shop;
 
 /// <summary>Saytdagi tarif kartasi. <paramref name="Features"/> — taklif matnining qatorlari.</summary>
+/// <param name="IncludesInteractiveBook">Tarifga interaktiv darslik kiradi (Mustaqil+).</param>
 public sealed record ShopPlanDto(
     long Id,
     string Name,
@@ -10,7 +11,8 @@ public sealed record ShopPlanDto(
     string CourseName,
     int Months,
     decimal Price,
-    IReadOnlyList<string> Features);
+    IReadOnlyList<string> Features,
+    bool IncludesInteractiveBook);
 
 /// <summary>Ommaviy tariflar va to'lov yo'riqnomasi (login talab qilinmaydi).</summary>
 public sealed record ShopOffersDto(
