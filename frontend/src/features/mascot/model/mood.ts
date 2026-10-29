@@ -181,7 +181,7 @@ function winText(win: Win, s: MoodSignals): { title: string, message: string } {
     case 'streak-bonus':
       return {
         title: `Ketma-ket ${s.attendanceStreak} dars!`,
-        message: 'Bitta ham darsni qoldirmading — bonus ball ham sening. Barakalla!',
+        message: 'Bitta ham darsni qoldirmading — bonus ball ham sening. Qoyil!',
       }
     case 'top-grades':
       return {

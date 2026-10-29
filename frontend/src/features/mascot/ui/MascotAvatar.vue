@@ -15,15 +15,16 @@ import type { MascotMood } from '../model/types'
  * ★ NEGA FONUS, HAYVON EMAS:
  *   1) MA'NO: markaz nomi "nur" — chiroq uni so'zsiz aytadi. Boyqush esa
  *      "bilim" ning G'arbcha ramzi va brend bilan bog'lanmasdi.
- *   2) ODOB: islomiy ta'lim markazida jonzot tasvirini bezak sifatida
- *      ishlatmaslikni afzal ko'radiganlar bor. Jonsiz buyum-personaj bu
- *      savolni umuman ochmaydi.
+ *   2) BETARAFLIK: jonsiz buyum-personaj har qanday auditoriyaga mos va
+ *      hech qanday ma'noviy talqin talab qilmaydi. 🔴 Platformada diniy
+ *      atama va ramz UMUMAN ishlatilmaydi (loyiha egasi qarori,
+ *      2026-10-29) — til kursi, xolos.
  *   3) KAYFIYAT TILI TAYYOR: olovning kattaligi va yorqinligi — o'quvchi
  *      holatining tabiiy metaforasi. Yutuqda olov baland, faollik
  *      yo'qligida xira. Bitta qarashda tushuniladi, matnsiz ham.
  *
  * ★ KOMPOZITSIYA (tepadan pastga): olov → piyoz-gumbaz (oltin) →
- *   zumrad korpus → ichida ISLOMIY RAVOQ shaklidagi yorug' oyna (yuz shu
+ *   zumrad korpus → ichida uchli ravoq shaklidagi yorug' oyna (yuz shu
  *   oynada) → oltin taglik. Uslub — tekis geometrik: har material 2-3
  *   ohangda (asosiy / soya / yaltiroq), gradient va kontur yo'q.
  *
