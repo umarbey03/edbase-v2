@@ -186,14 +186,22 @@ defineExpose({ applyLevelResult })
       v-if="isSent"
       class="py-6 text-center"
     >
-      <div
-        class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-green-500/12 text-green-300"
-      >
-        <AppIcon
-          name="check"
-          :size="24"
-        />
-      </div>
+      <!--
+        ★ `sent-visual` SLOTI (2026-10-29): landing bu yerga Nurini
+          (`celebrate`) qo'yadi. Forma `features/` da va boshqa feature'ni
+          (maskot) o'zi import qilmaydi — rasmni chaqiruvchi beradi.
+          Slot berilmasa avvalgi belgi chiqadi.
+      -->
+      <slot name="sent-visual">
+        <div
+          class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-green-500/12 text-green-300"
+        >
+          <AppIcon
+            name="check"
+            :size="24"
+          />
+        </div>
+      </slot>
       <h3 class="mt-4 text-lg font-semibold text-slate-100">
         Arizangiz qabul qilindi
       </h3>
