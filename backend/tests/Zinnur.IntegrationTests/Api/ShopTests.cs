@@ -211,6 +211,85 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     }
 
     [Fact]
+    public async Task Self_study_order_paid_after_joining_a_group_goes_to_balance()
+    {
+        var setup = await SetUpAsync("shop-tobal");
+        using var guest = await WorldBuilder.ClientAsync(factory, setup.Guest);
+        var order = await CreateOrderAsync(guest, setup.SelfPlanId);
+
+        await JoinWorldGroupAsync(setup);
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+        var confirm = await admin.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/confirm", new { note = (string?)null });
+        confirm.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(confirm));
+
+        var row = await factory.WithDbAsync(db => db.PurchaseOrders.AsNoTracking()
+            .Where(o => o.Id == order.Id)
+            .Select(o => new { o.Status, o.SubscriptionPeriodId, o.PaymentTransactionId })
+            .SingleAsync());
+        row.Status.Should().Be(PurchaseOrderStatus.Confirmed);
+        row.SubscriptionPeriodId.Should().BeNull("guruhdagi o'quvchiga obuna ochilmaydi");
+        row.PaymentTransactionId.Should().NotBeNull("pul balansga yozildi");
+    }
+
+    [Fact]
+    public async Task Self_study_and_group_orders_cannot_be_open_together()
+    {
+        var setup = await SetUpAsync("shop-mixed");
+        using var guest = await WorldBuilder.ClientAsync(factory, setup.Guest);
+        await CreateOrderAsync(guest, setup.SelfPlanId);
+
+        var group = await guest.PostAsJsonAsync("/api/v1/shop/orders", new { planId = setup.GroupPlanId });
+        group.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Group_wins_over_an_old_subscription_and_guests_stay_off_the_center_board()
+    {
+        var setup = await SetUpAsync("shop-switch");
+        using var guest = await WorldBuilder.ClientAsync(factory, setup.Guest);
+        var order = await CreateOrderAsync(guest, setup.SelfPlanId);
+
+        using var admin = await WorldBuilder.AdminClientAsync(factory);
+        (await admin.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/confirm", new { note = (string?)null }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Group student never sees a guest (another student from a fresh setup).
+        var other = await SetUpAsync("shop-switch2");
+        using var grouped = await WorldBuilder.ClientAsync(factory, setup.World.Student);
+        var board = await grouped.GetStringAsync("/api/v1/leaderboard/center?metric=Points");
+        board.Should().NotContain(other.GuestName);
+
+        // Subscription expires, student moves to a group: the app must treat them as a group student.
+        await factory.WithDbAsync(async db =>
+        {
+            await db.SubscriptionPeriods.Where(p => p.StudentId == setup.Guest.Id)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(p => p.StartsAt, DateTimeOffset.UtcNow.AddMonths(-2))
+                    .SetProperty(p => p.EndsAt, DateTimeOffset.UtcNow.AddDays(-1)));
+            return 0;
+        });
+        await JoinWorldGroupAsync(setup);
+
+        var mine = await guest.GetFromJsonAsync<MineRow>("/api/v1/subscriptions/me");
+        mine!.HasSubscription.Should().BeFalse("guruh a'zoligi eski obunadan ustun");
+    }
+
+    private Task<int> JoinWorldGroupAsync(Setup setup) =>
+        factory.WithDbAsync(async db =>
+        {
+            db.GroupMembers.Add(new GroupMember
+            {
+                GroupId = setup.World.GroupId,
+                StudentId = setup.Guest.Id,
+                Status = MemberStatus.Active,
+            });
+            return await db.SaveChangesAsync();
+        });
+
+    private sealed record MineRow(bool HasSubscription);
+
+    [Fact]
     public async Task Former_group_student_sees_no_center_leaderboard()
     {
         var former = await WorldBuilder.CreateAsync(factory, "shop-former");

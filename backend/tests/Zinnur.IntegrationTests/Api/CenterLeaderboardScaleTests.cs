@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.IntegrationTests.Infrastructure;
@@ -57,7 +58,18 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
     {
         var world = await WorldBuilder.CreateAsync(factory, "cscale");
 
-        await AddScoredStudentsAsync();
+        await AddScoredStudentsAsync(world.GroupId);
+
+        // Markaz jadvali = guruhda turgan o'quvchilar (2026-10-29). Seed
+        // qilingan o'quvchilar guruhda bo'lishi-bo'lmasligi bazaga bog'liq,
+        // shuning uchun kutilgan son AYNI qoida bilan bazadan sanaladi.
+        var expectedCount = await factory.WithDbAsync(db => db.Users
+            .Where(u => u.Role == UserRole.Student && u.IsActive
+                     && db.GroupMembers.Any(m => m.StudentId == u.Id
+                                              && (m.Status == MemberStatus.Active || m.Status == MemberStatus.Paused)
+                                              && m.Group!.IsActive
+                                              && m.Group.Type != GroupType.Curator))
+            .CountAsync());
 
         using var client = await WorldBuilder.ClientAsync(factory, world.Student);
 
@@ -69,8 +81,9 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
 
         var board = (await response.Content.ReadFromJsonAsync<CenterBoardBody>())!;
 
-        // 520 ta yaratilgan + seed qilingan "Demo O'quvchi" + dunyo o'quvchisi.
-        board.StudentCount.Should().Be(BulkStudents + 2);
+        // 520 ta yaratilgan + dunyo o'quvchisi (+ guruhdagi seed o'quvchilar).
+        board.StudentCount.Should().Be(expectedCount);
+        board.StudentCount.Should().BeGreaterThan(BulkStudents);
 
         board.TopCount.Should().Be(ExpectedTopRows);
         board.Rows.Should().HaveCount(ExpectedTopRows, "javob TOP-N gacha qisqartiriladi");
@@ -119,13 +132,12 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
     ///   0.1% qadam bilan): teng ballda o'rinlar birlashib ketardi va
     ///   "521-o'rin" tasdig'i ma'nosiz bo'lardi.
     ///
-    /// ★ BU O'QUVCHILAR HECH QAYSI GURUHDA EMAS — davomat mezoni ularda
-    ///   <c>null</c>, ya'ni yakuniy ball faqat test foizidan iborat.
-    ///   Bu markaz jadvalining yana bir qoidasini isbotlaydi: guruhsiz
-    ///   o'quvchi reytingdan CHIQARILMAYDI.
+    /// ★ 2026-10-29 DAN BERI ULAR DUNYO GURUHIGA A'ZO: markaz jadvalida
+    ///   endi faqat guruhdagi o'quvchilar turadi (guruhsiz — mehmon yoki
+    ///   sobiq o'quvchi, ularning ismi oshkor bo'lmasin).
     ///
     /// </summary>
-    private async Task AddScoredStudentsAsync() =>
+    private async Task AddScoredStudentsAsync(long groupId) =>
         await factory.WithDbAsync(async db =>
         {
             var suffix = Guid.NewGuid().ToString("N")[..8];
@@ -158,6 +170,15 @@ public sealed class CenterLeaderboardScaleTests(ZinnurApiFactory factory)
             }
 
             db.Users.AddRange(students);
+            await db.SaveChangesAsync();
+
+            db.GroupMembers.AddRange(students.ConvertAll(s => new GroupMember
+            {
+                GroupId = groupId,
+                StudentId = s.Id,
+                Status = MemberStatus.Active,
+                JoinedAt = new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
+            }));
             await db.SaveChangesAsync();
 
             var submittedAt = new DateTimeOffset(2026, 5, 14, 14, 0, 0, TimeSpan.Zero);

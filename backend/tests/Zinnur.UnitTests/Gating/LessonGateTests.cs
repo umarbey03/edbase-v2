@@ -128,6 +128,33 @@ public class LessonGateTests
         reason.Should().BeNull();
     }
 
+    /// <summary>
+    /// ★ O'quvchi o'zi TUGATGAN dars (masalan, mustaqil o'qib, keyin guruhga
+    /// o'tgan) guruh sur'ati va boshlanish nuqtasidan qat'i nazar ochiq.
+    /// </summary>
+    [Fact]
+    public void Evaluate_CompletedLesson_StaysOpenBeyondPaceAndStart()
+    {
+        var previous = Empty(1) with { HasVideo = true, VideoWatched = false };
+        var done = Empty(2) with { HasVideo = true, VideoWatched = true };
+
+        LessonGate.Evaluate(index: 9, done, previous, taughtLessonCount: 0)
+            .Should().Be((true, (LessonLockReason?)null));
+        LessonGate.Evaluate(index: 2, done, previous, taughtLessonCount: 0, startIndex: 5)
+            .Should().Be((true, (LessonLockReason?)null));
+    }
+
+    /// <summary>⚠️ Kontentsiz dars "tugatilgan" hisoblanib sur'atdan oldinga ochilmaydi.</summary>
+    [Fact]
+    public void Evaluate_EmptyLessonBeyondPace_StaysLocked()
+    {
+        var (unlocked, reason) = LessonGate.Evaluate(
+            index: 9, Empty(2), Empty(1), taughtLessonCount: 0);
+
+        unlocked.Should().BeFalse();
+        reason.Should().Be(LessonLockReason.TeacherPace);
+    }
+
     /// <summary>★ Ustoz yetib kelmagan dars YOPIQ — sababi `TeacherPace`.</summary>
     [Fact]
     public void Evaluate_BeyondTeacherPace_IsLockedWithPaceReason()
