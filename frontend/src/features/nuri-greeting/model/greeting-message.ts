@@ -1,3 +1,4 @@
+import type { MascotMood } from '@/features/mascot'
 import { formatTime, isSameDay } from '@/shared/lib/datetime'
 import { formatSum } from '@/shared/lib/money'
 import { truncate } from '@/shared/lib/text'
@@ -315,4 +316,27 @@ export function pickGreeting(input: GreetingInput): GreetingMessage {
     key: 'salom',
     text: addressed(name, 'yana ko‘rishganimizdan xursandman. Bugun nima o‘rganamiz?'),
   }
+}
+
+/**
+ * Salomlashuv holati → maskot kayfiyati (2026-10-29, fonus-maskot).
+ *
+ * ★ GAP BILAN YUZ BIR XIL BO'LSIN: «seni ko'rmadim» deyayotgan maskot
+ *   kulib turmasin. Xavotirli holatlar `concerned` — xafa emas, "birga hal
+ *   qilamiz" yuzi (`features/mascot/model/mood.ts` dagi qoida).
+ */
+const GREETING_MOOD: Record<GreetingKey, MascotMood> = {
+  tanishuv: 'happy',
+  jonli: 'thinking',
+  qoldirgan: 'concerned',
+  kechikkan: 'concerned',
+  bugun: 'encouraging',
+  vazifa: 'encouraging',
+  qarz: 'encouraging',
+  seriya: 'celebrate',
+  salom: 'happy',
+}
+
+export function greetingMood(key: GreetingKey): MascotMood {
+  return GREETING_MOOD[key]
 }

@@ -6,6 +6,7 @@ import { fetchAttendanceSummary } from '@/entities/progress'
 import { fetchRecordingSection } from '@/entities/recording'
 import { useMySubscription } from '@/entities/subscription'
 import { ClassroomModal } from '@/features/classroom'
+import { MascotMoodCard, useStudentMood } from '@/features/mascot'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
 import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
@@ -28,6 +29,14 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  */
 const now = useNow()
 const schedule = useStudentSchedule(now)
+
+/*
+  ★ «NURI» KARTASI (2026-10-29): maskot kayfiyati o'quvchi holatidan —
+  davomat, vazifalar, ball. Qoidalar `features/mascot/model/mood.ts` da.
+  Karta sahifaning ENG TEPASIDA: u "bugun nima qilay?" savoliga bitta
+  tugma bilan javob beradi, qolgan kartalar esa tafsilot.
+*/
+const mood = useStudentMood(now, schedule)
 
 const attendanceQuery = useQuery({
   queryKey: ['progress', 'attendance'],
@@ -127,6 +136,11 @@ const isSelfStudy = subscription.isSelfStudy
     class="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6"
   >
     <div class="space-y-4 lg:min-w-0">
+      <MascotMoodCard
+        :result="mood.result.value"
+        :live-session-id="mood.liveSessionId.value"
+      />
+
       <SubscriptionStatusCard :data="subscription.data.value" />
 
       <RouterLink
@@ -177,6 +191,12 @@ const isSelfStudy = subscription.isSelfStudy
       kengaytirib yuborardi.
     -->
     <div class="lg:min-w-0">
+      <MascotMoodCard
+        class="mb-4"
+        :result="mood.result.value"
+        :live-session-id="mood.liveSessionId.value"
+      />
+
       <div
         v-if="schedule.isPending.value"
         class="mb-4 h-[190px] animate-pulse rounded-[18px] border border-line bg-ink-900"
