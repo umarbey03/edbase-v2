@@ -635,7 +635,7 @@ export const FEATURES: readonly Feature[] = [
      pul to'langandan keyin. Bu esa aynan norozilik chiqadigan joy.
 */
 export const BOOKS = {
-  eyebrow: 'Kursga kiritilgan',
+  eyebrow: 'Milliy tarifda qo‘shimcha',
   title: 'Kitoblarni pochtangizgacha yetkazamiz',
   lead:
     'O‘quv qurollari yoki adabiyot qidirib vaqt sarflamaysiz — kurs uchun '
@@ -758,10 +758,10 @@ export const PRICE = {
   ],
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
-    'Haftasiga 3 kun support teacher darsi',
-    'Video darsliklar, mashq va testlar',
-    'Barcha kitoblar va ularni Uzpost pochtasiga yetkazib berish',
-    'Dars yozuvlari va shaxsiy kabinet',
+    'Qo‘shimcha: haftasiga 3 kun support teacher darsi',
+    'Qo‘shimcha: video darsliklar, mashq va testlar',
+    'Qo‘shimcha: kitoblar va ularni Uzpost pochtasiga yetkazib berish',
+    'Qo‘shimcha: dars yozuvlari va shaxsiy kabinet',
   ],
 } as const
 
