@@ -1,0 +1,121 @@
+{
+  "course": "ATF",
+  "units": {
+    "birlik_01": {
+      "module": "Harf moduli",
+      "lessonPosition": 1
+    },
+    "birlik_02": {
+      "module": "Harf moduli",
+      "lessonPosition": 2
+    },
+    "birlik_03": {
+      "module": "Harf moduli",
+      "lessonPosition": 3
+    },
+    "birlik_04": {
+      "module": "Harf moduli",
+      "lessonPosition": 4
+    },
+    "birlik_05": {
+      "module": "Harf moduli",
+      "lessonPosition": 5
+    },
+    "birlik_06": {
+      "module": "Harf moduli",
+      "lessonPosition": 6
+    },
+    "birlik_07": {
+      "module": "Harf moduli",
+      "lessonPosition": 7
+    },
+    "birlik_08": {
+      "module": "Harf moduli",
+      "lessonPosition": 8
+    },
+    "birlik_09": {
+      "module": "Harf moduli",
+      "lessonPosition": 9
+    },
+    "birlik_10": {
+      "module": "Harf moduli",
+      "lessonPosition": 10
+    },
+    "birlik_11": {
+      "module": "Harf moduli",
+      "lessonPosition": 11
+    },
+    "birlik_12": {
+      "module": "Harf moduli",
+      "lessonPosition": 12
+    },
+    "birlik_13": {
+      "module": "Harf moduli",
+      "lessonPosition": 13
+    },
+    "birlik_14": {
+      "module": "Harf moduli",
+      "lessonPosition": 14
+    },
+    "birlik_15": {
+      "module": "Harf moduli",
+      "lessonPosition": 15
+    },
+    "birlik_16": {
+      "module": "Harf moduli",
+      "lessonPosition": 16
+    },
+    "birlik_17": {
+      "module": "Harf moduli",
+      "lessonPosition": 17
+    },
+    "birlik_18": {
+      "module": "Harf moduli",
+      "lessonPosition": 18
+    },
+    "birlik_19": {
+      "module": "Harf moduli",
+      "lessonPosition": 19
+    },
+    "birlik_20": {
+      "module": "Harf moduli",
+      "lessonPosition": 20
+    },
+    "birlik_21": {
+      "module": "Harf moduli",
+      "lessonPosition": 21
+    },
+    "birlik_22": {
+      "module": "Harf moduli",
+      "lessonPosition": 22
+    },
+    "birlik_23": {
+      "module": "Harf moduli",
+      "lessonPosition": 23
+    },
+    "birlik_24": {
+      "module": "Harf moduli",
+      "lessonPosition": 24
+    },
+    "birlik_25": {
+      "module": "Harf moduli",
+      "lessonPosition": 25
+    },
+    "birlik_26": {
+      "module": "Harf moduli",
+      "lessonPosition": 26
+    },
+    "birlik_27": {
+      "module": "Harf moduli",
+      "lessonPosition": 27
+    },
+    "birlik_28": {
+      "module": "Harf moduli",
+      "lessonPosition": 28
+    },
+    "imtihon": {
+      "module": "Harf moduli",
+      "lessonKind": "Exam"
+    }
+  }
+}

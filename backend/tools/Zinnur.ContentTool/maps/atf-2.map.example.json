@@ -1,0 +1,149 @@
+{
+  "course": "ATF",
+  "units": {
+    "birlik_01": {
+      "module": "Qoida moduli",
+      "lessonPosition": 1
+    },
+    "birlik_02": {
+      "module": "Qoida moduli",
+      "lessonPosition": 2
+    },
+    "birlik_03": {
+      "module": "Qoida moduli",
+      "lessonPosition": 3
+    },
+    "birlik_04": {
+      "module": "Qoida moduli",
+      "lessonPosition": 4
+    },
+    "birlik_05": {
+      "module": "Qoida moduli",
+      "lessonPosition": 5
+    },
+    "birlik_06": {
+      "module": "Qoida moduli",
+      "lessonPosition": 6
+    },
+    "birlik_07": {
+      "module": "Qoida moduli",
+      "lessonPosition": 7
+    },
+    "birlik_08": {
+      "module": "Qoida moduli",
+      "lessonPosition": 8
+    },
+    "birlik_09": {
+      "module": "Qoida moduli",
+      "lessonPosition": 9
+    },
+    "birlik_10": {
+      "module": "Qoida moduli",
+      "lessonPosition": 10
+    },
+    "birlik_11": {
+      "module": "Qoida moduli",
+      "lessonPosition": 11
+    },
+    "birlik_12": {
+      "module": "Qoida moduli",
+      "lessonPosition": 12
+    },
+    "birlik_13": {
+      "module": "Qoida moduli",
+      "lessonPosition": 13
+    },
+    "birlik_14": {
+      "module": "Qoida moduli",
+      "lessonPosition": 14
+    },
+    "birlik_15": {
+      "module": "Qoida moduli",
+      "lessonPosition": 15
+    },
+    "birlik_16": {
+      "module": "Qoida moduli",
+      "lessonPosition": 16
+    },
+    "birlik_17": {
+      "module": "Qoida moduli",
+      "lessonPosition": 17
+    },
+    "birlik_18": {
+      "module": "Qoida moduli",
+      "lessonPosition": 18
+    },
+    "birlik_19": {
+      "module": "Qoida moduli",
+      "lessonPosition": 19
+    },
+    "birlik_20": {
+      "module": "Qoida moduli",
+      "lessonPosition": 20
+    },
+    "birlik_21": {
+      "module": "Qoida moduli",
+      "lessonPosition": 21
+    },
+    "birlik_22": {
+      "module": "Qoida moduli",
+      "lessonPosition": 22
+    },
+    "birlik_23": {
+      "module": "Qoida moduli",
+      "lessonPosition": 23
+    },
+    "birlik_24": {
+      "module": "Qoida moduli",
+      "lessonPosition": 24
+    },
+    "birlik_25": {
+      "module": "Qoida moduli",
+      "lessonPosition": 25
+    },
+    "birlik_26": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 1
+    },
+    "birlik_27": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 2
+    },
+    "birlik_28": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 3
+    },
+    "birlik_29": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 4
+    },
+    "birlik_30": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 5
+    },
+    "birlik_31": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 6
+    },
+    "birlik_32": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 7
+    },
+    "birlik_33": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 8
+    },
+    "birlik_34": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 9
+    },
+    "birlik_35": {
+      "module": "Amaliyot I moduli",
+      "lessonPosition": 10
+    },
+    "imtihon": {
+      "module": "Amaliyot I moduli",
+      "lessonKind": "Exam"
+    }
+  }
+}
