@@ -889,9 +889,9 @@ export const FEATURES: readonly Feature[] = [
     icon: 'clipboard',
     title: 'Test va mashqlar',
     text:
+      // ⚠️ 2026-10-29 — «support teacher'ga» olib tashlandi: u faqat Milliy tarifda.
       'Fonetika kursida har mavzudan keyin test. Natijangiz saqlanadi, '
-      + 'qaysi mavzu oqsayotgani ustoz va support teacher’ga ko‘rinib '
-      + 'turadi.',
+      + 'qaysi mavzu oqsayotgani sizga ham, ustozga ham ko‘rinib turadi.',
   },
   {
     icon: 'refresh',
