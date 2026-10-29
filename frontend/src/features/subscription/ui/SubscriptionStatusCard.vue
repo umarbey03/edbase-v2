@@ -43,9 +43,10 @@ const tone = computed(() => {
       Mustaqil o‘qish obunasi
     </p>
 
+    <!-- Tarif nomi ham (audit, 2026-10-29): Mustaqil yoki Mustaqil+ ekani bilinsin. -->
     <p
       class="mt-2 text-base font-bold text-slate-100"
-      v-text="props.data.courseName ?? 'Kurs'"
+      v-text="[props.data.planName, props.data.courseName ?? 'Kurs'].filter(Boolean).join(' · ')"
     />
 
     <p

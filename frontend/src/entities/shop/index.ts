@@ -1,5 +1,6 @@
 export {
   cancelShopOrder,
+  claimShopOrderPaid,
   confirmShopOrder,
   createShopOrder,
   fetchShopMe,

@@ -189,6 +189,28 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     }
 
     [Fact]
+    public async Task Paid_claim_marks_the_order_once_and_only_while_pending()
+    {
+        var setup = await SetUpAsync("shop-paid");
+        using var guest = await WorldBuilder.ClientAsync(factory, setup.Guest);
+        var order = await CreateOrderAsync(guest, setup.SelfPlanId);
+
+        var first = await guest.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/paid", new { });
+        first.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(first));
+        var claimedAt = (await first.Content.ReadFromJsonAsync<PaidRow>())!.PaidClaimedAt;
+        claimedAt.Should().NotBeNull();
+
+        var again = await guest.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/paid", new { });
+        (await again.Content.ReadFromJsonAsync<PaidRow>())!.PaidClaimedAt.Should().Be(claimedAt);
+
+        var cancel = await guest.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/cancel", new { });
+        cancel.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var late = await guest.PostAsJsonAsync($"/api/v1/shop/orders/{order.Id}/paid", new { });
+        late.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Former_group_student_sees_no_center_leaderboard()
     {
         var former = await WorldBuilder.CreateAsync(factory, "shop-former");
@@ -253,6 +275,8 @@ public sealed class ShopTests(ZinnurApiFactory factory) : IClassFixture<ZinnurAp
     private sealed record OrderRow(long Id, string Code, string Status, decimal Amount);
 
     private sealed record IdRow(long Id);
+
+    private sealed record PaidRow(DateTimeOffset? PaidClaimedAt);
 
     private sealed record OfferPlanRow(string Name, bool IncludesInteractiveBook);
 

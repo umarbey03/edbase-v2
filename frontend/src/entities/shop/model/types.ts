@@ -41,6 +41,8 @@ export interface ShopOrderDto {
   createdAt: string
   decidedAt: string | null
   decisionNote: string | null
+  /** O'quvchi «To'ladim» ni bosgan vaqt (tasdiq emas — signal). */
+  paidClaimedAt: string | null
 }
 
 export interface ShopMeDto {
@@ -66,6 +68,8 @@ export interface StaffOrderDto {
   decidedAt: string | null
   decidedByName: string | null
   decisionNote: string | null
+  /** O'quvchi «To'ladim» ni bosgan vaqt (tasdiq emas — signal). */
+  paidClaimedAt: string | null
 }
 
 const STATUS_LABELS: Record<PurchaseOrderStatusName, string> = {

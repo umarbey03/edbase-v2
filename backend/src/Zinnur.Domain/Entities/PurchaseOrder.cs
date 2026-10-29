@@ -65,6 +65,14 @@ public class PurchaseOrder : BaseEntity
     /// <summary>Guruh tarifi tasdiqlanganda yozilgan moliya jurnali yozuvi.</summary>
     public long? PaymentTransactionId { get; set; }
 
+    /// <summary>
+    /// O'quvchi «To'ladim» ni bosgan vaqt (2026-10-29). Bu TASDIQ EMAS —
+    /// faqat signal: xodim to'lovni Payme/Click xabarlarida baribir o'zi
+    /// topadi. Lekin karta "to'lov kutilmoqda" da qotib qolmaydi va
+    /// xodimlarga "tekshiring" eslatmasi boradi.
+    /// </summary>
+    public DateTimeOffset? PaidClaimedAt { get; set; }
+
     public bool IsPending => Status == PurchaseOrderStatus.Pending;
 
     /// <summary>
@@ -86,6 +94,21 @@ public class PurchaseOrder : BaseEntity
         EnsurePending();
         Status = PurchaseOrderStatus.Rejected;
         Decide(actorId, reason, now);
+    }
+
+    /// <summary>
+    /// «To'ladim». Takroriy bosish — xato emas, birinchi vaqt saqlanadi.
+    /// </summary>
+    /// <returns><c>true</c> — birinchi marta belgilandi (xodimlarga xabar kerak).</returns>
+    public bool ClaimPaid(DateTimeOffset now)
+    {
+        EnsurePending();
+        if (PaidClaimedAt is not null)
+            return false;
+
+        PaidClaimedAt = now;
+        UpdatedAt = now;
+        return true;
     }
 
     public void Cancel(DateTimeOffset now)

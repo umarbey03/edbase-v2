@@ -29,6 +29,9 @@ public interface IShopService
 
     Task<ShopOrderDto> CancelOrderAsync(long studentId, long orderId, CancellationToken ct = default);
 
+    /// <summary>O'quvchi «To'ladim» — xodimlarga tekshirish eslatmasi.</summary>
+    Task<ShopOrderDto> ClaimPaidAsync(long studentId, long orderId, CancellationToken ct = default);
+
     Task<IReadOnlyList<StaffOrderDto>> ListOrdersAsync(
         long actorId, PurchaseOrderStatus? status, CancellationToken ct = default);
 
@@ -209,6 +212,33 @@ public sealed class ShopService(
         }
 
         await db.SaveChangesAsync(ct);
+        return await OrderDtoAsync(order.Id, ct);
+    }
+
+    public async Task<ShopOrderDto> ClaimPaidAsync(long studentId, long orderId, CancellationToken ct = default)
+    {
+        var order = await db.PurchaseOrders.AsTracking()
+            .Include(o => o.Student)
+            .Include(o => o.Plan)
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.StudentId == studentId, ct)
+            ?? throw new NotFoundException(nameof(PurchaseOrder), orderId);
+
+        bool first;
+        try
+        {
+            first = order.ClaimPaid(clock.GetUtcNow());
+        }
+        catch (DomainException ex)
+        {
+            throw new ConflictException(ex.Message);
+        }
+
+        if (first)
+        {
+            await db.SaveChangesAsync(ct);
+            await NotifyStaffAboutPaidClaimAsync(order, ct);
+        }
+
         return await OrderDtoAsync(order.Id, ct);
     }
 
@@ -409,6 +439,33 @@ public sealed class ShopService(
         await db.SaveChangesAsync(ct);
     }
 
+    /*
+      ★ «TO'LADIM» ESLATMASI ham o'sha tugmalar bilan — xodim xabarni topib,
+        darhol shu yerdan tasdiqlay oladi. Idempotentlik kaliti alohida:
+        birinchi xabar (yangi buyurtma) bilan to'qnashmasin.
+    */
+    private async Task NotifyStaffAboutPaidClaimAsync(PurchaseOrder order, CancellationToken ct)
+    {
+        var chatId = await StaffChatIdAsync(ct);
+        if (chatId is null)
+            return;
+
+        await outbox.EnqueueAsync(
+            new NotificationRequest
+            {
+                Channel = NotificationChannel.Telegram,
+                RecipientAddress = chatId,
+                TemplateKey = TelegramTemplates.ShopOrderStaff,
+                Body = TelegramTemplates.ShopOrderPaidClaimText(
+                    order.Code, order.Student!.FullName, order.Plan!.Name, order.Amount),
+                CallbackData = TelegramTemplates.ShopOrderButtons(order.Id),
+                IdempotencyKey = string.Create(CultureInfo.InvariantCulture, $"shop_order_paid:{order.Id}"),
+            },
+            ct);
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task NotifyDecisionAsync(
         PurchaseOrder order, string planName, bool confirmed, string actorName, string? note, CancellationToken ct)
     {
@@ -500,7 +557,8 @@ public sealed class ShopService(
                 o.Status,
                 o.CreatedAt,
                 o.DecidedAt,
-                o.DecisionNote));
+                o.DecisionNote,
+                o.PaidClaimedAt));
 
     private Task<ShopOrderDto> OrderDtoAsync(long orderId, CancellationToken ct) =>
         OrdersQuery(db.PurchaseOrders.AsNoTracking().Where(o => o.Id == orderId)).FirstAsync(ct);
@@ -526,7 +584,8 @@ public sealed class ShopService(
                 o.CreatedAt,
                 o.DecidedAt,
                 db.Users.Where(u => u.Id == o.DecidedById).Select(u => u.FullName).FirstOrDefault(),
-                o.DecisionNote));
+                o.DecisionNote,
+                o.PaidClaimedAt));
 
     private Task<StaffOrderDto> StaffDtoAsync(long orderId, CancellationToken ct) =>
         StaffQuery(db.PurchaseOrders.AsNoTracking().Where(o => o.Id == orderId)).FirstAsync(ct);

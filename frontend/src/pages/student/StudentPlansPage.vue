@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, watch } from 'vue'
 
 import {
   cancelShopOrder,
+  claimShopOrderPaid,
   createShopOrder,
   fetchShopOffers,
   orderStatusLabel,
@@ -16,6 +17,7 @@ import { MY_SUBSCRIPTION_KEY, PLAN_KIND_LABELS } from '@/entities/subscription'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import { showToast } from '@/shared/lib/useToast'
 import { AppIcon, BaseBadge, BaseButton, BaseSpinner } from '@/shared/ui'
 
@@ -90,6 +92,42 @@ const order = useMutation({
   onError: (error) => showToast(toUserMessage(error), 'error'),
 })
 
+/*
+  ══════════════════════════════════════════════════════════════════════
+   TO'LOV KARTASI — UCH QADAM (audit, 2026-10-29)
+  ══════════════════════════════════════════════════════════════════════
+  Ilgari karta to'lovdan oldin ham, keyin ham «To'lov kutilmoqda» deb
+  turardi — to'lagan odam "yetib bordimi?" deb qolardi, «Bekor qilish»
+  esa sarlavha yonida edi va adashib bosilishi mumkin edi.
+
+  ★ Qadamlar: Buyurtma → To'lov → Tasdiq. «To'ladim» — TASDIQ EMAS,
+    signal: xodimlar guruhiga eslatma boradi, karta esa "tekshirilmoqda"
+    holatiga o'tadi. Tasdiqni baribir xodim beradi.
+  ★ «Bekor qilish» pastda, kichik va tasdiq so'raydi; «To'ladim» dan
+    keyin umuman yo'q — to'langan buyurtmani o'quvchi o'zi o'chirmasin.
+*/
+const confirm = useConfirm()
+
+const claimPaid = useMutation({
+  mutationFn: (id: number) => claimShopOrderPaid(id),
+  onSuccess: () => {
+    showToast('Rahmat! To‘lovni tekshirib, tez orada tasdiqlaymiz', 'success')
+    void queryClient.invalidateQueries({ queryKey: SHOP_ME_KEY })
+  },
+  onError: (error) => showToast(toUserMessage(error), 'error'),
+})
+
+async function askCancel(item: ShopOrderDto): Promise<void> {
+  const ok = await confirm({
+    title: 'Buyurtmani bekor qilasizmi?',
+    message: 'Agar to‘lov qilgan bo‘lsangiz, bekor qilmang — «To‘ladim» tugmasini bosing.',
+    confirmLabel: 'Bekor qilish',
+    cancelLabel: 'Ortga',
+    tone: 'danger',
+  })
+  if (ok) cancel.mutate(item.id)
+}
+
 const cancel = useMutation({
   mutationFn: (id: number) => cancelShopOrder(id),
   onSuccess: () => {
@@ -135,7 +173,7 @@ function orderKindNote(item: ShopOrderDto): string {
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-xs font-bold uppercase tracking-[1.4px] text-amber-200">
-            To‘lov kutilmoqda
+            {{ item.paidClaimedAt === null ? 'To‘lov kutilmoqda' : 'To‘lov tekshirilmoqda' }}
           </p>
           <p class="mt-1 truncate text-base font-bold text-slate-100">
             {{ item.planName }}
@@ -144,86 +182,131 @@ function orderKindNote(item: ShopOrderDto): string {
             {{ item.courseName }}
           </p>
         </div>
-        <BaseButton
-          size="sm"
-          variant="ghost"
-          :loading="cancel.isPending.value && cancel.variables.value === item.id"
-          @click="cancel.mutate(item.id)"
-        >
-          Bekor qilish
-        </BaseButton>
       </div>
 
-      <div class="mt-4 grid gap-2 sm:grid-cols-2">
-        <button
-          type="button"
-          class="flex items-center justify-between rounded-lg bg-ink-900 px-3 py-2.5 text-left ring-1 ring-inset ring-line"
-          @click="copy(String(item.amount))"
-        >
-          <span>
-            <span class="block text-[11px] text-slate-400">To‘lov summasi</span>
-            <span class="text-lg font-extrabold tabular-nums text-slate-100">{{ formatMoney(item.amount) }}</span>
-          </span>
-          <AppIcon
-            name="clipboard"
-            :size="16"
-            class="text-slate-400"
-          />
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-between rounded-lg bg-ink-900 px-3 py-2.5 text-left ring-1 ring-inset ring-line"
-          @click="copy(item.code)"
-        >
-          <span>
-            <span class="block text-[11px] text-slate-400">Buyurtma kodi (izohga yozing)</span>
-            <span class="text-lg font-extrabold tracking-wider text-brand-300">{{ item.code }}</span>
-          </span>
-          <AppIcon
-            name="clipboard"
-            :size="16"
-            class="text-slate-400"
-          />
-        </button>
-      </div>
-
-      <p
-        v-if="offers?.paymentInstructions"
-        class="mt-3 text-sm text-slate-300"
-        v-text="offers.paymentInstructions"
-      />
-
-      <div
-        v-if="offers?.paymeUrl || offers?.clickUrl"
-        class="mt-3 flex flex-wrap gap-2"
+      <!-- Qadamlar: Buyurtma → To'lov → Tasdiq -->
+      <ol
+        class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold"
+        aria-label="Buyurtma bosqichlari"
       >
-        <a
-          v-if="offers?.paymeUrl"
-          :href="offers.paymeUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center rounded-lg bg-[#00CCCC] px-4 py-2 text-sm font-bold text-ink-950"
+        <li
+          v-for="(step, index) in ['Buyurtma', 'To‘lov', 'Tasdiq']"
+          :key="step"
+          class="flex items-center gap-1.5"
         >
-          Payme orqali to‘lash
-        </a>
-        <a
-          v-if="offers?.clickUrl"
-          :href="offers.clickUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center rounded-lg bg-[#0073FF] px-4 py-2 text-sm font-bold text-white"
-        >
-          Click orqali to‘lash
-        </a>
-      </div>
+          <span
+            class="rounded-full px-2.5 py-1"
+            :class="index < (item.paidClaimedAt === null ? 1 : 2)
+              ? 'bg-brand-500 text-on-brand'
+              : 'bg-ink-900 text-slate-400 ring-1 ring-inset ring-line'"
+            :aria-current="index === (item.paidClaimedAt === null ? 1 : 2) ? 'step' : undefined"
+          >{{ index + 1 }}. {{ step }}</span>
+          <span
+            v-if="index < 2"
+            class="text-slate-500"
+            aria-hidden="true"
+          >→</span>
+        </li>
+      </ol>
 
-      <p class="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
-        <AppIcon
-          name="clock"
-          :size="13"
-        />
-        {{ orderKindNote(item) }} Holat shu sahifada o‘zi yangilanadi.
+      <!-- To'ladim bosilgan — endi kutish, bekor qilish yo'q. -->
+      <p
+        v-if="item.paidClaimedAt !== null"
+        class="mt-4 rounded-lg bg-ink-900 px-3 py-2.5 text-sm text-slate-300 ring-1 ring-inset ring-line"
+      >
+        To‘lovingiz haqida xabar oldik. Ish vaqtida odatda 1 soat ichida tasdiqlaymiz —
+        tasdiqlangach shu sahifa va Telegram orqali bilasiz.
       </p>
+
+      <template v-else>
+        <div class="mt-4 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            class="flex items-center justify-between rounded-lg bg-ink-900 px-3 py-2.5 text-left ring-1 ring-inset ring-line"
+            @click="copy(String(item.amount))"
+          >
+            <span>
+              <span class="block text-[11px] text-slate-400">To‘lov summasi</span>
+              <span class="text-lg font-extrabold tabular-nums text-slate-100">{{ formatMoney(item.amount) }}</span>
+            </span>
+            <AppIcon
+              name="clipboard"
+              :size="16"
+              class="text-slate-400"
+            />
+          </button>
+          <button
+            type="button"
+            class="flex items-center justify-between rounded-lg bg-ink-900 px-3 py-2.5 text-left ring-1 ring-inset ring-line"
+            @click="copy(item.code)"
+          >
+            <span>
+              <span class="block text-[11px] text-slate-400">Buyurtma kodi (izohga yozing)</span>
+              <span class="text-lg font-extrabold tracking-wider text-brand-300">{{ item.code }}</span>
+            </span>
+            <AppIcon
+              name="clipboard"
+              :size="16"
+              class="text-slate-400"
+            />
+          </button>
+        </div>
+
+        <p
+          v-if="offers?.paymentInstructions"
+          class="mt-3 text-sm text-slate-300"
+          v-text="offers.paymentInstructions"
+        />
+
+        <div
+          v-if="offers?.paymeUrl || offers?.clickUrl"
+          class="mt-3 flex flex-wrap gap-2"
+        >
+          <a
+            v-if="offers?.paymeUrl"
+            :href="offers.paymeUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center rounded-lg bg-[#00CCCC] px-4 py-2 text-sm font-bold text-[#062a2a]"
+          >
+            Payme orqali to‘lash
+          </a>
+          <a
+            v-if="offers?.clickUrl"
+            :href="offers.clickUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center rounded-lg bg-[#0073FF] px-4 py-2 text-sm font-bold text-white"
+          >
+            Click orqali to‘lash
+          </a>
+        </div>
+
+        <p class="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+          <AppIcon
+            name="clock"
+            :size="13"
+          />
+          {{ orderKindNote(item) }} Holat shu sahifada o‘zi yangilanadi.
+        </p>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <BaseButton
+            :loading="claimPaid.isPending.value && claimPaid.variables.value === item.id"
+            @click="claimPaid.mutate(item.id)"
+          >
+            To‘ladim
+          </BaseButton>
+          <button
+            type="button"
+            class="text-xs font-medium text-slate-400 underline underline-offset-2 hover:text-slate-200"
+            :disabled="cancel.isPending.value"
+            @click="askCancel(item)"
+          >
+            Buyurtmani bekor qilish
+          </button>
+        </div>
+      </template>
     </section>
 
     <!-- ═════════════════════════════════════════════════════ TARIFLAR ═══ -->

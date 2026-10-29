@@ -27,6 +27,11 @@ export function cancelShopOrder(id: number): Promise<ShopOrderDto> {
   return http.post<ShopOrderDto>(`${BASE}/orders/${id}/cancel`, {})
 }
 
+/** «To'ladim» — xodimlarga tekshirish eslatmasi boradi. */
+export function claimShopOrderPaid(id: number): Promise<ShopOrderDto> {
+  return http.post<ShopOrderDto>(`${BASE}/orders/${id}/paid`, {})
+}
+
 export function fetchStaffOrders(
   status: PurchaseOrderStatusName | null,
   options?: { signal?: AbortSignal },

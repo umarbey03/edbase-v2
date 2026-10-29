@@ -814,6 +814,13 @@ public static class TelegramTemplates
             + "Payme/Click xabarlarida shu summani toping va tasdiqlang.";
     }
 
+    /// <summary>Xodimlar guruhiga: o'quvchi «To'ladim» ni bosdi.</summary>
+    public static string ShopOrderPaidClaimText(string code, string studentName, string planName, decimal amount) =>
+        $"💳 <b>{NotificationText.Parameter(code, 12)}</b> — o'quvchi to'lov qildim dedi\n"
+        + $"👤 {NotificationText.Parameter(studentName, 80)}\n"
+        + $"📦 {NotificationText.Parameter(planName, 100)} · <b>{FormatMoney(amount)} so'm</b>\n\n"
+        + "Payme/Click xabarlarida tekshirib, tasdiqlang.";
+
     /// <summary>Xodim tugmalari.</summary>
     public static string ShopOrderButtons(long orderId) =>
         EncodeButtons([[
