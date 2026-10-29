@@ -12,7 +12,8 @@ import {
 import { ChatDaySeparator } from '@/features/group-chat'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
-import { AppIcon, DataStatus } from '@/shared/ui'
+import { findSensitiveWords } from '@/shared/lib/sensitive-words'
+import { AppIcon, DataStatus, SensitiveWordsNotice } from '@/shared/ui'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -99,9 +100,23 @@ const canSend = computed(
     !sendMutation.isPending.value,
 )
 
+/*
+  Diniy atama — yuborishdan oldin yumshoq ogohlantirish (`shared/lib/sensitive-words.ts`).
+  Ogohlantirish chiqqach matn tuzatilgan sari o'zi yangilanadi va yo'qoladi.
+*/
+const sensitiveWords = ref<string[]>([])
+watch(draft, (value) => {
+  if (sensitiveWords.value.length > 0) sensitiveWords.value = findSensitiveWords(value)
+})
+
 function submit(): void {
   const peer = curator.value
   if (peer === null || !canSend.value) return
+  const sensitiveHits = findSensitiveWords(draft.value)
+  if (sensitiveHits.length > 0) {
+    sensitiveWords.value = sensitiveHits
+    return
+  }
   sendMutation.mutate({ peerId: peer.peerId, body: draft.value.trim() })
 }
 </script>
@@ -166,6 +181,11 @@ function submit(): void {
         </DataStatus>
       </div>
 
+      <SensitiveWordsNotice
+        v-if="sensitiveWords.length > 0"
+        class="mt-2"
+        :words="sensitiveWords"
+      />
       <form
         class="mt-2 flex items-end gap-2"
         novalidate
