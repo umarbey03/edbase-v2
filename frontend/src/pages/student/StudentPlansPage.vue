@@ -9,13 +9,14 @@ import {
   fetchShopOffers,
   orderStatusLabel,
   orderStatusTone,
+  payShopOrderFromBalance,
   SHOP_ME_KEY,
   useShopMe,
 } from '@/entities/shop'
 import type { ShopOrderDto, ShopPlanDto } from '@/entities/shop'
 import { MY_SUBSCRIPTION_KEY, PLAN_KIND_LABELS } from '@/entities/subscription'
 import { toUserMessage } from '@/shared/api'
-import { formatDateTimeNumeric } from '@/shared/lib/datetime'
+import { formatDate, formatDateTimeNumeric } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import { showToast } from '@/shared/lib/useToast'
@@ -151,6 +152,75 @@ function orderKindNote(item: ShopOrderDto): string {
     ? 'Tasdiqlangach darslar shu zahoti ochiladi.'
     : 'Tasdiqlangach o‘quv bo‘limi sizni guruhga joylab, dars vaqtini xabar qiladi.'
 }
+
+/*
+  ══════════════════════════════════════════════════════════════════════
+   JORIY TARIF VA TARIF ALMASHTIRISH (2026-10-29, loyiha egasi qarori Q-1)
+  ══════════════════════════════════════════════════════════════════════
+  🔴 ILGARI: Mustaqil → Mustaqil+ oy o'rtasida sotib olinsa, yangi tarif
+    keyingi oyda boshlanardi va buni hech kim aytmasdi (audit P1-6).
+  ★ ENDI: boshqa mustaqil tarif DARHOL boshlanadi, joriy tarifning
+    ishlatilmagan kunlari puli balansga o'tadi (server hisoblaydi).
+    Joriy tarifni uzaytirish esa avvalgidek — u tugagan kundan.
+  ★ Matn TO'LOVDAN OLDIN aytiladi — o'quvchi nima olishini biladi.
+*/
+const balance = computed(() => me.data.value?.balance ?? 0)
+const currentPlanId = computed(() => me.data.value?.currentPlanId ?? null)
+const currentEndsAt = computed(() => me.data.value?.currentPlanEndsAt ?? null)
+
+function isCurrent(plan: ShopPlanDto): boolean {
+  return plan.kind === 'SelfStudy' && plan.id === currentPlanId.value
+}
+
+function switchNote(plan: ShopPlanDto): string | null {
+  if (plan.kind !== 'SelfStudy' || currentPlanId.value === null || blockedReason(plan) !== null) return null
+  if (isCurrent(plan)) {
+    return currentEndsAt.value === null
+      ? null
+      : `Uzaytirish joriy davr tugagach — ${formatDate(currentEndsAt.value)} dan boshlanadi.`
+  }
+  return 'To‘lov tasdiqlangan zahoti shu tarif boshlanadi. Joriy tarifning ishlatilmagan kunlari puli balansingizga o‘tadi.'
+}
+
+/*
+  ★ BALANSDAN TO'LASH (2026-10-29, Q-4): guruhdan qolgan yoki tarif
+    almashtirishda tushgan pul yangi Payme to'lovisiz ishlatiladi. Xodim
+    tasdig'i kerak emas — pul allaqachon markazda. Ochiq buyurtma bo'lsa
+    taklif qilinmaydi: u Payme'da to'lanib qo'ygan bo'lishi mumkin va pul
+    ikki marta olinardi (server ham shunday rad etadi).
+*/
+function canPayFromBalance(plan: ShopPlanDto): boolean {
+  return plan.kind === 'SelfStudy'
+    && blockedReason(plan) === null
+    && pending.value.length === 0
+    && balance.value >= plan.price
+}
+
+const payFromBalance = useMutation({
+  mutationFn: (planId: number) => payShopOrderFromBalance(planId),
+  onSuccess: () => {
+    showToast('To‘landi — tarif faollashdi', 'success')
+    void queryClient.invalidateQueries({ queryKey: SHOP_ME_KEY })
+    void queryClient.invalidateQueries({ queryKey: MY_SUBSCRIPTION_KEY })
+  },
+  onError: (error) => showToast(toUserMessage(error), 'error'),
+})
+
+async function askPayFromBalance(plan: ShopPlanDto): Promise<void> {
+  const note = switchNote(plan)
+  const ok = await confirm({
+    title: 'Balansdan to‘lash',
+    message: `«${plan.name}» uchun balansingizdan ${formatMoney(plan.price)} yechiladi.`,
+    confirmLabel: 'To‘lash',
+    cancelLabel: 'Ortga',
+    tone: 'primary',
+    details: [
+      `Balansda qoladi: ${formatMoney(balance.value - plan.price)}`,
+      note ?? 'Darslar shu zahoti ochiladi.',
+    ],
+  })
+  if (ok) payFromBalance.mutate(plan.id)
+}
 </script>
 
 <template>
@@ -161,6 +231,17 @@ function orderKindNote(item: ShopOrderDto): string {
       </h1>
       <p class="mt-1 text-sm text-slate-400">
         O‘zingizga mos o‘qish shaklini tanlang. To‘lov tasdiqlangach darslar ochiladi.
+      </p>
+      <p
+        v-if="balance > 0"
+        class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-ink-900 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-line"
+      >
+        <AppIcon
+          name="wallet"
+          :size="13"
+          class="text-slate-400"
+        />
+        Balansingiz: <span class="font-bold tabular-nums text-slate-100">{{ formatMoney(balance) }}</span>
       </p>
     </header>
 
@@ -334,12 +415,17 @@ function orderKindNote(item: ShopOrderDto): string {
         class="flex flex-col rounded-xl border p-[18px] lg:p-5"
         :class="plan.kind === 'Group' ? 'border-brand-500/50 bg-brand-500/5' : 'border-line bg-ink-900'"
       >
-        <BaseBadge
-          :tone="plan.kind === 'Group' ? 'accent' : 'neutral'"
-          class="self-start"
-        >
-          {{ PLAN_KIND_LABELS[plan.kind] }}
-        </BaseBadge>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <BaseBadge :tone="plan.kind === 'Group' ? 'accent' : 'neutral'">
+            {{ PLAN_KIND_LABELS[plan.kind] }}
+          </BaseBadge>
+          <BaseBadge
+            v-if="isCurrent(plan)"
+            tone="success"
+          >
+            Joriy tarif
+          </BaseBadge>
+        </div>
         <h2 class="mt-2 text-lg font-extrabold text-slate-100">
           {{ plan.name }}
         </h2>
@@ -382,20 +468,42 @@ function orderKindNote(item: ShopOrderDto): string {
           Interaktiv darslik ATF kursidan boshlab bosqichma-bosqich ochiladi.
         </p>
 
+        <!-- Qachon boshlanadi — to'lovdan OLDIN aytiladi (Q-1). -->
+        <p
+          v-if="switchNote(plan) !== null"
+          class="mt-3 rounded-lg bg-ink-900/60 px-3 py-2 text-xs leading-relaxed text-slate-300 ring-1 ring-inset ring-line"
+          v-text="switchNote(plan)"
+        />
+
         <p
           v-if="blockedReason(plan) !== null"
           class="mt-4 text-xs text-slate-400"
           v-text="blockedReason(plan)"
         />
-        <BaseButton
-          v-else
-          class="mt-4 w-full"
-          :loading="order.isPending.value && order.variables.value === plan.id"
-          :disabled="order.isPending.value"
-          @click="order.mutate(plan.id)"
-        >
-          {{ pending.some((o) => o.planId === plan.id) ? 'To‘lov ma’lumotlari' : 'Sotib olish' }}
-        </BaseButton>
+        <template v-else>
+          <BaseButton
+            class="mt-4 w-full"
+            :loading="order.isPending.value && order.variables.value === plan.id"
+            :disabled="order.isPending.value || payFromBalance.isPending.value"
+            @click="order.mutate(plan.id)"
+          >
+            {{
+              pending.some((o) => o.planId === plan.id)
+                ? 'To‘lov ma’lumotlari'
+                : isCurrent(plan) ? 'Uzaytirish' : 'Sotib olish'
+            }}
+          </BaseButton>
+          <BaseButton
+            v-if="canPayFromBalance(plan)"
+            class="mt-2 w-full"
+            variant="secondary"
+            :loading="payFromBalance.isPending.value && payFromBalance.variables.value === plan.id"
+            :disabled="order.isPending.value || payFromBalance.isPending.value"
+            @click="askPayFromBalance(plan)"
+          >
+            Balansdan to‘lash
+          </BaseButton>
+        </template>
       </article>
     </div>
 
