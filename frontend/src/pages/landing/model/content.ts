@@ -105,6 +105,51 @@ export const SOCIALS: readonly Social[] = [
   },
 ]
 
+/* ──────────────────────── UMUMIY TUGMALAR ─────────────────────────── */
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   CTA FE'LLARI BIRLASHTIRILDI — 2026-10-29
+  ══════════════════════════════════════════════════════════════════════════
+
+  🔴 MUAMMO: bir xil ishni (ariza modalini ochish) bajaradigan tugmalar
+     ikki xil fe'l bilan yozilgan edi — «Kursga yozilish» (panel, hero,
+     telefon paneli) va «Joyni band qilish» (Milliy kartasi). Odam ular
+     ikki xil narsa deb o'ylardi. Sahifada endi uchta fe'l qoldi:
+
+       • `enroll` — «Kursga yozilish»: ariza modali (Milliy, guruh);
+       • `PRICE.buyCta` — «Sotib olish»: Mustaqil tariflari, kabinet orqali;
+       • `LEVEL_TEST.cta` — «Testni boshlash».
+
+    Formaning o'z tugmasi («Ariza qoldirish») — formani YUBORISH, ya'ni
+    boshqa qadam; u `EnrollmentRequestForm` ichida qoladi.
+
+  ★ Hammasi shu yerda: ilgari bu so'zlar `LandingPage.vue` da qotib
+    yozilgan edi va fayl boshidagi «sahifada qotib qolgan matn yo'q»
+    degan qoida buzilgan edi.
+*/
+export const CTA = {
+  enroll: 'Kursga yozilish',
+  enrollModalLead:
+    'Ism va telefon raqamingizni qoldiring — menejerlarimiz siz bilan '
+    + 'bog‘lanib, mos guruh va vaqtni kelishadi.',
+  login: 'Kirish',
+  menu: 'Menyu',
+  call: 'Qo‘ng‘iroq qilish',
+  watchFree: 'Bepul darsni ko‘rish',
+  follow: 'Bizni kuzating:',
+} as const
+
+/*
+  E'LON PANELIDAGI GURUH HAJMI (2026-10-29).
+
+  ⚠️ «Guruhda atigi 18–20 joy» EDI: «atigi … joy» «joy kam qoldi» deb
+     o'qilardi — aslida bu guruh HAJMI, qolgan joylar soni emas.
+*/
+export const ANNOUNCE = {
+  groupSize: `Milliy guruhida ${COURSE_FACTS.groupSize} kishi`,
+} as const
+
 /* ─────────────────────────────── HERO ─────────────────────────────── */
 
 /*
@@ -306,6 +351,23 @@ export const FREE_LESSON = {
   ],
   youtubeId: '7HS_W3amolU',
   href: 'https://youtu.be/7HS_W3amolU',
+  openOnYoutube: 'YouTube’da ochish',
+  playLabel: 'Bepul darsni ijro etish',
+} as const
+
+/* ──────────────────────────── QISQA ARIZA ─────────────────────────── */
+
+/*
+  Bepul darsdan keyingi qisqa forma matni — 2026-10-29 da sahifadan shu
+  yerga ko'chirildi (o'zi o'zgarmadi).
+*/
+export const QUICK_ENROLL = {
+  eyebrow: 'Ariza',
+  title: 'Guruhda joy bormi — bir daqiqada bilib oling',
+  lead:
+    'Ism va telefon raqamingizni qoldiring. Menejerlarimiz bog‘lanib, '
+    + 'darajangizni aniqlaydi va yaqin guruhlardan qaysi biri sizga to‘g‘ri '
+    + 'kelishini aytadi.',
 } as const
 
 /* ──────────────────────────── NATIJA ──────────────────────────────── */
@@ -503,6 +565,8 @@ export interface WeekBlock {
   days: string
   title: string
   text: string
+  /** «Qo'shimcha» — narxga kirmaydi (2026-10-29). */
+  bonus?: boolean
 }
 
 /*
@@ -529,6 +593,26 @@ export interface WeekBlock {
   🔴 DARS DAVOMIYLIGI 1 SOAT 20 DAQIQA (1.5 soat EMAS). Bu raqam
      `PRICE.includes` da ham takrorlanadi — biri o'zgarsa, ikkinchisi ham.
 */
+/*
+  HAFTA BO'LIMI SARLAVHASI — 2026-10-29.
+
+  ⚠️ «Fonetika kursida haftangiz…» EDI. Jadval faqat MILLIY tarifniki
+     (Mustaqilda jonli dars ham, support teacher ham yo'q), shuning uchun
+     sarlavha yonida «Milliy tarif» tegi turadi. Support kunlari —
+     «qo'shimcha» (narxga kirmaydi). Grammatika haqidagi gap olib
+     tashlandi: u kurs kartasida (`COURSE_PATH.facts`) va FAQ da bor.
+*/
+export const WEEK_SECTION = {
+  title: 'ATF kursida haftangiz qanday o‘tadi',
+  tag: 'Milliy tarif',
+  lead:
+    'Haftasiga 2 kun asosiy ustoz bilan jonli dars — narxga shu kiradi. '
+    + 'Qolgan 3 kun support teacher bilan qo‘shimcha mashg‘ulot. Jadval '
+    + 'oldindan ma’lum — ishingiz yoki o‘qishingizga moslashtira olasiz.',
+  daysUnit: 'kun',
+  bonus: 'qo‘shimcha',
+} as const
+
 export const WEEK: readonly WeekBlock[] = [
   {
     icon: 'video',
@@ -542,6 +626,7 @@ export const WEEK: readonly WeekBlock[] = [
     icon: 'user-check',
     days: '3',
     title: 'Support teacher darsi',
+    bonus: true,
     text:
       'Support teacher siz bilan alohida shug‘ullanadi: o‘tilgan mavzuni '
       + 'mustahkamlaydi, talaffuzingizni audio orqali eshitadi va '
@@ -587,6 +672,15 @@ export const WEEK_DAYS: readonly WeekDay[] = [
 ]
 
 /* ────────────────────── KURS BOSQICHLARI ──────────────────────────── */
+
+/** Bo'lim sarlavhasi — 2026-10-29 da sahifadan ko'chirildi. */
+export const COURSE_SECTION = {
+  eyebrow: 'Kurs tuzilmasi',
+  title: 'Kurs qanday bo‘linadi',
+  lead:
+    'Asosiy kurs — ATF, 8 oy va uchta modul. Undan keyin Amaliyot II va '
+    + 'alohida Grammatika kursi bor.',
+} as const
 
 export interface CourseModule {
   name: string
@@ -681,7 +775,8 @@ export const COURSE_PATH: readonly CourseStage[] = [
         qismida (FAQ, narx yorlig'i) qisqa «ATF» qoladi — u yergacha
         odam ma'nosini bilib bo'lgan bo'ladi.
     */
-    name: 'ATF (Arab tili Fonetika)',
+    // ⚠️ 2026-10-29 — «Arab tili Fonetika» → «Arab tili fonetikasi» (izofa).
+    name: 'ATF — Arab tili fonetikasi',
     duration: '8 oy',
     text:
       'Asosiy kurs. Alifbodan boshlanadi va harakatli matnni mustaqil '
@@ -735,10 +830,25 @@ export const COURSE_PATH: readonly CourseStage[] = [
 
 /* ──────────────────────── AFZALLIKLAR ─────────────────────────────── */
 
+/*
+  ⚠️ 2026-10-29 — KARTALARGA SARLAVHA VA TEG BERILDI.
+
+  🔴 Ilgari olti karta «Kurs tuzilmasi» bo'limining ichida sarlavhasiz
+     turardi — nimani o'qiyotgani tushunarsiz edi. Support teacher, dars
+     yozuvlari va guruh hajmi esa faqat Milliy imkoniyatlari bo'lsa ham
+     hammaga tegishlidek ko'rinardi. `tag` shuni aytadi.
+*/
+export const FEATURES_SECTION = {
+  eyebrow: 'Afzalliklar',
+  title: 'Nega aynan ZIN-NUR',
+} as const
+
 export interface Feature {
   icon: IconName
   title: string
   text: string
+  /** Faqat ba'zi tarifga tegishli bo'lsa — kartadagi kichik teg. */
+  tag?: string
 }
 
 export const FEATURES: readonly Feature[] = [
@@ -752,9 +862,11 @@ export const FEATURES: readonly Feature[] = [
   {
     icon: 'users',
     title: 'Guruhda 18–20 kishi',
+    tag: 'Milliy',
+    // ⚠️ 2026-10-29 — raqobatchilar haqidagi isbotsiz «50 kishi» gapi olindi.
     text:
-      'Ko‘p onlayn kurslardagidek 50 kishi yig‘ilmaydi. Kichik guruh — '
-      + 'ustoz har bir o‘quvchiga vaqt ajrata oladi.',
+      'Guruh 20 kishidan oshmaydi — ustoz har bir o‘quvchini eshitishga '
+      + 'ulguradi.',
   },
   {
     /*
@@ -768,6 +880,7 @@ export const FEATURES: readonly Feature[] = [
     */
     icon: 'user-check',
     title: 'Haftada 3 kun support teacher darsi',
+    tag: 'Milliy · qo‘shimcha',
     text:
       'Fonetika kursida asosiy darsdan tashqari shaxsiy yordam. Yarim '
       + 'yo‘lda to‘xtab qolmaysiz — savolingiz javobsiz qolmaydi.',
@@ -783,6 +896,7 @@ export const FEATURES: readonly Feature[] = [
   {
     icon: 'refresh',
     title: 'Dars yozib olinadi',
+    tag: 'Milliy · qo‘shimcha',
     text:
       'Darsga ulgurmasangiz yozuvi kabinetingizda qoladi — '
       + 'istalgan vaqtda qaytib ko‘rasiz.',
@@ -1002,7 +1116,8 @@ export const PRICE = {
   ketadi va menejer qo'ng'iroqda aniqlaydi.
 */
 export const COURSE_OPTIONS: readonly string[] = [
-  'ATF (Arab tili Fonetika) — 8 oylik asosiy kurs',
+  // 🔴 «ATF» BILAN BOSHLANSIN: `onLevelTestApply` `startsWith('ATF')` bilan qidiradi.
+  'ATF — Arab tili fonetikasi (8 oylik asosiy kurs)',
   'Amaliyot II — 3 oylik kurs',
   'Grammatika',
 ]
@@ -1068,6 +1183,24 @@ export const LEVEL_TEST = {
 } as const
 
 /* ──────────────────────── QANDAY BOSHLANADI ───────────────────────── */
+
+/*
+  PASTKI ARIZA BO'LIMI — 2026-10-29.
+
+  ⚠️ «Guruhda atigi 18–20 joy bor» EDI (e'lon panelidagi chalkash ma'no).
+     Bo'lim Milliy tarif uchun ekani endi eyebrow'da, Mustaqil xaridoriga
+     esa yo'l lead'da aytiladi — u ariza qoldirmaydi.
+*/
+export const ENROLL_SECTION = {
+  eyebrow: 'Ariza · Milliy tarif',
+  title: 'Guruhdan joyingizni band qiling',
+  lead:
+    'Ism va telefon raqamingizni qoldiring — menejerlarimiz bog‘lanib, '
+    + 'darajangizga mos guruhni tanlaydi. Mustaqil tariflar ariza talab '
+    + 'qilmaydi — «Sotib olish» tugmasi orqali.',
+  phoneLabel: 'Telefon',
+  hoursLabel: 'Ish vaqti',
+} as const
 
 export interface Step {
   title: string
@@ -1149,7 +1282,7 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Arab tilini noldan boshlasam bo‘ladimi?',
     answer:
-      'Ha. ATF (Arab tili Fonetika) kursi alifbodan boshlanadi va 8 oy '
+      'Ha. ATF (Arab tili fonetikasi) kursi alifbodan boshlanadi va 8 oy '
       + 'davomida bosqichma-bosqich olib boradi. Ariza qoldirganingizdan '
       + 'keyin menejerlarimiz darajangizni aniqlab, mos guruhni tanlaydi. '
       + 'Darajangizni hoziroq bilmoqchi bo‘lsangiz — sahifadagi bepul '
@@ -1158,7 +1291,7 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Kurs qanday bosqichlardan iborat?',
     answer:
-      'Asosiy kurs — ATF (Arab tili Fonetika), 8 oy va uchta moduldan '
+      'Asosiy kurs — ATF (Arab tili fonetikasi), 8 oy va uchta moduldan '
       + 'iborat: Harf moduli (3 oy), Qoida moduli (4 oy) va Amaliyot I '
       + 'moduli. U tugagandan keyin 3 oylik Amaliyot II kursi bor. '
       + 'Alohida Grammatika kursi ham mavjud.',

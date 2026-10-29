@@ -6,7 +6,6 @@ import { LevelTestModal } from '@/features/level-test'
 import { useQuery } from '@tanstack/vue-query'
 
 import { fetchShopOffers } from '@/entities/shop'
-import { COURSE_FACTS } from '@/shared/config/course-facts'
 import { MascotAvatar } from '@/features/mascot'
 import { formatMoney } from '@/shared/lib/money'
 import { AppIcon, BaseButton, BaseModal } from '@/shared/ui'
@@ -16,11 +15,16 @@ import {
   BOT_LINK,
   CONTACT,
   COURSE_OPTIONS,
+  ANNOUNCE,
   COURSE_PATH,
+  COURSE_SECTION,
+  CTA,
   DECOR_LETTERS,
+  ENROLL_SECTION,
   FAQ,
   FAQ_HELP,
   FEATURES,
+  FEATURES_SECTION,
   FOOTER,
   FREE_LESSON,
   HERO,
@@ -30,11 +34,13 @@ import {
   OUTCOMES,
   OUTCOMES_SECTION,
   PRICE,
+  QUICK_ENROLL,
   SOCIALS,
   STATS,
   STEPS,
   WEEK,
   WEEK_DAYS,
+  WEEK_SECTION,
 } from './model/content'
 import PlatformTour from './ui/PlatformTour.vue'
 
@@ -543,7 +549,7 @@ const year = new Date().getFullYear()
           />
           {{ HERO.badge }}
         </span>
-        <span>Guruhda atigi {{ COURSE_FACTS.groupSize }} joy</span>
+        <span>{{ ANNOUNCE.groupSize }}</span>
         <!-- Telefonda raqam pastdagi doimiy panelda va menyuda bor. -->
         <a
           class="ml-auto hidden font-semibold text-white/90 transition-colors hover:text-white sm:block"
@@ -754,7 +760,7 @@ const year = new Date().getFullYear()
               class="nav-quiet hidden shrink-0 whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-semibold text-slate-300 sm:block xl:px-3"
               to="/login"
             >
-              Kirish
+              {{ CTA.login }}
             </RouterLink>
 
             <button
@@ -762,7 +768,7 @@ const year = new Date().getFullYear()
               class="nav-cta hidden h-10 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold text-on-brand sm:inline-flex xl:px-5"
               @click="openEnroll"
             >
-              Kursga yozilish
+              {{ CTA.enroll }}
             </button>
 
             <!--
@@ -780,7 +786,7 @@ const year = new Date().getFullYear()
               class="nav-burger grid size-10 shrink-0 place-items-center rounded-xl min-[1080px]:hidden"
               :class="isMenuOpen ? 'nav-burger--open' : ''"
               :aria-expanded="isMenuOpen"
-              aria-label="Menyu"
+              :aria-label="CTA.menu"
               @click="isMenuOpen = !isMenuOpen"
             >
               <span aria-hidden="true" />
@@ -834,14 +840,14 @@ const year = new Date().getFullYear()
             >
               <span
                 class="flex h-11 items-center justify-center rounded-full border border-line-strong text-sm font-semibold text-slate-200"
-              >Kirish</span>
+              >{{ CTA.login }}</span>
             </RouterLink>
             <button
               type="button"
               class="nav-cta flex h-11 flex-1 items-center justify-center rounded-full text-sm font-semibold text-on-brand"
               @click="openEnroll"
             >
-              Kursga yozilish
+              {{ CTA.enroll }}
             </button>
           </div>
         </nav>
@@ -991,7 +997,7 @@ const year = new Date().getFullYear()
                   class="nav-cta inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold text-on-brand"
                   @click="openEnroll"
                 >
-                  Kursga yozilish
+                  {{ CTA.enroll }}
                   <AppIcon
                     name="chevron-right"
                     :size="17"
@@ -1007,7 +1013,7 @@ const year = new Date().getFullYear()
                     name="play"
                     :size="17"
                   />
-                  Bepul darsni ko‘rish
+                  {{ CTA.watchFree }}
                 </button>
               </div>
 
@@ -1036,7 +1042,7 @@ const year = new Date().getFullYear()
                 class="hero-rise mt-8 flex flex-wrap items-center gap-x-5 gap-y-2"
                 style="--rise-delay: 360ms"
               >
-                <span class="text-[13px] font-medium text-slate-400">Bizni kuzating:</span>
+                <span class="text-[13px] font-medium text-slate-400">{{ CTA.follow }}</span>
                 <!--
                   ⚠️ 2026-09-03 — NOM OLIB TASHLANDI, IKONKA QOLDI.
 
@@ -1240,8 +1246,17 @@ const year = new Date().getFullYear()
           "
         />
 
-        <div class="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-2 lg:gap-14">
-          <div>
+        <!--
+          ⚠️ 2026-10-29 — TELEFONDA VIDEO SARLAVHADAN KEYIN DARHOL.
+
+          🔴 Ilgari video matn, pilyuskalar va «YouTube'da ochish»
+             tugmasidan KEYIN chiqardi — telefonda sarlavhadan ~700px
+             pastda. Endi matn ikki bo'lakka bo'lingan: sarlavha → video →
+             qolgani. `lg` da setka avvalgidek: chapda matn, o'ngda video
+             (ikki qator bo'ylab).
+        -->
+        <div class="relative mx-auto grid max-w-6xl items-center gap-8 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-2 lg:grid-rows-[auto_auto] lg:gap-x-14 lg:gap-y-0">
+          <div class="lg:col-start-1 lg:row-start-1 lg:self-end">
             <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
               {{ FREE_LESSON.eyebrow }}
             </span>
@@ -1250,49 +1265,6 @@ const year = new Date().getFullYear()
             >
               {{ FREE_LESSON.title }}
             </h2>
-            <p class="mt-4 text-base leading-relaxed text-slate-400">
-              {{ FREE_LESSON.text }}
-            </p>
-
-            <!--
-              QISQA FAKTLAR — yuqoridagi gapni skanerlanadigan shaklga
-              soladi. Yangi va’da qo‘shmaydi (sabab `content.ts` dagi
-              `FREE_LESSON.facts` izohida).
-            -->
-            <ul class="mt-7 flex flex-wrap gap-2">
-              <li
-                v-for="fact in FREE_LESSON.facts"
-                :key="fact"
-                class="inline-flex items-center gap-1.5 rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-line"
-              >
-                <AppIcon
-                  class="text-brand-500"
-                  name="check"
-                  :size="13"
-                />
-                {{ fact }}
-              </li>
-            </ul>
-
-            <!--
-              ★ MATNLI HAVOLA EMAS, RAMKALI TUGMA: ilgari bu oddiy
-                havola edi va videoning yonida ko‘zga umuman
-                ilinmasdi. Belgi ham almashtirildi — endi YouTube‘ning
-                O‘Z logosi, ya’ni tugma qayerga olib borishi
-                bosishdan oldin ko‘rinadi.
-            -->
-            <a
-              class="mt-7 inline-flex h-11 items-center gap-2.5 rounded-xl border border-line-strong px-5 text-sm font-semibold text-slate-200 transition-colors hover:border-brand-500 hover:text-brand-500"
-              :href="FREE_LESSON.href"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <AppIcon
-                name="youtube"
-                :size="17"
-              />
-              YouTube'da ochish
-            </a>
           </div>
 
           <!--
@@ -1303,7 +1275,7 @@ const year = new Date().getFullYear()
             `youtube-nocookie.com` — Google'ning kengaytirilgan maxfiylik
             domeni: video ko'rilmaguncha kuzatuv cookie'si qo'yilmaydi.
           -->
-          <div class="relative">
+          <div class="relative lg:col-start-2 lg:row-span-2 lg:row-start-1">
             <!--
               ORQADAGI NUR. `-inset-*` — nur ramkadan sal chiqib turadi,
               `blur` esa uni chetiga qadar yumshatadi. Natijada video
@@ -1340,7 +1312,7 @@ const year = new Date().getFullYear()
                 v-else
                 type="button"
                 class="group absolute inset-0 size-full cursor-pointer"
-                aria-label="Bepul darsni ijro etish"
+                :aria-label="FREE_LESSON.playLabel"
                 @click="isVideoPlaying = true"
               >
                 <!--
@@ -1388,6 +1360,52 @@ const year = new Date().getFullYear()
               </button>
             </div>
           </div>
+
+          <div class="lg:col-start-1 lg:row-start-2 lg:mt-4 lg:self-start">
+            <p class="text-base leading-relaxed text-slate-400">
+              {{ FREE_LESSON.text }}
+            </p>
+
+            <!--
+              QISQA FAKTLAR — yuqoridagi gapni skanerlanadigan shaklga
+              soladi. Yangi va’da qo‘shmaydi (sabab `content.ts` dagi
+              `FREE_LESSON.facts` izohida).
+            -->
+            <ul class="mt-7 flex flex-wrap gap-2">
+              <li
+                v-for="fact in FREE_LESSON.facts"
+                :key="fact"
+                class="inline-flex items-center gap-1.5 rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-line"
+              >
+                <AppIcon
+                  class="text-brand-500"
+                  name="check"
+                  :size="13"
+                />
+                {{ fact }}
+              </li>
+            </ul>
+
+            <!--
+              ★ MATNLI HAVOLA EMAS, RAMKALI TUGMA: ilgari bu oddiy
+                havola edi va videoning yonida ko‘zga umuman
+                ilinmasdi. Belgi ham almashtirildi — endi YouTube‘ning
+                O‘Z logosi, ya’ni tugma qayerga olib borishi
+                bosishdan oldin ko‘rinadi.
+            -->
+            <a
+              class="mt-7 inline-flex h-11 items-center gap-2.5 rounded-xl border border-line-strong px-5 text-sm font-semibold text-slate-200 transition-colors hover:border-brand-500 hover:text-brand-500"
+              :href="FREE_LESSON.href"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <AppIcon
+                name="youtube"
+                :size="17"
+              />
+              {{ FREE_LESSON.openOnYoutube }}
+            </a>
+          </div>
         </div>
       </section>
 
@@ -1416,17 +1434,15 @@ const year = new Date().getFullYear()
         <div class="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-14">
           <div>
             <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
-              Ariza
+              {{ QUICK_ENROLL.eyebrow }}
             </span>
             <h2
               class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.2rem] sm:leading-[1.15]"
             >
-              Guruhda joy bormi — bir daqiqada bilib oling
+              {{ QUICK_ENROLL.title }}
             </h2>
             <p class="mt-4 text-base leading-relaxed text-slate-400">
-              Ism va telefon raqamingizni qoldiring. Menejerlarimiz
-              bog‘lanib, darajangizni aniqlaydi va yaqin guruhlardan
-              qaysi biri sizga to‘g‘ri kelishini aytadi.
+              {{ QUICK_ENROLL.lead }}
             </p>
 
             <div class="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -1527,16 +1543,15 @@ const year = new Date().getFullYear()
       >
         <div class="max-w-2xl">
           <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
-            Kurs tuzilmasi
+            {{ COURSE_SECTION.eyebrow }}
           </span>
           <h2
             class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
           >
-            Kurs qanday bo‘linadi
+            {{ COURSE_SECTION.title }}
           </h2>
           <p class="mt-4 text-base leading-relaxed text-slate-400">
-            Asosiy kurs — ATF, 8 oy va uchta modul. Undan keyin Amaliyot II
-            va alohida Grammatika kursi bor.
+            {{ COURSE_SECTION.lead }}
           </p>
         </div>
 
@@ -1698,15 +1713,15 @@ const year = new Date().getFullYear()
              o'qirdi.
         -->
         <h3
-          class="mt-16 font-display text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl"
+          class="mt-16 flex flex-wrap items-center gap-x-3 gap-y-2 font-display text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl"
         >
-          Fonetika kursida haftangiz qanday o‘tadi
+          {{ WEEK_SECTION.title }}
+          <span class="rounded-full bg-amber-950 px-3 py-1 font-sans text-xs font-bold tracking-normal text-amber-300 ring-1 ring-inset ring-amber-800">
+            {{ WEEK_SECTION.tag }}
+          </span>
         </h3>
         <p class="mt-3 max-w-2xl text-base leading-relaxed text-slate-400">
-          Haftasiga 5 kun dars: 2 kuni asosiy ustoz bilan, 3 kuni support
-          teacher bilan. Jadval oldindan ma'lum — ishingiz yoki
-          o‘qishingizga moslashtira olasiz. Grammatika kursi boshqacha
-          quriladi: haftasiga 2 kun dars, support teacher esa yo‘q.
+          {{ WEEK_SECTION.lead }}
         </p>
 
         <!--
@@ -1795,7 +1810,7 @@ const year = new Date().getFullYear()
                 {{ block.days }}
               </span>
               <span class="text-[11px] font-semibold uppercase tracking-[0.8px] text-slate-500">
-                kun
+                {{ WEEK_SECTION.daysUnit }}
               </span>
               <AppIcon
                 class="mt-2 text-slate-600"
@@ -1805,8 +1820,12 @@ const year = new Date().getFullYear()
             </div>
 
             <div>
-              <h3 class="text-base font-bold text-slate-100">
+              <h3 class="flex flex-wrap items-center gap-2 text-base font-bold text-slate-100">
                 {{ block.title }}
+                <span
+                  v-if="block.bonus"
+                  class="rounded-full border border-line-strong px-2 py-0.5 text-[11px] font-semibold text-slate-400"
+                >{{ WEEK_SECTION.bonus }}</span>
               </h3>
               <p class="mt-2 text-sm leading-relaxed text-slate-400">
                 {{ block.text }}
@@ -1825,7 +1844,17 @@ const year = new Date().getFullYear()
              ham bir xil vazifani bajaradi — sotuv dalili. Endi ikkalasi
              ham bitta karta shaklida.
         -->
-        <div class="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="mt-20 max-w-2xl">
+          <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
+            {{ FEATURES_SECTION.eyebrow }}
+          </span>
+          <h2
+            class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
+          >
+            {{ FEATURES_SECTION.title }}
+          </h2>
+        </div>
+        <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-for="feature in FEATURES"
             :key="feature.title"
@@ -1842,6 +1871,10 @@ const year = new Date().getFullYear()
             <h3 class="relative mt-5 font-display text-lg font-semibold tracking-tight text-slate-100">
               {{ feature.title }}
             </h3>
+            <span
+              v-if="feature.tag !== undefined"
+              class="relative mt-1.5 inline-block rounded-full bg-amber-950 px-2.5 py-0.5 text-[11px] font-bold text-amber-300 ring-1 ring-inset ring-amber-800"
+            >{{ feature.tag }}</span>
             <p class="relative mt-2 text-sm leading-relaxed text-slate-400">
               {{ feature.text }}
             </p>
@@ -2409,7 +2442,7 @@ const year = new Date().getFullYear()
                   class="price-cta inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold"
                   @click="openEnroll"
                 >
-                  Joyni band qilish
+                  {{ CTA.enroll }}
                   <AppIcon
                     name="chevron-right"
                     :size="17"
@@ -2516,17 +2549,15 @@ const year = new Date().getFullYear()
         <div class="grid gap-10 lg:grid-cols-2 lg:gap-14">
           <div>
             <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
-              Ariza
+              {{ ENROLL_SECTION.eyebrow }}
             </span>
             <h2
               class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
             >
-              Joyingizni band qiling
+              {{ ENROLL_SECTION.title }}
             </h2>
             <p class="mt-4 text-base leading-relaxed text-slate-400">
-              Guruhda atigi 18–20 joy bor. Ism va telefon raqamingizni
-              qoldiring — menejerlarimiz bog‘lanib, darajangizga mos guruhni
-              tanlaydi.
+              {{ ENROLL_SECTION.lead }}
             </p>
 
             <!--
@@ -2577,7 +2608,7 @@ const year = new Date().getFullYear()
                 :href="`tel:${CONTACT.phoneHref}`"
               >
                 <span class="block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                  Telefon
+                  {{ ENROLL_SECTION.phoneLabel }}
                 </span>
                 <span class="mt-1.5 block font-display text-base font-semibold tracking-tight text-slate-100">
                   {{ CONTACT.phone }}
@@ -2585,7 +2616,7 @@ const year = new Date().getFullYear()
               </a>
               <div class="rounded-2xl border border-line bg-ink-900 p-4">
                 <span class="block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                  Ish vaqti
+                  {{ ENROLL_SECTION.hoursLabel }}
                 </span>
                 <span class="mt-1.5 block text-sm font-semibold text-slate-100">
                   {{ CONTACT.workingHours }}
@@ -2843,7 +2874,7 @@ const year = new Date().getFullYear()
           <a
             class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-line-strong text-slate-200"
             :href="`tel:${CONTACT.phoneHref}`"
-            aria-label="Qo‘ng‘iroq qilish"
+            :aria-label="CTA.call"
           >
             <AppIcon
               name="phone"
@@ -2856,7 +2887,7 @@ const year = new Date().getFullYear()
             class="h-12 flex-1 rounded-xl bg-brand-500 text-base font-semibold text-on-brand"
             @click="openEnroll"
           >
-            Kursga yozilish
+            {{ CTA.enroll }}
           </button>
         </div>
       </div>
@@ -2865,12 +2896,11 @@ const year = new Date().getFullYear()
     <!-- ═══════════════════════════════ DARAJA TESTI OYNASI ═══ -->
     <BaseModal
       :open="isEnrollOpen"
-      title="Kursga yozilish"
+      :title="CTA.enroll"
       @close="isEnrollOpen = false"
     >
       <p class="mb-5 text-sm leading-relaxed text-slate-400">
-        Ism va telefon raqamingizni qoldiring — menejerlarimiz siz bilan bog‘lanib,
-        mos guruh va vaqtni kelishadi.
+        {{ CTA.enrollModalLead }}
       </p>
       <EnrollmentRequestForm
         :courses="COURSE_OPTIONS"
