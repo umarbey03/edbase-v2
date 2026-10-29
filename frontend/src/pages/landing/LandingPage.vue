@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { fetchShopOffers } from '@/entities/shop'
 import { COURSE_FACTS } from '@/shared/config/course-facts'
 import { formatMoney } from '@/shared/lib/money'
-import { AppIcon, BaseButton } from '@/shared/ui'
+import { AppIcon, BaseButton, BaseModal } from '@/shared/ui'
 
 import {
   BOOKS,
@@ -355,6 +355,18 @@ function scrollToSection(href: string): void {
     odam aynan o'zi to'xtagan bo'limda turadi.
 */
 const isLevelTestOpen = ref(false)
+
+/*
+  ARIZA MODALI (loyiha egasi, 2026-10-29): «Kursga yozilish» va «Joyni band
+  qilish» tugmalari sahifa oxiriga SURMAYDI — darhol modal ochiladi: ism va
+  familiya, telefon, ixtiyoriy yo'nalish. Ariza o'sha `EnrollmentRequestForm`
+  orqali bazaga yoziladi (alohida komponent yozilmadi — sabab formaning o'z
+  izohida). Sahifa oxiridagi to'liq forma joyida qoladi.
+*/
+const isEnrollOpen = ref(false)
+function openEnroll(): void {
+  isEnrollOpen.value = true
+}
 
 /*
   Ariza formasining nusxasi.
@@ -738,7 +750,7 @@ const year = new Date().getFullYear()
             <button
               type="button"
               class="nav-cta hidden h-10 shrink-0 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold text-on-brand sm:inline-flex xl:px-5"
-              @click="scrollToSection('#ariza')"
+              @click="openEnroll"
             >
               Kursga yozilish
             </button>
@@ -817,7 +829,7 @@ const year = new Date().getFullYear()
             <button
               type="button"
               class="nav-cta flex h-11 flex-1 items-center justify-center rounded-full text-sm font-semibold text-on-brand"
-              @click="scrollToSection('#ariza')"
+              @click="openEnroll"
             >
               Kursga yozilish
             </button>
@@ -967,7 +979,7 @@ const year = new Date().getFullYear()
                 <button
                   type="button"
                   class="nav-cta inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold text-on-brand"
-                  @click="scrollToSection('#ariza')"
+                  @click="openEnroll"
                 >
                   Kursga yozilish
                   <AppIcon
@@ -2312,7 +2324,7 @@ const year = new Date().getFullYear()
                 <button
                   type="button"
                   class="price-cta inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-7 text-base font-semibold"
-                  @click="scrollToSection('#ariza')"
+                  @click="openEnroll"
                 >
                   Joyni band qilish
                   <AppIcon
@@ -2745,7 +2757,7 @@ const year = new Date().getFullYear()
           <button
             type="button"
             class="h-12 flex-1 rounded-xl bg-brand-500 text-base font-semibold text-on-brand"
-            @click="scrollToSection('#ariza')"
+            @click="openEnroll"
           >
             Kursga yozilish
           </button>
@@ -2754,6 +2766,21 @@ const year = new Date().getFullYear()
     </Transition>
 
     <!-- ═══════════════════════════════ DARAJA TESTI OYNASI ═══ -->
+    <BaseModal
+      :open="isEnrollOpen"
+      title="Kursga yozilish"
+      @close="isEnrollOpen = false"
+    >
+      <p class="mb-5 text-sm leading-relaxed text-slate-400">
+        Ism va telefon raqamingizni qoldiring — menejerlarimiz siz bilan bog‘lanib,
+        mos guruh va vaqtni kelishadi.
+      </p>
+      <EnrollmentRequestForm
+        :courses="COURSE_OPTIONS"
+        modal
+      />
+    </BaseModal>
+
     <LevelTestModal
       :open="isLevelTestOpen"
       @close="isLevelTestOpen = false"

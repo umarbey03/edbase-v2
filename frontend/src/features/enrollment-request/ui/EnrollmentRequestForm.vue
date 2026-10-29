@@ -58,8 +58,13 @@ const props = withDefaults(
     courses: readonly string[]
     /** Qisqa ko'rinish: faqat ism va telefon. */
     compact?: boolean
+    /**
+     * Modal ko'rinishi (2026-10-29): ism, telefon va ixtiyoriy yo'nalish —
+     * izoh maydonisiz. Karta ramkasi ham yo'q: uni modalning o'zi beradi.
+     */
+    modal?: boolean
   }>(),
-  { compact: false },
+  { compact: false, modal: false },
 )
 
 const fullName = ref('')
@@ -169,9 +174,10 @@ defineExpose({ applyLevelResult })
       turishidan qat'i nazar bir xil tanib olinadi.
   -->
   <div
-    class="relative overflow-hidden rounded-2xl bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line sm:p-8"
+    :class="props.modal ? '' : 'relative overflow-hidden rounded-2xl bg-ink-900 p-6 shadow-lg ring-1 ring-inset ring-line sm:p-8'"
   >
     <span
+      v-if="!props.modal"
       class="enrollment-strip absolute inset-x-0 top-0 h-1"
       aria-hidden="true"
     />
@@ -285,7 +291,7 @@ defineExpose({ applyLevelResult })
       </label>
 
       <label
-        v-if="!props.compact"
+        v-if="!props.compact && !props.modal"
         class="mt-4 block"
       >
         <span class="mb-1.5 block text-xs font-medium text-slate-400">
