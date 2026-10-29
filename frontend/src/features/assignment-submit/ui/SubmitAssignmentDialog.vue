@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 
 import {
   allowsFormat,
@@ -17,6 +17,8 @@ import { formatFileSize } from '@/shared/lib/text'
 import { useConfirm } from '@/shared/lib/useConfirm'
 import type { StudentAssignmentDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
+
+import VoiceRecorder from './VoiceRecorder.vue'
 
 /**
  * O'quvchining javobi: matn va/yoki fayllar.
@@ -40,6 +42,17 @@ const text = ref('')
 const files = ref<File[]>([])
 const errorMessage = ref<string | null>(null)
 
+/**
+ * Ilova ichida yozilgan ovoz (2026-10-29). U ALOHIDA yo'l EMAS: quyidagi
+ * `watch` uni AYNI `files` ro'yxatiga qo'shadi, ya'ni yuklash, tekshiruv va
+ * `MAX_ATTACHMENTS` sanog'i tanlangan fayl bilan bir xil ishlaydi. Bu ref
+ * faqat "qaysi fayl yozuv" ekanini eslab qoladi — "Qayta yozish" eskisini
+ * almashtirsin, ro'yxatdagi "×" esa panelni bo'sh holatga qaytarsin.
+ */
+const voiceFile = ref<File | null>(null)
+/** Mikrofon ochiq — chala yozuv javobga kirmay qolmasin. */
+const recorderBusy = ref(false)
+
 watch(
   () => props.assignment,
   (assignment) => {
@@ -47,17 +60,52 @@ watch(
     // noldan yozmasin (ustoz odatda kichik tuzatish so'raydi).
     text.value = assignment?.mySubmission?.text ?? ''
     files.value = []
+    voiceFile.value = null
+    recorderBusy.value = false
     errorMessage.value = null
   },
   { immediate: true },
 )
 
+watch(voiceFile, (next, previous) => {
+  // Fayl IDENTIFIKATORI bo'yicha (nom bo'yicha emas): bir daqiqada ikki
+  // marta yozilsa nomlar bir xil chiqadi.
+  const rest = previous === null ? files.value : files.value.filter((file) => file !== previous)
+  files.value = next === null ? rest : [...rest, next].slice(0, MAX_ATTACHMENTS)
+  errorMessage.value = null
+})
+
 const allowedFormats = computed(() => props.assignment?.allowedFormats ?? '')
 const textAllowed = computed(() => allowsFormat(allowedFormats.value, 'Text'))
-const filesAllowed = computed(
-  () => allowsFormat(allowedFormats.value, 'Image') || allowsFormat(allowedFormats.value, 'Audio'),
-)
+const imageAllowed = computed(() => allowsFormat(allowedFormats.value, 'Image'))
+const audioAllowed = computed(() => allowsFormat(allowedFormats.value, 'Audio'))
+const filesAllowed = computed(() => imageAllowed.value || audioAllowed.value)
 const accept = computed(() => fileAcceptFor(allowedFormats.value))
+
+/** Yana fayl qo'shishga joy yo'q (yozuvning o'zi hisobga olinmaydi — u almashtiriladi). */
+const attachmentsFull = computed(
+  () => files.value.filter((file) => file !== voiceFile.value).length >= MAX_ATTACHMENTS,
+)
+
+/*
+  ★ YASHIRIN `<input type="file">` + O'ZBEKCHA TUGMA (2026-10-29).
+
+  🔴 SABAB: brauzerning o'z fayl tanlagichi matnini SAHIFA BOSHQARA
+  OLMAYDI — u brauzer tilida chiziladi. Telefonlarning ko'pchiligida bu
+  inglizcha "Choose files / No file chosen" edi va o'quvchilar bu yerda
+  to'xtab qolardi. `file:` modifikatori faqat tugma USLUBINI o'zgartiradi,
+  matnini emas. Shuning uchun input ko'rinmaydi, uni o'zimizning
+  tugmamiz ochadi; tanlangan fayllar esa pastdagi ro'yxatda ko'rinadi.
+
+  ★ "Suratga olish" — `capture="environment"` alohida input: telefonda
+  to'g'ridan-to'g'ri ORQA kamerani ochadi (daftar sahifasini suratga olish
+  uchun). Oddiy inputga `capture` qo'yilsa galereyadan tanlash imkoni
+  yo'qolardi, shuning uchun ikkita input. Kompyuterda `capture` e'tiborsiz
+  qoldiriladi va oddiy fayl oynasi ochiladi — zarari yo'q.
+*/
+const filesLabelId = useId()
+const fileInput = ref<HTMLInputElement | null>(null)
+const cameraInput = ref<HTMLInputElement | null>(null)
 
 /** Qayta topshirishmi (ustoz ruxsat berganidan keyin). */
 const isResubmit = computed(() => (props.assignment?.mySubmission ?? null) !== null)
@@ -84,6 +132,11 @@ function onFilesPicked(event: Event): void {
 }
 
 function removeFile(index: number): void {
+  if (files.value[index] === voiceFile.value) {
+    // `watch(voiceFile)` uni ro'yxatdan o'zi olib tashlaydi.
+    voiceFile.value = null
+    return
+  }
   files.value = files.value.filter((_item, position) => position !== index)
 }
 
@@ -111,7 +164,11 @@ const mutation = useMutation({
 })
 
 const canSubmit = computed(
-  () => !isEmptyAnswer.value && attachmentError.value === null && !mutation.isPending.value,
+  () =>
+    !isEmptyAnswer.value
+    && attachmentError.value === null
+    && !mutation.isPending.value
+    && !recorderBusy.value,
 )
 
 const confirm = useConfirm()
@@ -234,26 +291,109 @@ async function handleSubmit(): Promise<void> {
           v-else
           class="text-xs text-dim"
         >
-          Bu vazifa matnli javob qabul qilmaydi — fayl yuklang.
+          {{
+            audioAllowed
+              ? 'Bu vazifa matnli javob qabul qilmaydi — ovoz yozing yoki fayl yuklang.'
+              : 'Bu vazifa matnli javob qabul qilmaydi — fayl yuklang.'
+          }}
         </p>
 
         <div
           v-if="filesAllowed"
           class="mt-3"
         >
-          <BaseField
-            label="Fayllar"
-            :hint="`Ko‘pi bilan ${MAX_ATTACHMENTS} ta. Rasm 5 MB, ovoz 10 MB gacha.`"
-            :error="attachmentError"
+          <!--
+            ⚠️ `BaseField` EMAS: u `<label>` bilan o'raydi, ichida esa bir
+            nechta tugma bor — label bosilganda brauzer BIRINCHI tugmani
+            "bosib" yuborardi. Ko'rinish `BaseField` bilan bir xil.
+          -->
+          <div
+            role="group"
+            :aria-labelledby="filesLabelId"
           >
+            <span
+              :id="filesLabelId"
+              class="mb-1.5 block text-xs font-medium text-slate-400"
+            >
+              {{ audioAllowed ? 'Ovoz va fayllar' : 'Fayllar' }}
+            </span>
+
+            <VoiceRecorder
+              v-if="audioAllowed"
+              v-model="voiceFile"
+              class="mb-2"
+              :disabled="attachmentsFull"
+              @busy="recorderBusy = $event"
+            />
+
+            <div class="flex flex-wrap gap-2">
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                :disabled="attachmentsFull"
+                @click="fileInput?.click()"
+              >
+                <template #icon>
+                  <AppIcon
+                    name="paperclip"
+                    :size="15"
+                  />
+                </template>
+                Fayl biriktirish
+              </BaseButton>
+              <BaseButton
+                v-if="imageAllowed"
+                variant="secondary"
+                size="sm"
+                :disabled="attachmentsFull"
+                @click="cameraInput?.click()"
+              >
+                <template #icon>
+                  <!-- `camera` EMAS: u videoqo'ng'iroq kamerasi (`icon-names.ts`). -->
+                  <AppIcon
+                    name="image"
+                    :size="15"
+                  />
+                </template>
+                Suratga olish
+              </BaseButton>
+            </div>
+
             <input
+              ref="fileInput"
               type="file"
               multiple
-              class="zn-input pt-2.5 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-ink-800 file:px-3 file:py-1.5 file:text-xs file:text-slate-200"
+              class="hidden"
+              tabindex="-1"
+              aria-hidden="true"
               :accept="accept"
               @change="onFilesPicked"
             >
-          </BaseField>
+            <input
+              v-if="imageAllowed"
+              ref="cameraInput"
+              type="file"
+              class="hidden"
+              tabindex="-1"
+              aria-hidden="true"
+              accept="image/*"
+              capture="environment"
+              @change="onFilesPicked"
+            >
+
+            <span
+              v-if="attachmentError === null"
+              class="mt-1 block text-[11px] text-dim"
+            >
+              Ko‘pi bilan {{ MAX_ATTACHMENTS }} ta. Rasm 5 MB, ovoz 10 MB gacha.
+            </span>
+            <span
+              v-else
+              class="mt-1 block text-[11px] text-rose-400"
+              role="alert"
+              v-text="attachmentError"
+            />
+          </div>
 
           <ul
             v-if="files.length > 0"
@@ -265,7 +405,7 @@ async function handleSubmit(): Promise<void> {
               class="flex items-center gap-2 rounded-lg border border-line bg-ink-950 px-3 py-2"
             >
               <AppIcon
-                name="paperclip"
+                :name="file.type.startsWith('audio/') ? 'mic' : 'paperclip'"
                 :size="14"
                 class="text-slate-400"
               />
@@ -281,6 +421,7 @@ async function handleSubmit(): Promise<void> {
                 type="button"
                 class="tap-target -my-2 flex items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-ink-800 hover:text-rose-300"
                 title="Faylni olib tashlash"
+                :aria-label="`Faylni olib tashlash: ${file.name}`"
                 @click="removeFile(index)"
               >
                 <AppIcon
