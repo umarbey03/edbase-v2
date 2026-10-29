@@ -275,6 +275,19 @@ public sealed class SubscriptionService(
         if (state is null)
             return new MySubscriptionDto(false, false, null, null, null, null, history);
 
+        // 🔴 GURUH OBUNADAN USTUN (audit, 2026-10-29): Mustaqil muddati tugab,
+        //    o'quvchi Milliy'ga o'tib guruhga qo'shilsa, eski (tugagan) davr
+        //    tufayli `HasSubscription = true` qaytardik — frontend uni mustaqil
+        //    o'quvchi deb ko'rib, Kalendar, chat va jonli dars kartasini
+        //    yashirardi. To'lagan guruh o'quvchisi jonli darsni topa olmasdi.
+        //    Guruhda bo'lsa — u guruh o'quvchisi; tarix baribir qaytadi.
+        var inGroup = await db.GroupMembers.AsNoTracking().AnyAsync(m => m.StudentId == studentId
+            && (m.Status == MemberStatus.Active || m.Status == MemberStatus.Paused)
+            && m.Group!.IsActive
+            && m.Group.Type != GroupType.Curator, ct);
+        if (inGroup)
+            return new MySubscriptionDto(false, false, null, null, null, null, history);
+
         var courseName = await db.Courses.AsNoTracking()
             .Where(c => c.Id == state.CourseId)
             .Select(c => c.Name)

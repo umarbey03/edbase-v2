@@ -157,13 +157,22 @@ public sealed class ShopService(
 
         var pending = await db.PurchaseOrders.AsNoTracking()
             .Where(o => o.StudentId == studentId && o.Status == PurchaseOrderStatus.Pending)
-            .Select(o => new { o.Id, o.PlanId })
+            .Select(o => new { o.Id, o.PlanId, o.Kind })
             .ToListAsync(ct);
 
         // Ayni tarifga ochiq buyurtma bor — yangisi ochilmaydi (ikki marta bosish, sahifani yangilash).
         var same = pending.Find(o => o.PlanId == plan.Id);
         if (same is not null)
             return await OrderDtoAsync(same.Id, ct);
+
+        // 🔴 MUSTAQIL VA GURUH BUYURTMASI BIR VAQTDA OCHILMAYDI (audit, 2026-10-29):
+        //    ikkalasi to'lansa, biri tasdiqlanganda ikkinchisi to'qnashib
+        //    "osilib" qolardi. Avval birini yakunlash (yoki bekor qilish) kerak.
+        if (pending.Exists(o => o.Kind != plan.Kind))
+        {
+            throw new ConflictException(
+                "Sizda boshqa turdagi to'lanmagan buyurtma bor. Avval uni to'lang yoki bekor qiling.");
+        }
 
         if (pending.Count >= MaxPendingPerStudent)
         {
@@ -269,7 +278,14 @@ public sealed class ShopService(
         {
             var note = string.Create(CultureInfo.InvariantCulture, $"Onlayn buyurtma {order.Code}");
 
-            if (order.Kind == PlanKind.SelfStudy)
+            // 🔴 TO'LANGAN MUSTAQIL BUYURTMA, O'QUVCHI ESA ALLAQACHON GURUHDA
+            //    (audit, 2026-10-29): obuna ochib bo'lmaydi (guruh va obuna bir-
+            //    birini taqiqlaydi). Ilgari tasdiq 409 bilan yiqilib, buyurtma
+            //    abadiy "kutilmoqda" qolardi — pul olingan, hech narsa berilmagan.
+            //    Endi pul o'quvchi BALANSIGA yoziladi (guruh to'lovlariga ketadi).
+            var toBalance = order.Kind == PlanKind.SelfStudy && await InGroupAsync(order.StudentId, ct);
+
+            if (order.Kind == PlanKind.SelfStudy && !toBalance)
             {
                 var periodId = await subscriptions.GrantForOrderAsync(
                     order.StudentId, order.PlanId, order.Amount, note, actor.Id, ct);
@@ -280,7 +296,9 @@ public sealed class ShopService(
             else
             {
                 var receipt = await payments.RecordPaymentAsync(
-                    new RecordPaymentRequest(order.StudentId, order.Amount, PaymentMethod.Card, Note: note),
+                    new RecordPaymentRequest(
+                        order.StudentId, order.Amount, PaymentMethod.Card,
+                        Note: toBalance ? note + " (o'quvchi guruhda — balansga)" : note),
                     actor.Id, ct);
 
                 await db.PurchaseOrders.Where(o => o.Id == order.Id)

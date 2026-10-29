@@ -102,6 +102,17 @@ public static class LessonGate
         if (facts.UnlockedOverride)
             return (true, null);
 
+        // 1b) ★ O'QUVCHI TUGATGAN DARS UNGA OCHIQ QOLADI (audit, 2026-10-29).
+        //     Mustaqil o'quvchi 15 ta darsni tugatib guruhga o'tsa, guruh
+        //     sur'ati (`TeacherPace`) yoki boshlanish nuqtasi (`BeforeGroupStart`)
+        //     ularni qayta yopib qo'yardi — o'zi o'tgan videoni qayta ko'ra
+        //     olmasdi. ⚠️ Kontentsiz dars bu qoidaga KIRMAYDI: unda
+        //     `IsComplete` hech narsasiz `true` bo'ladi va sur'atdan oldinga
+        //     ochilib ketardi — "tugatdi" degani haqiqiy dalil bilan.
+        //     Obuna tugashi bu yerga yetmaydi (`GatingService` undan oldin yopadi).
+        if ((facts.HasVideo || facts.HasAssignment || facts.HasTest) && IsComplete(facts))
+            return (true, null);
+
         // 2) ★ GURUH BOSHLANISH NUQTASIDAN OLDINGI DARS.
         //
         //    Guruh kursning o'rtasidan boshlagan: bu dars uning o'quv

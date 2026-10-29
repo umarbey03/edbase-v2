@@ -118,8 +118,19 @@ public sealed class SingleCenterScope(IApplicationDbContext db, ISubscriptionAcc
         //
         // 🔴 KELAJAK: shu `Where` ga `&& u.LearningCenterId == centerId`
         //    qo'shiladi — boshqa hech qayerga emas.
+        //
+        // 🔴 FAQAT GURUHDAGI O'QUVCHILAR (audit, 2026-10-29): ilgari guruhsiz
+        //    o'quvchi ham shu jadvalda edi. Onlayn sotuv kelgach "guruhsiz"
+        //    degani — botda profil ochgan begona (mehmon), muddati tugagan
+        //    mustaqil o'quvchi yoki guruhdan ketgan odam. Ularning ismi guruh
+        //    o'quvchilariga ko'rinmasligi kerak. Shart mehmon tekshiruvi bilan
+        //    AYNI: faol guruh, kurator guruhi emas, a'zolik Active yoki Paused.
         var students = await db.Users.AsNoTracking()
-            .Where(u => u.Role == UserRole.Student && u.IsActive && !selfStudyIds.Contains(u.Id))
+            .Where(u => u.Role == UserRole.Student && u.IsActive && !selfStudyIds.Contains(u.Id)
+                     && db.GroupMembers.Any(m => m.StudentId == u.Id
+                                              && (m.Status == MemberStatus.Active || m.Status == MemberStatus.Paused)
+                                              && m.Group!.IsActive
+                                              && m.Group.Type != GroupType.Curator))
             .Select(u => new StudentRow(u.Id, u.FullName))
             .ToListAsync(ct)
             .ConfigureAwait(false);
