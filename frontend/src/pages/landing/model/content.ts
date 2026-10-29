@@ -159,6 +159,16 @@ export const HERO = {
     'Quruq qoida yodlash emas — har dars amaliyot. Ustoz bilan jonli '
     + 'guruh darslari yoki o‘zingizga qulay vaqtda video darslar: '
     + 'o‘zingizga mos shaklni tanlang.',
+  /*
+    HERO'DAGI NURI GAPI (2026-10-29). Nuri — platformaning maskoti (oltin
+    tomchi, `features/mascot`). Hero'da u o'zini tanishtiradi; kompyuterda
+    sahna ichida, telefonda esa tugmalar ostidagi kichik qatorda (ilgari
+    telefonda birinchi ekran faqat matndan iborat edi).
+
+    🔴 «SIZ»DA: ilovada Nuri o'quvchiga «sen» deydi, landingda esa begona
+       odamga murojaat qilinadi — u yerda «sen» qo'pol eshitilardi.
+  */
+  nuriGreeting: 'Salom! Men Nuri — kabinetingizda har kuni yoningizdaman.',
 } as const
 
 /*
@@ -1124,6 +1134,16 @@ export interface Faq {
   question: string
   answer: string
 }
+
+/*
+  FAQ OXIRIDAGI NURI (2026-10-29) — `thinking` kayfiyatida. Savolga javob
+  topmagan odamga keyingi qadamni aytadi: Telegram yoki telefon.
+*/
+export const FAQ_HELP = {
+  title: 'Savolingiz qoldimi?',
+  text: 'Telegram’da yozing yoki qo‘ng‘iroq qiling — menejerlarimiz javob beradi.',
+  telegram: 'Telegram’da yozish',
+} as const
 
 export const FAQ: readonly Faq[] = [
   {

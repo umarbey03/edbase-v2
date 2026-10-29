@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/vue-query'
 
 import { fetchShopOffers } from '@/entities/shop'
 import { COURSE_FACTS } from '@/shared/config/course-facts'
+import { MascotAvatar } from '@/features/mascot'
 import { formatMoney } from '@/shared/lib/money'
 import { AppIcon, BaseButton, BaseModal } from '@/shared/ui'
 
@@ -18,6 +19,7 @@ import {
   COURSE_PATH,
   DECOR_LETTERS,
   FAQ,
+  FAQ_HELP,
   FEATURES,
   FOOTER,
   FREE_LESSON,
@@ -1009,6 +1011,26 @@ const year = new Date().getFullYear()
                 </button>
               </div>
 
+              <!--
+                TELEFONDAGI HERO VIZUALI (2026-10-29). Katta sahna telefonda
+                yashirin (sabab pastdagi izohda), shuning uchun bu yerda
+                ixcham qator: Nuri + bitta gap. 60px — tugmalarni ekrandan
+                surib yubormaydi.
+              -->
+              <div
+                class="hero-rise mt-7 flex items-center gap-3 rounded-2xl border border-line bg-ink-900 p-3 pr-4 sm:hidden"
+                style="--rise-delay: 320ms"
+              >
+                <MascotAvatar
+                  class="shrink-0"
+                  mood="happy"
+                  :size="52"
+                />
+                <p class="text-[13.5px] font-medium leading-snug text-slate-300">
+                  {{ HERO.nuriGreeting }}
+                </p>
+              </div>
+
               <!-- Ijtimoiy tarmoqlar — hero ichida, ishonch signali sifatida. -->
               <div
                 class="hero-rise mt-8 flex flex-wrap items-center gap-x-5 gap-y-2"
@@ -1081,6 +1103,17 @@ const year = new Date().getFullYear()
                 >{{ HERO_LETTER.glyph }}</span>
                 <span class="hero-cap">{{ HERO_LETTER.caption }}</span>
               </div>
+
+              <!--
+                NURI (2026-10-29) — guruh hajmi kartasining o'rnida (u raqam
+                raqamlar lentasida bor). Kayfiyat `happy`: qo'l silkitadi.
+              -->
+              <div class="hero-nuri">
+                <MascotAvatar mood="happy" />
+              </div>
+              <p class="hero-bubble">
+                {{ HERO.nuriGreeting }}
+              </p>
 
               <!-- Suzuvchi kartalar. -->
               <div
@@ -1415,7 +1448,15 @@ const year = new Date().getFullYear()
           <EnrollmentRequestForm
             :courses="COURSE_OPTIONS"
             compact
-          />
+          >
+            <template #sent-visual>
+              <MascotAvatar
+                class="mx-auto"
+                mood="celebrate"
+                :size="88"
+              />
+            </template>
+          </EnrollmentRequestForm>
         </div>
       </section>
 
@@ -2141,9 +2182,15 @@ const year = new Date().getFullYear()
             qolib ketardi.
           -->
           <div
-            class="lt-preview rounded-3xl border border-green-900 p-6 shadow-lg"
+            class="lt-preview relative rounded-3xl border border-green-900 p-6 shadow-lg"
             aria-hidden="true"
           >
+            <!-- Nuri (thinking) — kartaning burchagida «o'ylab turibdi». -->
+            <MascotAvatar
+              class="absolute -right-3 -top-[4.75rem] sm:-right-6"
+              mood="thinking"
+              :size="80"
+            />
             <div class="flex items-center justify-between gap-3">
               <span class="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-500">
                 {{ LEVEL_TEST.preview.stage }}
@@ -2550,7 +2597,15 @@ const year = new Date().getFullYear()
           <EnrollmentRequestForm
             ref="enrollForm"
             :courses="COURSE_OPTIONS"
-          />
+          >
+            <template #sent-visual>
+              <MascotAvatar
+                class="mx-auto"
+                mood="celebrate"
+                :size="88"
+              />
+            </template>
+          </EnrollmentRequestForm>
         </div>
       </section>
 
@@ -2615,6 +2670,47 @@ const year = new Date().getFullYear()
                 {{ item.answer }}
               </p>
             </details>
+          </div>
+
+          <!-- Nuri (thinking) — javob topilmasa keyingi qadam. -->
+          <div class="mt-10 flex items-end gap-3.5">
+            <MascotAvatar
+              class="shrink-0"
+              mood="thinking"
+              :size="72"
+            />
+            <div class="faq-bubble relative min-w-0 flex-1 rounded-2xl border border-line bg-ink-900 px-4 py-3 shadow-sm">
+              <p class="text-[15px] font-bold text-slate-50">
+                {{ FAQ_HELP.title }}
+              </p>
+              <p class="mt-0.5 text-sm leading-relaxed text-slate-400">
+                {{ FAQ_HELP.text }}
+              </p>
+              <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+                <a
+                  class="inline-flex items-center gap-1.5 text-brand-500 hover:underline"
+                  :href="SOCIALS[0]?.href"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <AppIcon
+                    name="telegram"
+                    :size="15"
+                  />
+                  {{ FAQ_HELP.telegram }}
+                </a>
+                <a
+                  class="inline-flex items-center gap-1.5 text-slate-200 hover:text-brand-500"
+                  :href="`tel:${CONTACT.phoneHref}`"
+                >
+                  <AppIcon
+                    name="phone"
+                    :size="15"
+                  />
+                  {{ CONTACT.phone }}
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -2779,7 +2875,15 @@ const year = new Date().getFullYear()
       <EnrollmentRequestForm
         :courses="COURSE_OPTIONS"
         modal
-      />
+      >
+        <template #sent-visual>
+          <MascotAvatar
+            class="mx-auto"
+            mood="celebrate"
+            :size="88"
+          />
+        </template>
+      </EnrollmentRequestForm>
     </BaseModal>
 
     <LevelTestModal
@@ -3405,6 +3509,63 @@ const year = new Date().getFullYear()
   Eng tor ekranlarda kartalar sahna chegarasi ichiga tortiladi, aks
   holda ular o'ram chetidan chiqib, gorizontal skroll yasardi.
 */
+/*
+  NURI SAHNADA (2026-10-29) — o'ng pastki burchak, gap pufakchasi ustida.
+  Suzishni MascotAvatar o'zi qiladi; reduced-motion ham o'sha yerda.
+*/
+.hero-nuri {
+  position: absolute;
+  right: -2%;
+  bottom: -3%;
+  z-index: 2;
+  width: 7.5rem;
+}
+
+.hero-bubble {
+  position: absolute;
+  /* Yadrodagi «ع» ni to'smasin: tor va o'ngga chiqarilgan. */
+  right: -9%;
+  bottom: 33%;
+  z-index: 3;
+  max-width: 9.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-ink-900);
+  box-shadow: 0 14px 34px -16px rgb(15 32 25 / 0.35);
+  color: var(--color-slate-200);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.hero-bubble::after {
+  content: '';
+  position: absolute;
+  right: 3.2rem;
+  bottom: -0.4rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-right: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-ink-900);
+  transform: rotate(45deg);
+}
+
+/* FAQ oxiridagi pufakcha dumi — Nuriga qaraydi. */
+.faq-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: 1.2rem;
+  left: -0.42rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-bottom: 1px solid var(--color-line);
+  border-left: 1px solid var(--color-line);
+  background: var(--color-ink-900);
+  transform: rotate(45deg);
+}
+
 @media (width < 48rem) {
   .hero-card--0,
   .hero-card--2 {
