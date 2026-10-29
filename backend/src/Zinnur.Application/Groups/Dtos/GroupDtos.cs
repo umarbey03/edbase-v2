@@ -354,7 +354,11 @@ public sealed record GroupMemberDto(
     string? Reason);
 
 /// <param name="StudentId">Faqat <c>Student</c> rolidagi foydalanuvchi.</param>
-public sealed record AddMemberRequest(long StudentId);
+/// <param name="ConvertSubscription">
+/// O'quvchida mustaqil o'qish obunasi bo'lsa — uni yopib, ishlatilmagan pulni
+/// balansga o'tkazish (2026-10-29, Q-2). <c>false</c> bo'lsa obuna bilan 409.
+/// </param>
+public sealed record AddMemberRequest(long StudentId, bool ConvertSubscription = false);
 
 /// <param name="PausedUntil">
 /// Pauza tugash sanasi. <c>null</c> — muddatsiz pauza (qo'lda tiklanadi).

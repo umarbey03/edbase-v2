@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Common.Models;
+using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Groups.Dtos;
 using Zinnur.Application.Scheduling.Dtos;
 using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Students.Services;
+using Zinnur.Application.Subscriptions;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -29,6 +31,8 @@ public sealed class GroupService(
     IScheduleService schedule,
     IScheduleTimeZoneProvider timeZone,
     IStudiedLessonCounter studiedLessons,
+    ISubscriptionService subscriptions,
+    IGatingService gating,
     TimeProvider clock) : IGroupService
 {
     // ================================================================= o'qish
@@ -359,11 +363,26 @@ public sealed class GroupService(
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// ★ BITTA TRANZAKSIYA (2026-10-29, Q-2): obunani guruhga o'tkazish (davrlarni
+    ///   yopish + balansga pul) va a'zolik birga yoziladi — biri yiqilsa ikkalasi
+    ///   ham qaytadi. Aks holda obuna yopilib, o'quvchi guruhga qo'shilmay qolardi.
+    /// </summary>
     public async Task<GroupMemberDto> AddMemberAsync(
         long id, AddMemberRequest request, long actorId, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var member = await db.InTransactionAsync(token => AddMemberCoreAsync(id, request, actorId, token), ct);
+
+        // Commit'dan keyin: obuna yopilgan bo'lsa darslar endi guruh sur'atida.
+        await gating.InvalidateAsync(request.StudentId, ct);
+        return member;
+    }
+
+    private async Task<GroupMemberDto> AddMemberCoreAsync(
+        long id, AddMemberRequest request, long actorId, CancellationToken ct)
+    {
         var actor = await LoadActorAsync(actorId, ct);
         EnsureCanManage(actor);
 
@@ -431,18 +450,26 @@ public sealed class GroupService(
         //   a'zoligi chat, jonli dars, yozuvlar va sinfdoshlar ro'yxatini
         //   ochadi, obuna esa ularning birortasini bermaydi. Ikkalasi bir
         //   vaqtda bo'lsa o'quvchi pullik guruh imkoniyatlarini obuna
-        //   narxida olardi. Avval obuna bekor qilinadi.
-        var now = clock.GetUtcNow();
-        var hasSubscription = await db.SubscriptionPeriods.AsNoTracking()
-            .AnyAsync(p => p.StudentId == student.Id
-                        && p.CancelledAt == null
-                        && p.EndsAt > now, ct);
-
-        if (hasSubscription)
+        //   narxida olardi.
+        //
+        // ★★ 2026-10-29 (loyiha egasi qarori Q-2): ilgari bu yerda 409 berilib,
+        //    xodim davrni TO'LIQ bekor qilardi — qolgan kunlar puli jimgina
+        //    yo'qolardi (audit P0-3). Endi xodim dialogda "N kun (X so'm)
+        //    balansga o'tkazilsinmi?" ni tasdiqlaydi (`ConvertSubscription`)
+        //    va obuna SHU tranzaksiyada pulga aylanadi. Tasdiqsiz — avvalgidek
+        //    409, lekin xabarda summa aytiladi.
+        var conversion = await subscriptions.PreviewGroupConversionAsync(student.Id, actor.Id, ct);
+        if (conversion.HasLiveSubscription)
         {
-            throw new ConflictException(
-                "O'quvchida mustaqil o'qish obunasi bor. Guruhga qo'shishdan oldin "
-                + "obunani bekor qiling.");
+            if (!request.ConvertSubscription)
+            {
+                throw new ConflictException(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"O'quvchida mustaqil o'qish obunasi bor: {conversion.DaysLeft} kun "
+                    + $"({conversion.Amount:#,0} so'm) qoldi. Balansga o'tkazib guruhga qo'shish uchun tasdiqlang."));
+            }
+
+            await subscriptions.ConvertToGroupAsync(student.Id, actor.Id, ct);
         }
 
         var member = await db.GroupMembers.AsTracking()

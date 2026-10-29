@@ -54,6 +54,18 @@ public sealed class SubscriptionsController(ISubscriptionService subscriptions) 
         long studentId, CancellationToken ct) =>
         Ok(await subscriptions.ListForStudentAsync(studentId, CurrentUserId, ct));
 
+    /// <summary>
+    /// Guruhga qo'shishdan oldin: obunada necha kun va qancha pul qolgan —
+    /// xodim dialogi "balansga o'tkazib qo'shilsinmi?" deb so'raydi (Q-2).
+    /// Hech narsa o'zgartirmaydi; o'tkazish guruhga qo'shish bilan birga bo'ladi.
+    /// </summary>
+    [HttpGet("students/{studentId:long}/group-conversion")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<GroupConversionDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<GroupConversionDto>> GroupConversion(
+        long studentId, CancellationToken ct) =>
+        Ok(await subscriptions.PreviewGroupConversionAsync(studentId, CurrentUserId, ct));
+
     /// <summary>Obuna berish yoki uzaytirish (to'lov qo'lda qabul qilingan).</summary>
     [HttpPost]
     [Authorize(Roles = ManageRoles)]
