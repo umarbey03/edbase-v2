@@ -20,7 +20,16 @@ export interface ShopMe {
    *   javob yoki 403 beradi, markaz reytingi bo'sh).
    */
   isGuest: ComputedRef<boolean>
+  /**
+   * Ikkala so'rov ham keldi — o'quvchi turi (guruh / mustaqil / mehmon)
+   * aniq. ★ Shu paytgacha shell tab va sahifa CHIZMAYDI (audit,
+   * 2026-10-29): aks holda mehmon va mustaqil o'quvchiga bir lahza
+   * guruhning 5 tabi va guruh bosh sahifasi ko'rinib ketardi.
+   */
   isLoaded: ComputedRef<boolean>
+  /** Biror so'rov yiqildi — shell «Qayta urinish» ni ko'rsatadi. */
+  isError: ComputedRef<boolean>
+  retry: () => void
 }
 
 export function useShopMe(): ShopMe {
@@ -37,5 +46,11 @@ export function useShopMe(): ShopMe {
     () => isLoaded.value && data.value?.inGroup === false && !subscription.isSelfStudy.value,
   )
 
-  return { data, isGuest, isLoaded }
+  const isError = computed(() => query.isError.value || subscription.isError.value)
+  function retry(): void {
+    if (query.isError.value) void query.refetch()
+    if (subscription.isError.value) void subscription.refetch()
+  }
+
+  return { data, isGuest, isLoaded, isError, retry }
 }

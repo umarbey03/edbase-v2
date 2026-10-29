@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
 import { useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
@@ -24,6 +25,8 @@ import { useStudentShellActions } from '@/widgets/student-shell/ui/shellActions'
 const auth = useAuthStore()
 const actions = useStudentShellActions()
 const subscription = useMySubscription()
+// Mehmonda ball ham, reyting ham yo'q — karta boshi berk ko'chaga olib borardi.
+const { isGuest } = useShopMe()
 
 const fullName = computed(() => auth.user?.fullName ?? '')
 const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
@@ -82,7 +85,7 @@ const avatarUrl = useAvatar(
       show-history
     />
 
-    <MyPointsCard />
+    <MyPointsCard v-if="!isGuest" />
 
     <button
       type="button"

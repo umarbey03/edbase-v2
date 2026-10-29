@@ -25,7 +25,8 @@ const props = defineProps<{
 const router = useRouter()
 
 const isTeacher = computed(() => props.type === 'Teacher')
-const typeLabel = computed(() => (isTeacher.value ? 'Ustoz darsi' : 'Kurator darsi'))
+// Landing bilan bir xil atamalar (audit, 2026-10-29): o'quvchiga «Kurator» so'zi sotilmagan.
+const typeLabel = computed(() => (isTeacher.value ? 'Asosiy ustoz darsi' : 'Support teacher darsi'))
 
 const isLive = computed(
   () => props.session !== null && sessionState(props.session, props.now) === 'live',

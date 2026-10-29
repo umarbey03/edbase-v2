@@ -103,7 +103,7 @@ function handleSubmitted(): void {
       :retrying="assignmentsQuery.isFetching.value"
       empty-icon="clipboard"
       empty-title="Vazifa yo‘q"
-      empty-text="Ustoz vazifa bergach shu yerda ko‘rinadi."
+      empty-text="Hozircha vazifa yo‘q. Darslar davomida berilgan vazifalar shu yerda ko‘rinadi."
       @retry="assignmentsQuery.refetch()"
     >
       <!--

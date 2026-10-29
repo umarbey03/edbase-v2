@@ -36,8 +36,10 @@ export function useStudentNav(): StudentNav {
   // Mustaqil o'quvchida Kalendar va Chat o'rniga Profil (2026-10-23).
   const { isSelfStudy } = useMySubscription()
   // Mehmonda (guruhsiz, obunasiz) faqat Tariflar va Profil (2026-10-29).
-  const { isGuest } = useShopMe()
+  const { isGuest, isLoaded, isError } = useShopMe()
   const items = computed(() => {
+    // O'quvchi turi aniqlanmaguncha tab YO'Q — guruh tablari «sakrab» almashmasin.
+    if (!isLoaded.value && !isError.value) return []
     if (isGuest.value) return GUEST_NAV
     return isSelfStudy.value ? SELF_STUDY_NAV : navItemsForRole('Student')
   })

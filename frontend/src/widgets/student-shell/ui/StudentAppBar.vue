@@ -105,7 +105,7 @@ function handleNextClick(): void {
       class="text-[19px] font-extrabold leading-tight tracking-[-0.4px] text-brand-500 lg:hidden"
     >
       ZIN-NUR
-      <span class="block text-[10px] font-bold tracking-[2.5px] text-dim">TALABA</span>
+      <span class="block text-[10px] font-bold tracking-[2.5px] text-dim">O‘QUVCHI</span>
     </p>
 
     <div class="flex items-center gap-2.5">

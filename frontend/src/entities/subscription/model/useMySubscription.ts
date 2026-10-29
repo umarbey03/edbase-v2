@@ -17,6 +17,8 @@ export interface MySubscription {
    */
   isSelfStudy: ComputedRef<boolean>
   isLoaded: ComputedRef<boolean>
+  isError: ComputedRef<boolean>
+  refetch: () => Promise<unknown>
 }
 
 /** Bitta kalit — shell, bosh sahifa va profil bitta so'rovdan oziqlanadi. */
@@ -35,5 +37,7 @@ export function useMySubscription(): MySubscription {
     data,
     isSelfStudy: computed(() => data.value?.hasSubscription === true),
     isLoaded: computed(() => query.data.value !== undefined),
+    isError: computed(() => query.isError.value),
+    refetch: () => query.refetch(),
   }
 }

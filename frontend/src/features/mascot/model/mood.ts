@@ -175,9 +175,13 @@ function defaultAction(s: MoodSignals): MoodAction | null {
 function winText(win: Win, s: MoodSignals): { title: string, message: string } {
   switch (win) {
     case 'top-rank':
+    {
+      // Mustaqil o'quvchining reytingi — mustaqil o'quvchilar orasida (audit, 2026-10-29).
+      const where = s.isSelfStudy ? 'Mustaqillar orasida' : 'Guruhda'
       return s.rank === 1
-        ? { title: 'Guruhda 1-o‘rin!', message: 'Bu oy eng ko‘p ball sen tomonda. Zo‘r ketyapsan!' }
-        : { title: `Guruhda ${s.rank}-o‘rin!`, message: 'Kuchli uchlikdasan. Yana bir oz — va cho‘qqi seniki.' }
+        ? { title: `${where} 1-o‘rin!`, message: 'Bu oy eng ko‘p ball sen tomonda. Zo‘r ketyapsan!' }
+        : { title: `${where} ${s.rank}-o‘rin!`, message: 'Kuchli uchlikdasan. Yana bir oz — va cho‘qqi seniki.' }
+    }
     case 'streak-bonus':
       return {
         title: `Ketma-ket ${s.attendanceStreak} dars!`,
@@ -186,7 +190,7 @@ function winText(win: Win, s: MoodSignals): { title: string, message: string } {
     case 'top-grades':
       return {
         title: 'A’lo baholar!',
-        message: `Vazifalaringdan o‘rtacha ${Math.round(s.avgGradePercent ?? 0)}%. Ustozing ham xursand.`,
+        message: `Vazifalaringdan o‘rtacha ${Math.round(s.avgGradePercent ?? 0)}%. Shu ruhda davom et!`,
       }
   }
 }
