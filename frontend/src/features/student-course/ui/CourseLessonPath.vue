@@ -13,6 +13,13 @@ import { lockMessage } from '../model/useStudentCourse'
  * Nega aynan shu ko'rinish: bugungi o'quvchi kursni AYNAN shunday ko'radi —
  * dumaloq tugmalar zigzag bo'lib pastga tushadi va orasida punktir ulagich
  * bo'ladi. Ro'yxat ko'rinishiga o'tkazish "boshqa ilova" taassurotini berardi.
+ *
+ * ★ SLOTLAR (2026-10-29, maskot uchun):
+ *   `current` — hozirgi dars tugunining YONIDA, zigzagning bo'sh tomonida
+ *     (tugun o'ngga siljigan bo'lsa chapda, aks holda o'ngda);
+ *   `end` — yo'lakning oxirida (modul yakuni).
+ *   Maskotni sahifa qo'yadi, bu komponent uni bilmaydi: feature boshqa
+ *   feature'ni import qilmaydi.
  */
 const props = defineProps<{
   lessons: CourseLessonDto[]
@@ -215,6 +222,14 @@ function handleClick(lesson: CourseLessonDto): void {
         >
           Boshlash
         </span>
+
+        <div
+          v-if="node.state === 'now' && $slots.current"
+          class="pointer-events-none absolute top-0"
+          :class="node.offset > 0 ? 'right-full mr-1' : 'left-full ml-1'"
+        >
+          <slot name="current" />
+        </div>
       </div>
 
       <!--
@@ -259,5 +274,7 @@ function handleClick(lesson: CourseLessonDto): void {
         />
       </div>
     </template>
+
+    <slot name="end" />
   </div>
 </template>
