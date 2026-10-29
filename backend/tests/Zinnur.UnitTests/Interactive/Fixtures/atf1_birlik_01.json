@@ -1,0 +1,751 @@
+{
+  "meta": {
+    "birlik_nomi": "dars",
+    "kurs_nomi": "Arab tili fonetikasi",
+    "daraja": "ATF-1",
+    "birlik": 1,
+    "hafta": 1,
+    "nom_uz": "Kirish: alifbo, harakatlar va Alif",
+    "nom_ar": "الحُرُوفُ وَالحَرَكَاتُ وَالأَلِفُ",
+    "shior": "28 harf bilan tanishamiz, harakat va sukunni o'rganamiz, birinchi harf — Alif.",
+    "kirish": "Bu — ATF 1-bosqichining 1-darsi. Kitobning 6–8-betlari: alifbo, harakatlar, sukun va Alif harfi.",
+    "can_do": [
+      "Arab alifbosida 28 harf borligini va ularning nomlarini bilaman.",
+      "Fatha, kasra, domma va sukunni taniy olaman va to'g'ri o'qiyman.",
+      "Alif harfining 4 ko'rinishini taniyman va yoza olaman.",
+      "أَ إِ أُ bo'g'inlarini eshitib farqlay olaman."
+    ],
+    "grammatika": [
+      "Harakatlar: fatha (a), kasra (i), domma (u)",
+      "Sukun — unli yo'q (\"tormoz\")",
+      "Alif yolg'iz kelganda o'qilmaydi; hamza bilan keladi",
+      "Alif o'zidan keyingi harfga qo'l bermaydi"
+    ],
+    "vazifa": "Alifbo katagidan harflarni topib, nomini aytish o'yini.",
+    "tovush": "أَ — إِ — أُ"
+  },
+  "personajlar": [
+    {
+      "id": "aziz",
+      "ar": "عَزِيزٌ",
+      "uz": "Aziz",
+      "izoh": "Harf, bo'g'in va so'zlarni o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#00784f"
+    },
+    {
+      "id": "malika",
+      "ar": "مَلِيكَةُ",
+      "uz": "Malika",
+      "izoh": "Iboralarni o'qiydi",
+      "ovoz": "ar-SA-ZariyahNeural",
+      "rang": "#00a36c"
+    },
+    {
+      "id": "rovi",
+      "ar": "الرَّاوِي",
+      "uz": "Hikoyachi",
+      "izoh": "Test savollarini o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#033a26"
+    }
+  ],
+  "lugat": [
+    {
+      "id": "l01",
+      "dars": "A",
+      "ar": "أَ",
+      "uz": "a (hamza + fatha)",
+      "tur": "bo'g'in",
+      "audio": "l01",
+      "tts": "اَ!"
+    },
+    {
+      "id": "l02",
+      "dars": "A",
+      "ar": "إِ",
+      "uz": "i (hamza + kasra)",
+      "tur": "bo'g'in",
+      "audio": "l02",
+      "tts": "إِ!"
+    },
+    {
+      "id": "l03",
+      "dars": "A",
+      "ar": "أُ",
+      "uz": "u (hamza + domma)",
+      "tur": "bo'g'in",
+      "audio": "l03",
+      "tts": "أُ!"
+    }
+  ],
+  "darslar": {
+    "A": {
+      "nom_uz": "Alifbo, harakatlar va Alif",
+      "nom_ar": "الأَلِفُ",
+      "qisqa": "Dars",
+      "bloklar": [
+        {
+          "id": "A0",
+          "tur": "isinish",
+          "vaqt": 8,
+          "sarlavha_uz": "Darsni boshlaymiz: arab yozuvi va dars qoidalari",
+          "sarlavha_ar": "تَمْهِيدٌ",
+          "korsatma": "Arab yozuvi o'ngdan chapga yoziladi va o'qiladi. Darsda ko'z, til, quloq va qo'l ishlaydi: ko'ramiz, aytamiz, eshitamiz va yozamiz. Darsga haftasiga 2 marta, 80 daqiqadan kelamiz. Bu harflarning nomlarini o'zbek tilidan ham bilasiz:",
+          "kopru": [
+            {
+              "ar": "ا",
+              "uz": "alif"
+            },
+            {
+              "ar": "ب",
+              "uz": "be (baá)"
+            },
+            {
+              "ar": "م",
+              "uz": "mim"
+            },
+            {
+              "ar": "ن",
+              "uz": "nun"
+            }
+          ],
+          "ustozga": "Kitobning 7-betidagi «Dars bilan bog'liq ba'zi masalalar» ro'yxatini qisqa tushuntiring: uslubimiz qattiq — maxraj va sifatlar aniq chiqishi kerak. Doskaga o'ngdan chapga strelka chizing."
+        },
+        {
+          "id": "A1",
+          "tur": "grammatika",
+          "vaqt": 15,
+          "sarlavha_uz": "Alifbo: 28 harf va ularning nomlari",
+          "sarlavha_ar": "الحُرُوفُ الهِجَائِيَّةُ",
+          "kuzat": [
+            {
+              "ar": "ث ح ذ ص ض ط ظ ع",
+              "uz": "Bu 8 ta harfning tovushi o'zbek tilida yo'q — ularga alohida e'tibor beramiz",
+              "rangli": "ث ح ذ ص ض ط ظ ع"
+            },
+            {
+              "ar": "ا ب ت",
+              "uz": "Alif, Baá, Taá — alifboning boshlanishi",
+              "rangli": "ا"
+            }
+          ],
+          "savol": "Jadvalga qarang: qaysi harflarning nomini o'zbek tilidan bilasiz? Qaysi harflar bir-biriga o'xshaydi va faqat nuqtasi bilan farq qiladi?",
+          "qoida": [
+            "Arab tilida 28 ta harf bor. Har bir harf so'zdagi o'rniga qarab 4 xil ko'rinishda yoziladi: alohida, so'z boshida, o'rtasida va oxirida. Ba'zi harflar esa faqat 2 ko'rinishli.",
+            "Ba'zi olimlar ء (hamza) ni ham qo'shib, harflarni 29 ta deyishgan.",
+            "Harflar nomini urg'u bilan to'g'ri ayting: Baá, Taá, Jiím — urg'u ikkinchi bo'g'inda, unli cho'ziladi."
+          ],
+          "jadval": {
+            "sarlavha": "Harflar va ularning nomlari (kitob, 6-bet)",
+            "ustunlar": [
+              "Harf",
+              "Nomi",
+              "Harf",
+              "Nomi"
+            ],
+            "qatorlar": [
+              [
+                "ا",
+                "Alif",
+                "ض",
+                "Doód"
+              ],
+              [
+                "ب",
+                "Baá",
+                "ط",
+                "Toó"
+              ],
+              [
+                "ت",
+                "Taá",
+                "ظ",
+                "Zoó"
+              ],
+              [
+                "ث",
+                "Saá",
+                "ع",
+                "'Ayn"
+              ],
+              [
+                "ج",
+                "Jiím",
+                "غ",
+                "G'oyn"
+              ],
+              [
+                "ح",
+                "Haá",
+                "ف",
+                "Faá"
+              ],
+              [
+                "خ",
+                "Xoó",
+                "ق",
+                "Qoóf"
+              ],
+              [
+                "د",
+                "Daál",
+                "ك",
+                "Kaáf"
+              ],
+              [
+                "ذ",
+                "Zaál",
+                "ل",
+                "Laám"
+              ],
+              [
+                "ر",
+                "Roó",
+                "م",
+                "Miím"
+              ],
+              [
+                "ز",
+                "Zaáy",
+                "ن",
+                "Nuún"
+              ],
+              [
+                "س",
+                "Siín",
+                "و",
+                "Waáw"
+              ],
+              [
+                "ش",
+                "Shiín",
+                "ه",
+                "Haá"
+              ],
+              [
+                "ص",
+                "Soód",
+                "ي",
+                "Yaá"
+              ]
+            ],
+            "audio": [
+              "ab01",
+              "ab02",
+              "ab03",
+              "ab04",
+              "ab05",
+              "ab06",
+              "ab07",
+              "ab08",
+              "ab09",
+              "ab10",
+              "ab11",
+              "ab12",
+              "ab13",
+              "ab14"
+            ],
+            "tts": [
+              "أَلِف، ضَاد",
+              "بَاء، طَاء",
+              "تَاء، ظَاء",
+              "ثَاء، عَيْن",
+              "جِيم، غَيْن",
+              "حَاء، فَاء",
+              "خَاء، قَاف",
+              "دَال، كَاف",
+              "ذَال، لَام",
+              "رَاء، مِيم",
+              "زَاي، نُون",
+              "سِين، وَاو",
+              "شِين، هَاء",
+              "صَاد، يَاء"
+            ]
+          },
+          "mashqlar": [
+            {
+              "id": "A1m1",
+              "tur": "ula",
+              "korsatma": "Harfni uning nomi bilan ulang.",
+              "juftlar": [
+                [
+                  "ب",
+                  "Baá"
+                ],
+                [
+                  "ج",
+                  "Jiím"
+                ],
+                [
+                  "ع",
+                  "'Ayn"
+                ],
+                [
+                  "ق",
+                  "Qoóf"
+                ],
+                [
+                  "ي",
+                  "Yaá"
+                ]
+              ]
+            }
+          ],
+          "ustozga": "Jadvalni qator-qator o'qing, o'quvchilar xor bo'lib takrorlaydi. Jadvaldagi har bir qatorni tinglash tugmasi bilan eshittirsa bo'ladi. Hozircha harflarni yodlatmang — har bir harf o'z darsida o'rganiladi."
+        },
+        {
+          "id": "A2",
+          "tur": "grammatika",
+          "vaqt": 15,
+          "sarlavha_uz": "Harakatlar va sukun",
+          "sarlavha_ar": "الحَرَكَاتُ وَالسُّكُونُ",
+          "kuzat": [
+            {
+              "ar": "بَ",
+              "uz": "Ba — fatha (ochish): harf ustidagi qiya chiziqcha, «a»",
+              "rangli": "بَ"
+            },
+            {
+              "ar": "بِ",
+              "uz": "Bi — kasra (sinish): harf ostidagi chiziqcha, «i»",
+              "rangli": "بِ"
+            },
+            {
+              "ar": "بُ",
+              "uz": "Bu — domma (juftlash): harf ustidagi kichik «vov», «u»",
+              "rangli": "بُ"
+            },
+            {
+              "ar": "آبْ",
+              "uz": "Ab — sukun (\"tormoz\", \"to'xtash\"): ب unlisiz o'qiladi",
+              "rangli": "بْ"
+            }
+          ],
+          "savol": "Bir xil harf ب turli belgilar bilan qanday o'qilyapti? Qaysi belgi harf ostida turibdi?",
+          "qoida": [
+            "Harakat — harfning ustiga yoki ostiga qo'yiladigan, uni «harakatga keltiradigan» va unli tovushni ko'rsatadigan belgi.",
+            "Arab tilida harakatlar 3 ta: fatha (ochish) — ـَ — «a»; kasra (sinish) — ـِ — «i»; domma (juftlash) — ـُ — «u».",
+            "Sukun — ـْ — «tormoz», «to'xtash»: harf unlisiz o'qiladi."
+          ],
+          "kontrast": {
+            "uz": "Ba, Bi, Bu — o'zbekchada unli alohida harf bilan yoziladi",
+            "ar": "بَ بِ بُ",
+            "izoh": "Arab tilida qisqa unli harf bilan yozilmaydi, harf ustidagi yoki ostidagi belgi (harakat) bilan ko'rsatiladi."
+          },
+          "mashqlar": [
+            {
+              "id": "A2m1",
+              "tur": "tanla",
+              "korsatma": "Bo'g'in qanday o'qiladi? To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "بُ qanday o'qiladi?",
+                  "variantlar": [
+                    "ba",
+                    "bi",
+                    "bu"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "بِ qanday o'qiladi?",
+                  "variantlar": [
+                    "bi",
+                    "bu",
+                    "ba"
+                  ],
+                  "javob": 0
+                },
+                {
+                  "uz": "Sukunli bo'g'in qaysi?",
+                  "variantlar": [
+                    "بَ",
+                    "بُ",
+                    "آبْ"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "Fatha qaysi?",
+                  "variantlar": [
+                    "ـُ",
+                    "ـَ",
+                    "ـِ"
+                  ],
+                  "javob": 1
+                }
+              ]
+            }
+          ],
+          "ustozga": "Kitobning 7-betidagi mashq: lotin harflari (M, N, B, S, L, K, D, R) ustiga harakat va sukun qo'yib, o'quvchilarga o'qiting: M ustida fatha — «ma», B ustida domma — «bu». Bu harakat tushunchasini tez singdiradi. Har bir harakatni qo'l harakati bilan bog'lang: fatha — qo'l yuqoriga, kasra — pastga, domma — lablar oldinga."
+        },
+        {
+          "id": "A3",
+          "tur": "harf",
+          "vaqt": 14,
+          "sarlavha_uz": "1-harf: Alif",
+          "sarlavha_ar": "الأَلِفُ",
+          "korsatma": "Harfni tinglang, uning 4 ko'rinishini ko'ring va «Yozib ko'ring» tugmasi bilan yozing. Alif yuqoridan pastga bitta tik chiziq bilan yoziladi.",
+          "harflar": [
+            {
+              "h": "ا",
+              "nom": "أَلِف",
+              "tovush": "Maxraji: Alif ba'zida ء (hamza) bilan keladi. Hamzaning maxraji — halqumning tubi. Qoidalar: 1) Alif yolg'iz o'zi kelganda talaffuz qilinmaydi; 2) Alif o'zidan keyingi harfga qo'l bermaydi.",
+              "shakllar": [
+                "ا",
+                "ا",
+                "ـا",
+                "ـا"
+              ],
+              "audio": "hf01",
+              "misollar": [
+                {
+                  "ar": "أَ",
+                  "uz": "a",
+                  "audio": "hm01",
+                  "tts": "اَ!"
+                },
+                {
+                  "ar": "إِ",
+                  "uz": "i",
+                  "audio": "hm02",
+                  "tts": "إِ!"
+                },
+                {
+                  "ar": "أُ",
+                  "uz": "u",
+                  "audio": "hm03",
+                  "tts": "أُ!"
+                }
+              ]
+            }
+          ],
+          "mashqlar": [
+            {
+              "id": "A3m1",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "Hamzaning maxraji qayerda?",
+                  "variantlar": [
+                    "lablarda",
+                    "halqumning tubida",
+                    "til uchida"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "Alif o'zidan keyingi harfga qo'l beradimi?",
+                  "variantlar": [
+                    "ha, beradi",
+                    "yo'q, bermaydi"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "«i» qaysi?",
+                  "variantlar": [
+                    "أُ",
+                    "أَ",
+                    "إِ"
+                  ],
+                  "javob": 2
+                }
+              ]
+            }
+          ],
+          "ustozga": "Hamzani tomoq tubidan qisqa, «uzilgan» tovush sifatida ko'rsating (o'zbekcha «a'lo» so'zidagi tutuq kabi). Kasrali hamza (إِ) ostiga, fathali va dommali hamza (أَ، أُ) ustiga yozilishini ko'rsating."
+        },
+        {
+          "id": "A4",
+          "tur": "tovush",
+          "vaqt": 10,
+          "sarlavha_uz": "Matn: tinglang va o'qing",
+          "sarlavha_ar": "النَّصُّ",
+          "izoh": "Kitobdagi matn: har bir bo'g'inni bosib tinglang, keyin o'zingiz o'qing. Ikkinchi qator — harakatlarni ب harfi bilan mashq qilish (kitob, 7-bet).",
+          "juftlar": [
+            {
+              "sozlar": [
+                "أَ",
+                "إِ",
+                "أُ"
+              ],
+              "uz": [
+                "a",
+                "i",
+                "u"
+              ],
+              "audio": [
+                "s01",
+                "s02",
+                "s03"
+              ],
+              "tts": [
+                "اَ!",
+                "إِ!",
+                "أُ!"
+              ]
+            },
+            {
+              "sozlar": [
+                "بَ",
+                "بِ",
+                "بُ",
+                "آبْ"
+              ],
+              "uz": [
+                "ba",
+                "bi",
+                "bu",
+                "ab"
+              ],
+              "audio": [
+                "s04",
+                "s05",
+                "s06",
+                "s07"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s02",
+              "variantlar": [
+                "أَ",
+                "إِ",
+                "أُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s03",
+              "variantlar": [
+                "أُ",
+                "إِ",
+                "أَ"
+              ],
+              "javob": 0
+            },
+            {
+              "audio": "s04",
+              "variantlar": [
+                "بُ",
+                "بِ",
+                "بَ"
+              ],
+              "javob": 2
+            },
+            {
+              "audio": "s07",
+              "variantlar": [
+                "بَ",
+                "آبْ",
+                "بِ"
+              ],
+              "javob": 1
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Ehtiyot bo'ling!",
+            "matn": "أَ ni o'zbekcha yumshoq «a» qilib aytmang: boshida tomoqdan chiqadigan qisqa «uzilish» (hamza) eshitilishi kerak."
+          }
+        },
+        {
+          "id": "A5",
+          "tur": "yozish",
+          "vaqt": 13,
+          "sarlavha_uz": "Yozish: Alif va harakatlar",
+          "sarlavha_ar": "الكِتَابَةُ",
+          "pogonalar": [
+            {
+              "n": 1,
+              "uz": "Daftaringizga Alifni 2 qatordan yozing: yuqoridan pastga, bitta tik chiziq. Keyin ekrandagi «Yozib ko'ring» maydonida ham yozing."
+            },
+            {
+              "n": 2,
+              "uz": "Hamzali bo'g'inlarni yozing: «a», «i», «u» (o'ngdan chapga).",
+              "namuna": "أَ إِ أُ",
+              "maqsad_gap": 1
+            }
+          ],
+          "ustozga": "Hamzaning o'rnini tekshiring: kasrali hamza alifning ostida, fathali va dommali — ustida."
+        },
+        {
+          "id": "A6",
+          "tur": "yakun",
+          "vaqt": 5,
+          "sarlavha_uz": "Men qila olaman",
+          "sarlavha_ar": "أَسْتَطِيعُ",
+          "cando": true
+        }
+      ]
+    }
+  },
+  "mashq_daftari": [
+    {
+      "id": "W1",
+      "sessiya": 1,
+      "tur": "ochiq",
+      "uz": "Alifbo katagi (kitob, 6-bet): o'zbek tilida yo'q 8 ta harfni (ث ح ذ ص ض ط ظ ع) toping va daftaringizga nomlari bilan yozing."
+    },
+    {
+      "id": "W2",
+      "sessiya": 1,
+      "tur": "ovoz",
+      "uz": "Harakatlar qoidasini 5 marta o'qing. Keyin أَ إِ أُ va بَ بِ بُ آبْ qatorlarini ovoz chiqarib o'qib, yordamchi ustozga yuboring."
+    },
+    {
+      "id": "W3",
+      "sessiya": 2,
+      "tur": "diktant",
+      "uz": "Diktant: bo'g'inni tinglang va yozing.",
+      "sozlar": [
+        "أَ",
+        "أُ",
+        "إِ",
+        "بُ",
+        "بِ"
+      ],
+      "audio": [
+        "w2_1",
+        "w2_2",
+        "w2_3",
+        "w2_4",
+        "w2_5"
+      ],
+      "tts": [
+        "اَ!",
+        "أُ!",
+        "إِ!",
+        null,
+        null
+      ]
+    },
+    {
+      "id": "W4",
+      "sessiya": 2,
+      "tur": "ula",
+      "uz": "Harakatni nomi bilan ulang.",
+      "juftlar": [
+        [
+          "ـَ",
+          "fatha — a"
+        ],
+        [
+          "ـِ",
+          "kasra — i"
+        ],
+        [
+          "ـُ",
+          "domma — u"
+        ],
+        [
+          "ـْ",
+          "sukun — unli yo'q"
+        ]
+      ]
+    },
+    {
+      "id": "W5",
+      "sessiya": 3,
+      "tur": "ochiq",
+      "uz": "Alifni daftaringizga 2 qatordan yozing, matnni (أَ إِ أُ) 3 marta ko'chiring va suratini yuboring."
+    },
+    {
+      "id": "W6",
+      "sessiya": 3,
+      "tur": "ovoz",
+      "uz": "Darsdagi audioni 20 marta tinglang va matnni 40 marta o'qing. Oxirgi o'qishingizni yozib yuboring."
+    }
+  ],
+  "test": {
+    "nom": "1-dars mini-testi (10 daqiqa)",
+    "savollar": [
+      {
+        "kon": "tinglash",
+        "audio": "x01",
+        "matn": "أُ",
+        "uz": "Qaysi bo'g'inni eshitdingiz?",
+        "variantlar": [
+          "أَ",
+          "أُ",
+          "إِ"
+        ],
+        "javob": 1,
+        "tts": "أُ!"
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x02",
+        "matn": "إِ",
+        "uz": "Qaysi bo'g'inni eshitdingiz?",
+        "variantlar": [
+          "إِ",
+          "أَ",
+          "أُ"
+        ],
+        "javob": 0,
+        "tts": "إِ!"
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x03",
+        "matn": "بَ",
+        "uz": "Qaysi bo'g'inni eshitdingiz?",
+        "variantlar": [
+          "بِ",
+          "بُ",
+          "بَ"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "Arab tilida nechta harf bor?",
+        "variantlar": [
+          "26",
+          "28",
+          "32"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "Kasra qaysi tovushni beradi?",
+        "variantlar": [
+          "a",
+          "u",
+          "i"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "Sukun nimani bildiradi?",
+        "variantlar": [
+          "unli yo'q",
+          "uzun unli",
+          "«u» tovushi"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Alifning maxraji (hamza bilan):",
+        "variantlar": [
+          "ikki lab",
+          "halqum tubi",
+          "til uchi"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "gapirish",
+        "uz": "Ovozli: أَ إِ أُ va بَ بِ بُ آبْ ni o'qing.",
+        "ochiq": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,1638 @@
+{
+  "meta": {
+    "birlik_nomi": "dars",
+    "kurs_nomi": "Arab tili fonetikasi",
+    "daraja": "ATF-1",
+    "birlik": 28,
+    "hafta": 14,
+    "nom_uz": "Z:oo harfi, zina, sonlar va ligatura",
+    "nom_ar": "حَرْفُ الظَّاءِ وَالأَعْدَادُ",
+    "shior": "Alifboning oxirgi harfi — Z:oo. Zina bilan imtihonga tayyorlanamiz, sonlar va tanishuv iboralarini o'rganamiz.",
+    "kirish": "Bu — ATF 1-bosqichining 28-darsi (oxirgi dars). Kitobning 35–38-betlari: Z:oo harfi, zina va imtihonga tayyorgarlik, maxrajlarni bilish, sonlar 0–10, tanishuv suhbati va ligatura.",
+    "can_do": [
+      "Z:oo harfining 4 ko'rinishini taniyman va yoza olaman.",
+      "ز ذ ظ ض harflarini eshitib farqlay olaman va zinani o'qiyman.",
+      "Harfning maxrajini «أَ + sukunli harf» usuli bilan topa olaman.",
+      "0 dan 10 gacha arabcha sonlarni ayta va yoza olaman.",
+      "Arabcha tanisha olaman va ligaturalarni taniyman."
+    ],
+    "grammatika": [
+      "Maxraj: til uchi va yuqori old tishlarning uchi",
+      "Roxova — 2 harakat miqdorida cho'ziladi, tovush oqib turadi",
+      "Iste'lo (D.Y.O') — tilning orqa qismi ko'tariladi, harf doim yo'g'on o'qiladi",
+      "Maxrajni bilish: أَ + sukunli harf",
+      "Ligatura — harflarning maxsus birikkan shakli"
+    ],
+    "vazifa": "Juftlikda arabcha tanishuv suhbati.",
+    "tovush": "ز — ذ — ظ — ض"
+  },
+  "personajlar": [
+    {
+      "id": "aziz",
+      "ar": "عَزِيزٌ",
+      "uz": "Aziz",
+      "izoh": "Harf, bo'g'in va so'zlarni o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#00784f"
+    },
+    {
+      "id": "malika",
+      "ar": "مَلِيكَةُ",
+      "uz": "Malika",
+      "izoh": "Iboralarni o'qiydi",
+      "ovoz": "ar-SA-ZariyahNeural",
+      "rang": "#00a36c"
+    },
+    {
+      "id": "rovi",
+      "ar": "الرَّاوِي",
+      "uz": "Hikoyachi",
+      "izoh": "Test savollarini o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#033a26"
+    },
+    {
+      "id": "fotima",
+      "ar": "فَاطِمَةُ",
+      "uz": "Fotima",
+      "izoh": "Tanishuv suhbatida",
+      "ovoz": "ar-SA-ZariyahNeural",
+      "rang": "#b5832c"
+    },
+    {
+      "id": "umar",
+      "ar": "عُمَرُ",
+      "uz": "Umar",
+      "izoh": "Tanishuv suhbatida",
+      "ovoz": "ar-EG-ShakirNeural",
+      "rang": "#c5a765"
+    }
+  ],
+  "lugat": [
+    {
+      "id": "l01",
+      "dars": "A",
+      "ar": "ذَ",
+      "uz": "Z̲a",
+      "tur": "bo'g'in",
+      "audio": "l01"
+    },
+    {
+      "id": "l02",
+      "dars": "A",
+      "ar": "ذِ",
+      "uz": "Z̲i",
+      "tur": "bo'g'in",
+      "audio": "l02"
+    },
+    {
+      "id": "l03",
+      "dars": "A",
+      "ar": "ذُ",
+      "uz": "Z̲u",
+      "tur": "bo'g'in",
+      "audio": "l03"
+    },
+    {
+      "id": "l04",
+      "dars": "A",
+      "ar": "آذْ",
+      "uz": "Az̲",
+      "tur": "bo'g'in",
+      "audio": "l04",
+      "tts": "أَذْ"
+    },
+    {
+      "id": "n00",
+      "dars": "A",
+      "ar": "صِفْرٌ",
+      "uz": "0 (٠)",
+      "tur": "son",
+      "audio": "ln00"
+    },
+    {
+      "id": "n01",
+      "dars": "A",
+      "ar": "وَاحِدٌ",
+      "uz": "1 (١)",
+      "tur": "son",
+      "audio": "ln01"
+    },
+    {
+      "id": "n02",
+      "dars": "A",
+      "ar": "اِثْنَانِ",
+      "uz": "2 (٢)",
+      "tur": "son",
+      "audio": "ln02"
+    },
+    {
+      "id": "n03",
+      "dars": "A",
+      "ar": "ثَلَاثَةٌ",
+      "uz": "3 (٣)",
+      "tur": "son",
+      "audio": "ln03"
+    },
+    {
+      "id": "n04",
+      "dars": "A",
+      "ar": "أَرْبَعَةٌ",
+      "uz": "4 (٤)",
+      "tur": "son",
+      "audio": "ln04"
+    },
+    {
+      "id": "n05",
+      "dars": "A",
+      "ar": "خَمْسَةٌ",
+      "uz": "5 (٥)",
+      "tur": "son",
+      "audio": "ln05"
+    },
+    {
+      "id": "n06",
+      "dars": "A",
+      "ar": "سِتَّةٌ",
+      "uz": "6 (٦)",
+      "tur": "son",
+      "audio": "ln06"
+    },
+    {
+      "id": "n07",
+      "dars": "A",
+      "ar": "سَبْعَةٌ",
+      "uz": "7 (٧)",
+      "tur": "son",
+      "audio": "ln07"
+    },
+    {
+      "id": "n08",
+      "dars": "A",
+      "ar": "ثَمَانِيَةٌ",
+      "uz": "8 (٨)",
+      "tur": "son",
+      "audio": "ln08"
+    },
+    {
+      "id": "n09",
+      "dars": "A",
+      "ar": "تِسْعَةٌ",
+      "uz": "9 (٩)",
+      "tur": "son",
+      "audio": "ln09"
+    },
+    {
+      "id": "n10",
+      "dars": "A",
+      "ar": "عَشَرَةٌ",
+      "uz": "10 (١٠)",
+      "tur": "son",
+      "audio": "ln10"
+    }
+  ],
+  "darslar": {
+    "A": {
+      "nom_uz": "Z:oo harfi, zina, sonlar va ligatura",
+      "nom_ar": "الظَّاءُ",
+      "qisqa": "Dars",
+      "bloklar": [
+        {
+          "id": "A0",
+          "tur": "isinish",
+          "vaqt": 4,
+          "sarlavha_uz": "Darsni boshlaymiz: Z̲aal ni takrorlaymiz",
+          "sarlavha_ar": "مُرَاجَعَةٌ",
+          "korsatma": "Kartochkadagi bo'g'inni o'qing, keyin tinglab o'zingizni tekshiring.",
+          "lugat_ids": [
+            "l01",
+            "l02",
+            "l03",
+            "l04"
+          ],
+          "ustozga": "2–3 o'quvchi ز / ذ / ض zinasini o'qiydi. ذ da til tishlar orasidan ko'rinishini tekshiring."
+        },
+        {
+          "id": "A1",
+          "tur": "harf",
+          "vaqt": 10,
+          "sarlavha_uz": "28-harf: Z:oo",
+          "sarlavha_ar": "الظَّاءُ",
+          "korsatma": "Alifboning oxirgi harfi! Harfni tinglang, uning 4 ko'rinishini ko'ring va «Yozib ko'ring» tugmasi bilan yozing. ظ — ط ning shakli, ustida bitta nuqta.",
+          "harflar": [
+            {
+              "h": "ظ",
+              "nom": "ظَاء",
+              "tovush": "Maxraji: tilning uchi tepa sanaya va rubaiyya (old kesuvchi) tishlarining uchiga tekkanda chiqadi. Qoidalar: 1) Roxova — 2 harakat miqdorida cho'ziladi, tovush oqib turadi; 2) Iste'lo (D.Y.O') — tilning orqa qismi ko'tariladi, harf doim yo'g'on o'qiladi.",
+              "shakllar": [
+                "ظ",
+                "ظـ",
+                "ـظـ",
+                "ـظ"
+              ],
+              "audio": "hf01",
+              "misollar": [
+                {
+                  "ar": "نَظَرَ",
+                  "uz": "qaradi",
+                  "audio": "hm01"
+                },
+                {
+                  "ar": "مَنْظَرْ",
+                  "uz": "manzara",
+                  "audio": "hm02"
+                },
+                {
+                  "ar": "نِظَامًا",
+                  "uz": "nizom, tartib",
+                  "audio": "hm03"
+                }
+              ]
+            }
+          ],
+          "mashqlar": [
+            {
+              "id": "A1m1",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "ظ ning maxraji:",
+                  "variantlar": [
+                    "til yon cheti va oziq tishlar",
+                    "til uchi va yuqori old tishlarning uchi",
+                    "halqumning o'rtasi"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "ظ qanday o'qiladi?",
+                  "variantlar": [
+                    "doim yo'g'on",
+                    "doim ingichka",
+                    "ba'zan o'qilmaydi"
+                  ],
+                  "javob": 0
+                },
+                {
+                  "uz": "ط va ظ ning farqi:",
+                  "variantlar": [
+                    "ط ustida nuqta bor",
+                    "farqi yo'q",
+                    "ظ ustida bitta nuqta bor"
+                  ],
+                  "javob": 2
+                }
+              ]
+            }
+          ],
+          "ustozga": "ظ ni ذ ning yo'g'on varianti sifatida ko'rsating: til o'sha joyda (tishlar uchida), lekin tilning orqasi ko'tariladi va tovush yo'g'onlashadi. ض bilan solishtiring: ض da tilning yon cheti ishlaydi."
+        },
+        {
+          "id": "A2",
+          "tur": "tovush",
+          "vaqt": 10,
+          "sarlavha_uz": "Matn: bo'g'in va so'zlar",
+          "sarlavha_ar": "النَّصُّ",
+          "izoh": "Kitobdagi matn (35-bet). Birinchi qator — ظ uch harakat va sukun bilan. Keyingi qatorlar — sukunli bo'g'inlar, so'zlar va fe'llar. Har birini bosib tinglang va takrorlang.",
+          "juftlar": [
+            {
+              "sozlar": [
+                "ظَـ",
+                "ـظِـ",
+                "ـظُ",
+                "آظْ"
+              ],
+              "uz": [
+                "Z:o",
+                "Z:i",
+                "Z:u",
+                "Az:"
+              ],
+              "audio": [
+                "s01",
+                "s02",
+                "s03",
+                "s04"
+              ],
+              "tts": [
+                "ظَ",
+                "ظِ",
+                "ظُ",
+                "أَظْ"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَنْ",
+                "ظِلْ",
+                "فَظْ",
+                "حَظْ",
+                "عَظْ",
+                "لَظْ",
+                "ظَفَرْ",
+                "نَظَرْ",
+                "حَظَرْ",
+                "ظَمَرْ"
+              ],
+              "uz": [
+                "Z:on",
+                "Z:il",
+                "Faz:",
+                "H̲az:",
+                "'az:",
+                "Laz:",
+                "Z:ofar",
+                "Naz:or",
+                "H̲az:or",
+                "Z:omar"
+              ],
+              "audio": [
+                "s05",
+                "s06",
+                "s07",
+                "s08",
+                "s09",
+                "s10",
+                "s11",
+                "s12",
+                "s13",
+                "s14"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَلَفْ",
+                "عِظَمْ",
+                "نَظْمُ",
+                "ظَلْفُ",
+                "ظِلْفُ",
+                "حِظْلُ",
+                "ظُلْمُ",
+                "ظُهْرُ",
+                "آظْهَرَ"
+              ],
+              "uz": [
+                "Z:olaf",
+                "'iz:om",
+                "Naz:mu",
+                "Z:olfu",
+                "Z:ilfu",
+                "H̲iz:lu",
+                "Z:ulmu",
+                "Z:uhru",
+                "Az:hara"
+              ],
+              "audio": [
+                "s15",
+                "s16",
+                "s17",
+                "s18",
+                "s19",
+                "s20",
+                "s21",
+                "s22",
+                "s23"
+              ]
+            },
+            {
+              "sozlar": [
+                "آظْفَرَ",
+                "مَظْهَرْ",
+                "مَنْظَرْ",
+                "مُظْهِرْ",
+                "مُظْلِمْ",
+                "ظَهَرَ",
+                "يَظْهَرُ",
+                "نَظَرَ",
+                "يَنْظُرُ"
+              ],
+              "uz": [
+                "Az:fara",
+                "Maz:har",
+                "Manz:or",
+                "Muz:hir",
+                "Muz:lim",
+                "Z:ohara",
+                "Yaz:haru",
+                "Naz:ora",
+                "Yanz:uru"
+              ],
+              "audio": [
+                "s24",
+                "s25",
+                "s26",
+                "s27",
+                "s28",
+                "s29",
+                "s30",
+                "s31",
+                "s32"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَلَمَ",
+                "يَظْلِمُ",
+                "إِنْتَظَمَ",
+                "يَنْتَظِمُ",
+                "إِسْتَعْظَمَ",
+                "يَسْتَعْظِمُ"
+              ],
+              "uz": [
+                "Z:olama",
+                "Yaz:limu",
+                "Intaz:oma",
+                "Yantaz:imu",
+                "Ista'z:oma",
+                "Yasta'z:imu"
+              ],
+              "audio": [
+                "s33",
+                "s34",
+                "s35",
+                "s36",
+                "s37",
+                "s38"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s03",
+              "variantlar": [
+                "ظَـ",
+                "ـظُ",
+                "ـظِـ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s12",
+              "variantlar": [
+                "نَظَرْ",
+                "ظَفَرْ",
+                "حَظَرْ"
+              ],
+              "javob": 0
+            },
+            {
+              "audio": "s32",
+              "variantlar": [
+                "نَظَرَ",
+                "يَظْهَرُ",
+                "يَنْظُرُ"
+              ],
+              "javob": 2
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Ehtiyot bo'ling!",
+            "matn": "ظ ni o'zbekcha «z» qilib aytmang: til uchi tishlar orasiga chiqadi va tovush yo'g'on bo'ladi. ظُلْمُ — «zulm» emas, «z:ulmu»."
+          }
+        },
+        {
+          "id": "A3",
+          "tur": "tovush",
+          "vaqt": 8,
+          "sarlavha_uz": "O'xshash harflar: ظ juftliklari",
+          "sarlavha_ar": "الأَصْوَاتُ المُتَشَابِهَةُ",
+          "izoh": "Kitobdagi juftliklar (35-bet): ظ ni ذ، ض va ز bilan solishtiramiz. Oxirgi qator — cho'ziq unli va tanvinli so'zlar.",
+          "juftlar": [
+            {
+              "sozlar": [
+                "ذَفَرْ",
+                "ظَفَرْ"
+              ],
+              "uz": [
+                "Z̲afar",
+                "Z:ofar"
+              ],
+              "audio": [
+                "s39",
+                "s40"
+              ]
+            },
+            {
+              "sozlar": [
+                "حَظَرْ",
+                "حَضَرْ"
+              ],
+              "uz": [
+                "H̲az:or",
+                "H̲ad̲or"
+              ],
+              "audio": [
+                "s41",
+                "s42"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَهْرُ",
+                "ضَهْرُ"
+              ],
+              "uz": [
+                "Z:ohru",
+                "D̲ohru"
+              ],
+              "audio": [
+                "s43",
+                "s44"
+              ]
+            },
+            {
+              "sozlar": [
+                "زَهَرَ",
+                "ظَهَرَ"
+              ],
+              "uz": [
+                "Zahara",
+                "Z:ohara"
+              ],
+              "audio": [
+                "s45",
+                "s46"
+              ]
+            },
+            {
+              "sozlar": [
+                "آزْهَرَ",
+                "آظْهَرَ"
+              ],
+              "uz": [
+                "Azhara",
+                "Az:hara"
+              ],
+              "audio": [
+                "s47",
+                "s48"
+              ]
+            },
+            {
+              "sozlar": [
+                "آعْزَمَ",
+                "آعْظَمَ"
+              ],
+              "uz": [
+                "A'zama",
+                "A'z:oma"
+              ],
+              "audio": [
+                "s49",
+                "s50"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَا",
+                "ظِي",
+                "ظُو",
+                "ظَاهِرُ",
+                "نَاظِرٌ",
+                "مَنْظُورٍ",
+                "ظَاهِرَةٌ",
+                "ظَهِيرَةٌ",
+                "حَظِيظٌ",
+                "نِظَامًا"
+              ],
+              "uz": [
+                "Z:oo",
+                "Z:ii",
+                "Z:uu",
+                "Z:oohiru",
+                "Naaz:irun",
+                "Manz:uurin",
+                "Z:oohiratun",
+                "Z:ohiiratun",
+                "H̲az:iiz:un",
+                "Niz:ooman"
+              ],
+              "audio": [
+                "s51",
+                "s52",
+                "s53",
+                "s54",
+                "s55",
+                "s56",
+                "s57",
+                "s58",
+                "s59",
+                "s60"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s40",
+              "variantlar": [
+                "ذَفَرْ",
+                "ظَفَرْ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s42",
+              "variantlar": [
+                "حَظَرْ",
+                "حَضَرْ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s45",
+              "variantlar": [
+                "ظَهَرَ",
+                "زَهَرَ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s50",
+              "variantlar": [
+                "آعْزَمَ",
+                "آعْظَمَ"
+              ],
+              "javob": 1
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Ehtiyot bo'ling!",
+            "matn": "To'rt «z» tovushi: ز — o'zbekcha z; ذ — til tishlar orasida, ingichka; ظ — til tishlar orasida, yo'g'on; ض — tilning yon cheti, yo'g'on. Har birini ko'zgu oldida mashq qiling."
+          }
+        },
+        {
+          "id": "A4",
+          "tur": "tovush",
+          "vaqt": 10,
+          "sarlavha_uz": "Zina va maxrajlarni bilish",
+          "sarlavha_ar": "السُّلَّمُ وَمَخَارِجُ الحُرُوفِ",
+          "izoh": "Kitobdagi zina (36-bet): har qatorda bitta harf — uch harakat, keyin hamza va sukun bilan. Keyin «ه» li o'qish qatori. Oxirgi 4 qator — maxrajni bilish usuli: harfni sukunli qilib, oldiga fathali hamza qo'yamiz (أَبْ، أَتْ…) va tovush qayerdan chiqqanini his qilamiz.",
+          "juftlar": [
+            {
+              "sozlar": [
+                "زَ",
+                "زِ",
+                "زُ",
+                "أَزْ",
+                "إِزْ",
+                "أُزْ"
+              ],
+              "uz": [
+                "Za",
+                "Zi",
+                "Zu",
+                "Az",
+                "Iz",
+                "Uz"
+              ],
+              "audio": [
+                "s61",
+                "s62",
+                "s63",
+                "s64",
+                "s65",
+                "s66"
+              ]
+            },
+            {
+              "sozlar": [
+                "ذَ",
+                "ذِ",
+                "ذُ",
+                "أَذْ",
+                "إِذْ",
+                "أُذْ"
+              ],
+              "uz": [
+                "Z̲a",
+                "Z̲i",
+                "Z̲u",
+                "Az̲",
+                "Iz̲",
+                "Uz̲"
+              ],
+              "audio": [
+                "s67",
+                "s68",
+                "s69",
+                "s70",
+                "s71",
+                "s72"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَ",
+                "ظِ",
+                "ظُ",
+                "أَظْ",
+                "إِظْ",
+                "أُظْ"
+              ],
+              "uz": [
+                "Z:o",
+                "Z:i",
+                "Z:u",
+                "Az:",
+                "Iz:",
+                "Uz:"
+              ],
+              "audio": [
+                "s73",
+                "s74",
+                "s75",
+                "s76",
+                "s77",
+                "s78"
+              ]
+            },
+            {
+              "sozlar": [
+                "ضَ",
+                "ضِ",
+                "ضُ",
+                "أَضْ",
+                "إِضْ",
+                "أُضْ"
+              ],
+              "uz": [
+                "D̲o",
+                "D̲i",
+                "D̲u",
+                "Ad̲",
+                "Id̲",
+                "Ud̲"
+              ],
+              "audio": [
+                "s79",
+                "s80",
+                "s81",
+                "s82",
+                "s83",
+                "s84"
+              ]
+            },
+            {
+              "sozlar": [
+                "زُهْ",
+                "قِهْ",
+                "فَهْمُ",
+                "شَهْرُ",
+                "سَهْرُ",
+                "دَهْرُ",
+                "دُهْنُ",
+                "ضَهْبُ",
+                "ذِهْنُ",
+                "ظَهْرُ"
+              ],
+              "uz": [
+                "Zuh",
+                "Qih",
+                "Fahmu",
+                "Shahru",
+                "Sahru",
+                "Dahru",
+                "Duhnu",
+                "D̲ohbu",
+                "Z̲ihnu",
+                "Z:ohru"
+              ],
+              "audio": [
+                "s85",
+                "s86",
+                "s87",
+                "s88",
+                "s89",
+                "s90",
+                "s91",
+                "s92",
+                "s93",
+                "s94"
+              ]
+            },
+            {
+              "sozlar": [
+                "أَأْ",
+                "أَبْ",
+                "أَتْ",
+                "أَثْ",
+                "أَجْ",
+                "أَحْ",
+                "أَخْ"
+              ],
+              "uz": [
+                "A'",
+                "Ab",
+                "At",
+                "As̲",
+                "Aj",
+                "Ah̲",
+                "Ax"
+              ],
+              "audio": [
+                "s95",
+                "s96",
+                "s97",
+                "s98",
+                "s99",
+                "s100",
+                "s101"
+              ]
+            },
+            {
+              "sozlar": [
+                "أَدْ",
+                "أَذْ",
+                "أَرْ",
+                "أَزْ",
+                "أَسْ",
+                "أَشْ",
+                "أَصْ"
+              ],
+              "uz": [
+                "Ad",
+                "Az̲",
+                "Ar",
+                "Az",
+                "As",
+                "Ash",
+                "As\""
+              ],
+              "audio": [
+                "s102",
+                "s103",
+                "s104",
+                "s105",
+                "s106",
+                "s107",
+                "s108"
+              ]
+            },
+            {
+              "sozlar": [
+                "أَضْ",
+                "أَطْ",
+                "أَظْ",
+                "أَعْ",
+                "أَغْ",
+                "أَفْ",
+                "أَقْ"
+              ],
+              "uz": [
+                "Ad̲",
+                "At̲",
+                "Az:",
+                "A'",
+                "Ag'",
+                "Af",
+                "Aq"
+              ],
+              "audio": [
+                "s109",
+                "s110",
+                "s111",
+                "s112",
+                "s113",
+                "s114",
+                "s115"
+              ]
+            },
+            {
+              "sozlar": [
+                "أَكْ",
+                "أَلْ",
+                "أَمْ",
+                "أَنْ",
+                "أَوْ",
+                "أَهْ",
+                "أَيْ"
+              ],
+              "uz": [
+                "Ak",
+                "Al",
+                "Am",
+                "An",
+                "Av",
+                "Ah",
+                "Ay"
+              ],
+              "audio": [
+                "s116",
+                "s117",
+                "s118",
+                "s119",
+                "s120",
+                "s121",
+                "s122"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s77",
+              "variantlar": [
+                "إِظْ",
+                "إِذْ",
+                "إِزْ"
+              ],
+              "javob": 0
+            },
+            {
+              "audio": "s80",
+              "variantlar": [
+                "ظِ",
+                "ذِ",
+                "ضِ"
+              ],
+              "javob": 2
+            },
+            {
+              "audio": "s93",
+              "variantlar": [
+                "ظَهْرُ",
+                "ذِهْنُ",
+                "دُهْنُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s112",
+              "variantlar": [
+                "أَعْ",
+                "أَغْ",
+                "أَحْ"
+              ],
+              "javob": 0
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Ehtiyot bo'ling!",
+            "matn": "Maxrajni bilish usulida hamza qisqa va aniq bo'lsin, sukunli harf esa to'liq eshitilsin: أَقْ — qalqala bilan, أَسْ — hams bilan (nafas chiqib turadi)."
+          }
+        },
+        {
+          "id": "A5",
+          "tur": "grammatika",
+          "vaqt": 9,
+          "sarlavha_uz": "Sonlar: 0 dan 10 gacha",
+          "sarlavha_ar": "الأَعْدَادُ",
+          "kuzat": [
+            {
+              "ar": "١ ٢ ٣",
+              "uz": "Arabcha raqamlar: 1, 2, 3",
+              "rangli": "١"
+            },
+            {
+              "ar": "وَاحِدٌ",
+              "uz": "bir (1)",
+              "rangli": "وَاحِدٌ"
+            },
+            {
+              "ar": "عَشَرَةٌ",
+              "uz": "o'n (10)",
+              "rangli": "عَشَرَةٌ"
+            }
+          ],
+          "savol": "Jadvalga qarang: arabcha raqamlar bizning raqamlarga o'xshaydimi? Ular qaysi tomondan o'qiladi?",
+          "qoida": [
+            "Biz ishlatadigan raqamlar «arab raqamlari» deyiladi. Ular X asrda Yevropaga yetib kelgan, XIII–XIV asrlarda keng qo'llanila boshlagan (kitob, 37-bet).",
+            "XII asrda al-Xorazmiyning asari lotin tiliga o'girilib, Yevropada arifmetika rivojida katta rol o'ynagan.",
+            "Arab tilida so'zlar o'ngdan chapga yoziladi, lekin ko'p xonali sonlar chapdan o'ngga o'qiladi: ١٠ — 10."
+          ],
+          "jadval": {
+            "sarlavha": "Sonlar 0–10 (kitob, 37-bet)",
+            "ustunlar": [
+              "O'zb.",
+              "Raqam",
+              "So'z"
+            ],
+            "qatorlar": [
+              [
+                "0",
+                "٠",
+                "صِفْرٌ"
+              ],
+              [
+                "1",
+                "١",
+                "وَاحِدٌ"
+              ],
+              [
+                "2",
+                "٢",
+                "اِثْنَانِ"
+              ],
+              [
+                "3",
+                "٣",
+                "ثَلَاثَةٌ"
+              ],
+              [
+                "4",
+                "٤",
+                "أَرْبَعَةٌ"
+              ],
+              [
+                "5",
+                "٥",
+                "خَمْسَةٌ"
+              ],
+              [
+                "6",
+                "٦",
+                "سِتَّةٌ"
+              ],
+              [
+                "7",
+                "٧",
+                "سَبْعَةٌ"
+              ],
+              [
+                "8",
+                "٨",
+                "ثَمَانِيَةٌ"
+              ],
+              [
+                "9",
+                "٩",
+                "تِسْعَةٌ"
+              ],
+              [
+                "10",
+                "١٠",
+                "عَشَرَةٌ"
+              ]
+            ],
+            "audio": [
+              "nm00",
+              "nm01",
+              "nm02",
+              "nm03",
+              "nm04",
+              "nm05",
+              "nm06",
+              "nm07",
+              "nm08",
+              "nm09",
+              "nm10"
+            ],
+            "tts": [
+              "صِفْرٌ",
+              "وَاحِدٌ",
+              "اِثْنَانِ",
+              "ثَلَاثَةٌ",
+              "أَرْبَعَةٌ",
+              "خَمْسَةٌ",
+              "سِتَّةٌ",
+              "سَبْعَةٌ",
+              "ثَمَانِيَةٌ",
+              "تِسْعَةٌ",
+              "عَشَرَةٌ"
+            ]
+          },
+          "mashqlar": [
+            {
+              "id": "A5m1",
+              "tur": "ula",
+              "korsatma": "Raqamni so'z bilan ulang.",
+              "juftlar": [
+                [
+                  "٣",
+                  "ثَلَاثَةٌ"
+                ],
+                [
+                  "٧",
+                  "سَبْعَةٌ"
+                ],
+                [
+                  "٥",
+                  "خَمْسَةٌ"
+                ],
+                [
+                  "٩",
+                  "تِسْعَةٌ"
+                ],
+                [
+                  "٢",
+                  "اِثْنَانِ"
+                ]
+              ]
+            }
+          ],
+          "ustozga": "Sonlarni xor bo'lib sanang (٠ dan ١٠ gacha), keyin teskari. O'quvchi barmog'i bilan ko'rsatgan sonni guruh arabcha aytadi. Kitobdagi 2 ta bo'sh ustunga o'quvchilar raqam va so'zni o'zlari yozadi."
+        },
+        {
+          "id": "A6",
+          "tur": "dialog",
+          "vaqt": 10,
+          "sarlavha_uz": "Suhbat: arab tilida tanishuv",
+          "sarlavha_ar": "التَّعَارُفُ",
+          "vaziyat": "Fotima va Umar birinchi marta uchrashib, tanishadi (kitob, 37–38-betlar).",
+          "bosqichlar": [
+            {
+              "n": 1,
+              "uz": "Matnni ko'rmasdan tinglang. Savol: Umar qayerdan?"
+            },
+            {
+              "n": 2,
+              "uz": "Yana tinglang va to'g'ri / noto'g'ri ekanini belgilang."
+            },
+            {
+              "n": 3,
+              "uz": "Matnni o'qing, keyin sherigingiz bilan rollarni almashib ijro eting — o'z ismingizni ayting."
+            }
+          ],
+          "satrlar": [
+            {
+              "kim": "fotima",
+              "ar": "مَرْحَبًا!",
+              "uz": "Salom!",
+              "audio": "d1_01"
+            },
+            {
+              "kim": "umar",
+              "ar": "أَهْلًا!",
+              "uz": "Salom!",
+              "audio": "d1_02"
+            },
+            {
+              "kim": "fotima",
+              "ar": "مَا اسْمُكَ؟",
+              "uz": "Ismingiz nima?",
+              "audio": "d1_03"
+            },
+            {
+              "kim": "umar",
+              "ar": "اِسْمِي عُمَرُ، وَمَا اسْمُكِ أَنْتِ؟",
+              "uz": "Ismim Umar. Sizning ismingiz-chi?",
+              "audio": "d1_04"
+            },
+            {
+              "kim": "fotima",
+              "ar": "اِسْمِي فَاطِمَةُ.",
+              "uz": "Ismim Fotima.",
+              "audio": "d1_05"
+            },
+            {
+              "kim": "umar",
+              "ar": "مِنْ أَيْنَ أَنْتِ؟",
+              "uz": "Qayerdansiz?",
+              "audio": "d1_06"
+            },
+            {
+              "kim": "fotima",
+              "ar": "أَنَا مِنْ أُوزْبَكِسْتَانَ، وَمِنْ أَيْنَ أَنْتَ؟",
+              "uz": "Men O'zbekistondanman. Siz-chi?",
+              "audio": "d1_07"
+            },
+            {
+              "kim": "umar",
+              "ar": "أَنَا أَيْضًا مِنْ أُوزْبَكِسْتَانَ.",
+              "uz": "Men ham O'zbekistondanman.",
+              "audio": "d1_08"
+            },
+            {
+              "kim": "fotima",
+              "ar": "أَهْلًا وَسَهْلًا.",
+              "uz": "Xush kelibsiz.",
+              "audio": "d1_09"
+            },
+            {
+              "kim": "umar",
+              "ar": "أَهْلًا بِكِ.",
+              "uz": "Sizga ham xush kelibsiz.",
+              "audio": "d1_10"
+            },
+            {
+              "kim": "fotima",
+              "ar": "مَعَ السَّلَامَةِ.",
+              "uz": "Xayr (salomat bo'ling).",
+              "audio": "d1_11"
+            },
+            {
+              "kim": "umar",
+              "ar": "إِلَى اللِّقَاءِ.",
+              "uz": "Ko'rishguncha.",
+              "audio": "d1_12"
+            }
+          ],
+          "audio_toliq": "d1",
+          "mashqlar": [
+            {
+              "id": "A6m1",
+              "tur": "tanla",
+              "bosqich": 1,
+              "korsatma": "اِسْتَمِعْ وَاخْتَرْ — tinglang va tanlang.",
+              "savollar": [
+                {
+                  "uz": "Umar qayerdan?",
+                  "variantlar": [
+                    "مِنْ مِصْرَ",
+                    "مِنْ تُونِسَ",
+                    "مِنْ أُوزْبَكِسْتَانَ"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "Suhbat qanday tugaydi?",
+                  "variantlar": [
+                    "أَهْلًا وَسَهْلًا",
+                    "إِلَى اللِّقَاءِ",
+                    "مَا اسْمُكَ؟"
+                  ],
+                  "javob": 1
+                }
+              ]
+            },
+            {
+              "id": "A6m2",
+              "tur": "tf",
+              "bosqich": 2,
+              "korsatma": "اِسْتَمِعْ مَرَّةً أُخْرَى — yana tinglang: to'g'ri (✓) yoki noto'g'ri (✗)?",
+              "gaplar": [
+                {
+                  "ar": "اِسْمُهَا فَاطِمَةُ.",
+                  "javob": true
+                },
+                {
+                  "ar": "عُمَرُ مِنْ مِصْرَ.",
+                  "javob": false,
+                  "tuzatish": "عُمَرُ مِنْ أُوزْبَكِسْتَانَ."
+                },
+                {
+                  "ar": "فَاطِمَةُ مِنْ أُوزْبَكِسْتَانَ.",
+                  "javob": true
+                }
+              ]
+            }
+          ],
+          "ustozga": "Kitobdagi diniy salomlashish o'rniga dunyoviy salomlashish (مَرْحَبًا / أَهْلًا) berildi. «أَهْلًا بِكِ» — ayolga (kitobda «بِك»). O'quvchilar juftlikda o'z ismlari bilan suhbatni takrorlaydi."
+        },
+        {
+          "id": "A7",
+          "tur": "grammatika",
+          "vaqt": 11,
+          "sarlavha_uz": "Ligatura: birikkan harflar",
+          "sarlavha_ar": "الحُرُوفُ المُتَّصِلَةُ",
+          "kuzat": [
+            {
+              "ar": "لَا",
+              "uz": "Laam + alif — maxsus birikma (ligatura)",
+              "rangli": "لَا"
+            },
+            {
+              "ar": "الْمَشْرِقُ",
+              "uz": "لـ + مـ birikmasi: al-mashriqu (sharq)",
+              "rangli": "الْمَ"
+            },
+            {
+              "ar": "عَلَى",
+              "uz": "لـ + ى birikmasi: 'alaa (ustida)",
+              "rangli": "لَى"
+            },
+            {
+              "ar": "كِتَابِي",
+              "uz": "بـ + ي birikmasi: kitaabii (kitobim)",
+              "rangli": "بِي"
+            }
+          ],
+          "savol": "Rangli joylarga qarang: ikki harf alohida yozilganmi yoki bir-biriga «yopishib» ketganmi?",
+          "qoida": [
+            "Arab tilida ba'zi harflar yozilishiga ko'ra bir-biriga birikib ketishi mumkin. Harflarning maxsus birikkan shakliga ligatura deyiladi (kitob, 38-bet).",
+            "Ligaturalar 10 xildan oshiq ko'rinishda keladi. Eng muhimi — لا (laam + alif): u doim maxsus shaklda yoziladi.",
+            "Ligatura o'qilishni o'zgartirmaydi: har bir harf o'z harakati bilan o'qiladi."
+          ],
+          "jadval": {
+            "sarlavha": "Ligatura turlari (kitob, 38-bet)",
+            "ustunlar": [
+              "№",
+              "Birikma",
+              "Shakllar",
+              "Misollar"
+            ],
+            "qatorlar": [
+              [
+                "1",
+                "Laam (ل) va alif (ا)",
+                "لا لأ لإ لآ ـلا",
+                "إِلَّا، الْآنَ، سَلَامٌ، كَلَامٌ"
+              ],
+              [
+                "2",
+                "بـ shaklidagi harf + ـهـ",
+                "تهـ ثهـ يهـ نهـ بهـ",
+                "أَنَّهُمْ، عَيْنَيْهِمْ"
+              ],
+              [
+                "3",
+                "بـ shaklidagi harf + حـ shaklidagi harf",
+                "تجـ ثحـ يخـ نجـ بخـ",
+                "تَجْرِي، نَجَحَ"
+              ],
+              [
+                "4",
+                "بـ shaklidagi harf + مـ",
+                "تمـ ثمـ يمـ نمـ بمـ",
+                "عَلِمْتُمْ، يَمْشِي"
+              ],
+              [
+                "5",
+                "لـ + حـ shaklidagi harf",
+                "لجـ لحـ لخـ",
+                "الْجَامِعَةُ، الْخُبْزُ"
+              ],
+              [
+                "6",
+                "لـ + مـ",
+                "لمـ",
+                "الْمَشْرِقُ، الْمَغْرِبُ"
+              ],
+              [
+                "7",
+                "لـ + هـ",
+                "لهـ",
+                "لَهَا"
+              ],
+              [
+                "8",
+                "مـ + ـا",
+                "ـما",
+                "الْأَسْمَاءُ، بِأَسْمَاءِ"
+              ],
+              [
+                "9",
+                "مـ + حـ shaklidagi harf",
+                "مجـ محـ مخـ",
+                "مَخْرَجٌ، مَجْلِسٌ"
+              ],
+              [
+                "10",
+                "لـ + ي / ى",
+                "لي لى",
+                "مَالِي، بَلَى، عَلَى"
+              ],
+              [
+                "11",
+                "بـ shaklidagi harf + ي",
+                "بي تى",
+                "الَّتِي، كِتَابِي"
+              ]
+            ],
+            "audio": [
+              "lg01",
+              "lg02",
+              "lg03",
+              "lg04",
+              "lg05",
+              "lg06",
+              "lg07",
+              "lg08",
+              "lg09",
+              "lg10",
+              "lg11"
+            ],
+            "tts": [
+              "إِلَّا، الْآنَ، سَلَامٌ، كَلَامٌ",
+              "أَنَّهُمْ، عَيْنَيْهِمْ",
+              "تَجْرِي، نَجَحَ",
+              "عَلِمْتُمْ، يَمْشِي",
+              "الْجَامِعَةُ، الْخُبْزُ",
+              "الْمَشْرِقُ، الْمَغْرِبُ",
+              "لَهَا",
+              "الْأَسْمَاءُ، بِأَسْمَاءِ",
+              "مَخْرَجٌ، مَجْلِسٌ",
+              "مَالِي، بَلَى، عَلَى",
+              "الَّتِي، كِتَابِي"
+            ]
+          },
+          "mashqlar": [
+            {
+              "id": "A7m1",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "Ligatura nima?",
+                  "variantlar": [
+                    "harflarning maxsus birikkan shakli",
+                    "harfning maxraji",
+                    "harakatning bir turi"
+                  ],
+                  "javob": 0
+                },
+                {
+                  "uz": "Laam va alif birikmasi:",
+                  "variantlar": [
+                    "ال",
+                    "لى",
+                    "لا"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "Ligatura o'qilishni o'zgartiradimi?",
+                  "variantlar": [
+                    "ha, o'zgartiradi",
+                    "yo'q, o'zgartirmaydi"
+                  ],
+                  "javob": 1
+                }
+              ]
+            }
+          ],
+          "ustozga": "Jadvaldagi har bir turni doskada qo'lda yozib ko'rsating. Kitobdagi diniy misollar dunyoviy so'zlarga almashtirilgan — birikma turi o'zgarmagan."
+        },
+        {
+          "id": "A8",
+          "tur": "yozish",
+          "vaqt": 5,
+          "sarlavha_uz": "Yozish: sonlar va ligaturalar",
+          "sarlavha_ar": "الكِتَابَةُ",
+          "pogonalar": [
+            {
+              "n": 1,
+              "uz": "Z:oo ni 2 qatordan yozing. Keyin 0 dan 10 gacha sonlarni raqam va so'z bilan yozing (kitobdagi 2 ta bo'sh ustun).",
+              "namuna": "٠ صِفْرٌ · ١ وَاحِدٌ · ٢ اِثْنَانِ · ٣ ثَلَاثَةٌ",
+              "maqsad_gap": 3
+            },
+            {
+              "n": 2,
+              "uz": "Ligatura jadvalidan 5 ta misol so'zni ko'chiring.",
+              "namuna": "إِلَّا · الْمَشْرِقُ · لَهَا · عَلَى · كِتَابِي",
+              "maqsad_gap": 1
+            }
+          ],
+          "ustozga": "Sonlarni yozishda o'quvchi raqamni (١) va so'zni (وَاحِدٌ) alohida yozadi. Ligaturalarni ustozning doskadagi namunasi bo'yicha yozdiring."
+        },
+        {
+          "id": "A9",
+          "tur": "yakun",
+          "vaqt": 3,
+          "sarlavha_uz": "Men qila olaman",
+          "sarlavha_ar": "أَسْتَطِيعُ",
+          "cando": true
+        }
+      ]
+    }
+  },
+  "mashq_daftari": [
+    {
+      "id": "W1",
+      "sessiya": 1,
+      "tur": "ovoz",
+      "uz": "Alifboni bir nafasda, sifatlarini buzmagan holda yodlab ayting (kitob, 36-bet: uyga vazifa 1). Yozib yuboring."
+    },
+    {
+      "id": "W2",
+      "sessiya": 1,
+      "tur": "ovoz",
+      "uz": "Alifboni sukunli qilib ayting: أَأْ أَبْ أَتْ … أَيْ (maxrajni bilish qatorlari). Yozib yuboring."
+    },
+    {
+      "id": "W3",
+      "sessiya": 2,
+      "tur": "diktant",
+      "uz": "Diktant: so'zni tinglang va harakati bilan yozing.",
+      "sozlar": [
+        "نَظَرَ",
+        "ظُلْمُ",
+        "حَضَرْ",
+        "ذَهَبْ",
+        "خَمْسَةٌ"
+      ],
+      "audio": [
+        "w3_1",
+        "w3_2",
+        "w3_3",
+        "w3_4",
+        "w3_5"
+      ]
+    },
+    {
+      "id": "W4",
+      "sessiya": 2,
+      "tur": "ula",
+      "uz": "Raqamni so'z bilan ulang.",
+      "juftlar": [
+        [
+          "٤",
+          "أَرْبَعَةٌ"
+        ],
+        [
+          "٦",
+          "سِتَّةٌ"
+        ],
+        [
+          "٨",
+          "ثَمَانِيَةٌ"
+        ],
+        [
+          "١٠",
+          "عَشَرَةٌ"
+        ],
+        [
+          "١",
+          "وَاحِدٌ"
+        ]
+      ]
+    },
+    {
+      "id": "W5",
+      "sessiya": 3,
+      "tur": "ovoz",
+      "uz": "Imtihon harflari (kitob, 36-bet): خ ص ض غ ط ق ظ ر ج ح ع ه — har birini uch harakat va sukun bilan o'qing (masalan: خَ خِ خُ أَخْ). ح mashqini 50 marta o'qing (uyga vazifa 3). Yozib yuboring."
+    },
+    {
+      "id": "W6",
+      "sessiya": 3,
+      "tur": "ochiq",
+      "uz": "Yordamchi ustoz bilan tanishuv suhbatini o'z ismingiz bilan ijro eting. Z:oo ni 2 qatordan va sonlarni 0–10 yozib, suratini yuboring. Bu — yakuniy imtihonga tayyorgarlik."
+    }
+  ],
+  "test": {
+    "nom": "28-dars mini-testi (10 daqiqa)",
+    "savollar": [
+      {
+        "kon": "tinglash",
+        "audio": "x01",
+        "matn": "ظَهَرَ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "زَهَرَ",
+          "ظَهَرَ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x02",
+        "matn": "سَبْعَةٌ",
+        "uz": "Qaysi sonni eshitdingiz?",
+        "variantlar": [
+          "٦",
+          "٩",
+          "٧"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x03",
+        "matn": "أَظْ",
+        "uz": "Qaysi bo'g'inni eshitdingiz?",
+        "variantlar": [
+          "أَزْ",
+          "أَظْ",
+          "أَذْ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "ظ ning sifati:",
+        "variantlar": [
+          "doim yo'g'on o'qiladi (iste'lo)",
+          "doim ingichka",
+          "qalqala"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Ligatura nima?",
+        "variantlar": [
+          "harf nomi",
+          "uzun unli",
+          "harflarning maxsus birikkan shakli"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "lugat",
+        "uz": "«Uch» arabchada:",
+        "variantlar": [
+          "ثَمَانِيَةٌ",
+          "ثَلَاثَةٌ",
+          "سِتَّةٌ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "lugat",
+        "uz": "«Ismingiz nima?»",
+        "variantlar": [
+          "مَا اسْمُكَ؟",
+          "مِنْ أَيْنَ أَنْتَ؟",
+          "إِلَى اللِّقَاءِ"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "gapirish",
+        "uz": "Ovozli: ز / ذ / ظ / ض zinasini va 0–10 sonlarni o'qing.",
+        "ochiq": true
+      }
+    ]
+  }
+}

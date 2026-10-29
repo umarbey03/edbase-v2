@@ -1,0 +1,970 @@
+{
+  "meta": {
+    "birlik_nomi": "dars",
+    "kurs_nomi": "Arab tili fonetikasi",
+    "daraja": "ATF-2",
+    "birlik": 5,
+    "hafta": 3,
+    "nom_uz": "Urg'u va mad",
+    "nom_ar": "النَّبْرُ وَالمَدُّ",
+    "shior": "O'zbek tilida urg'u, arab tilida mad: 3 ta mad harfi va ularning 2 sharti.",
+    "kirish": "Bu — ATF 2-bosqichining 5-darsi. Kitobning 13–15-betlari: urg'u va uning turlari (kirish), mad harflari, mad jadvallari va harf sifatlari jadvali.",
+    "can_do": [
+      "So'z urg'usi va gap urg'usini farqlay olaman.",
+      "3 ta mad harfini (ا و ي) va mad bo'lishining 2 shartini ayta olaman.",
+      "28 harfni mad bilan (ـَا ـِي ـُو) ravon o'qiyman.",
+      "Qisqa va cho'ziq unlini eshitib farqlayman."
+    ],
+    "grammatika": [
+      "Urg'u: so'z urg'usi va gap urg'usi; o'zbek tilida ko'chib yuruvchi urg'u",
+      "Mad — cho'zib o'qish; mad harflari: ا و ي",
+      "Mad sharti: 1) harakat va belgidan xoli; 2) oldingi harf mos harakatli (ـَا ـُو ـِي)",
+      "Harf sifatlari jadvali (uy vazifasi)"
+    ],
+    "vazifa": "«Qisqami, cho'ziqmi?» — juftlikda so'z aytib, mad harfini topish.",
+    "tovush": "بَ — بَا"
+  },
+  "personajlar": [
+    {
+      "id": "aziz",
+      "ar": "عَزِيزٌ",
+      "uz": "Aziz",
+      "izoh": "Harf, bo'g'in va so'zlarni o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#00784f"
+    },
+    {
+      "id": "malika",
+      "ar": "مَلِيكَةُ",
+      "uz": "Malika",
+      "izoh": "O'qish qatorlarini o'qiydi",
+      "ovoz": "ar-SA-ZariyahNeural",
+      "rang": "#00a36c"
+    },
+    {
+      "id": "rovi",
+      "ar": "الرَّاوِي",
+      "uz": "Hikoyachi",
+      "izoh": "Test savollarini o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#033a26"
+    }
+  ],
+  "lugat": [
+    {
+      "id": "l01",
+      "dars": "A",
+      "ar": "فَحَثَّهُ شَخْصٌ سَكَتَ",
+      "uz": "10 ta hams harfi (yodlash jumlasi)",
+      "tur": "ibora",
+      "audio": "l01"
+    },
+    {
+      "id": "l02",
+      "dars": "A",
+      "ar": "خَوْفٌ",
+      "uz": "qo'rquv",
+      "tur": "so'z",
+      "audio": "l02"
+    },
+    {
+      "id": "l03",
+      "dars": "A",
+      "ar": "صَيْفٌ",
+      "uz": "yoz",
+      "tur": "so'z",
+      "audio": "l03"
+    },
+    {
+      "id": "l04",
+      "dars": "A",
+      "ar": "حِلْمٌ",
+      "uz": "yumshoqlik, sabr",
+      "tur": "so'z",
+      "audio": "l04"
+    },
+    {
+      "id": "l05",
+      "dars": "A",
+      "ar": "تُوصِيهَا",
+      "uz": "unga maslahat berasan (3 ta mad harfi bir so'zda)",
+      "tur": "so'z",
+      "audio": "l05"
+    },
+    {
+      "id": "l06",
+      "dars": "A",
+      "ar": "بَاكِرًا",
+      "uz": "erta",
+      "tur": "so'z",
+      "audio": "l06"
+    },
+    {
+      "id": "l07",
+      "dars": "A",
+      "ar": "جَامِعَةٌ",
+      "uz": "universitet",
+      "tur": "so'z",
+      "audio": "l07"
+    },
+    {
+      "id": "l08",
+      "dars": "A",
+      "ar": "دُرُوسٌ",
+      "uz": "darslar",
+      "tur": "so'z",
+      "audio": "l08"
+    },
+    {
+      "id": "l09",
+      "dars": "A",
+      "ar": "شَارِعٌ",
+      "uz": "ko'cha",
+      "tur": "so'z",
+      "audio": "l09"
+    },
+    {
+      "id": "l10",
+      "dars": "A",
+      "ar": "صَابُونٌ",
+      "uz": "sovun",
+      "tur": "so'z",
+      "audio": "l10"
+    },
+    {
+      "id": "l11",
+      "dars": "A",
+      "ar": "طَالِبِينَ",
+      "uz": "talabalar",
+      "tur": "so'z",
+      "audio": "l11"
+    },
+    {
+      "id": "l12",
+      "dars": "A",
+      "ar": "لَاعِبُونَ",
+      "uz": "o'yinchilar",
+      "tur": "so'z",
+      "audio": "l12"
+    },
+    {
+      "id": "l13",
+      "dars": "A",
+      "ar": "نَائِمُونَ",
+      "uz": "uxlayotganlar",
+      "tur": "so'z",
+      "audio": "l13"
+    },
+    {
+      "id": "l14",
+      "dars": "A",
+      "ar": "أَنْهَارٌ",
+      "uz": "daryolar",
+      "tur": "so'z",
+      "audio": "l14"
+    },
+    {
+      "id": "l15",
+      "dars": "A",
+      "ar": "جَمَالٌ",
+      "uz": "go'zallik",
+      "tur": "so'z",
+      "audio": "l15"
+    }
+  ],
+  "darslar": {
+    "A": {
+      "nom_uz": "Urg'u va mad",
+      "nom_ar": "المَدُّ",
+      "qisqa": "Dars",
+      "bloklar": [
+        {
+          "id": "A0",
+          "tur": "isinish",
+          "vaqt": 5,
+          "sarlavha_uz": "Darsni boshlaymiz: hams va lin",
+          "sarlavha_ar": "مُرَاجَعَةٌ",
+          "korsatma": "O'tgan darsdagi jumla va so'zlarni o'qing, keyin tinglab tekshiring. Qaysi so'zda lin harfi bor?",
+          "lugat_ids": [
+            "l01",
+            "l02",
+            "l03",
+            "l04"
+          ],
+          "ustozga": "فَحَثَّهُ شَخْصٌ سَكَتَ ni 2–3 o'quvchi yoddan aytadi. «Lin harfi mad emas» degan farqni eslating — bugun madni o'tamiz."
+        },
+        {
+          "id": "A1",
+          "tur": "grammatika",
+          "vaqt": 14,
+          "sarlavha_uz": "Urg'u va mad",
+          "sarlavha_ar": "المَدُّ وَشُرُوطُهُ",
+          "kuzat": [
+            {
+              "ar": "بَا",
+              "uz": "baa — fatha + ا",
+              "rangli": "ا"
+            },
+            {
+              "ar": "بُو",
+              "uz": "buu — domma + و",
+              "rangli": "و"
+            },
+            {
+              "ar": "بِي",
+              "uz": "bii — kasra + ي",
+              "rangli": "ي"
+            },
+            {
+              "ar": "تُوصِيهَا",
+              "uz": "tuusiihaa — bitta so'zda 3 ta mad harfi",
+              "rangli": "و / ي / ا"
+            }
+          ],
+          "savol": "Mad harflarining o'zida harakat bormi? Ulardan oldingi harfda qanday harakat turibdi?",
+          "qoida": [
+            "So'z bo'g'inlaridan birining, gapda esa so'zlardan birining boshqalariga nisbatan kuchliroq aytilishi urg'u deyiladi. Urg'u ikkiga bo'linadi: so'z urg'usi va gap urg'usi (ma'no urg'usi).",
+            "So'z urg'usi: ákademik Rustamov — akadémik litsey. O'zbek tilida urg'u ko'chib yuradi: o'rík — o'rikzór — o'rikzorlár — o'rikzorlargá.",
+            "Arab tilida esa bu holatga mad deyiladi. Mad — cho'zib o'qish. Mad harflari 3 ta: ا و ى",
+            "Mad bo'lishining 2 sharti: 1) harfning o'zi harakat va belgidan xoli bo'ladi; 2) undan oldingi harfning harakati unga mos bo'ladi: ا dan oldin fatha, و dan oldin domma, ي dan oldin kasra."
+          ],
+          "kontrast": {
+            "uz": "o'rík — o'rikzór: urg'u qo'shimcha bilan ko'chadi",
+            "ar": "كِتَابٌ",
+            "izoh": "Arab tilida so'zdagi mad o'z joyida qoladi: كِتَابٌ — ki-taa-bun, ٱلْكِتَابُ — al-ki-taa-bu. Cho'ziq bo'g'in qo'shimcha qo'shilsa ham cho'ziq bo'lib qoladi."
+          },
+          "mashqlar": [
+            {
+              "id": "A1m1",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "Mad harflari nechta?",
+                  "variantlar": [
+                    "3",
+                    "5",
+                    "2"
+                  ],
+                  "javob": 0
+                },
+                {
+                  "uz": "و mad bo'lishi uchun oldingi harf qanday harakatli bo'ladi?",
+                  "variantlar": [
+                    "fathali",
+                    "kasrali",
+                    "dommali"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "Qaysi so'zda mad bor?",
+                  "variantlar": [
+                    "كَتَبَ",
+                    "كَاتِبٌ",
+                    "قَلَمٌ"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "«o'rikzorlargá» — urg'u qaysi bo'g'inda?",
+                  "variantlar": [
+                    "oxirgi bo'g'inda",
+                    "birinchi bo'g'inda"
+                  ],
+                  "javob": 0
+                }
+              ]
+            }
+          ],
+          "ustozga": "تُوصِيهَا ni doskada yozib, uchala mad harfini uch xil rang bilan belgilang. Kitobdagi misol so'z o'rniga xuddi shu qoidani ko'rsatadigan oddiy so'z berildi (pastdagi «Kitobdan farqi»)."
+        },
+        {
+          "id": "A2",
+          "tur": "oqish",
+          "vaqt": 12,
+          "sarlavha_uz": "1-jadval: 28 harf mad bilan",
+          "sarlavha_ar": "جَدْوَلُ المَدِّ",
+          "oldin": "Har bir harf uch xil mad bilan: ـَا «aa», ـِي «ii», ـُو «uu». Avval tinglang, keyin qatorma-qator o'qing. Har bir cho'ziq unli qisqa unlidan ikki baravar uzun.",
+          "matn": [
+            "ءَا ءِي ءُو  بَا بِي بُو  تَا تِي تُو  ثَا ثِي ثُو  جَا جِي جُو  حَا حِي حُو",
+            "خَا خِي خُو  دَا دِي دُو  ذَا ذِي ذُو  رَا رِي رُو  زَا زِي زُو  سَا سِي سُو",
+            "شَا شِي شُو  صَا صِي صُو  ضَا ضِي ضُو  طَا طِي طُو  ظَا ظِي ظُو  عَا عِي عُو",
+            "غَا غِي غُو  فَا فِي فُو  قَا قِي قُو  كَا كِي كُو  لَا لِي لُو  مَا مِي مُو",
+            "نَا نِي نُو  هَا هِي هُو  وَا وِي وُو  يَا يِي يُو"
+          ],
+          "tts": "ءَا… ءِي… ءُو… بَا… بِي… بُو… تَا… تِي… تُو… ثَا… ثِي… ثُو… جَا… جِي… جُو… حَا… حِي… حُو… خَا… خِي… خُو… دَا… دِي… دُو… ذَا… ذِي… ذُو… رَا… رِي… رُو… زَا… زِي… زُو… سَا… سِي… سُو… شَا… شِي… شُو… صَا… صِي… صُو… ضَا… ضِي… ضُو… طَا… طِي… طُو… ظَا… ظِي… ظُو… عَا… عِي… عُو… غَا… غِي… غُو… فَا… فِي… فُو… قَا… قِي… قُو… كَا… كِي… كُو… لَا… لِي… لُو… مَا… مِي… مُو… نَا… نِي… نُو… هَا… هِي… هُو… وَا… وِي… وُو… يَا… يِي… يُو",
+          "yangi": [
+            {
+              "ar": "ـَا",
+              "uz": "fatha + alif = aa"
+            },
+            {
+              "ar": "ـِي",
+              "uz": "kasra + yo = ii"
+            },
+            {
+              "ar": "ـُو",
+              "uz": "domma + vov = uu"
+            }
+          ],
+          "audio": "q1",
+          "mashqlar": [
+            {
+              "id": "A2m1",
+              "tur": "ovlash",
+              "korsatma": "Yo'g'on harf bilan kelgan «aa» bo'g'inlarini toping va bosing.",
+              "javoblar": [
+                "خَا",
+                "صَا",
+                "ضَا",
+                "طَا",
+                "ظَا",
+                "غَا",
+                "قَا"
+              ]
+            }
+          ],
+          "ustozga": "Audio — sun'iy ovozdagi oddiy o'qish namunasi. Qoidaning o'zini ustoz jonli o'qib ko'rsatadi. Jadvalni bir nafasda emas, qatorma-qator o'qiting: avval xor, keyin bittadan. Yo'g'on harflarda «aa» «oo» ga yaqin eshitilishini eslating."
+        },
+        {
+          "id": "A3",
+          "tur": "tovush",
+          "vaqt": 12,
+          "sarlavha_uz": "Qisqa va cho'ziq",
+          "sarlavha_ar": "القَصِيرُ وَالطَّوِيلُ",
+          "izoh": "Har juftlikda o'ngdagisi qisqa, chapdagisi cho'ziq (mad). Ma'no ham o'zgaradi: جَمَلٌ — tuya, جَمَالٌ — go'zallik. Tinglang va farqini ayting.",
+          "juftlar": [
+            {
+              "sozlar": [
+                "بَ",
+                "بَا"
+              ],
+              "uz": [
+                "ba",
+                "baa"
+              ],
+              "audio": [
+                "s01",
+                "s02"
+              ]
+            },
+            {
+              "sozlar": [
+                "دِ",
+                "دِي"
+              ],
+              "uz": [
+                "di",
+                "dii"
+              ],
+              "audio": [
+                "s03",
+                "s04"
+              ]
+            },
+            {
+              "sozlar": [
+                "قُ",
+                "قُو"
+              ],
+              "uz": [
+                "qu",
+                "quu"
+              ],
+              "audio": [
+                "s05",
+                "s06"
+              ]
+            },
+            {
+              "sozlar": [
+                "جَمَلٌ",
+                "جَمَالٌ"
+              ],
+              "uz": [
+                "tuya",
+                "go'zallik"
+              ],
+              "audio": [
+                "s07",
+                "s08"
+              ]
+            },
+            {
+              "sozlar": [
+                "كَتَبَ",
+                "كَاتَبَ"
+              ],
+              "uz": [
+                "yozdi",
+                "yozishdi"
+              ],
+              "audio": [
+                "s09",
+                "s10"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s02",
+              "variantlar": [
+                "بَ",
+                "بَا"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s03",
+              "variantlar": [
+                "دِ",
+                "دِي"
+              ],
+              "javob": 0
+            },
+            {
+              "audio": "s06",
+              "variantlar": [
+                "قُ",
+                "قُو"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s07",
+              "variantlar": [
+                "جَمَلٌ",
+                "جَمَالٌ"
+              ],
+              "javob": 0
+            },
+            {
+              "audio": "s10",
+              "variantlar": [
+                "كَتَبَ",
+                "كَاتَبَ"
+              ],
+              "javob": 1
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Ehtiyot bo'ling!",
+            "matn": "O'zbek tilida unli uzunligi ma'noni o'zgartirmaydi, arab tilida esa o'zgartiradi: جَمَلٌ (tuya) — جَمَالٌ (go'zallik). Madni qisqartirmang, qisqa unlini cho'zmang."
+          },
+          "ustozga": "Audio — sun'iy ovozdagi oddiy o'qish namunasi. Qoidaning o'zini ustoz jonli o'qib ko'rsatadi. Qo'l bilan ko'rsating: qisqa — bitta barmoq, mad — ikki barmoq (2 harakat)."
+        },
+        {
+          "id": "A4",
+          "tur": "oqish",
+          "vaqt": 14,
+          "sarlavha_uz": "2-jadval: mad harfli so'zlar",
+          "sarlavha_ar": "كَلِمَاتٌ فِيهَا مَدٌّ",
+          "oldin": "Har bir harfga bittadan so'z: so'zda mad harfi bor. Mad harfini toping va cho'zib o'qing.",
+          "matn": [
+            "ءَالْآنَ بَاكِرًا تَكْتُبُوا ثَابِتٌ جَامِعَةٌ حَارِسٌ تَخْفِيضٌ",
+            "دُرُوسٌ ذَاهِبُونَ رَائِعُونَ زَادَ يَزِيدُ سَارَ يَسِيرُ شَارِعٌ",
+            "صَابُونٌ ضَاحِكِينَ طَالِبِينَ نَظَّارَتَانِ إِنْعِكَاسٍ مَغْلُوبِينَ فَاهِمُونَ",
+            "قَادِمُونَ يَبْكِي لَاعِبُونَ إِمَارَةٌ نَائِمُونَ أَنْهَارٌ بَوَّابٌ بَيَانٌ"
+          ],
+          "tts": "ءَالْآنَ، بَاكِرًا، تَكْتُبُوا، ثَابِتٌ، جَامِعَةٌ، حَارِسٌ، تَخْفِيضٌ، دُرُوسٌ، ذَاهِبُونَ، رَائِعُونَ، زَادَ، يَزِيدُ، سَارَ، يَسِيرُ، شَارِعٌ، صَابُونٌ، ضَاحِكِينَ، طَالِبِينَ، نَظَّارَتَانِ، إِنْعِكَاسٍ، مَغْلُوبِينَ، فَاهِمُونَ، قَادِمُونَ، يَبْكِي، لَاعِبُونَ، إِمَارَةٌ، نَائِمُونَ، أَنْهَارٌ، بَوَّابٌ، بَيَانٌ",
+          "yangi": [
+            {
+              "ar": "جَامِعَةٌ",
+              "uz": "universitet"
+            },
+            {
+              "ar": "تَخْفِيضٌ",
+              "uz": "chegirma"
+            },
+            {
+              "ar": "صَابُونٌ",
+              "uz": "sovun"
+            },
+            {
+              "ar": "نَظَّارَتَانِ",
+              "uz": "ikki ko'zoynak"
+            },
+            {
+              "ar": "بَوَّابٌ",
+              "uz": "darvozabon"
+            }
+          ],
+          "audio": "q2",
+          "mashqlar": [
+            {
+              "id": "A4m1",
+              "tur": "ovlash",
+              "korsatma": "Mad و (ـُو) bor so'zlarni toping va bosing.",
+              "javoblar": [
+                "تَكْتُبُوا",
+                "دُرُوسٌ",
+                "ذَاهِبُونَ",
+                "رَائِعُونَ",
+                "صَابُونٌ",
+                "فَاهِمُونَ",
+                "قَادِمُونَ",
+                "لَاعِبُونَ",
+                "نَائِمُونَ"
+              ]
+            },
+            {
+              "id": "A4m2",
+              "tur": "ovlash",
+              "korsatma": "Mad ي (ـِي) bor so'zlarni toping va bosing.",
+              "javoblar": [
+                "تَخْفِيضٌ",
+                "يَزِيدُ",
+                "يَسِيرُ",
+                "ضَاحِكِينَ",
+                "طَالِبِينَ",
+                "مَغْلُوبِينَ",
+                "يَبْكِي"
+              ]
+            }
+          ],
+          "ustozga": "Audio — sun'iy ovozdagi oddiy o'qish namunasi. Qoidaning o'zini ustoz jonli o'qib ko'rsatadi. Kitobdagi 2-jadvaldagi bir nechta so'z almashtirildi (diniy misollar va kitobda aniq o'qilmaydigan so'zlar) — pastdagi «Kitobdan farqi» ga qarang."
+        },
+        {
+          "id": "A5",
+          "tur": "grammatika",
+          "vaqt": 12,
+          "sarlavha_uz": "Harf sifatlari jadvali",
+          "sarlavha_ar": "صِفَاتُ الحُرُوفِ",
+          "korsatma": "Kitobdagi uy vazifasi: har bir harf uchun o'tilgan sifatlarni yozing. Darsda birinchi 6 harfni birga to'ldiramiz, qolganini uyda.",
+          "mashqlar": [
+            {
+              "id": "A5m1",
+              "tur": "jadval",
+              "korsatma": "Jadvalni to'ldiring: yo'g'on/ingichka, qo'l berishi, shidda/bayniya/roxava, boshqa sifati.",
+              "ustunlar": [
+                "Harf",
+                "Yo'g'on / ingichka",
+                "Qo'l berish",
+                "Shidda / bayniya / roxava",
+                "Boshqa sifat"
+              ],
+              "qatorlar": [
+                [
+                  "أ",
+                  "ingichka",
+                  "qo'l bermaydi",
+                  "shidda",
+                  "mad"
+                ],
+                [
+                  "ب",
+                  "ingichka",
+                  "qo'l beradi",
+                  "shidda",
+                  "qalqala"
+                ],
+                [
+                  "ت",
+                  "ingichka",
+                  "qo'l beradi",
+                  "shidda",
+                  "hams"
+                ],
+                [
+                  "ث",
+                  "ingichka",
+                  "qo'l beradi",
+                  "roxava",
+                  "hams, til bosib"
+                ],
+                [
+                  "ج",
+                  "ingichka",
+                  "qo'l beradi",
+                  "shidda",
+                  "qalqala"
+                ],
+                [
+                  "ح",
+                  "ingichka",
+                  "qo'l beradi",
+                  "roxava",
+                  "hams"
+                ],
+                [
+                  "خ",
+                  "yo'g'on",
+                  "qo'l beradi",
+                  "roxava",
+                  "hams"
+                ],
+                [
+                  "د",
+                  "ingichka",
+                  "qo'l bermaydi",
+                  "shidda",
+                  "qalqala"
+                ]
+              ],
+              "bosh": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  2
+                ],
+                [
+                  0,
+                  3
+                ],
+                [
+                  0,
+                  4
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  1
+                ],
+                [
+                  1,
+                  2
+                ],
+                [
+                  1,
+                  3
+                ],
+                [
+                  1,
+                  4
+                ],
+                [
+                  2,
+                  0
+                ],
+                [
+                  2,
+                  1
+                ],
+                [
+                  2,
+                  2
+                ],
+                [
+                  2,
+                  3
+                ],
+                [
+                  2,
+                  4
+                ],
+                [
+                  3,
+                  0
+                ],
+                [
+                  3,
+                  1
+                ],
+                [
+                  3,
+                  2
+                ],
+                [
+                  3,
+                  3
+                ],
+                [
+                  3,
+                  4
+                ],
+                [
+                  4,
+                  0
+                ],
+                [
+                  5,
+                  0
+                ],
+                [
+                  6,
+                  0
+                ],
+                [
+                  7,
+                  0
+                ]
+              ]
+            },
+            {
+              "id": "A5m2",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang.",
+              "savollar": [
+                {
+                  "uz": "ج qaysi guruhga kiradi?",
+                  "variantlar": [
+                    "roxava",
+                    "shidda",
+                    "bayniya"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "خ qanday o'qiladi?",
+                  "variantlar": [
+                    "ingichka",
+                    "ba'zan yo'g'on",
+                    "doim yo'g'on"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "د o'zidan keyingi harfga qo'l beradimi?",
+                  "variantlar": [
+                    "yo'q",
+                    "ha"
+                  ],
+                  "javob": 0
+                }
+              ]
+            }
+          ],
+          "ustozga": "Jadvalning ج، ح، خ، د qatorlarini darsda birga to'ldiring (kalit: ج — ingichka, qo'l beradi, shidda, qalqala; ح — ingichka, qo'l beradi, roxava, hams; خ — yo'g'on, qo'l beradi, roxava, hams; د — ingichka, qo'l bermaydi, shidda, qalqala). Qolgan harflar — mashq daftarida (W5)."
+        },
+        {
+          "id": "A6",
+          "tur": "yozish",
+          "vaqt": 7,
+          "sarlavha_uz": "Yozish: mad bo'g'inlari",
+          "sarlavha_ar": "الكِتَابَةُ",
+          "pogonalar": [
+            {
+              "n": 1,
+              "uz": "1-jadvalning birinchi 2 qatorini daftarga ko'chiring va har bir mad harfini rangli qalam bilan belgilang.",
+              "namuna": "بَا بِي بُو  تَا تِي تُو"
+            },
+            {
+              "n": 2,
+              "uz": "Darsdagi 2-jadvaldan 6 ta so'zni yozing va mad harfining ostiga chiziq torting.",
+              "namuna": "صَابُونٌ دُرُوسٌ طَالِبِينَ"
+            }
+          ]
+        },
+        {
+          "id": "A7",
+          "tur": "yakun",
+          "vaqt": 4,
+          "sarlavha_uz": "Men qila olaman",
+          "sarlavha_ar": "أَسْتَطِيعُ",
+          "cando": true
+        }
+      ]
+    }
+  },
+  "mashq_daftari": [
+    {
+      "id": "W1",
+      "sessiya": 1,
+      "tur": "ovoz",
+      "uz": "1-jadvalni (28 harf mad bilan) audio bilan 5 marta tinglang va 10 marta o'qing. Oxirgisini yozib yuboring."
+    },
+    {
+      "id": "W2",
+      "sessiya": 1,
+      "tur": "diktant",
+      "uz": "Diktant: so'zni tinglang va yozing.",
+      "sozlar": [
+        "دُرُوسٌ",
+        "صَابُونٌ",
+        "جَامِعَةٌ",
+        "طَالِبِينَ",
+        "أَنْهَارٌ"
+      ],
+      "audio": [
+        "w2_1",
+        "w2_2",
+        "w2_3",
+        "w2_4",
+        "w2_5"
+      ]
+    },
+    {
+      "id": "W3",
+      "sessiya": 2,
+      "tur": "ula",
+      "uz": "Mad harfini undan oldingi harakat bilan ulang.",
+      "juftlar": [
+        [
+          "ا",
+          "fatha ـَ"
+        ],
+        [
+          "و",
+          "domma ـُ"
+        ],
+        [
+          "ي",
+          "kasra ـِ"
+        ]
+      ]
+    },
+    {
+      "id": "W4",
+      "sessiya": 2,
+      "tur": "toldir",
+      "uz": "Bo'sh joyga mad harfini qo'ying.",
+      "gaplar": [
+        {
+          "ar": "صَ...بُونٌ (s̲oobuunun — sovun)",
+          "javob": "ا",
+          "variantlar": [
+            "و",
+            "ا",
+            "ي"
+          ]
+        },
+        {
+          "ar": "دُرُ...سٌ (duruusun — darslar)",
+          "javob": "و",
+          "variantlar": [
+            "و",
+            "ي",
+            "ا"
+          ]
+        },
+        {
+          "ar": "يَسِ...رُ (yasiiru — yuradi)",
+          "javob": "ي",
+          "variantlar": [
+            "ا",
+            "و",
+            "ي"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5",
+      "sessiya": 3,
+      "tur": "ochiq",
+      "uz": "Darsdagi harf sifatlari jadvalini qolgan harflar (ذ dan ي gacha) uchun to'ldiring. Suratini yuboring."
+    },
+    {
+      "id": "W6",
+      "sessiya": 3,
+      "tur": "ovoz",
+      "uz": "2-jadvaldagi so'zlarni audio bilan 10 marta tinglang va 20 marta o'qing. Madlarni 2 harakat cho'zib o'qib, yozib yuboring."
+    },
+    {
+      "id": "W7",
+      "sessiya": 3,
+      "tur": "ochiq",
+      "uz": "O'zbek tilidan urg'u ko'chadigan 2 ta so'z zanjirini yozing (masalan: o'rík — o'rikzór — o'rikzorlár). Urg'uli bo'g'inni belgilang."
+    }
+  ],
+  "test": {
+    "nom": "5-dars mini-testi (10 daqiqa)",
+    "savollar": [
+      {
+        "kon": "tinglash",
+        "audio": "x01",
+        "matn": "جَمَالٌ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "جَمَلٌ",
+          "جَمَالٌ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x02",
+        "matn": "دُرُوسٌ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "دُرُوسٌ",
+          "دَرْسٌ",
+          "دَارِسٌ"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x03",
+        "matn": "بِي",
+        "uz": "Qaysi bo'g'inni eshitdingiz?",
+        "variantlar": [
+          "بَا",
+          "بُو",
+          "بِي"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "Mad harflari:",
+        "variantlar": [
+          "ب ت ث",
+          "ا و ي",
+          "ق ط ب"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "ي mad bo'lishi uchun oldingi harf qanday harakatli bo'ladi?",
+        "variantlar": [
+          "kasrali",
+          "fathali",
+          "dommali"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Qaysi so'zda mad و bor?",
+        "variantlar": [
+          "خَوْفٌ",
+          "صَابُونٌ",
+          "وَلَدٌ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "Mad harfining o'zida harakat bo'ladimi?",
+        "variantlar": [
+          "ha, fatha",
+          "ha, sukun",
+          "yo'q, harakat va belgidan xoli"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "Gapdagi so'zlardan birining kuchliroq aytilishi —",
+        "variantlar": [
+          "gap urg'usi",
+          "so'z urg'usi"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "yozish",
+        "uz": "«darslar» so'zini yozing (duruusun).",
+        "javob_matn": "دُرُوسٌ"
+      },
+      {
+        "kon": "gapirish",
+        "uz": "Ovozli: 1-jadvalning 2 qatorini va 2-jadvaldan 6 ta so'zni madlarni cho'zib o'qing.",
+        "ochiq": true
+      }
+    ]
+  }
+}
