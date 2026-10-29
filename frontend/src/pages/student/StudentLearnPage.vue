@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import {
   countsTowardProgress,
@@ -7,6 +7,10 @@ import {
 } from '@/features/student-course/model/useStudentCourse'
 import CourseLessonPath from '@/features/student-course/ui/CourseLessonPath.vue'
 import LessonDashboard from '@/features/lesson-dashboard/ui/LessonDashboard.vue'
+import { MascotAvatar, useStudentMood } from '@/features/mascot'
+import type { MascotMood } from '@/features/mascot'
+import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
+import { useNow } from '@/shared/lib/use-now'
 import type { CourseLessonDto } from '@/shared/types'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
@@ -25,6 +29,51 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  *   darssiz vazifa/testlar uchun yagona qolgan kirish nuqtasi).
  */
 const course = useStudentCourse()
+
+/*
+  ══════════════════════════════════════════════════════════════════════
+   NURI YO'LAKDA (loyiha egasi, 2026-10-29)
+  ══════════════════════════════════════════════════════════════════════
+  Nuri o'quvchi bilan birga yuradi: FAQAT hozirgi dars yonida turadi va
+  dars tugagach keyingisiga o'tadi. Modul to'liq tugasa — yo'lak oxirida
+  bayram qiladi.
+
+  🔴 HAR IKKI DARS ORASIGA QO'YILMADI (ataylab): o'nta bir xil maskot
+     bezakka aylanadi, ko'z unga o'rganib qoladi va "hozirgi holat"
+     ma'nosi yo'qoladi; telefonda yo'lak ham keraksiz uzayadi.
+  ★ Qulflangan darslar yonida Nuri yo'q — u o'quvchidan oldinga
+    yugurmaydi.
+  ★ Kayfiyat Bosh sahifadagi bilan BIR XIL (`useStudentMood`) — ikki
+    sahifada ikki xil Nuri bo'lmasin. So'rovlar keshdan keladi.
+*/
+const now = useNow()
+const mood = useStudentMood(now, useStudentSchedule(now))
+
+/** Dars tugab, hozirgi dars almashganda — bir martalik bayram. */
+const cheering = ref(false)
+let cheerTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => course.nextLessonId.value,
+  (next, previous) => {
+    if (previous === undefined || previous === null || next === previous) return
+    cheering.value = true
+    clearTimeout(cheerTimer)
+    cheerTimer = setTimeout(() => {
+      cheering.value = false
+    }, 2600)
+  },
+)
+onBeforeUnmount(() => clearTimeout(cheerTimer))
+
+const pathMood = computed<MascotMood>(() =>
+  cheering.value ? 'celebrate' : (mood.result.value?.mood ?? 'encouraging'),
+)
+
+/** Modul yakunlandi — rejadagi barcha darslar tugatilgan. */
+function moduleDone(lessons: CourseLessonDto[]): boolean {
+  const planned = plannedCount(lessons)
+  return planned > 0 && doneCount(lessons) === planned
+}
 
 /** Ochiq modul id'si. Boshida — hozirgi dars turgan modul. */
 const openModuleId = ref<number | null>(null)
@@ -319,7 +368,28 @@ function plannedCount(lessons: CourseLessonDto[]): number {
               :lessons="module.lessons ?? []"
               :current-lesson-id="course.nextLessonId.value"
               @open="selectedLesson = $event"
-            />
+            >
+              <template #current>
+                <MascotAvatar
+                  :mood="pathMood"
+                  :size="56"
+                />
+              </template>
+              <template #end>
+                <div
+                  v-if="moduleDone(module.lessons ?? [])"
+                  class="mx-auto mt-3 flex w-fit items-center gap-3 rounded-2xl bg-brand-500/10 px-4 py-2.5"
+                >
+                  <MascotAvatar
+                    mood="celebrate"
+                    :size="52"
+                  />
+                  <span class="text-[13px] font-bold text-brand-500">
+                    Modul tugadi! Qoyil.
+                  </span>
+                </div>
+              </template>
+            </CourseLessonPath>
           </div>
         </section>
       </div>
