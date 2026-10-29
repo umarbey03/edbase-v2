@@ -261,6 +261,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<EnrollmentApplication> EnrollmentApplications => Set<EnrollmentApplication>();
 
+    // 2026-10-29 · interaktiv darslik (ATF)
+    public DbSet<InteractiveBook> InteractiveBooks => Set<InteractiveBook>();
+
+    public DbSet<InteractiveUnit> InteractiveUnits => Set<InteractiveUnit>();
+
+    public DbSet<InteractiveUnitVersion> InteractiveUnitVersions => Set<InteractiveUnitVersion>();
+
+    public DbSet<InteractiveAudio> InteractiveAudio => Set<InteractiveAudio>();
+
+    public DbSet<InteractiveImportRun> InteractiveImportRuns => Set<InteractiveImportRun>();
+
+    public DbSet<InteractiveUnitProgress> InteractiveUnitProgress => Set<InteractiveUnitProgress>();
+
+    public DbSet<InteractiveItemResult> InteractiveItemResults => Set<InteractiveItemResult>();
+
+    public DbSet<InteractiveTestAttempt> InteractiveTestAttempts => Set<InteractiveTestAttempt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
