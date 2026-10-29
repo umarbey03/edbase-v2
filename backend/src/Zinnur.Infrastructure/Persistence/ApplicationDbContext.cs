@@ -296,6 +296,41 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     }
 
     /// <inheritdoc />
+    public async Task<T> InTransactionAsync<T>(
+        Func<CancellationToken, Task<T>> work, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+
+        // Ichma-ich: tashqi tranzaksiya hammasini birga commit yoki rollback qiladi.
+        if (Database.CurrentTransaction is not null)
+            return await work(ct).ConfigureAwait(false);
+
+        var strategy = Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(
+            work,
+            async (_, body, token) =>
+            {
+                await using var transaction = await Database.BeginTransactionAsync(token).ConfigureAwait(false);
+                try
+                {
+                    var result = await body(token).ConfigureAwait(false);
+                    await transaction.CommitAsync(token).ConfigureAwait(false);
+                    return result;
+                }
+                catch
+                {
+                    // ⚠️ Baza qaytarildi — xotiradagi kuzatuv ham. Aks holda qayta
+                    //    urinishda (yoki shu so'rovdagi keyingi SaveChanges'da)
+                    //    yiqilgan amalning "Added" yozuvlari yana yozilardi.
+                    ChangeTracker.Clear();
+                    throw;
+                }
+            },
+            verifySucceeded: null,
+            ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public override async Task<int> SaveChangesAsync(
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)

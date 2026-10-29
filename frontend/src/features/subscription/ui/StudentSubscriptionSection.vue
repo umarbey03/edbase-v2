@@ -9,11 +9,13 @@ import {
   grantSubscription,
   periodState,
   periodStateLabel,
+  REFUND_MODE_LABELS,
 } from '@/entities/subscription'
-import type { SubscriptionPeriodDto } from '@/entities/subscription'
+import type { SubscriptionPeriodDto, SubscriptionRefundModeName } from '@/entities/subscription'
 import { toUserMessage } from '@/shared/api'
 import { formatDate } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
+import { useConfirm } from '@/shared/lib/useConfirm'
 import { showToast } from '@/shared/lib/useToast'
 import type { PaymentMethodName } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
@@ -74,18 +76,87 @@ const grant = useMutation({
   onError: (error) => showToast(toUserMessage(error), 'error'),
 })
 
+/*
+  ══════════════════════════════════════════════════════════════════════
+   BEKOR QILISH VA PULNI QAYTARISH (2026-10-29, loyiha egasi qarori Q-5)
+  ══════════════════════════════════════════════════════════════════════
+  🔴 ILGARI: «×» davrni jimgina bekor qilardi — pul qaytarildimi yoki
+    yo'qmi, hech qayerda yozilmasdi (audit P0-2).
+  ★ ENDI xodim tanlaydi: pul qaytarilmaydi, balansga o'tadi yoki naqd
+    qaytarildi. Summa taklifi — davrning HOZIRGI ishlatilmagan qiymati
+    (server hisoblaydi, `unusedValue`), lekin xodim o'zgartira oladi
+    (davr summasidan ko'p emas — server ham tekshiradi). Har qaytarish
+    moliya jurnaliga yoziladi.
+*/
+const cancelling = ref<SubscriptionPeriodDto | null>(null)
+const refundMode = ref<SubscriptionRefundModeName>('ToBalance')
+const refundAmount = ref<number | null>(null)
+const cancelReason = ref('')
+
+const REFUND_MODES: readonly SubscriptionRefundModeName[] = ['ToBalance', 'Cash', 'None']
+
+function openCancel(period: SubscriptionPeriodDto): void {
+  cancelling.value = period
+  refundMode.value = period.unusedValue > 0 ? 'ToBalance' : 'None'
+  refundAmount.value = period.unusedValue > 0 ? period.unusedValue : null
+  cancelReason.value = ''
+}
+
+const refundInvalid = computed(() => {
+  const period = cancelling.value
+  if (period === null || refundMode.value === 'None') return false
+  const amount = refundAmount.value
+  return amount === null || !(amount > 0) || amount > period.amount
+})
+
 const cancel = useMutation({
-  mutationFn: (period: SubscriptionPeriodDto) => cancelSubscription(period.id, null),
+  mutationFn: (period: SubscriptionPeriodDto) =>
+    cancelSubscription(period.id, {
+      reason: cancelReason.value.trim() === '' ? null : cancelReason.value.trim(),
+      refundMode: refundMode.value,
+      refundAmount: refundMode.value === 'None' ? null : refundAmount.value,
+    }),
   onSuccess: () => {
     showToast('Obuna bekor qilindi', 'success')
+    cancelling.value = null
     refresh()
+    // Balans va jurnal o'zgargan bo'lishi mumkin.
+    void queryClient.invalidateQueries({ queryKey: ['payments'] })
   },
   onError: (error) => showToast(toUserMessage(error), 'error'),
 })
 
+const confirm = useConfirm()
+
+async function submitCancel(): Promise<void> {
+  const period = cancelling.value
+  if (period === null || refundInvalid.value) return
+
+  const money = refundMode.value === 'None'
+    ? 'Pul qaytarilmaydi.'
+    : refundMode.value === 'ToBalance'
+      ? `${formatMoney(refundAmount.value ?? 0)} o‘quvchi balansiga o‘tkaziladi.`
+      : `${formatMoney(refundAmount.value ?? 0)} naqd qaytarilgan deb yoziladi.`
+
+  const ok = await confirm({
+    title: 'Obunani bekor qilish',
+    message: `${period.courseName}: ${formatDate(period.startsAt)} — ${formatDate(period.endsAt)} davri bekor qilinadi.`,
+    confirmLabel: 'Bekor qilish',
+    cancelLabel: 'Ortga',
+    tone: 'danger',
+    details: [money, 'Darslarga kirish shu zahoti yopiladi.', 'Yozuv moliya jurnalida qoladi.'],
+  })
+  if (ok) cancel.mutate(period)
+}
+
 function canCancel(period: SubscriptionPeriodDto): boolean {
   const state = periodState(period)
   return state === 'active' || state === 'upcoming'
+}
+
+function methodLabel(period: SubscriptionPeriodDto): string {
+  if (period.method === null) return 'balansdan'
+  return period.method === 'Cash' ? 'naqd' : 'karta'
 }
 </script>
 
@@ -201,36 +272,107 @@ function canCancel(period: SubscriptionPeriodDto): boolean {
       <li
         v-for="period in periods"
         :key="period.id"
-        class="flex items-center gap-2 rounded-lg border border-line bg-ink-900 px-3 py-2"
+        class="rounded-lg border border-line bg-ink-900 px-3 py-2"
       >
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-[13px] text-slate-200">
-            {{ period.courseName }} · {{ formatDate(period.startsAt) }} — {{ formatDate(period.endsAt) }}
+        <div class="flex items-center gap-2">
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[13px] text-slate-200">
+              <template v-if="period.planName !== null">{{ period.planName }} · </template>{{ period.courseName }}
+              · {{ formatDate(period.startsAt) }} — {{ formatDate(period.endsAt) }}
+            </span>
+            <span class="block text-[11px] text-dim">
+              {{ formatMoney(period.amount) }} · {{ methodLabel(period) }}
+              <template v-if="period.note !== null"> · {{ period.note }}</template>
+              <template v-if="period.cancelReason !== null"> · {{ period.cancelReason }}</template>
+            </span>
           </span>
-          <span class="block text-[11px] text-dim">
-            {{ formatMoney(period.amount) }} · {{ period.method === 'Cash' ? 'naqd' : 'karta' }}
-            <template v-if="period.note !== null"> · {{ period.note }}</template>
-          </span>
-        </span>
-        <BaseBadge
-          :tone="periodState(period) === 'active' ? 'success' : 'neutral'"
-          size="xs"
+          <BaseBadge
+            :tone="periodState(period) === 'active' ? 'success' : 'neutral'"
+            size="xs"
+          >
+            {{ periodStateLabel(periodState(period)) }}
+          </BaseBadge>
+          <button
+            v-if="canCancel(period) && cancelling?.id !== period.id"
+            type="button"
+            class="rounded-md p-1 text-slate-400 hover:bg-ink-800 hover:text-rose-300"
+            aria-label="Bekor qilish"
+            :disabled="cancel.isPending.value"
+            @click="openCancel(period)"
+          >
+            <AppIcon
+              name="close"
+              :size="14"
+            />
+          </button>
+        </div>
+
+        <!-- Bekor qilish: pul qayerga ketadi (Q-5). -->
+        <form
+          v-if="cancelling?.id === period.id"
+          class="mt-2 space-y-2 border-t border-line pt-2"
+          @submit.prevent="submitCancel()"
         >
-          {{ periodStateLabel(periodState(period)) }}
-        </BaseBadge>
-        <button
-          v-if="canCancel(period)"
-          type="button"
-          class="rounded-md p-1 text-slate-400 hover:bg-ink-800 hover:text-rose-300"
-          aria-label="Bekor qilish"
-          :disabled="cancel.isPending.value"
-          @click="cancel.mutate(period)"
-        >
-          <AppIcon
-            name="close"
-            :size="14"
-          />
-        </button>
+          <p class="text-[11px] text-slate-400">
+            Ishlatilmagan qismi hozir: <span class="font-semibold text-slate-200">{{ formatMoney(period.unusedValue) }}</span>
+          </p>
+          <label class="block space-y-1">
+            <span class="text-xs text-slate-400">Pul</span>
+            <select
+              v-model="refundMode"
+              class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
+            >
+              <option
+                v-for="mode in REFUND_MODES"
+                :key="mode"
+                :value="mode"
+              >
+                {{ REFUND_MODE_LABELS[mode] }}
+              </option>
+            </select>
+          </label>
+          <label
+            v-if="refundMode !== 'None'"
+            class="block space-y-1"
+          >
+            <span class="text-xs text-slate-400">Summa (ko‘pi bilan {{ formatMoney(period.amount) }})</span>
+            <input
+              v-model.number="refundAmount"
+              type="number"
+              min="1"
+              :max="period.amount"
+              step="1"
+              inputmode="numeric"
+              class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
+            >
+          </label>
+          <label class="block space-y-1">
+            <span class="text-xs text-slate-400">Sabab (ixtiyoriy)</span>
+            <input
+              v-model="cancelReason"
+              maxlength="500"
+              class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
+            >
+          </label>
+          <div class="flex justify-end gap-2">
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              type="button"
+              @click="cancelling = null"
+            >
+              Ortga
+            </BaseButton>
+            <BaseButton
+              size="sm"
+              type="submit"
+              :loading="cancel.isPending.value"
+              :disabled="refundInvalid"
+            >
+              Bekor qilish
+            </BaseButton>
+          </div>
+        </form>
       </li>
     </ul>
   </section>

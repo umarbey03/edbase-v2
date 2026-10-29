@@ -267,6 +267,23 @@ const journalTiles = computed<KpiTile[]>(() => {
       accent: KPI_ACCENTS.waived,
       sub: '',
     },
+    /*
+      ★ MUSTAQIL O'QISH OBUNASI (2026-10-29, Q-5) — O'Z KARTASIDA. Yuqoridagi
+        "Kassaga tushgan" faqat guruh oylik to'lovlari; obuna puli unga
+        qo'shilsa guruhlar tushumi bo'rttirilib ko'rinardi. Kartaning izohi
+        balans bilan bog'liq harakatlarni ham aytadi — ular kassa emas.
+    */
+    {
+      key: 'subscriptionCollected',
+      label: 'Mustaqil o‘qish',
+      value: formatMoney(kpi.subscriptionCollected),
+      accent: KPI_ACCENTS.collected,
+      sub: [
+        kpi.subscriptionRefunded > 0 ? `qaytarilgan ${formatMoney(kpi.subscriptionRefunded)}` : '',
+        kpi.subscriptionFromBalance > 0 ? `balansdan ${formatMoney(kpi.subscriptionFromBalance)}` : '',
+        kpi.subscriptionCredited > 0 ? `balansga ${formatMoney(kpi.subscriptionCredited)}` : '',
+      ].filter((part) => part !== '').join(' · ') || 'obuna to‘lovlari',
+    },
   ]
 })
 </script>

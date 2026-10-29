@@ -537,6 +537,92 @@ public sealed class PaymentService(
             affected);
     }
 
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// OBUNA PULI (2026-10-29, loyiha egasi qarori Q-5)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 ILGARI: mustaqil obuna puli faqat <c>SubscriptionPeriod.Amount</c> da
+    ///   turardi — jurnalda ham, kassa hisobotida ham yo'q edi, bekor qilinsa
+    ///   "qaytarildimi?" savoliga javob yo'q edi. Endi har harakat jurnalga
+    ///   O'Z TURIDA yoziladi (guruh to'lovlari bilan aralashmaydi).
+    ///
+    /// ★ BALANS QOIDALARI DOMAIN'DA (<see cref="StudentAccount"/>): balans
+    ///   manfiyga tushmaydi. Balansdan to'lashda TO'LIQ summa bo'lmasa amal
+    ///   yiqiladi — qisman yechib, qolganini "unutish" pul yo'qotish bo'lardi.
+    /// ★ Balans qatoridagi <c>xmin</c> qulfi parallel amalni ushlaydi (409).
+    /// </summary>
+    public async Task<long> RecordSubscriptionMoneyAsync(
+        SubscriptionMoneyMove move, long actorId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(move);
+        RequirePositive(move.Amount, nameof(move.Amount));
+
+        // Izoh tarif nomi + xodim izohidan yig'iladi — ustun chegarasidan oshsa
+        // baza amalni rad etardi va obuna ham ochilmay qolardi.
+        var note = move.Note is { Length: > LedgerNoteMaxLength } ? move.Note[..LedgerNoteMaxLength] : move.Note;
+
+        var now = clock.GetUtcNow();
+        string? receiptNo = null;
+        PaymentMethod? method = null;
+
+        switch (move.Kind)
+        {
+            case PaymentTransactionKind.Subscription:
+            case PaymentTransactionKind.SubscriptionRefund:
+            {
+                // Kassa harakati — usul majburiy (kunlik kassa usul bo'yicha bo'linadi).
+                method = move.Method ?? throw Invalid("method", "To'lov usulini tanlang (Cash yoki Card).");
+                RequireKnownMethod(method.Value);
+
+                // Tushgan pulga kvitansiya — guruh to'lovlari bilan UMUMIY ketma-ketlikda.
+                if (move.Kind == PaymentTransactionKind.Subscription)
+                    receiptNo = (await NextReceiptAsync(now, ct)).ToString();
+                break;
+            }
+
+            case PaymentTransactionKind.SubscriptionCredit:
+            {
+                var account = await GetOrCreateAccountAsync(move.StudentId, now, ct);
+                var before = account.Balance;
+                account.Deposit(move.Amount, now);
+
+                db.PaymentAudits.Add(PaymentAudit.Money(
+                    BalanceEntity, "deposit", account.Id, move.StudentId,
+                    before, account.Balance, now, actorId, note));
+                break;
+            }
+
+            case PaymentTransactionKind.SubscriptionBalanceUse:
+            {
+                var account = await db.StudentAccounts.FirstOrDefaultAsync(a => a.StudentId == move.StudentId, ct);
+                if (account is null || account.Balance < move.Amount)
+                {
+                    throw new ConflictException(
+                        "Balansda yetarli mablag' yo'q. Tarifni to'lov orqali sotib oling.");
+                }
+
+                var before = account.Balance;
+                account.Withdraw(move.Amount, now);
+
+                db.PaymentAudits.Add(PaymentAudit.Money(
+                    BalanceEntity, "withdraw", account.Id, move.StudentId,
+                    before, account.Balance, now, actorId, note));
+                break;
+            }
+
+            default:
+                throw new InvalidOperationException($"Obuna puli uchun noto'g'ri jurnal turi: {move.Kind}");
+        }
+
+        var transaction = NewTransaction(
+            move.StudentId, null, move.Kind, move.Amount, receiptNo, method, note, actorId, now);
+        db.PaymentTransactions.Add(transaction);
+
+        await SaveMoneyAsync(ct);
+        return transaction.Id;
+    }
+
     // ================================================================= 4) O'QISH
 
     public async Task<StudentAccountDto> GetStudentAccountAsync(
@@ -1525,6 +1611,9 @@ public sealed class PaymentService(
     // audit hisobotida qator yo'qolardi).
     private const string PaymentEntity = "payment";
     private const string BalanceEntity = "balance";
+
+    /// <summary>Jurnal va audit izohi ustunining chegarasi (<c>PaymentConfiguration.NoteMaxLength</c>).</summary>
+    private const int LedgerNoteMaxLength = 500;
     private const string TariffEntity = "tariff";
     private const string DiscountEntity = "discount";
     private const string SettingsEntity = "settings";

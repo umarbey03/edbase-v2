@@ -3,11 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
+using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
 using Zinnur.Application.Payments.Dtos;
 using Zinnur.Application.Payments.Services;
+using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Application.Subscriptions;
@@ -26,6 +28,12 @@ public interface IShopService
     Task<ShopMeDto> GetMeAsync(long studentId, CancellationToken ct = default);
 
     Task<ShopOrderDto> CreateOrderAsync(long studentId, CreateOrderRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Mustaqil o'qish tarifini BALANSDAN to'lash (2026-10-29, Q-4) — xodim
+    /// tasdig'isiz, buyurtma tarix uchun darhol «Tasdiqlangan» bo'lib yoziladi.
+    /// </summary>
+    Task<ShopOrderDto> PayFromBalanceAsync(long studentId, CreateOrderRequest request, CancellationToken ct = default);
 
     Task<ShopOrderDto> CancelOrderAsync(long studentId, long orderId, CancellationToken ct = default);
 
@@ -70,6 +78,8 @@ public sealed class ShopService(
     ISubscriptionService subscriptions,
     ISubscriptionAccess subscriptionAccess,
     IPaymentService payments,
+    IGatingService gating,
+    IScheduleTimeZoneProvider timeZone,
     ISettingsResolver settings,
     INotificationOutbox outbox,
     TimeProvider clock,
@@ -81,6 +91,9 @@ public sealed class ShopService(
     private const int MaxListRows = 300;
 
     private const string CallbackPrefix = "so:";
+
+    /// <summary>Balansdan to'langan buyurtmaning izohi — tarixda "kassir tasdiqladi" bilan adashmasin.</summary>
+    private const string PaidFromBalanceNote = "Balansdan to'landi";
 
     // ================================================================ ommaviy
 
@@ -119,7 +132,23 @@ public sealed class ShopService(
             .Take(50)
             .ToListAsync(ct);
 
-        return new ShopMeDto(inGroup, hasActive, orders);
+        // ★ BALANS (Q-4): tariflar sahifasi "Balansdan to'lash" ni taklif qiladi.
+        //   Moliya hisobidagi AYNI qator — alohida hisob-kitob yo'q.
+        var balance = await db.StudentAccounts.AsNoTracking()
+            .Where(a => a.StudentId == studentId)
+            .Select(a => (decimal?)a.Balance)
+            .FirstOrDefaultAsync(ct) ?? 0m;
+
+        // ★ JORIY TARIF (Q-1): sahifa uni «Joriy tarif» deb belgilaydi, boshqa
+        //   mustaqil tariflarga esa "darhol boshlanadi, qolgani balansga" deydi.
+        var now = clock.GetUtcNow();
+        var current = await db.SubscriptionPeriods.AsNoTracking()
+            .Where(p => p.StudentId == studentId && p.CancelledAt == null && p.StartsAt <= now && p.EndsAt > now)
+            .OrderByDescending(p => p.StartsAt)
+            .Select(p => new { p.PlanId, p.EndsAt })
+            .FirstOrDefaultAsync(ct);
+
+        return new ShopMeDto(inGroup, hasActive, orders, balance, current?.PlanId, current?.EndsAt);
     }
 
     public async Task<ShopOrderDto> CreateOrderAsync(
@@ -138,22 +167,7 @@ public sealed class ShopService(
             ?? throw new NotFoundException(nameof(SubscriptionPlan), request.PlanId);
 
         if (plan.Kind == PlanKind.SelfStudy)
-        {
-            // Guruh va obuna bir-birini taqiqlaydi (sabab `ISubscriptionAccess` izohida) —
-            // bu yerda AYTIB qo'yiladi, to'lovdan OLDIN, aks holda pul tushib, obuna ochilmasdi.
-            if (await InGroupAsync(studentId, ct))
-            {
-                throw new ConflictException(
-                    "Siz guruhda o'qiyapsiz — mustaqil o'qish tarifi faqat guruhsiz o'quvchilar uchun.");
-            }
-
-            var state = await subscriptionAccess.GetStateAsync(studentId, ct);
-            if (state is { IsActive: true } && state.CourseId != plan.CourseId)
-            {
-                throw new ConflictException(
-                    "Sizda boshqa kursga faol obuna bor. Bir vaqtda bitta kurs o'qiladi.");
-            }
-        }
+            await EnsureSelfStudyAllowedAsync(studentId, plan, ct);
 
         var pending = await db.PurchaseOrders.AsNoTracking()
             .Where(o => o.StudentId == studentId && o.Status == PurchaseOrderStatus.Pending)
@@ -203,6 +217,115 @@ public sealed class ShopService(
         ShopLog.OrderCreated(logger, order.Id, studentId, plan.Id);
 
         return await OrderDtoAsync(order.Id, ct);
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// BALANSDAN TO'LASH (2026-10-29, loyiha egasi qarori Q-4)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 ILGARI (audit P1-4): guruhdan chiqqan o'quvchining balansida qoldiq
+    ///   yotardi, Mustaqil uchun esa u yana Payme orqali to'lardi — ikki marta.
+    ///
+    /// ★ Xodim tasdig'i KERAK EMAS: pul allaqachon markazda, kassir hech narsa
+    ///   qidirmaydi. Yechish, davr va buyurtma BITTA tranzaksiyada.
+    /// ★ Qoidalar oddiy buyurtmadagi bilan AYNI: guruhda emas, bir vaqtda
+    ///   bitta kurs, boshqa tarifga o'tish darhol (qolgani balansga — Q-1).
+    /// ★ Ochiq (to'lanmagan) buyurtma bo'lsa — rad etiladi: o'quvchi uni
+    ///   Payme'da ham to'lab qo'ygan bo'lishi mumkin va pul ikki marta olinardi.
+    /// </summary>
+    public async Task<ShopOrderDto> PayFromBalanceAsync(
+        long studentId, CreateOrderRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var student = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == studentId, ct)
+            ?? throw new NotFoundException(nameof(User), studentId);
+
+        if (student.Role != UserRole.Student || !student.IsActive)
+            throw new ForbiddenException("Tarifni faqat faol o'quvchi sotib oladi.");
+
+        var plan = await db.SubscriptionPlans.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == request.PlanId && p.IsActive && p.IsPublic, ct)
+            ?? throw new NotFoundException(nameof(SubscriptionPlan), request.PlanId);
+
+        if (plan.Kind != PlanKind.SelfStudy)
+        {
+            throw new ConflictException(
+                "Balansdan faqat mustaqil o'qish tarifi to'lanadi — guruh darslari balansdan o'zi yechiladi.");
+        }
+
+        if (plan.Price <= 0)
+            throw new ConflictException("Bu tarif sotuvda emas.");
+
+        await EnsureSelfStudyAllowedAsync(studentId, plan, ct);
+
+        if (await db.PurchaseOrders.AsNoTracking()
+                .AnyAsync(o => o.StudentId == studentId && o.Status == PurchaseOrderStatus.Pending, ct))
+        {
+            throw new ConflictException(
+                "Sizda to'lovi kutilayotgan buyurtma bor. Agar uni to'lagan bo'lsangiz, tasdiqni kuting; "
+                + "aks holda avval bekor qiling.");
+        }
+
+        var orderId = await db.InTransactionAsync(async token =>
+        {
+            var now = clock.GetUtcNow();
+            var order = new PurchaseOrder
+            {
+                Code = await NewCodeAsync(token),
+                StudentId = studentId,
+                PlanId = plan.Id,
+                Kind = plan.Kind,
+                CourseId = plan.CourseId,
+                Amount = plan.Price,
+                Months = plan.Months,
+                CreatedAt = now,
+            };
+            order.Confirm(studentId, PaidFromBalanceNote, now);
+
+            db.PurchaseOrders.Add(order);
+            await db.SaveChangesAsync(token);
+
+            // Balans yetmasa shu yerda 409 — buyurtma ham qaytariladi (tranzaksiya).
+            var grant = await subscriptions.GrantFromBalanceAsync(
+                studentId, plan.Id, order.Amount,
+                string.Create(CultureInfo.InvariantCulture, $"Onlayn buyurtma {order.Code} (balansdan)"),
+                token);
+
+            order.SubscriptionPeriodId = grant.PeriodId;
+            order.PaymentTransactionId = grant.TransactionId;
+            await db.SaveChangesAsync(token);
+
+            return order.Id;
+        }, ct);
+
+        await gating.InvalidateAsync(studentId, ct);
+        ShopLog.OrderPaidFromBalance(logger, orderId, studentId, plan.Id);
+
+        return await OrderDtoAsync(orderId, ct);
+    }
+
+    /// <summary>
+    /// Mustaqil o'qish tarifini olish mumkinmi — oddiy buyurtma ham, balansdan
+    /// to'lash ham AYNI qoida bilan (bir joyda yashaydi).
+    /// </summary>
+    private async Task EnsureSelfStudyAllowedAsync(long studentId, SubscriptionPlan plan, CancellationToken ct)
+    {
+        // Guruh va obuna bir-birini taqiqlaydi (sabab `ISubscriptionAccess` izohida) —
+        // bu yerda AYTIB qo'yiladi, to'lovdan OLDIN, aks holda pul tushib, obuna ochilmasdi.
+        if (await InGroupAsync(studentId, ct))
+        {
+            throw new ConflictException(
+                "Siz guruhda o'qiyapsiz — mustaqil o'qish tarifi faqat guruhsiz o'quvchilar uchun.");
+        }
+
+        var state = await subscriptionAccess.GetStateAsync(studentId, ct);
+        if (state is { IsActive: true } && state.CourseId != plan.CourseId)
+        {
+            throw new ConflictException(
+                "Sizda boshqa kursga faol obuna bor. Bir vaqtda bitta kurs o'qiladi.");
+        }
     }
 
     public async Task<ShopOrderDto> CancelOrderAsync(long studentId, long orderId, CancellationToken ct = default)
@@ -271,49 +394,54 @@ public sealed class ShopService(
         ArgumentNullException.ThrowIfNull(request);
         var actor = await EnsureManagerAsync(actorId, ct);
 
-        var order = await ClaimAsync(orderId, PurchaseOrderStatus.Confirmed, actor.Id, request.Note, ct);
-        var planName = await PlanNameAsync(order.PlanId, ct);
-
-        try
+        // 🔴 BITTA TRANZAKSIYA (audit P1-7, 2026-10-29): band qilish, obuna yoki
+        //    to'lov va buyurtmadagi havola — hammasi birga yoziladi yoki birga
+        //    qaytadi. Ilgari ular alohida edi: havola yozilishi yiqilsa buyurtma
+        //    "kutilmoqda" ga qaytar, davr yoki to'lov esa bazada qolardi —
+        //    keyingi "Tasdiqlash" pulni IKKINCHI marta yozardi. Endi xato
+        //    bo'lsa baza o'zi qaytaradi (qo'lda "Release" kerak emas).
+        var (order, grant) = await db.InTransactionAsync(async token =>
         {
-            var note = string.Create(CultureInfo.InvariantCulture, $"Onlayn buyurtma {order.Code}");
+            var claimed = await ClaimAsync(orderId, PurchaseOrderStatus.Confirmed, actor.Id, request.Note, token);
+            var note = string.Create(CultureInfo.InvariantCulture, $"Onlayn buyurtma {claimed.Code}");
 
             // 🔴 TO'LANGAN MUSTAQIL BUYURTMA, O'QUVCHI ESA ALLAQACHON GURUHDA
             //    (audit, 2026-10-29): obuna ochib bo'lmaydi (guruh va obuna bir-
             //    birini taqiqlaydi). Ilgari tasdiq 409 bilan yiqilib, buyurtma
             //    abadiy "kutilmoqda" qolardi — pul olingan, hech narsa berilmagan.
             //    Endi pul o'quvchi BALANSIGA yoziladi (guruh to'lovlariga ketadi).
-            var toBalance = order.Kind == PlanKind.SelfStudy && await InGroupAsync(order.StudentId, ct);
+            var toBalance = claimed.Kind == PlanKind.SelfStudy && await InGroupAsync(claimed.StudentId, token);
 
-            if (order.Kind == PlanKind.SelfStudy && !toBalance)
+            if (claimed.Kind == PlanKind.SelfStudy && !toBalance)
             {
-                var periodId = await subscriptions.GrantForOrderAsync(
-                    order.StudentId, order.PlanId, order.Amount, note, actor.Id, ct);
+                // Obuna puli jurnalga `Subscription` turida shu ichida yoziladi (Q-5).
+                var granted = await subscriptions.GrantForOrderAsync(
+                    claimed.StudentId, claimed.PlanId, claimed.Amount, note, actor.Id, token);
 
-                await db.PurchaseOrders.Where(o => o.Id == order.Id)
-                    .ExecuteUpdateAsync(u => u.SetProperty(o => o.SubscriptionPeriodId, periodId), ct);
+                await db.PurchaseOrders.Where(o => o.Id == claimed.Id)
+                    .ExecuteUpdateAsync(u => u
+                        .SetProperty(o => o.SubscriptionPeriodId, granted.PeriodId)
+                        .SetProperty(o => o.PaymentTransactionId, granted.TransactionId), token);
+
+                return (claimed, (SubscriptionGrantResult?)granted);
             }
-            else
-            {
-                var receipt = await payments.RecordPaymentAsync(
-                    new RecordPaymentRequest(
-                        order.StudentId, order.Amount, PaymentMethod.Card,
-                        Note: toBalance ? note + " (o'quvchi guruhda — balansga)" : note),
-                    actor.Id, ct);
 
-                await db.PurchaseOrders.Where(o => o.Id == order.Id)
-                    .ExecuteUpdateAsync(u => u.SetProperty(o => o.PaymentTransactionId, receipt.TransactionId), ct);
-            }
-        }
-        catch
-        {
-            // Obuna yoki to'lov yozilmadi — buyurtma yana "kutilmoqda" bo'ladi,
-            // aks holda u "tasdiqlangan" bo'lib qolib, o'quvchi hech narsa olmasdi.
-            await ReleaseAsync(order.Id, ct);
-            throw;
-        }
+            var receipt = await payments.RecordPaymentAsync(
+                new RecordPaymentRequest(
+                    claimed.StudentId, claimed.Amount, PaymentMethod.Card,
+                    Note: toBalance ? note + " (o'quvchi guruhda — balansga)" : note),
+                actor.Id, token);
 
-        await NotifyDecisionAsync(order, planName, confirmed: true, actor.FullName, request.Note, ct);
+            await db.PurchaseOrders.Where(o => o.Id == claimed.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(o => o.PaymentTransactionId, receipt.TransactionId), token);
+
+            return (claimed, (SubscriptionGrantResult?)null);
+        }, ct);
+
+        await gating.InvalidateAsync(order.StudentId, ct);
+
+        var planName = await PlanNameAsync(order.PlanId, ct);
+        await NotifyDecisionAsync(order, planName, confirmed: true, actor.FullName, request.Note, grant, ct);
         ShopLog.OrderConfirmed(logger, order.Id, actor.Id);
 
         return await StaffDtoAsync(order.Id, ct);
@@ -328,7 +456,7 @@ public sealed class ShopService(
         var order = await ClaimAsync(orderId, PurchaseOrderStatus.Rejected, actor.Id, request.Note, ct);
         var planName = await PlanNameAsync(order.PlanId, ct);
 
-        await NotifyDecisionAsync(order, planName, confirmed: false, actor.FullName, request.Note, ct);
+        await NotifyDecisionAsync(order, planName, confirmed: false, actor.FullName, request.Note, grant: null, ct);
         ShopLog.OrderRejected(logger, order.Id, actor.Id);
 
         return await StaffDtoAsync(order.Id, ct);
@@ -420,16 +548,6 @@ public sealed class ShopService(
         return order;
     }
 
-    private Task<int> ReleaseAsync(long orderId, CancellationToken ct) =>
-        db.PurchaseOrders
-            .Where(o => o.Id == orderId && o.Status == PurchaseOrderStatus.Confirmed
-                     && o.SubscriptionPeriodId == null && o.PaymentTransactionId == null)
-            .ExecuteUpdateAsync(u => u
-                .SetProperty(o => o.Status, PurchaseOrderStatus.Pending)
-                .SetProperty(o => o.DecidedById, (long?)null)
-                .SetProperty(o => o.DecidedAt, (DateTimeOffset?)null)
-                .SetProperty(o => o.DecisionNote, (string?)null), CancellationToken.None);
-
     private async Task NotifyStaffAboutNewAsync(
         PurchaseOrder order, User student, SubscriptionPlan plan, CancellationToken ct)
     {
@@ -484,8 +602,14 @@ public sealed class ShopService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <param name="grant">
+    /// Obuna ochilgan bo'lsa — uning natijasi. <c>null</c> bo'lsa pul balansga
+    /// tushgan (guruh tarifi yoki guruhdagi o'quvchining mustaqil buyurtmasi):
+    /// "darslar ochildi" deyilmaydi, aks holda o'quvchi yo'q narsani qidirardi.
+    /// </param>
     private async Task NotifyDecisionAsync(
-        PurchaseOrder order, string planName, bool confirmed, string actorName, string? note, CancellationToken ct)
+        PurchaseOrder order, string planName, bool confirmed, string actorName, string? note,
+        SubscriptionGrantResult? grant, CancellationToken ct)
     {
         var chatId = await StaffChatIdAsync(ct);
         if (chatId is not null)
@@ -517,7 +641,8 @@ public sealed class ShopService(
                     RecipientAddress = telegramId.ToString(CultureInfo.InvariantCulture),
                     TemplateKey = confirmed ? TelegramTemplates.ShopOrderConfirmed : TelegramTemplates.ShopOrderRejected,
                     Body = confirmed
-                        ? TelegramTemplates.ShopOrderConfirmedText(order.Code, planName, order.Kind == PlanKind.SelfStudy)
+                        ? TelegramTemplates.ShopOrderConfirmedText(
+                            order.Code, planName, grant is not null, StartsLaterOn(grant), grant?.Credit ?? 0m)
                         : TelegramTemplates.ShopOrderRejectedText(order.Code, note ?? "To'lov topilmadi"),
                     IdempotencyKey = string.Create(CultureInfo.InvariantCulture, $"shop_order_student:{order.Id}"),
                 },
@@ -525,6 +650,21 @@ public sealed class ShopService(
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// ★ KIRISH QACHON BOSHLANADI (audit P1-6, 2026-10-29): ayni tarif uzaytirilsa
+    ///   yangi davr joriysining OXIRIDAN boshlanadi — xabar "darslar ochildi"
+    ///   desa, o'quvchi yangi imkoniyatni bugun qidirardi. Kechroq boshlansa —
+    ///   mahalliy sana (Toshkent), aks holda <c>null</c>.
+    /// </summary>
+    private string? StartsLaterOn(SubscriptionGrantResult? grant)
+    {
+        if (grant is null || grant.StartsAt <= clock.GetUtcNow().AddMinutes(1))
+            return null;
+
+        return TimeZoneInfo.ConvertTime(grant.StartsAt, timeZone.TimeZone)
+            .ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     }
 
     private async Task<string?> StaffChatIdAsync(CancellationToken ct)
@@ -661,4 +801,8 @@ internal static partial class ShopLog
     [LoggerMessage(EventId = 6903, Level = LogLevel.Information,
         Message = "Bot orqali yangi o'quvchi ro'yxatdan o'tdi: user={UserId}")]
     internal static partial void SelfSignup(ILogger logger, long userId);
+
+    [LoggerMessage(EventId = 6904, Level = LogLevel.Information,
+        Message = "Tarif balansdan to'landi: order={OrderId} student={StudentId} plan={PlanId}")]
+    internal static partial void OrderPaidFromBalance(ILogger logger, long orderId, long studentId, long planId);
 }

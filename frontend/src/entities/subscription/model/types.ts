@@ -56,11 +56,20 @@ export interface SubscriptionPeriodDto {
   startsAt: string
   endsAt: string
   amount: number
-  method: PaymentMethodName
+  /** `null` — o'quvchi balansidan to'langan (2026-10-29), kassaga pul tushmagan. */
+  method: PaymentMethodName | null
   note: string | null
   createdAt: string
   cancelledAt: string | null
   cancelReason: string | null
+  planId: number | null
+  /** Sotilgan paytdagi tarifda interaktiv darslik bormidi (muzlatilgan). */
+  includesInteractiveBook: boolean
+  /**
+   * Hozirgi ishlatilmagan qiymati (pro-rata, pastga yaxlitlangan) — bekor
+   * qilishda "qaytariladigan summa" taklifi. Faqat xodim ro'yxatida to'ldiriladi.
+   */
+  unusedValue: number
 }
 
 export interface MySubscriptionDto {
@@ -77,6 +86,29 @@ export interface MySubscriptionDto {
 
 /** Davr holati: bekor qilingan, kelajakda, faol yoki tugagan. */
 export type PeriodState = 'cancelled' | 'upcoming' | 'active' | 'ended'
+
+/**
+ * Obunani bekor qilganda pul bilan nima qilinadi (2026-10-29, Q-5):
+ * qaytarilmaydi, balansga o'tadi yoki naqd qaytariladi. Har ikkala
+ * qaytarish ham moliya jurnaliga yoziladi.
+ */
+export type SubscriptionRefundModeName = 'None' | 'ToBalance' | 'Cash'
+
+export const REFUND_MODE_LABELS: Record<SubscriptionRefundModeName, string> = {
+  None: 'Pul qaytarilmaydi',
+  ToBalance: 'Balansga o‘tkazish',
+  Cash: 'Naqd qaytarildi',
+}
+
+/**
+ * Guruhga qo'shishdan oldin: obunada necha kun va qancha pul qolgan
+ * (2026-10-29, Q-2) — xodim "balansga o'tkazib qo'shilsinmi?" ni tasdiqlaydi.
+ */
+export interface GroupConversionDto {
+  hasLiveSubscription: boolean
+  daysLeft: number
+  amount: number
+}
 
 export function periodState(period: SubscriptionPeriodDto, now: number = Date.now()): PeriodState {
   if (period.cancelledAt !== null) return 'cancelled'

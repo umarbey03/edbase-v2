@@ -49,6 +49,11 @@ export interface ShopMeDto {
   inGroup: boolean
   hasActiveSubscription: boolean
   orders: ShopOrderDto[]
+  /** O'quvchi balansi (2026-10-29) — yetarli bo'lsa «Balansdan to'lash» taklif qilinadi. */
+  balance: number
+  /** Hozir yurib turgan davrning tarifi — kartada «Joriy tarif». */
+  currentPlanId: number | null
+  currentPlanEndsAt: string | null
 }
 
 export interface StaffOrderDto {

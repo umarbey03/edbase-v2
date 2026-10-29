@@ -23,6 +23,14 @@ export function createShopOrder(planId: number): Promise<ShopOrderDto> {
   return http.post<ShopOrderDto>(`${BASE}/orders`, { planId })
 }
 
+/**
+ * Mustaqil o'qish tarifini BALANSDAN to'lash (2026-10-29) — xodim tasdig'isiz,
+ * buyurtma darhol «Tasdiqlangan». Balans yetmasa server 409 qaytaradi.
+ */
+export function payShopOrderFromBalance(planId: number): Promise<ShopOrderDto> {
+  return http.post<ShopOrderDto>(`${BASE}/orders/from-balance`, { planId })
+}
+
 export function cancelShopOrder(id: number): Promise<ShopOrderDto> {
   return http.post<ShopOrderDto>(`${BASE}/orders/${id}/cancel`, {})
 }

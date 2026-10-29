@@ -19,6 +19,8 @@ import { useConfirm } from '@/shared/lib/useConfirm'
 import type { GroupMemberDto, UserDetailsDto } from '@/shared/types'
 import { BaseBadge, BaseButton, BaseField, BaseModal, DataStatus } from '@/shared/ui'
 
+import { addMemberWithConversion } from '../model/subscription-conversion'
+
 /**
  * Guruhga o'quvchi qo'shish — IKKI REJIM:
  *
@@ -103,9 +105,13 @@ const listError = computed(() =>
 
 const queryClient = useQueryClient()
 
+// ★ 2026-10-29 (Q-2): mustaqil o'qish obunasi bor o'quvchi — avval "qolgan kunlar
+//   balansga o'tkazilsinmi?" so'raladi (`addMemberWithConversion`). Xodim voz
+//   kechsa `null` keladi va oyna ochiq qoladi.
 const addMutation = useMutation({
-  mutationFn: (studentId: number) => addMember(props.groupId, { studentId }),
-  onSuccess: (_member: GroupMemberDto) => {
+  mutationFn: (studentId: number) => addMemberWithConversion(props.groupId, studentId),
+  onSuccess: (member: GroupMemberDto | null) => {
+    if (member === null) return
     emit('saved')
     emit('close')
   },

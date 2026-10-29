@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import {
-  addMember,
   fetchGroupMembers,
   memberStatusLabel,
   memberStatusTone,
@@ -19,6 +18,7 @@ import { useConfirm } from '@/shared/lib/useConfirm'
 import type { GroupMemberDto } from '@/shared/types'
 import { AppIcon, BaseBadge, BaseButton, BaseCard, DataStatus, IconButton } from '@/shared/ui'
 
+import { addMemberWithConversion } from '../model/subscription-conversion'
 import AddMemberDialog from './AddMemberDialog.vue'
 import MoveMemberDialog from './MoveMemberDialog.vue'
 import PauseMemberDialog from './PauseMemberDialog.vue'
@@ -214,8 +214,12 @@ const removingMember = ref<GroupMemberDto | null>(null)
  * izohi: "TIKLASH, yangi qator EMAS" — arxiv izi ham tozalanadi).
  */
 const restoreMutation = useMutation({
-  mutationFn: (studentId: number) => addMember(props.groupId, { studentId }),
-  onSuccess: refresh,
+  // ★ 2026-10-29 (Q-2): chiqib ketgan o'quvchi bu orada mustaqil obuna olgan
+  //   bo'lishi mumkin — qolgan kunlarni balansga o'tkazish avval so'raladi.
+  mutationFn: (studentId: number) => addMemberWithConversion(props.groupId, studentId),
+  onSuccess: (member: GroupMemberDto | null) => {
+    if (member !== null) refresh()
+  },
   onError: (error: Error) => {
     actionError.value = toUserMessage(error)
   },

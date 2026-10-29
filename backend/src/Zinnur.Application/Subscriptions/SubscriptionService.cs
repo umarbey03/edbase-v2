@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Common.Exceptions;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Gating.Services;
+using Zinnur.Application.Payments.Dtos;
+using Zinnur.Application.Payments.Services;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 using Zinnur.Domain.Exceptions;
@@ -23,13 +26,29 @@ public interface ISubscriptionService
 
     /// <summary>
     /// Onlayn buyurtma tasdiqlanganda obuna ochadi — narx BUYURTMADAN
-    /// (o'quvchi ko'rgan summa), reja keyin o'chirilgan bo'lsa ham. Davr Id'si.
+    /// (o'quvchi ko'rgan summa), reja keyin o'chirilgan bo'lsa ham.
     /// </summary>
-    Task<long> GrantForOrderAsync(
+    Task<SubscriptionGrantResult> GrantForOrderAsync(
         long studentId, long planId, decimal amount, string note, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O'quvchi tarifni BALANSIDAN to'laydi (2026-10-29, Q-4) — xodim tasdig'isiz.
+    /// ⚠️ Ruxsatni chaqiruvchi (do'kon servisi) tekshiradi: amalni o'quvchining O'ZI bajaradi.
+    /// </summary>
+    Task<SubscriptionGrantResult> GrantFromBalanceAsync(
+        long studentId, long planId, decimal amount, string note, CancellationToken ct = default);
 
     Task<SubscriptionPeriodDto> CancelAsync(
         long periodId, CancelSubscriptionRequest request, long actorId, CancellationToken ct = default);
+
+    /// <summary>Guruhga o'tkazilsa qancha kun va pul balansga o'tadi — hech narsa o'zgartirmaydi.</summary>
+    Task<GroupConversionDto> PreviewGroupConversionAsync(long studentId, long actorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Obunani guruhga o'tkazish (2026-10-29, Q-2): joriy davr HOZIR yopiladi,
+    /// kelgusi davrlar bekor qilinadi, ishlatilmagan pul balansga tushadi.
+    /// </summary>
+    Task<GroupConversionDto> ConvertToGroupAsync(long studentId, long actorId, CancellationToken ct = default);
 
     Task<IReadOnlyList<SubscriptionPeriodDto>> ListForStudentAsync(
         long studentId, long actorId, CancellationToken ct = default);
@@ -47,11 +66,27 @@ public interface ISubscriptionService
 ///   <see cref="ISubscriptionAccess"/> izohida.
 /// ★ Har o'zgarishdan keyin gating keshi tozalanadi — darslar darhol
 ///   ochiladi yoki yopiladi.
+///
+/// ════════════════════════════════════════════════════════════════════════
+///  PUL QOIDALARI (2026-10-29, loyiha egasi qarorlari)
+/// ════════════════════════════════════════════════════════════════════════
+///  • Q-1 TARIF ALMASHTIRISH DARHOL: joriy davr boshqa tarifda bo'lsa, u
+///    HOZIR yopiladi (bekor qilinmaydi), yangi davr hozirdan boshlanadi va
+///    eski davrning ishlatilmagan qiymati (<see cref="SubscriptionPeriod.UnusedValue"/>)
+///    balansga tushadi. Ayni tarifni uzaytirish — avvalgidek oxiridan.
+///  • Q-2 GURUHGA O'TISH: qolgan kunlar pulga aylanib balansga tushadi.
+///  • Q-4 BALANSDAN TO'LASH: xodim tasdig'isiz, bitta tranzaksiyada.
+///  • Q-5 JURNAL: har so'm jurnalga O'Z turida kiradi va chiqadi
+///    (<see cref="IPaymentService.RecordSubscriptionMoneyAsync"/>).
+///  ★ Har amal BITTA baza tranzaksiyasida: davr ham, pul ham — yoki
+///    ikkalasi yoziladi, yoki hech biri.
+/// ════════════════════════════════════════════════════════════════════════
 /// </summary>
 public sealed class SubscriptionService(
     IApplicationDbContext db,
     ISubscriptionAccess access,
     IGatingService gating,
+    IPaymentService payments,
     TimeProvider clock) : ISubscriptionService
 {
     // ================================================================ rejalar
@@ -93,6 +128,27 @@ public sealed class SubscriptionService(
 
         var plan = await db.SubscriptionPlans.AsTracking().FirstOrDefaultAsync(p => p.Id == planId, ct)
             ?? throw new NotFoundException(nameof(SubscriptionPlan), planId);
+
+        // 🔴 SOTILGAN TARIFNING TURI VA KURSI O'ZGARMAYDI (audit P0-1, 2026-10-29):
+        //    lokal bazada «Milliy» (guruh, 540 000) `SelfStudy` bo'lib qolgan edi.
+        //    Tur sotuvdan keyin almashsa, kutilayotgan buyurtma tasdiqlanganda
+        //    540 000 evaziga 1 oylik obuna ochilardi (pul balansga tushmasdi)
+        //    yoki aksincha — o'quvchi to'lagan narsasini olmasdi. Tarixdagi
+        //    buyurtma va davrlar ham boshqa ma'noga ega bo'lib qolardi.
+        //    Xato tur bilan yaratilgan tarifni o'chirib, yangisini ochish kerak.
+        if (plan.Kind != request.Kind || plan.CourseId != request.CourseId)
+        {
+            var sold = await db.PurchaseOrders.AsNoTracking().AnyAsync(o => o.PlanId == plan.Id, ct)
+                || await db.SubscriptionPeriods.AsNoTracking().AnyAsync(p => p.PlanId == plan.Id, ct);
+
+            if (sold)
+            {
+                throw Invalid(
+                    plan.Kind != request.Kind ? nameof(request.Kind) : nameof(request.CourseId),
+                    "Bu tarif bo'yicha buyurtma yoki obuna bor — turi va kursi o'zgarmaydi. "
+                    + "Yangi tarif yarating va eskisini o'chiring.");
+            }
+        }
 
         plan.Name = request.Name.Trim();
         await ApplyAsync(plan, request, ct);
@@ -150,13 +206,16 @@ public sealed class SubscriptionService(
         if (!plan.IsActive)
             throw new ConflictException("Bu reja o'chirilgan — yangi obuna berilmaydi.");
 
-        var periodId = await GrantCoreAsync(
+        if (!Enum.IsDefined(request.Method))
+            throw Invalid(nameof(request.Method), "To'lov usuli noto'g'ri (Cash yoki Card).");
+
+        var result = await GrantAndInvalidateAsync(
             request.StudentId, plan, plan.Price, request.Method, Clip(request.Note), actor.Id, ct);
 
-        return await PeriodDtoAsync(periodId, ct);
+        return await PeriodDtoAsync(result.PeriodId, ct);
     }
 
-    public async Task<long> GrantForOrderAsync(
+    public async Task<SubscriptionGrantResult> GrantForOrderAsync(
         long studentId, long planId, decimal amount, string note, long actorId, CancellationToken ct = default)
     {
         var actor = await EnsureManagerAsync(actorId, ct);
@@ -164,11 +223,40 @@ public sealed class SubscriptionService(
         var plan = await db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planId, ct)
             ?? throw new NotFoundException(nameof(SubscriptionPlan), planId);
 
-        return await GrantCoreAsync(studentId, plan, amount, PaymentMethod.Card, Clip(note), actor.Id, ct);
+        // Payme/Click — karta to'lovi.
+        return await GrantAndInvalidateAsync(studentId, plan, amount, PaymentMethod.Card, Clip(note), actor.Id, ct);
     }
 
-    private async Task<long> GrantCoreAsync(
-        long studentId, SubscriptionPlan plan, decimal amount, PaymentMethod method, string? note,
+    public async Task<SubscriptionGrantResult> GrantFromBalanceAsync(
+        long studentId, long planId, decimal amount, string note, CancellationToken ct = default)
+    {
+        var plan = await db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planId, ct)
+            ?? throw new NotFoundException(nameof(SubscriptionPlan), planId);
+
+        // Usul `null` — balansdan. Amalni o'quvchining o'zi bajaradi, ya'ni jurnalda "kim" ham u.
+        return await GrantAndInvalidateAsync(studentId, plan, amount, method: null, Clip(note), studentId, ct);
+    }
+
+    private async Task<SubscriptionGrantResult> GrantAndInvalidateAsync(
+        long studentId, SubscriptionPlan plan, decimal amount, PaymentMethod? method, string? note,
+        long actorId, CancellationToken ct)
+    {
+        var result = await db.InTransactionAsync(
+            token => GrantCoreAsync(studentId, plan, amount, method, note, actorId, token), ct);
+
+        // Commit'dan KEYIN (ichma-ich chaqiruvda chaqiruvchi ham tozalaydi):
+        // aks holda parallel so'rov eski holatni qayta keshlab qo'yardi.
+        await gating.InvalidateAsync(studentId, ct);
+        return result;
+    }
+
+    /// <summary>
+    /// Davr ochish yadrosi. ⚠️ Tranzaksiya ichida chaqiriladi va hamma narsani
+    /// o'zi o'qiydi (qayta urinishda ham to'g'ri ishlasin).
+    /// </summary>
+    /// <param name="method"><c>null</c> — balansdan to'lanmoqda.</param>
+    private async Task<SubscriptionGrantResult> GrantCoreAsync(
+        long studentId, SubscriptionPlan plan, decimal amount, PaymentMethod? method, string? note,
         long actorId, CancellationToken ct)
     {
         // ★ GURUH TARIFI OBUNA EMAS: u jonli kursning oylik narxi va pul balansga tushadi.
@@ -198,20 +286,47 @@ public sealed class SubscriptionService(
         }
 
         var now = clock.GetUtcNow();
-        var upcoming = await db.SubscriptionPeriods.AsNoTracking()
-            .Where(p => p.StudentId == student.Id && p.CancelledAt == null && p.EndsAt > now)
-            .Select(p => new { p.CourseId, p.EndsAt })
-            .ToListAsync(ct);
+        var live = await LivePeriods(student.Id, now).AsTracking().ToListAsync(ct);
 
-        if (upcoming.Exists(p => p.CourseId != plan.CourseId))
+        if (live.Exists(p => p.CourseId != plan.CourseId))
         {
             throw new ConflictException(
                 "O'quvchining boshqa kursga faol obunasi bor. Bir vaqtda bitta kurs — "
                 + "avval o'sha obunani bekor qiling.");
         }
 
-        // Uzaytirish: yangi davr mavjudining OXIRIDAN boshlanadi — to'langan kun yo'qolmaydi.
-        var startsAt = upcoming.Count == 0 ? now : upcoming.Max(p => p.EndsAt);
+        // 1) PUL AVVAL: balansdan to'lashda mablag' yetmasa — hech narsa o'zgarmasin.
+        long? transactionId = null;
+        if (amount > 0)
+        {
+            transactionId = await payments.RecordSubscriptionMoneyAsync(
+                new SubscriptionMoneyMove(
+                    student.Id,
+                    method is null ? PaymentTransactionKind.SubscriptionBalanceUse : PaymentTransactionKind.Subscription,
+                    amount,
+                    method,
+                    LedgerNote(plan.Name, note)),
+                actorId, ct);
+        }
+
+        // 2) TARIF ALMASHTIRISH (Q-1): hozir BOSHQA tarifdagi davr yurib turibdi.
+        var current = live.Find(p => p.StartsAt < now);
+        var switching = current is not null && current.PlanId != plan.Id;
+
+        DateTimeOffset startsAt;
+        decimal credit = 0m;
+
+        if (switching)
+        {
+            credit = current!.UnusedValue(now);
+            current.CloseAt(now);
+            startsAt = now;
+        }
+        else
+        {
+            // Uzaytirish: yangi davr mavjudining OXIRIDAN boshlanadi — to'langan kun yo'qolmaydi.
+            startsAt = live.Count == 0 ? now : live.Max(p => p.EndsAt);
+        }
 
         var period = new SubscriptionPeriod
         {
@@ -222,16 +337,47 @@ public sealed class SubscriptionService(
             EndsAt = startsAt.AddMonths(plan.Months),
             Amount = amount,
             Method = method,
+            IncludesInteractiveBook = plan.IncludesInteractiveBook,
             Note = note,
             CreatedById = actorId,
             CreatedAt = now,
         };
 
+        if (switching)
+        {
+            // ⚠️ OLDINDAN TO'LANGAN KELGUSI DAVRLAR (kam uchraydi) yo'qolmaydi va
+            //    pulga ham aylanmaydi: yangi davr OXIRIGA o'z uzunligi bilan suriladi.
+            //    Konservativ tanlov — o'quvchi to'lagan vaqtini baribir oladi.
+            var cursor = period.EndsAt;
+            foreach (var next in live.Where(p => !ReferenceEquals(p, current)))
+            {
+                var length = next.EndsAt - next.StartsAt;
+                next.StartsAt = cursor;
+                next.EndsAt = cursor + length;
+                next.UpdatedAt = now;
+                cursor = next.EndsAt;
+            }
+        }
+
         db.SubscriptionPeriods.Add(period);
         await db.SaveChangesAsync(ct);
-        await gating.InvalidateAsync(student.Id, ct);
 
-        return period.Id;
+        // 3) ESKI DAVRNING ISHLATILMAGAN QISMI BALANSGA (Q-1). Buyurtma summasi
+        //    o'zgarmaydi — o'quvchi to'laganini to'lagan, farq balansda turadi.
+        if (credit > 0)
+        {
+            await payments.RecordSubscriptionMoneyAsync(
+                new SubscriptionMoneyMove(
+                    student.Id,
+                    PaymentTransactionKind.SubscriptionCredit,
+                    credit,
+                    null,
+                    string.Create(CultureInfo.InvariantCulture,
+                        $"Tarif almashtirildi → «{plan.Name}»: obuna #{current!.Id} ning ishlatilmagan qismi")),
+                actorId, ct);
+        }
+
+        return new SubscriptionGrantResult(period.Id, transactionId, period.StartsAt, period.EndsAt, credit);
     }
 
     public async Task<SubscriptionPeriodDto> CancelAsync(
@@ -240,23 +386,180 @@ public sealed class SubscriptionService(
         ArgumentNullException.ThrowIfNull(request);
         var actor = await EnsureManagerAsync(actorId, ct);
 
-        var period = await db.SubscriptionPeriods.AsTracking().FirstOrDefaultAsync(p => p.Id == periodId, ct)
-            ?? throw new NotFoundException(nameof(SubscriptionPeriod), periodId);
+        if (!Enum.IsDefined(request.RefundMode))
+            throw Invalid(nameof(request.RefundMode), "Qaytarish usuli noto'g'ri (None, ToBalance yoki Cash).");
 
-        if (period.IsCancelled)
-            throw new ConflictException("Bu obuna allaqachon bekor qilingan.");
+        var studentId = await db.InTransactionAsync(async token =>
+        {
+            var period = await db.SubscriptionPeriods.AsTracking().FirstOrDefaultAsync(p => p.Id == periodId, token)
+                ?? throw new NotFoundException(nameof(SubscriptionPeriod), periodId);
+
+            if (period.IsCancelled)
+                throw new ConflictException("Bu obuna allaqachon bekor qilingan.");
+
+            var now = clock.GetUtcNow();
+            var refund = ValidateRefund(period, request, now);
+
+            period.CancelledAt = now;
+            period.CancelledById = actor.Id;
+            period.CancelReason = Clip(request.Reason);
+            period.UpdatedAt = now;
+            await db.SaveChangesAsync(token);
+
+            // ★ QAYTARILGAN PUL JURNALDA (Q-5): "bekor qilindi, pul qayerga ketdi?"
+            //   savoliga endi javob bor — balansga yoki kassadan naqd.
+            if (refund > 0)
+            {
+                var toBalance = request.RefundMode == SubscriptionRefundMode.ToBalance;
+                var note = string.Create(CultureInfo.InvariantCulture, $"Obuna #{period.Id} bekor qilindi")
+                    + (period.CancelReason is null ? string.Empty : ": " + period.CancelReason);
+
+                await payments.RecordSubscriptionMoneyAsync(
+                    new SubscriptionMoneyMove(
+                        period.StudentId,
+                        toBalance ? PaymentTransactionKind.SubscriptionCredit : PaymentTransactionKind.SubscriptionRefund,
+                        refund,
+                        toBalance ? null : PaymentMethod.Cash,
+                        note),
+                    actor.Id, token);
+            }
+
+            return period.StudentId;
+        }, ct);
+
+        await gating.InvalidateAsync(studentId, ct);
+        return await PeriodDtoAsync(periodId, ct);
+    }
+
+    /// <summary>
+    /// ⚠️ QAYTARISH CHEGARALARI — pul IKKI MARTA chiqmasin:
+    ///   • davr summasidan ko'p qaytarilmaydi;
+    ///   • TUGAGAN davr uchun qaytarilmaydi — u to'liq ishlatilgan, yoki tarif
+    ///     almashtirishda yopilib, qolgan qismi ALLAQACHON balansga o'tgan.
+    /// </summary>
+    private static decimal ValidateRefund(SubscriptionPeriod period, CancelSubscriptionRequest request, DateTimeOffset now)
+    {
+        if (request.RefundMode == SubscriptionRefundMode.None)
+            return 0m;
+
+        if (request.RefundAmount is not { } amount || amount <= 0)
+            throw Invalid(nameof(request.RefundAmount), "Qaytariladigan summani kiriting.");
+
+        if (amount > period.Amount)
+        {
+            throw Invalid(
+                nameof(request.RefundAmount),
+                string.Create(CultureInfo.InvariantCulture,
+                    $"Qaytariladigan summa obuna summasidan ({period.Amount:0.##} so'm) oshmasin."));
+        }
+
+        if (period.EndsAt <= now)
+            throw new ConflictException("Tugagan obuna uchun pul qaytarilmaydi — u ishlatib bo'lingan.");
+
+        return amount;
+    }
+
+    // ================================================================ guruhga o'tish
+
+    public async Task<GroupConversionDto> PreviewGroupConversionAsync(
+        long studentId, long actorId, CancellationToken ct = default)
+    {
+        await EnsureManagerAsync(actorId, ct);
 
         var now = clock.GetUtcNow();
-        period.CancelledAt = now;
-        period.CancelledById = actor.Id;
-        period.CancelReason = Clip(request.Reason);
-        period.UpdatedAt = now;
-
-        await db.SaveChangesAsync(ct);
-        await gating.InvalidateAsync(period.StudentId, ct);
-
-        return await PeriodDtoAsync(period.Id, ct);
+        var live = await LivePeriods(studentId, now).AsNoTracking().ToListAsync(ct);
+        return Summarize(live, now);
     }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// OBUNANI GURUHGA O'TKAZISH (2026-10-29, loyiha egasi qarori Q-2)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 ILGARI (audit P0-3): guruhga qo'shish obuna bor bo'lsa 409 berardi,
+    ///   xodimning yagona chorasi — davrni TO'LIQ bekor qilish edi. 20 kun
+    ///   (~166 000 so'm) va oldindan to'langan keyingi oy jimgina yo'qolardi.
+    ///
+    /// ★ Joriy davr HOZIR yopiladi (tarixda "ishlatilgan" qismi qoladi),
+    ///   kelgusi davrlar bekor qilinadi; ishlatilmagan qiymat (joriy —
+    ///   pro-rata, kelgusi — to'liq) balansga tushadi va har davr uchun
+    ///   jurnalda alohida <c>SubscriptionCredit</c> yozuvi qoladi.
+    /// ★ Tranzaksiya: chaqiruvchi (guruhga qo'shish) o'z tranzaksiyasini
+    ///   ochgan bo'lsa — o'sha ichida, aks holda o'zinikida.
+    /// </summary>
+    public async Task<GroupConversionDto> ConvertToGroupAsync(
+        long studentId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await EnsureManagerAsync(actorId, ct);
+
+        var result = await db.InTransactionAsync(async token =>
+        {
+            var now = clock.GetUtcNow();
+            var live = await LivePeriods(studentId, now).AsTracking().ToListAsync(token);
+            var summary = Summarize(live, now);
+
+            var credits = new List<(long PeriodId, decimal Amount)>(live.Count);
+            foreach (var period in live)
+            {
+                credits.Add((period.Id, period.UnusedValue(now)));
+
+                if (period.StartsAt < now)
+                {
+                    period.CloseAt(now);
+                }
+                else
+                {
+                    period.CancelledAt = now;
+                    period.CancelledById = actor.Id;
+                    period.CancelReason = "Guruhga o'tkazildi — pul balansga";
+                    period.UpdatedAt = now;
+                }
+            }
+
+            await db.SaveChangesAsync(token);
+
+            foreach (var (periodId, amount) in credits.Where(c => c.Amount > 0))
+            {
+                await payments.RecordSubscriptionMoneyAsync(
+                    new SubscriptionMoneyMove(
+                        studentId,
+                        PaymentTransactionKind.SubscriptionCredit,
+                        amount,
+                        null,
+                        string.Create(CultureInfo.InvariantCulture,
+                            $"Guruhga o'tish: obuna #{periodId} ning ishlatilmagan qismi")),
+                    actor.Id, token);
+            }
+
+            return summary;
+        }, ct);
+
+        await gating.InvalidateAsync(studentId, ct);
+        return result;
+    }
+
+    /// <summary>Bekor qilinmagan va hali tugamagan davrlar (joriy + oldindan to'langan).</summary>
+    private IQueryable<SubscriptionPeriod> LivePeriods(long studentId, DateTimeOffset now) =>
+        db.SubscriptionPeriods
+            .Where(p => p.StudentId == studentId && p.CancelledAt == null && p.EndsAt > now)
+            .OrderBy(p => p.StartsAt);
+
+    private static GroupConversionDto Summarize(List<SubscriptionPeriod> live, DateTimeOffset now)
+    {
+        if (live.Count == 0)
+            return new GroupConversionDto(false, 0, 0m);
+
+        // Kunlar — har davrning QOLGAN qismi yig'indisi (oradagi bo'shliq sanalmaydi).
+        var remaining = live.Aggregate(
+            TimeSpan.Zero, (sum, p) => sum + (p.EndsAt - (p.StartsAt > now ? p.StartsAt : now)));
+
+        return new GroupConversionDto(
+            true,
+            (int)Math.Floor(remaining.TotalDays),
+            live.Sum(p => p.UnusedValue(now)));
+    }
+
+    // ================================================================ o'qish
 
     public async Task<IReadOnlyList<SubscriptionPeriodDto>> ListForStudentAsync(
         long studentId, long actorId, CancellationToken ct = default)
@@ -264,7 +567,7 @@ public sealed class SubscriptionService(
         if (studentId != actorId)
             await EnsureManagerAsync(actorId, ct);
 
-        return await PeriodsQuery(p => p.StudentId == studentId).ToListAsync(ct);
+        return await PeriodsWithUnusedAsync(PeriodsQuery(p => p.StudentId == studentId), ct);
     }
 
     public async Task<MySubscriptionDto> GetMineAsync(long studentId, CancellationToken ct = default)
@@ -328,10 +631,37 @@ public sealed class SubscriptionService(
             p.Note,
             p.CreatedAt,
             p.CancelledAt,
-            p.CancelReason));
+            p.CancelReason,
+            p.PlanId,
+            p.IncludesInteractiveBook,
+            0m));
 
-    private Task<SubscriptionPeriodDto> PeriodDtoAsync(long periodId, CancellationToken ct) =>
-        PeriodsQuery(p => p.Id == periodId).FirstAsync(ct);
+    /// <summary>
+    /// Xodim ro'yxati: har davrning HOZIRGI ishlatilmagan qiymati — bekor qilish
+    /// formasidagi "qaytariladigan summa" taklifi. Hisob Domain'dagi AYNI formula.
+    /// </summary>
+    private async Task<List<SubscriptionPeriodDto>> PeriodsWithUnusedAsync(
+        IQueryable<SubscriptionPeriodDto> query, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var rows = await query.ToListAsync(ct);
+        return rows.ConvertAll(r => r with { UnusedValue = UnusedOf(r, now) });
+    }
+
+    private static decimal UnusedOf(SubscriptionPeriodDto row, DateTimeOffset now) =>
+        new SubscriptionPeriod
+        {
+            StartsAt = row.StartsAt,
+            EndsAt = row.EndsAt,
+            Amount = row.Amount,
+            CancelledAt = row.CancelledAt,
+        }.UnusedValue(now);
+
+    private async Task<SubscriptionPeriodDto> PeriodDtoAsync(long periodId, CancellationToken ct) =>
+        (await PeriodsWithUnusedAsync(PeriodsQuery(p => p.Id == periodId), ct))[0];
+
+    private static string LedgerNote(string planName, string? note) =>
+        note is null ? $"Obuna: «{planName}»" : $"Obuna: «{planName}» · {note}";
 
     private async Task<User> EnsureManagerAsync(long actorId, CancellationToken ct)
     {

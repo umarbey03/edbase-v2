@@ -45,6 +45,20 @@ public interface IPaymentService
     Task<ReversalDto> ReverseAsync(
         ReversePaymentRequest request, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// ★ MUSTAQIL O'QISH OBUNASI PULINING YAGONA YO'LI (2026-10-29, Q-5):
+    /// jurnal yozuvi (o'z turida) + kerak bo'lsa balans + audit.
+    ///
+    /// ⚠️ RUXSAT TEKSHIRILMAYDI — chaqiruvchi (obuna yoki do'kon servisi) o'zi
+    ///    tekshiradi: balansdan to'lashni O'QUVCHINING O'ZI bajaradi, bu yerda
+    ///    esa "faqat xodim" qoidasi uni to'sardi. Kontrollerga chiqarilmagan.
+    /// ⚠️ TRANZAKSIYANI chaqiruvchi ochadi (<c>InTransactionAsync</c>) — obuna
+    ///    davri va pul bitta amalda yozilsin.
+    /// </summary>
+    /// <returns>Jurnal yozuvining Id'si.</returns>
+    Task<long> RecordSubscriptionMoneyAsync(
+        SubscriptionMoneyMove move, long actorId, CancellationToken ct = default);
+
     // ---------------------------------------------------------------- o'qish
 
     /// <summary>O'quvchi hisobi: qarz, balans, oylar tarixi, jurnal.</summary>

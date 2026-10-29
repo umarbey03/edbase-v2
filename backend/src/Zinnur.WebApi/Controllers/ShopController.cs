@@ -41,6 +41,16 @@ public sealed class ShopController(IShopService shop) : ControllerBase
         [FromBody] CreateOrderRequest request, CancellationToken ct) =>
         Ok(await shop.CreateOrderAsync(CurrentUserId, request, ct));
 
+    /// <summary>Mustaqil o'qish tarifini balansdan to'lash — xodim tasdig'isiz (Q-4).</summary>
+    [HttpPost("orders/from-balance")]
+    [Authorize(Roles = "Student")]
+    [ProducesResponseType<ShopOrderDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ShopOrderDto>> PayFromBalance(
+        [FromBody] CreateOrderRequest request, CancellationToken ct) =>
+        Ok(await shop.PayFromBalanceAsync(CurrentUserId, request, ct));
+
     [HttpPost("orders/{id:long}/cancel")]
     [Authorize(Roles = "Student")]
     [ProducesResponseType<ShopOrderDto>(StatusCodes.Status200OK)]

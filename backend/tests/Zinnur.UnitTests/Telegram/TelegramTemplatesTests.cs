@@ -197,4 +197,24 @@ public class TelegramTemplatesTests
 
         text.Should().Contain("1 daqiqa");
     }
+
+    // ------------------------------------------------------------------ onlayn sotuv
+
+    /// <summary>
+    /// ★ 2026-10-29 (P1-6, Q-1): uzaytirish keyingi davrdan boshlanadi — xabar
+    /// "darslar ochildi" demasin, sanani aytsin. Tarif almashtirilganda esa
+    /// balansga o'tgan summa ko'rinsin.
+    /// </summary>
+    [Fact]
+    public void ShopOrderConfirmedText_SaysWhenAccessStartsAndShowsTheCredit()
+    {
+        var later = TelegramTemplates.ShopOrderConfirmedText("ZN-12345", "Mustaqil", selfStudy: true, "29.11.2026");
+        later.Should().Contain("29.11.2026").And.Contain("boshlanadi").And.NotContain("balans");
+
+        var now = TelegramTemplates.ShopOrderConfirmedText("ZN-12345", "Mustaqil+", selfStudy: true, null, 132_666m);
+        now.Should().Contain("hozirdan").And.Contain("132 666 so'm balansingizga");
+
+        var group = TelegramTemplates.ShopOrderConfirmedText("ZN-12345", "Milliy", selfStudy: false, null, 5m);
+        group.Should().Contain("hisobingizga tushdi").And.NotContain("balansingizga");
+    }
 }

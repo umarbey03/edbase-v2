@@ -1305,6 +1305,11 @@ export interface UpdateGroupResponse {
 
 export interface AddMemberRequest {
   studentId: number
+  /**
+   * Mustaqil o'qish obunasini yopib, qolgan kunlar pulini balansga o'tkazish
+   * (2026-10-29). `false`/yo'q bo'lsa obunasi bor o'quvchi uchun server 409 beradi.
+   */
+  convertSubscription?: boolean
 }
 
 /** `pausedUntil` — `YYYY-MM-DD`. `null` bo'lsa muddatsiz pauza (qo'lda tiklanadi). */
@@ -1824,7 +1829,17 @@ export type PaymentStatusName = 'Due' | 'Partial' | 'Paid' | 'Waived'
 export type PaymentMethodName = 'Cash' | 'Card'
 
 /** `PaymentTransactionKind` — moliya jurnalidagi yozuv turi. */
-export type PaymentTransactionKindName = 'Payment' | 'Refund' | 'Waiver' | 'BalanceUse'
+export type PaymentTransactionKindName =
+  | 'Payment'
+  | 'Refund'
+  | 'Waiver'
+  | 'BalanceUse'
+  | 'LessonReversal'
+  /* Mustaqil o'qish obunasi puli (2026-10-29) — guruh to'lovlariga aralashmaydi. */
+  | 'Subscription'
+  | 'SubscriptionRefund'
+  | 'SubscriptionCredit'
+  | 'SubscriptionBalanceUse'
 
 /** `DiscountKind` — foizda yoki qat'iy summada. */
 export type DiscountKindName = 'Percent' | 'Amount'
@@ -2132,6 +2147,18 @@ export interface PaymentSummaryKpiDto {
   payingStudents: number
   debtorStudents: number
   paymentCount: number
+
+  /*
+    --- MUSTAQIL O'QISH OBUNASI (2026-10-29, Q-5) ---
+    Yuqoridagi barcha "to'lov" raqamlari faqat GURUH oylik to'lovlari haqida.
+    Obuna puli o'z qatorlarida: kassaning jami tushumi = `collected + subscriptionCollected`.
+  */
+  subscriptionCollected: number
+  subscriptionRefunded: number
+  /** Balansdan to'langan obunalar — yangi tushum emas. */
+  subscriptionFromBalance: number
+  /** Obunaning ishlatilmagan qismi balansga o'tgan (kassa o'zgarmagan). */
+  subscriptionCredited: number
 }
 
 /** Bitta qarz yoshi guruhi. `maxDays: null` — yuqori chegara yo'q (`90+`). */

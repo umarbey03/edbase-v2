@@ -835,13 +835,29 @@ public static class TelegramTemplates
         + (confirmed ? "tasdiqlandi" : "rad etildi")
         + $" — {NotificationText.Parameter(actorName, 80)}";
 
-    /// <summary>O'quvchiga: to'lov tasdiqlandi.</summary>
-    public static string ShopOrderConfirmedText(string code, string planName, bool selfStudy) =>
+    /// <summary>
+    /// O'quvchiga: to'lov tasdiqlandi.
+    ///
+    /// ★ QACHON BOSHLANADI (audit P1-6, 2026-10-29): ayni tarif uzaytirilsa yangi
+    ///   davr joriysining oxiridan boshlanadi — ilgari xabar baribir "Darslar
+    ///   ochildi" derdi. <paramref name="startsOn"/> berilsa, sana aytiladi.
+    /// ★ TARIF ALMASHTIRILSA (Q-1) eski davrning qolgan qismi balansga o'tadi —
+    ///   <paramref name="credit"/> summasi xabarda ko'rinadi.
+    /// </summary>
+    /// <param name="startsOn">Kirish keyinroq boshlansa — mahalliy sana (<c>dd.MM.yyyy</c>), aks holda <c>null</c>.</param>
+    public static string ShopOrderConfirmedText(
+        string code, string planName, bool selfStudy, string? startsOn = null, decimal credit = 0m) =>
         $"✅ To'lovingiz tasdiqlandi (<b>{NotificationText.Parameter(code, 12)}</b>).\n"
         + $"📦 {NotificationText.Parameter(planName, 100)}\n\n"
-        + (selfStudy
-            ? "Darslar ochildi — ilovani oching va o'qishni boshlang!"
-            : "To'lov hisobingizga tushdi. O'quv bo'limi sizni guruhga joylab, dars vaqtini xabar qiladi.");
+        + (!selfStudy
+            ? "To'lov hisobingizga tushdi. O'quv bo'limi sizni guruhga joylab, dars vaqtini xabar qiladi."
+            : startsOn is null
+                ? "Tarif hozirdan amalda — ilovani oching va o'qishni davom ettiring!"
+                : $"Tarif <b>{NotificationText.Parameter(startsOn, 10)}</b> dan boshlanadi — hozirgi obunangiz "
+                  + "tugagach. Ungacha joriy tarifingiz bo'yicha o'qiyverasiz.")
+        + (selfStudy && credit > 0
+            ? $"\n\n💰 Avvalgi tarifning ishlatilmagan qismi — {FormatMoney(credit)} so'm balansingizga o'tkazildi."
+            : string.Empty);
 
     /// <summary>O'quvchiga: to'lov topilmadi.</summary>
     public static string ShopOrderRejectedText(string code, string? reason) =>

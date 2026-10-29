@@ -345,4 +345,29 @@ public interface IApplicationDbContext
     /* ===== /2026-08-17 ===== */
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// BIR NECHTA SAQLASHNI BITTA BAZA TRANZAKSIYASIGA O'RASH (2026-10-29)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 NEGA KERAK (audit P1-7): buyurtmani tasdiqlash uch qadam edi —
+    ///   holatni "band qilish", obuna/to'lov yozish va buyurtmaga havola
+    ///   yozish — har biri O'Z tranzaksiyasida. Uchinchi qadam yiqilsa,
+    ///   buyurtma "kutilmoqda" ga qaytardi, davr yoki to'lov esa bazada
+    ///   qolardi: keyingi "Tasdiqlash" pulni IKKINCHI marta yozardi.
+    ///
+    /// ★ ICHMA-ICH CHAQIRUV XAVFSIZ: tranzaksiya allaqachon ochiq bo'lsa,
+    ///   <paramref name="work"/> shu tranzaksiya ichida bajariladi (yangisi
+    ///   ochilmaydi, commit ham qilinmaydi — tashqi chaqiruvchi hal qiladi).
+    ///   Shu tufayli <c>SubscriptionService</c> metodlari o'zi ham, guruhga
+    ///   qo'shish ichida ham bir xil ishlaydi.
+    /// ★ <c>EnableRetryOnFailure</c> yoqilgan: qo'lda ochilgan tranzaksiya
+    ///   ijro strategiyasi ICHIDA bo'lishi shart. Vaqtinchalik xatoda butun
+    ///   <paramref name="work"/> qaytadan bajariladi — shuning uchun u
+    ///   hamma narsani o'zi o'qishi kerak (tashqaridan kuzatilgan obyektga
+    ///   tayanmasin). Yiqilganda ChangeTracker tozalanadi: qayta urinishda
+    ///   eski "Added" yozuvlar ikkinchi marta qo'shilmasin.
+    /// </summary>
+    Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct = default);
 }

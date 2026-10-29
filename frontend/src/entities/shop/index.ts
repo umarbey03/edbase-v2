@@ -6,6 +6,7 @@ export {
   fetchShopMe,
   fetchShopOffers,
   fetchStaffOrders,
+  payShopOrderFromBalance,
   rejectShopOrder,
 } from './api/shop-api'
 export { orderStatusLabel, orderStatusTone } from './model/types'

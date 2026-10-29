@@ -39,10 +39,16 @@ public sealed record ShopOrderDto(
 /// <summary>O'quvchining do'kon holati: qaysi tariflar unga mos va buyurtmalari.</summary>
 /// <param name="InGroup">Faol guruh a'zoligi bor — mustaqil o'qish tarifi unga sotilmaydi.</param>
 /// <param name="HasActiveSubscription">Hozir mustaqil o'qish obunasi faol.</param>
+/// <param name="Balance">O'quvchi balansi (2026-10-29, Q-4) — "Balansdan to'lash" taklifi uchun.</param>
+/// <param name="CurrentPlanId">Hozir yurib turgan davrning tarifi (Q-1) — «Joriy tarif» belgisi uchun.</param>
+/// <param name="CurrentPlanEndsAt">Hozirgi davr tugash vaqti.</param>
 public sealed record ShopMeDto(
     bool InGroup,
     bool HasActiveSubscription,
-    IReadOnlyList<ShopOrderDto> Orders);
+    IReadOnlyList<ShopOrderDto> Orders,
+    decimal Balance = 0m,
+    long? CurrentPlanId = null,
+    DateTimeOffset? CurrentPlanEndsAt = null);
 
 /// <summary>Xodim ko'radigan buyurtma qatori — o'quvchi kontakti bilan.</summary>
 public sealed record StaffOrderDto(

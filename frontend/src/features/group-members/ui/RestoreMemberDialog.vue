@@ -2,10 +2,12 @@
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 
-import { addMember, fetchGroups, groupDisplayName } from '@/entities/group'
+import { fetchGroups, groupDisplayName } from '@/entities/group'
 import { toUserMessage } from '@/shared/api'
 import type { GroupDto, GroupMemberDto } from '@/shared/types'
 import { AppIcon, BaseButton, BaseField, BaseModal } from '@/shared/ui'
+
+import { addMemberWithConversion } from '../model/subscription-conversion'
 
 /**
  * ARXIVDAGI (chiqarilgan/ko'chirilgan) o'quvchini BOSHQA guruhga qo'shish
@@ -74,9 +76,11 @@ function selectTarget(group: GroupDto): void {
 }
 
 const addMutation = useMutation({
+  // ★ 2026-10-29 (Q-2): obuna bo'lsa — avval "balansga o'tkazilsinmi?" (voz kechsa `null`).
   mutationFn: (input: { targetGroupId: number; studentId: number }) =>
-    addMember(input.targetGroupId, { studentId: input.studentId }),
-  onSuccess: () => {
+    addMemberWithConversion(input.targetGroupId, input.studentId),
+  onSuccess: (member: GroupMemberDto | null) => {
+    if (member === null) return
     emit('saved')
     emit('close')
   },

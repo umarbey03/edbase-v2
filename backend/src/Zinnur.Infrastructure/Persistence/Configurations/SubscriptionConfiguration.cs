@@ -51,6 +51,10 @@ public sealed class SubscriptionPeriodConfiguration : IEntityTypeConfiguration<S
         builder.Property(p => p.CancelReason).HasMaxLength(SubscriptionPeriod.MaxNoteLength);
         builder.Ignore(p => p.IsCancelled);
 
+        // ★ 2026-10-29: tarifdagi darslik belgisi davrga MUZLATILADI (P2-3).
+        //   Eski qatorlar migratsiyada o'z tarifidan to'ldiriladi.
+        builder.Property(p => p.IncludesInteractiveBook).HasDefaultValue(false);
+
         builder.HasOne(p => p.Student)
             .WithMany()
             .HasForeignKey(p => p.StudentId)
