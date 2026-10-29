@@ -101,6 +101,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthStateCache, AuthStateCache>();
 
         services.AddScoped<ILiveSessionService, LiveSessionService>();
+        services.AddScoped<IBreakoutService, BreakoutService>();
 
         // DAVOMATNI QO'LDA TUZATISH — jonli oqim servisidan ATAYLAB alohida
         // (sabab `IAttendanceService` izohida). SCOPED: tuzatish va uning

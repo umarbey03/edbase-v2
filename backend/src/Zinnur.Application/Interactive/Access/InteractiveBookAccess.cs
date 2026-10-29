@@ -85,12 +85,9 @@ public sealed class InteractiveBookAccess(
     /// <summary>
     /// Hozir amaldagi (bekor qilinmagan) davrlar va ularning "darslik kiradimi" belgisi.
     ///
-    /// ⚠️ VAQTINCHA TARIFDAN O'QILADI (<c>SubscriptionPeriod → Plan.IncludesInteractiveBook</c>).
-    ///   Parallel tarmoq (obuna va to'lovlar) <c>SubscriptionPeriod.IncludesInteractiveBook</c>
-    ///   — davr berilgan paytdagi belgining NUSXASI (snapshot) — ustunini qo'shmoqda.
-    ///   U birlashtirilgach shu BITTA metod <c>p.IncludesInteractiveBook</c> ga
-    ///   o'tadi: tarif belgisi keyin o'zgartirilsa, allaqachon to'langan davr
-    ///   huquqi jimgina o'zgarmasin. (2026-10-29)
+    /// ★ DAVRNING O'Z NUSXASIDAN O'QILADI (<c>SubscriptionPeriod.IncludesInteractiveBook</c>,
+    ///   davr berilgan paytdagi tarif belgisi): tarif belgisi keyin o'zgartirilsa,
+    ///   allaqachon to'langan davr huquqi jimgina o'zgarmaydi. (2026-10-29)
     /// </summary>
     private IQueryable<PeriodFlag> CurrentPeriodFlags(long studentId, DateTimeOffset now) =>
         db.SubscriptionPeriods.AsNoTracking()
@@ -99,7 +96,7 @@ public sealed class InteractiveBookAccess(
                      && p.StartsAt <= now
                      && p.EndsAt > now)
             .OrderBy(p => p.StartsAt)
-            .Select(p => new PeriodFlag(p.CourseId, p.Plan != null && p.Plan.IncludesInteractiveBook));
+            .Select(p => new PeriodFlag(p.CourseId, p.IncludesInteractiveBook));
 
     private sealed record PeriodFlag(long CourseId, bool IncludesInteractiveBook);
 }
