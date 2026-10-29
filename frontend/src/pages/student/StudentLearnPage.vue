@@ -1,12 +1,20 @@
+<script lang="ts">
+/**
+ * Oxirgi ochilgan modul — sahifa nusxalaridan USTUN (modul darajasi).
+ * Nega kerakligi: `openModuleId` izohida.
+ */
+let rememberedModuleId: number | null = null
+</script>
+
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import {
   countsTowardProgress,
   useStudentCourse,
 } from '@/features/student-course/model/useStudentCourse'
 import CourseLessonPath from '@/features/student-course/ui/CourseLessonPath.vue'
-import LessonDashboard from '@/features/lesson-dashboard/ui/LessonDashboard.vue'
 import { useMySubscription } from '@/entities/subscription'
 import { MascotAvatar, useStudentMood } from '@/features/mascot'
 import type { MascotMood } from '@/features/mascot'
@@ -28,8 +36,18 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  *   sahifaning o'zi asosiy yo'l bo'lib qoladi — pastdagi statik panel
  *   endi ikkilamchi va Bosh sahifada mantiqiyroq (guruhga bog'langan,
  *   darssiz vazifa/testlar uchun yagona qolgan kirish nuqtasi).
+ *
+ * ★ 2026-10-29: DARS MODALDA EMAS, O'Z MARSHRUTIDA (`student-lesson`,
+ *   audit 2.4-d) — tugun bosilganda `router.push`, ya'ni "orqaga" tugmasi
+ *   shu sahifaga qaytaradi va darsga havola berish mumkin. Sabab:
+ *   `StudentLessonPage.vue` boshidagi izoh.
  */
 const course = useStudentCourse()
+const router = useRouter()
+
+function openLesson(lesson: CourseLessonDto): void {
+  void router.push({ name: 'student-lesson', params: { lessonId: String(lesson.id) } })
+}
 
 /*
   ══════════════════════════════════════════════════════════════════════
@@ -77,18 +95,21 @@ function moduleDone(lessons: CourseLessonDto[]): boolean {
   return planned > 0 && doneCount(lessons) === planned
 }
 
-/** Ochiq modul id'si. Boshida — hozirgi dars turgan modul. */
-const openModuleId = ref<number | null>(null)
+/**
+ * Ochiq modul id'si. Boshida — oxirgi marta ochilgan modul, u bo'lmasa
+ * hozirgi dars turgan modul.
+ *
+ * ★ 2026-10-29: dars endi alohida sahifa, ya'ni "orqaga" bosilganda bu
+ * sahifa QAYTA yaratiladi. O'quvchi 2-modulni ochib darsga kirgan bo'lsa,
+ * qaytganda yana hozirgi dars moduli ochilib, u turgan joy yopilib qolardi
+ * (router esa aylantirish o'rnini tiklaydi — tiklangan o'rin boshqa
+ * akkordeon ostiga tushardi). Tanlov modul darajasidagi o'zgaruvchida
+ * eslab qolinadi: sahifalar orasida yashaydi, sahifa yangilansa unutiladi.
+ */
+const openModuleId = ref<number | null>(rememberedModuleId)
 
-const selectedLesson = ref<CourseLessonDto | null>(null)
-
-const selectedModuleName = computed(() => {
-  const lessonId = selectedLesson.value?.id
-  if (lessonId === undefined) return ''
-  const owner = course.modules.value.find((module) =>
-    (module.lessons ?? []).some((lesson) => lesson.id === lessonId),
-  )
-  return owner?.name ?? ''
+watch(openModuleId, (id) => {
+  rememberedModuleId = id
 })
 
 /** Doira uzunligi: 2 × π × 26 (eski `c-ring` radiusi). */
@@ -102,7 +123,12 @@ const ringOffset = computed(
 watch(
   () => [course.modules.value, course.nextLessonId.value] as const,
   ([modules, currentId]) => {
-    if (openModuleId.value !== null || modules.length === 0) return
+    if (modules.length === 0) return
+    // Eslab qolingan modul hali ham shu kursda bo'lsa — tegilmaydi. Yo'q
+    // bo'lsa (boshqa akkaunt shu tabda kirgan, modul o'chirilgan) sukutga
+    // tushamiz, aks holda hech bir modul ochilmay qolardi.
+    const kept = openModuleId.value
+    if (kept !== null && modules.some((module) => module.id === kept)) return
     const owner = modules.find((module) =>
       (module.lessons ?? []).some((lesson) => lesson.id === currentId),
     )
@@ -373,7 +399,7 @@ function plannedCount(lessons: CourseLessonDto[]): number {
             <CourseLessonPath
               :lessons="module.lessons ?? []"
               :current-lesson-id="course.nextLessonId.value"
-              @open="selectedLesson = $event"
+              @open="openLesson"
             >
               <template #current>
                 <MascotAvatar
@@ -400,11 +426,5 @@ function plannedCount(lessons: CourseLessonDto[]): number {
         </section>
       </div>
     </template>
-
-    <LessonDashboard
-      :lesson="selectedLesson"
-      :module-name="selectedModuleName"
-      @close="selectedLesson = null"
-    />
   </div>
 </template>

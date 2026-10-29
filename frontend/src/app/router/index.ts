@@ -174,6 +174,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'O‘quv', roles: STUDENT },
       },
       {
+        /*
+          ★ DARS — ALOHIDA MARSHRUT, MODAL EMAS (2026-10-29, audit 2.4-d).
+          Telefonda "orqaga" tugmasi modalni yopmay O'quv sahifasidan chiqib
+          ketardi, darsga esa havola berib bo'lmasdi. Batafsil:
+          `StudentLessonPage.vue` boshidagi izoh.
+
+          `oquv/` ostida — "O'quv" bandi shu sahifada ham yonib turadi
+          (`useStudentNav.isActive`). `(\\d+)` — `oquv/dars/abc` 404 ga
+          tushadi, sahifa esa `Number()` dan NaN olmaydi.
+        */
+        path: 'oquv/dars/:lessonId(\\d+)',
+        name: 'student-lesson',
+        component: () => import('@/pages/student/StudentLessonPage.vue'),
+        meta: { title: 'Dars', roles: STUDENT },
+      },
+      {
         path: 'reyting',
         name: 'student-rating',
         component: () => import('@/pages/student/StudentRatingPage.vue'),
@@ -593,7 +609,21 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to) {
+  scrollBehavior(to, _from, savedPosition) {
+    /*
+      ★ ORQAGA/OLDINGA — SAQLANGAN O'RIN (2026-10-29).
+
+      Dars endi alohida marshrut (`student-lesson`). Ilgari u modal edi va
+      yopilganda O'quv sahifasi o'z joyida qolardi; endi "orqaga" bosilganda
+      sahifa QAYTA chiziladi va `{ top: 0 }` o'quvchini yo'lakchaning
+      boshiga otib yuborardi — 5-modulning 30-darsidan qaytgan o'quvchi
+      har safar pastga qayta aylantirishi kerak bo'lardi. Brauzer tarix
+      bo'ylab yurganda (`popstate`) o'rinni o'zi beradi — shuni qaytaramiz.
+      Oddiy havola bosilganda `savedPosition` `null`, ya'ni quyidagi
+      qoidalar avvalgidek ishlaydi.
+    */
+    if (savedPosition !== null) return savedPosition
+
     /*
       ★ LANGAR (`#ariza`) — 2026-08-28 da qo'shildi. Kirish sahifasidagi
         «ariza qoldiring» havolasi landing'ning AYNAN o'sha bo'limiga
