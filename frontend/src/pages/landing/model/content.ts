@@ -720,7 +720,16 @@ export const BOOKS = {
 */
 export const PRICE = {
   eyebrow: 'Tariflar',
+  /*
+    Sarlavha tariflar soniga qarab (offers API dan qancha mustaqil reja
+    kelsa). 2026-10-29 da sahifadan shu yerga ko'chirildi.
+  */
+  titleSingle: 'Kurs to‘lovi',
+  titleTwo: 'Ikki xil o‘qish shakli',
+  titleThree: 'Uch xil o‘qish shakli',
   planName: 'Milliy',
+  /** Milliy kartasidagi kurs nomi (qisqartma + to'liq shakli). */
+  planCourse: 'ATF — Arab tili fonetikasi',
   planTagline: 'Asosiy ustoz bilan guruhda jonli darslar va qo‘shimchalar',
   /*
     🔴 NARX FAQAT 8 TA DARS UCHUN (loyiha egasi, 2026-10-29). Support
@@ -728,7 +737,35 @@ export const PRICE = {
        narxga kirmaydi va ular uchun alohida pul olinmaydi. Matnda
        «to'lov ichida» degan gap ishlatilmasin.
   */
-  bonusNote: '«Qo‘shimcha» — kurs narxiga kirmaydi, ular uchun alohida pul olinmaydi.',
+  /*
+    ══════════════════════════════════════════════════════════════════════
+     MILLIY KARTASI IKKI BLOKKA BO'LINDI (2026-10-29)
+    ══════════════════════════════════════════════════════════════════════
+
+    🔴 MUAMMO: ilgari Milliy kartasida 7-8 qator bor edi va ulardan
+       6 tasida «qo'shimcha» pilyuskasi turardi. Narxga kiradigan YAGONA
+       qator — 8 ta jonli dars — 4-o'rinda, boshqalardan farqsiz edi.
+       Odam «540 000 nima uchun?» degan savolga javobni o'zi qidirardi.
+
+    ★ ENDI: «Narxga kiradi» bloki (bitta qator, ajratilgan) va alohida
+      «Qo'shimcha» ro'yxati, uning sarlavhasi ostida BITTA izoh. Ilgari
+      shu izoh besh xil shaklda takrorlanardi (`bonusNote`, `booksNote`,
+      `booksNoteMilliy`, …) — ular o'chirildi.
+
+    ⚠️ INTERAKTIV DARSLIK MILLIY RO'YXATIDA YO'Q — ATAYLAB. Milliy o'quvchisi
+       uni oladimi, loyiha egasi hali aytmagan. Javob kelguncha va'da
+       qilinmaydi (egasiga savol).
+  */
+  includedTitle: 'Narxga kiradi',
+  included: ['Asosiy ustoz bilan 8 ta jonli dars — har biri 1 soat 20 daqiqa'],
+  extrasTitle: 'Qo‘shimcha',
+  extrasNote: 'Narxga kirmaydi va ular uchun alohida pul olinmaydi',
+  extras: [
+    'Haftasiga 3 kun support teacher darsi',
+    'Kitoblar — Uzpost bo‘limiga yetkazib beriladi',
+    'Video darslar, vazifa va testlar, kabinet va reyting',
+    'Dars yozuvlari va guruh chati',
+  ],
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
   leadThreePlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
@@ -768,19 +805,21 @@ export const PRICE = {
       belgi bo'lganda odam ularni o'qimasdan, ko'z bilan taniydi.
   */
   methods: ['Click', 'Payme'],
+  methodsLabel: 'To‘lov usullari:',
   /*
-    Kitob haqidagi eslatma — narx kartasining yonida, sariq blokda.
-
-    🔴 NEGA TAKRORLANADI (`BOOKS` da ham bor): "kitob alohida pul
-       turadimi?" — narxni ko'rgan odamning darhol keyingi savoli.
-       Uni javobsiz qoldirib, javobni ikki bo'lim yuqorida qoldirish
-       aynan to'lov qarori oldida shubha tug'dirardi.
+    ⚠️ 2026-10-29 — KITOB ESLATMASI (`booksNote`) O'CHIRILDI. «Kitob alohida
+       pul turadimi?» degan savolga endi Milliy kartasining o'zidagi
+       «Qo'shimcha» bloki javob beradi — narx yonida, takrorsiz.
   */
-  booksNote: 'Kitoblar qo‘shimcha sifatida beriladi — ular uchun alohida pul olinmaydi.',
-  booksNoteMilliy: 'Kurs narxi — faqat 8 ta jonli dars uchun. Kitoblar va boshqa qo‘shimchalar uchun alohida pul olinmaydi.',
+  /** Mustaqil kartalaridagi tugma va uning ostidagi mikromatn. */
+  buyCta: 'Sotib olish',
+  buyHint: 'Telegram orqali kirasiz, to‘lov kabinetda — Click yoki Payme.',
+  newBadge: 'Yangi',
+  perMonth: 'oy',
   /*
-    TARIFLAR SOLISHTIRMASI — ikkala kartada BIR XIL qatorlar, har birida
-    ✓ yoki ✗.
+    TARIFLAR SOLISHTIRMASI — MUSTAQIL KARTALARIDA bir xil qatorlar, har
+    birida ✓ yoki ✗. (2026-10-29 dan Milliy kartasi bu ro'yxatni emas,
+    yuqoridagi `included` + `extras` bloklarini ko'rsatadi.)
 
     ★ NEGA BIR XIL RO'YXAT: odam ikki kartani yonma-yon qo'yib solishtiradi.
       Qatorlar bir xil va bir xil tartibda bo'lsa, farq bir qarashda
@@ -789,25 +828,22 @@ export const PRICE = {
     🔴 Mustaqil tarifda kitob yetkazib berilmaydi (loyiha egasi, 2026-10-29).
   */
   compare: [
-    // `self` — Mustaqil, `plus` — Mustaqil+ (interaktiv darslik bilan), `group` — Milliy.
-    // `bonus` — Milliy kartasida «qo'shimcha» belgisi: narxga kirmaydi.
+    // `self` — Mustaqil, `plus` — Mustaqil+ (interaktiv darslik bilan).
     // `bookOnly` — qator faqat Mustaqil+ sotuvda bo'lsa ko'rinadi.
-    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, plus: true, group: true, bonus: true, bookOnly: false },
-    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, plus: true, group: true, bonus: true, bookOnly: false },
-    { label: 'Shaxsiy kabinet va reyting', self: true, plus: true, group: true, bonus: true, bookOnly: false },
-    { label: 'Interaktiv darslik: audio, mashqlar, harf yozish, mini-test', self: false, plus: true, group: true, bonus: true, bookOnly: true },
-    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, plus: false, group: true, bonus: false, bookOnly: false },
-    { label: 'Haftasiga 3 kun support teacher darsi', self: false, plus: false, group: true, bonus: true, bookOnly: false },
-    { label: 'Guruh chati va dars yozuvlari', self: false, plus: false, group: true, bonus: true, bookOnly: false },
-    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, plus: false, group: true, bonus: true, bookOnly: false },
+    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, plus: true, bookOnly: false },
+    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, plus: true, bookOnly: false },
+    { label: 'Shaxsiy kabinet va reyting', self: true, plus: true, bookOnly: false },
+    { label: 'Interaktiv darslik: audio, mashqlar, harf yozish, mini-test', self: false, plus: true, bookOnly: true },
+    { label: 'Asosiy ustoz bilan jonli darslar', self: false, plus: false, bookOnly: false },
+    { label: 'Support teacher darslari', self: false, plus: false, bookOnly: false },
+    { label: 'Kitoblar (Uzpost)', self: false, plus: false, bookOnly: false },
   ],
-  includes: [
-    'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
-    'Qo‘shimcha: haftasiga 3 kun support teacher darsi',
-    'Qo‘shimcha: video darsliklar, mashq va testlar',
-    'Qo‘shimcha: kitoblar va ularni Uzpost pochtasiga yetkazib berish',
-    'Qo‘shimcha: dars yozuvlari va shaxsiy kabinet',
-  ],
+  /*
+    ⚠️ 2026-10-29 — `includes` (zaxira «Kurs bilan nimalar beriladi»
+       ro'yxati) O'CHIRILDI. U offers API yiqilganda chiqardi va unda
+       «qo'shimcha» belgisi yo'q edi, ya'ni narx qoidasiga zid edi. Endi
+       zaxira holatda ham o'sha Milliy kartasi (ikki blok bilan) chiqadi.
+  */
 } as const
 
 /*

@@ -2220,7 +2220,7 @@ const year = new Date().getFullYear()
           <h2
             class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
           >
-            {{ selfStudyPlan === null ? 'Kurs to‘lovi' : plusPlan === null ? 'Ikki xil o‘qish shakli' : 'Uch xil o‘qish shakli' }}
+            {{ selfStudyPlan === null ? PRICE.titleSingle : plusPlan === null ? PRICE.titleTwo : PRICE.titleThree }}
           </h2>
           <p class="mx-auto mt-4 max-w-[60ch] text-base leading-relaxed text-slate-400">
             {{ selfStudyPlan === null ? PRICE.lead : plusPlan === null ? PRICE.leadTwoPlans : PRICE.leadThreePlans }}
@@ -2229,7 +2229,9 @@ const year = new Date().getFullYear()
 
         <div
           class="mt-12 grid items-stretch gap-5"
-          :class="plusPlan === null ? 'lg:grid-cols-2' : 'lg:grid-cols-3'"
+          :class="selfStudyPlan === null
+            ? 'mx-auto max-w-2xl'
+            : plusPlan === null ? 'lg:grid-cols-2' : 'lg:grid-cols-3'"
         >
           <!-- ═══════════════════════════════════ MILLIY (GURUH) ═══ -->
           <!-- Mustaqil sotuvda bo'lsa Milliy O'NG ustunda (loyiha egasi, 2026-10-29). -->
@@ -2244,7 +2246,7 @@ const year = new Date().getFullYear()
 
             <div class="relative flex h-full flex-col">
               <p class="text-[13px] font-bold uppercase tracking-[0.13em] text-slate-400">
-                {{ PRICE.planName }} · ATF · Arab tili Fonetika
+                {{ PRICE.planName }} · {{ PRICE.planCourse }}
               </p>
               <p class="mt-1 text-sm text-slate-300">
                 {{ PRICE.planTagline }}
@@ -2272,48 +2274,66 @@ const year = new Date().getFullYear()
                 {{ PRICE.perLesson }}
               </p>
 
-              <!-- Mustaqil tarif bor bo'lsa solishtirma shu kartaning ichida. -->
-              <ul
-                v-if="selfStudyPlan !== null"
-                class="mt-5"
-              >
-                <li
-                  v-for="row in compareRows"
-                  :key="row.label"
-                  class="flex items-start gap-3 border-b border-dashed border-line py-2.5 last:border-b-0"
-                >
-                  <span
-                    class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg"
-                    :class="row.group ? 'price-tick text-on-brand' : 'border border-line text-slate-500'"
+              <!--
+                ══════════════════════════ NARXGA KIRADI / QO'SHIMCHA ═══
+                ⚠️ 2026-10-29 — IKKI BLOK (sabab `content.ts` dagi
+                `PRICE.included` izohida). Narxga kiradigan yagona narsa
+                tepada, ajratilgan; qo'shimchalar alohida, punktir ramkada
+                va bitta izoh bilan. Pilyuska har qatorda takrorlanmaydi.
+
+                🔴 Bu ro'yxat offers API holatiga BOG'LIQ EMAS: zaxira
+                   holatda (Mustaqil reja yo'q) ham aynan shu karta chiqadi.
+              -->
+              <div class="mt-6">
+                <p class="text-[12px] font-bold uppercase tracking-[0.12em] text-brand-500">
+                  {{ PRICE.includedTitle }}
+                </p>
+                <ul class="mt-2.5 grid gap-2">
+                  <li
+                    v-for="item in PRICE.included"
+                    :key="item"
+                    class="flex items-start gap-3"
+                  >
+                    <span class="price-tick mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-on-brand">
+                      <AppIcon
+                        name="check"
+                        :size="13"
+                      />
+                    </span>
+                    <span class="text-[15px] font-semibold leading-relaxed text-slate-100">{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="mt-5 rounded-2xl border border-dashed border-line-strong p-4">
+                <p class="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-300">
+                  {{ PRICE.extrasTitle }}
+                </p>
+                <p class="mt-1 text-[13px] leading-relaxed text-slate-400">
+                  {{ PRICE.extrasNote }}
+                </p>
+                <ul class="mt-3 grid gap-2">
+                  <li
+                    v-for="item in PRICE.extras"
+                    :key="item"
+                    class="flex items-start gap-2.5 text-sm leading-relaxed text-slate-300"
                   >
                     <AppIcon
-                      :name="row.group ? 'check' : 'close'"
+                      class="mt-1 shrink-0 text-brand-500"
+                      name="plus"
                       :size="13"
                     />
-                  </span>
-                  <span
-                    class="text-sm leading-relaxed"
-                    :class="row.group ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
-                  >{{ row.label }}<span
-                    v-if="row.bonus"
-                    class="ml-2 whitespace-nowrap rounded-full border border-line-strong px-2 py-0.5 align-middle text-[11px] font-semibold text-slate-400"
-                  >qo‘shimcha</span></span>
-                </li>
-              </ul>
-
-              <p
-                v-if="selfStudyPlan !== null"
-                class="mt-3 text-[13px] leading-relaxed text-slate-400"
-              >
-                {{ PRICE.bonusNote }}
-              </p>
+                    {{ item }}
+                  </li>
+                </ul>
+              </div>
 
               <p class="mt-5 text-sm leading-relaxed text-slate-400">
                 {{ PRICE.note }}
               </p>
 
               <div class="mt-6 flex flex-wrap items-center gap-2.5">
-                <span class="text-[13px] text-slate-400">To‘lov usullari:</span>
+                <span class="text-[13px] text-slate-400">{{ PRICE.methodsLabel }}</span>
                 <span
                   v-for="method in PRICE.methods"
                   :key="method"
@@ -2350,7 +2370,7 @@ const year = new Date().getFullYear()
               <span
                 v-if="plan.includesInteractiveBook"
                 class="rounded-full bg-brand-500 px-2.5 py-0.5 text-[11px] tracking-normal text-on-brand normal-case"
-              >Yangi</span>
+              >{{ PRICE.newBadge }}</span>
             </p>
             <p class="mt-1 text-sm text-slate-400">
               {{ PRICE.selfTagline }}
@@ -2364,7 +2384,7 @@ const year = new Date().getFullYear()
                 {{ formatMoney(plan.price) }}
               </span>
               <span class="text-xl font-semibold text-brand-500">so‘m</span>
-              <span class="text-sm text-slate-400">/ {{ plan.months === 1 ? 'oy' : `${plan.months} oy` }}</span>
+              <span class="text-sm text-slate-400">/ {{ plan.months === 1 ? PRICE.perMonth : `${plan.months} ${PRICE.perMonth}` }}</span>
             </div>
 
             <!--
@@ -2405,59 +2425,25 @@ const year = new Date().getFullYear()
                 :to="{ name: 'login', query: { redirect: '/tariflar' } }"
                 class="inline-flex h-12 items-center justify-center gap-2.5 rounded-full bg-brand-500 px-7 text-base font-semibold text-on-brand hover:bg-brand-600"
               >
-                Sotib olish
+                {{ PRICE.buyCta }}
                 <AppIcon
                   name="chevron-right"
                   :size="17"
                 />
               </RouterLink>
+              <p class="mt-3 text-[12.5px] leading-relaxed text-slate-500">
+                {{ PRICE.buyHint }}
+              </p>
             </div>
           </div>
 
-          <!-- Mustaqil tarif sotuvda bo'lmasa — avvalgi «nima kiradi» kartasi. -->
-          <div
-            v-if="selfStudyPlan === null"
-            class="rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
-          >
-            <h3 class="font-display text-xl font-semibold tracking-tight text-slate-100">
-              Kurs bilan nimalar beriladi
-            </h3>
-            <ul class="mt-5">
-              <li
-                v-for="item in PRICE.includes"
-                :key="item"
-                class="group flex items-start gap-3.5 border-b border-dashed border-line py-3.5 last:border-b-0"
-              >
-                <span
-                  class="price-tick mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-on-brand"
-                >
-                  <AppIcon
-                    name="check"
-                    :size="13"
-                  />
-                </span>
-                <span class="text-sm leading-relaxed text-slate-300">{{ item }}</span>
-              </li>
-            </ul>
-            <p
-              class="mt-6 flex items-start gap-3 rounded-2xl border border-amber-800 bg-amber-950 p-4 text-sm leading-relaxed text-amber-200"
-            >
-              <AppIcon
-                class="mt-0.5 shrink-0 text-amber-400"
-                name="alert"
-                :size="18"
-              />
-              {{ PRICE.booksNote }}
-            </p>
-          </div>
+          <!--
+            ⚠️ 2026-10-29 — ZAXIRA «Kurs bilan nimalar beriladi» KARTASI
+               O'CHIRILDI: unda «qo'shimcha» belgisi yo'q edi. Mustaqil reja
+               yo'q bo'lsa endi faqat Milliy kartasi markazda turadi — uning
+               ikki bloki hamma narsani o'zi aytadi.
+          -->
         </div>
-
-        <p
-          v-if="selfStudyPlan !== null"
-          class="mt-5 text-center text-sm text-slate-400"
-        >
-          {{ PRICE.booksNoteMilliy }}
-        </p>
       </section>
 
       <!-- ═══════════════════════════════════════════ ARIZA ═══ -->
