@@ -34,6 +34,7 @@ import {
   WEEK,
   WEEK_DAYS,
 } from './model/content'
+import PlatformTour from './ui/PlatformTour.vue'
 
 /*
   ══════════════════════════════════════════════════════════════════════════
@@ -280,7 +281,12 @@ function has(row: (typeof PRICE.compare)[number], plan: { includesInteractiveBoo
 
 const NAV: readonly { href: string, label: string }[] = [
   { href: '#dars', label: 'Bepul dars' },
-  { href: '#natija', label: 'Natija' },
+  /*
+    ⚠️ 2026-10-29 — «Natija» O'RNIGA «Platforma»: yangi karusel sahifadagi
+       eng qiziq joy, «Natija» esa bepul darsdan keyin o'zi ko'rinadi.
+       Punktlar soni o'zgarmadi (panel kengligi hisobi `nav` izohida).
+  */
+  { href: '#platforma', label: 'Platforma' },
   { href: '#kurs', label: 'Kurs tuzilmasi' },
   { href: '#daraja', label: 'Daraja testi' },
   { href: '#narx', label: 'Tariflar' },
@@ -1464,6 +1470,14 @@ const year = new Date().getFullYear()
           </div>
         </div>
       </section>
+
+      <!-- ═════════════════════════════════ PLATFORMA ICHIDAN ═══ -->
+      <!--
+        ⚠️ 2026-10-29 DA QO'SHILDI — «Natija» (va'da) dan keyin, kurs
+        tuzilmasidan oldin: odam endi «qanday o'qiyman?» degan savolga
+        kabinet ekranlari orqali javob oladi. Batafsil `ui/PlatformTour.vue`.
+      -->
+      <PlatformTour />
 
       <!-- ═════════════════════════════════ KURS TUZILMASI ═══ -->
       <section

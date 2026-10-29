@@ -1,3 +1,4 @@
+import type { MascotMood } from '@/features/mascot'
 import { COURSE_FACTS } from '@/shared/config/course-facts'
 import type { IconName } from '@/shared/ui'
 
@@ -347,6 +348,134 @@ export const OUTCOMES: readonly Outcome[] = [
       + 'tezligi va ishonchingiz oshadi.',
   },
 ]
+
+/* ─────────────────────── PLATFORMA ICHIDAN ────────────────────────── */
+
+/*
+  ══════════════════════════════════════════════════════════════════════════
+   «PLATFORMA ICHIDAN» KARUSELI — 2026-10-29
+  ══════════════════════════════════════════════════════════════════════════
+
+  ★ NIMA UCHUN: sahifa kursni sotadi, lekin onlayn o'quvchining eng katta
+    xavotiri — «kabinet qanday, men u yerda adashmaymanmi?». Ilgari
+    sahifada kabinetning birorta ham ekrani yo'q edi.
+
+  ★ JOYI — «Natija» dan keyin: va'da → isbot (bepul dars) → natija →
+    QANDAY O'QILADI (platforma) → ariza.
+
+  🔴 EKRANLAR HOZIRCHA RASM EMAS, HTML-SXEMA (`ui/PlatformTourScreen.vue`):
+     haqiqiy o'quvchi interfeysining soddalashtirilgan nusxasi, O'YLAB
+     TOPILGAN demo ma'lumot bilan (ism — faqat ism va familiya bosh
+     harfi, telefon yo'q). Login qilmasdan ichki sahifalarni suratga
+     olib bo'lmadi, prod bazadan esa skrinshot OLINMAYDI.
+
+  ★ HAQIQIY SKRINSHOTGA O'TISH: slaydga `image` bering
+    (`{ src, width, height }`, WebP, ≤120 KB, demo muhitdan olingan) —
+    karusel o'sha zahoti sxema o'rniga rasmni ko'rsatadi. `alt` ikkala
+    holatda ham ishlatiladi.
+
+  ★ `mood` — slayd ochilganda yo'lboshchi Nurining kayfiyati. Landingda
+    faqat ijobiy kayfiyatlar (`concerned` / `sleepy` ishlatilmaydi).
+
+  ⚠️ `plan: 'milliy'` — slayd faqat Milliy tarifga tegishli (jonli dars).
+     Teg kartada ko'rinadi, aks holda Mustaqil xaridori jonli darsni
+     o'ziga ham tegishli deb o'qirdi.
+
+  🔴 ARABCHA MISOLLAR FAQAT BETARAF MAISHIY SO'ZLAR (كِتَاب, قَلَم, بَاب).
+*/
+export type TourScreen = 'home' | 'path' | 'lesson' | 'tasks' | 'test' | 'rating' | 'live'
+
+export interface TourSlide {
+  id: TourScreen
+  title: string
+  caption: string
+  plan: 'all' | 'milliy'
+  mood: MascotMood
+  /** Haqiqiy skrinshot. `null` — HTML-sxema chiziladi. */
+  image: { src: string, width: number, height: number } | null
+  /** Ekran mazmuni — ekran o'qigich uchun. */
+  alt: string
+}
+
+export const PLATFORM_TOUR = {
+  eyebrow: 'Platforma ichidan',
+  title: 'Kabinetingiz qanday ko‘rinishini oldindan ko‘ring',
+  lead:
+    'Darslar, vazifalar, testlar va reyting — hammasi bitta joyda, telefonda '
+    + 'ham, kompyuterda ham.',
+  note: 'Ekranlarda namunaviy (demo) ma’lumotlar. Ism va raqamlar o‘ylab topilgan.',
+  tagAll: 'barcha tariflar',
+  tagMilliy: 'Milliy',
+  tablistLabel: 'Platforma ekranlari',
+  trackLabel: 'Platforma ekranlari. Chapga-o‘ngga suring yoki strelka tugmalaridan foydalaning',
+  prev: 'Oldingi ekran',
+  next: 'Keyingi ekran',
+  slides: [
+    {
+      id: 'home',
+      title: 'Bosh sahifa',
+      caption: 'Bugungi dars, progress va ballaringiz — kirgan zahoti bir qarashda.',
+      plan: 'all',
+      mood: 'happy',
+      image: null,
+      alt: 'Bosh sahifa: bugungi dars kartasi, kurs progressi va ballar',
+    },
+    {
+      id: 'path',
+      title: 'O‘quv yo‘li',
+      caption: 'Darslar ketma-ket ochilib boradi: qayerda turganingiz doim ko‘rinadi.',
+      plan: 'all',
+      mood: 'encouraging',
+      image: null,
+      alt: 'O‘quv yo‘li: o‘tilgan darslar belgilangan, joriy dars ajratilgan, keyingilari yopiq',
+    },
+    {
+      id: 'lesson',
+      title: 'Dars sahifasi',
+      caption: 'Video dars, vazifa, test va savol-javob — bitta sahifada.',
+      plan: 'all',
+      mood: 'thinking',
+      image: null,
+      alt: 'Dars sahifasi: video pleer, ostida vazifa, test va savol-javob bo‘limlari',
+    },
+    {
+      id: 'tasks',
+      title: 'Vazifalar',
+      caption: 'Vazifani matn, daftar surati yoki ovozli yozuv bilan topshirasiz — izoh bilan baholanadi.',
+      plan: 'all',
+      mood: 'happy',
+      image: null,
+      alt: 'Vazifalar: yuborilgan ovozli yozuv, izoh bilan tekshirilgan vazifa va kutilayotgan vazifa',
+    },
+    {
+      id: 'test',
+      title: 'Testlar',
+      caption: 'Har mavzudan keyin qisqa test. Natija darhol, xatolar izohi bilan.',
+      plan: 'all',
+      mood: 'thinking',
+      image: null,
+      alt: 'Test: savol, uchta arabcha javob varianti va progress chizig‘i',
+    },
+    {
+      id: 'rating',
+      title: 'Reyting',
+      caption: 'Ball to‘plang va guruhingizda o‘z o‘rningizni ko‘ring.',
+      plan: 'all',
+      mood: 'celebrate',
+      image: null,
+      alt: 'Reyting: uchlik podium va o‘quvchilar ro‘yxati, sizning qatoringiz ajratilgan',
+    },
+    {
+      id: 'live',
+      title: 'Jonli dars',
+      caption: 'Jonli dars saytning o‘zida ochiladi — dastur o‘rnatish shart emas.',
+      plan: 'milliy',
+      mood: 'encouraging',
+      image: null,
+      alt: 'Jonli dars: ustoz va ishtirokchilar plitkalari, mikrofon va kamera tugmalari',
+    },
+  ] satisfies readonly TourSlide[] as readonly TourSlide[],
+} as const
 
 /* ─────────────────────── HAFTALIK TUZILMA ─────────────────────────── */
 
