@@ -59,7 +59,9 @@ const props = withDefaults(
     /**
      * ENG KENG oyna (`sm:max-w-5xl`) — `wide`dan ham kattaroq. Video +
      * bir nechta bo'lim (vazifa/test/chat) kabi zich tarkib uchun
-     * (`LessonDashboard`). `wide` bilan BIRGA berilsa bu USTUN turadi.
+     * (`LessonDashboard` shu yerda ochilardi — 2026-10-29 dan u alohida
+     * sahifa, hozir bu bayroqdan foydalanuvchi yo'q). `wide` bilan BIRGA
+     * berilsa bu USTUN turadi.
      */
     xl?: boolean
     /**
