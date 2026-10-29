@@ -137,7 +137,13 @@ public sealed class PaymentSummaryService(
             studentBalance,
             payingStudents,
             debtorStudents,
-            CountOf(cash, PaymentTransactionKind.Payment));
+            CountOf(cash, PaymentTransactionKind.Payment),
+            // ★ OBUNA PULI O'Z QATORIDA (2026-10-29, Q-5) — guruh to'lovlari
+            //   raqamlariga aralashmaydi (sabab DTO izohida).
+            AmountOf(cash, PaymentTransactionKind.Subscription),
+            AmountOf(cash, PaymentTransactionKind.SubscriptionRefund),
+            AmountOf(cash, PaymentTransactionKind.SubscriptionBalanceUse),
+            AmountOf(cash, PaymentTransactionKind.SubscriptionCredit));
 
         return new PaymentSummaryDto(
             window.From,
@@ -190,6 +196,10 @@ public sealed class PaymentSummaryService(
         csv.Row("O'quvchilar balansi", CsvBuilder.Money(summary.Kpi.StudentBalance));
         csv.Row("To'lagan o'quvchilar", CsvBuilder.Count(summary.Kpi.PayingStudents));
         csv.Row("Qarzdor o'quvchilar", CsvBuilder.Count(summary.Kpi.DebtorStudents));
+        csv.Row("Mustaqil o'qish: kassaga tushgan", CsvBuilder.Money(summary.Kpi.SubscriptionCollected));
+        csv.Row("Mustaqil o'qish: naqd qaytarilgan", CsvBuilder.Money(summary.Kpi.SubscriptionRefunded));
+        csv.Row("Mustaqil o'qish: balansdan to'langan", CsvBuilder.Money(summary.Kpi.SubscriptionFromBalance));
+        csv.Row("Mustaqil o'qish: balansga o'tkazilgan", CsvBuilder.Money(summary.Kpi.SubscriptionCredited));
         csv.Row("To'lovlar soni", CsvBuilder.Count(summary.Kpi.PaymentCount));
         csv.Blank();
 

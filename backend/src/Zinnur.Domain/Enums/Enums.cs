@@ -213,6 +213,50 @@ public enum PaymentTransactionKind
     /// va HALI ham tushmaydi — bu shunchaki "billing" tuzatishi.
     /// </summary>
     LessonReversal = 4,
+
+    /*
+      ══════════════════════════════════════════════════════════════════
+       MUSTAQIL O'QISH OBUNASI PULI (2026-10-29, loyiha egasi qarori Q-5)
+      ══════════════════════════════════════════════════════════════════
+      ★ NEGA ALOHIDA TURLAR: obuna puli ilgari jurnalga UMUMAN yozilmasdi
+        (faqat `SubscriptionPeriod.Amount`). Uni `Payment`/`Refund` bilan
+        yozsak, guruh oylik to'lovlari hisobotiga (`PaymentSummary`) aralashib
+        ketardi: "guruhlardan tushum" ko'payib, qarz yopilgandek ko'rinardi.
+        Endi har so'm jurnalga kiradi va chiqadi, lekin O'Z turida.
+      ⚠️ Tartib MUHIM — bazaga int sifatida yoziladi.
+    */
+
+    /// <summary>Mustaqil o'qish obunasi uchun kassaga tushgan pul (Payme/Click, naqd, karta).</summary>
+    Subscription = 5,
+
+    /// <summary>Obuna puli NAQD qaytarildi — kassadan chiqdi.</summary>
+    SubscriptionRefund = 6,
+
+    /// <summary>
+    /// Obunaning ishlatilmagan qismi o'quvchi BALANSIGA o'tkazildi (tarif
+    /// almashtirish, guruhga o'tish, bekor qilish). Kassaga pul tushmagan
+    /// va chiqmagan — markaz qarzi obunadan balansga ko'chdi.
+    /// </summary>
+    SubscriptionCredit = 7,
+
+    /// <summary>Obuna o'quvchi BALANSIDAN to'landi — kassaga yangi pul tushmagan.</summary>
+    SubscriptionBalanceUse = 8,
+}
+
+/// <summary>
+/// Obunani bekor qilganda pul bilan nima qilinadi (2026-10-29, Q-5).
+/// Tartib MUHIM — bazaga emas, lekin API shartnomasiga kiradi.
+/// </summary>
+public enum SubscriptionRefundMode
+{
+    /// <summary>Pul qaytarilmaydi (masalan, qoida buzilgani uchun bekor qilindi).</summary>
+    None = 0,
+
+    /// <summary>Summa o'quvchi balansiga o'tkaziladi — keyin guruh yoki boshqa tarifga ishlatiladi.</summary>
+    ToBalance = 1,
+
+    /// <summary>Summa naqd qaytarildi — kassadan chiqdi.</summary>
+    Cash = 2,
 }
 
 /// <summary>

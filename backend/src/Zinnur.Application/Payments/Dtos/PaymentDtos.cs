@@ -103,6 +103,20 @@ public sealed record RecordPaymentRequest(
     string? Note = null);
 
 /// <summary>
+/// Obuna puli harakati (2026-10-29, Q-5). <paramref name="Kind"/> faqat
+/// obuna turlaridan biri: <c>Subscription</c> (kassaga tushdi, kvitansiya
+/// bilan), <c>SubscriptionRefund</c> (naqd qaytarildi), <c>SubscriptionCredit</c>
+/// (balansga o'tdi), <c>SubscriptionBalanceUse</c> (balansdan to'landi).
+/// </summary>
+/// <param name="Method">Kassa harakatida (to'lov, naqd qaytarish) majburiy; balans harakatida e'tiborga olinmaydi.</param>
+public sealed record SubscriptionMoneyMove(
+    long StudentId,
+    PaymentTransactionKind Kind,
+    decimal Amount,
+    PaymentMethod? Method,
+    string? Note);
+
+/// <summary>
 /// Kvitansiya — to'lov natijasining to'liq tasviri.
 /// </summary>
 /// <param name="ReceiptNo">Kvitansiya raqami, <c>ZN-2026-07-000123</c>.</param>

@@ -3349,7 +3349,12 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("EndsAt")
                         .HasColumnType("timestamptz");
 
-                    b.Property<int>("Method")
+                    b.Property<bool>("IncludesInteractiveBook")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int?>("Method")
                         .HasColumnType("integer");
 
                     b.Property<string>("Note")

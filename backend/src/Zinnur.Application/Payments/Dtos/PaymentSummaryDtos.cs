@@ -131,6 +131,22 @@ public sealed record PaymentSummaryDto(
 /// <param name="PayingStudents">NAQD OQIM. Davrda kamida bir marta pul to'lagan noyob o'quvchilar.</param>
 /// <param name="DebtorStudents">HOLAT. Hozir qarzi bor noyob o'quvchilar soni.</param>
 /// <param name="PaymentCount">NAQD OQIM. Davrdagi to'lov yozuvlari (kvitansiyalar) soni.</param>
+/// <param name="SubscriptionCollected">
+/// ★ 2026-10-29 (Q-5). NAQD OQIM. Mustaqil o'qish obunasi uchun kassaga tushgan
+/// pul (<c>Kind = Subscription</c>). ATAYLAB <see cref="Collected"/> ga KIRMAYDI:
+/// yuqoridagi barcha "to'lov" raqamlari (tushum, to'lagan o'quvchilar, usullar,
+/// oylar, guruhlar) faqat GURUH oylik to'lovlari haqida. Kassaning jami tushumi
+/// = <c>Collected + SubscriptionCollected</c>.
+/// </param>
+/// <param name="SubscriptionRefunded">NAQD OQIM. Obuna puli naqd qaytarilgan (<c>Kind = SubscriptionRefund</c>).</param>
+/// <param name="SubscriptionFromBalance">
+/// NAQD OQIM. Balansdan to'langan obunalar (<c>Kind = SubscriptionBalanceUse</c>) —
+/// kassaga yangi pul emas, ilgari tushgan pulning ishlatilishi.
+/// </param>
+/// <param name="SubscriptionCredited">
+/// NAQD OQIM. Obunaning ishlatilmagan qismi balansga o'tkazilgan (<c>Kind = SubscriptionCredit</c>):
+/// tarif almashtirish, guruhga o'tish, bekor qilish. Kassa o'zgarmaydi.
+/// </param>
 public sealed record PaymentSummaryKpiDto(
     decimal Collected,
     decimal Refunded,
@@ -145,7 +161,11 @@ public sealed record PaymentSummaryKpiDto(
     decimal StudentBalance,
     int PayingStudents,
     int DebtorStudents,
-    int PaymentCount);
+    int PaymentCount,
+    decimal SubscriptionCollected = 0m,
+    decimal SubscriptionRefunded = 0m,
+    decimal SubscriptionFromBalance = 0m,
+    decimal SubscriptionCredited = 0m);
 
 /// <summary>
 /// QARZ YOSHI — kassir uchun eng muhim jadval: qaysi qarz eskirib ketyapti.
