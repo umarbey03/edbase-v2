@@ -71,7 +71,12 @@ function blockedReason(plan: ShopPlanDto): string | null {
   return null
 }
 
+/**
+ * ★ GURUH TARIFI (Milliy) OYGA EMAS, 8 TA DARSGA (loyiha egasi): "/ oy"
+ *   deyilsa 540 000 "oylik to'lov" bo'lib o'qilardi (audit, 2026-10-29).
+ */
 function priceSuffix(plan: ShopPlanDto): string {
+  if (plan.kind === 'Group') return '/ 8 ta dars'
   return plan.months === 1 ? '/ oy' : `/ ${plan.months} oy`
 }
 
@@ -285,6 +290,14 @@ function orderKindNote(item: ShopOrderDto): string {
           v-else
           class="flex-1"
         />
+
+        <!-- Darslik hali to'liq emas — sotib olishdan OLDIN aytiladi (audit, 2026-10-29). -->
+        <p
+          v-if="plan.includesInteractiveBook"
+          class="mt-3 text-xs leading-relaxed text-slate-400"
+        >
+          Interaktiv darslik ATF kursidan boshlab bosqichma-bosqich ochiladi.
+        </p>
 
         <p
           v-if="blockedReason(plan) !== null"

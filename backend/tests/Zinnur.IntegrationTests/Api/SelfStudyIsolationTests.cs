@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Zinnur.Application.Gating.Dtos;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
@@ -135,6 +136,46 @@ public sealed class SelfStudyIsolationTests(ZinnurApiFactory factory)
 
         lessons.Should().NotBeEmpty();
         lessons.Should().OnlyContain(l => !l.Unlocked && l.LockReason == nameof(LessonLockReason.SubscriptionExpired));
+    }
+
+    [Fact]
+    public async Task Expired_subscription_closes_the_course_assignments()
+    {
+        var setup = await SetUpAsync("ss-expired-task");
+
+        var assignmentId = await factory.WithDbAsync(async db =>
+        {
+            var lessonId = await db.ModuleLessons
+                .Where(l => l.Module!.CourseId == setup.CourseId && l.Position == 1)
+                .Select(l => l.Id)
+                .SingleAsync();
+
+            var assignment = new Assignment
+            {
+                ModuleLessonId = lessonId,
+                Title = "Kurs vazifasi " + Guid.NewGuid().ToString("N")[..6],
+                MaxScore = 5m,
+                AllowedFormats = AnswerFormats.Text,
+            };
+            db.Assignments.Add(assignment);
+            await db.SaveChangesAsync();
+            return assignment.Id;
+        });
+
+        using var client = await WorldBuilder.ClientAsync(factory, setup.SelfStudent);
+        (await client.GetAsync($"/api/v1/assignments/{assignmentId}")).StatusCode
+            .Should().Be(HttpStatusCode.OK);
+
+        await factory.WithDbAsync(async db =>
+        {
+            var period = await db.SubscriptionPeriods.FindAsync(setup.PeriodId);
+            period!.StartsAt = DateTimeOffset.UtcNow.AddMonths(-2);
+            period.EndsAt = DateTimeOffset.UtcNow.AddHours(-1);
+            return await db.SaveChangesAsync();
+        });
+
+        (await client.GetAsync($"/api/v1/assignments/{assignmentId}")).StatusCode
+            .Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
