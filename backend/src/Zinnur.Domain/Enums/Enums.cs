@@ -524,6 +524,15 @@ public enum PointKind
 
     /// <summary>Dars videosi oxirigacha ko'rildi.</summary>
     VideoWatched = 7,
+
+    /// <summary>
+    /// Interaktiv darslik birligi yakunlandi (2026-10-29): mashqlarning birinchi
+    /// urinishi foizidan 0–5 ball, birlikka bir marta.
+    /// </summary>
+    InteractiveUnit = 8,
+
+    /// <summary>Interaktiv darslikning mini-testi (2026-10-29): birinchi topshiriq, 0–10.</summary>
+    InteractiveTest = 9,
 }
 
 /// <summary>

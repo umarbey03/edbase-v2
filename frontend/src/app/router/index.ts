@@ -190,6 +190,19 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Dars', roles: STUDENT },
       },
       {
+        /*
+          ★ INTERAKTIV DARSLIK (2026-10-29) — dars ichidagi to'liq ekranli
+          marshrut. `oquv/` ostida: "O'quv" bandi yonib turadi; mehmon
+          `GUEST_ROUTES` bo'yicha Tariflarga ketadi. `GROUP_ONLY_ROUTES` ga
+          QO'SHILMAYDI — Mustaqil+ o'quvchisi ham ochadi (huquq serverda).
+          `?b=A3` — joriy blok.
+        */
+        path: 'oquv/dars/:lessonId(\\d+)/darslik',
+        name: 'student-lesson-book',
+        component: () => import('@/pages/student/StudentBookUnitPage.vue'),
+        meta: { title: 'Interaktiv darslik', roles: STUDENT },
+      },
+      {
         path: 'reyting',
         name: 'student-rating',
         component: () => import('@/pages/student/StudentRatingPage.vue'),

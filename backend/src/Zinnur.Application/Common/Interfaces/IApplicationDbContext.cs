@@ -344,6 +344,29 @@ public interface IApplicationDbContext
 
     /* ===== /2026-08-17 ===== */
 
+    /* ===== 2026-10-29 · INTERAKTIV DARSLIK (ATF) =====
+
+       Alohida blok — sabab yuqoridagilar bilan bir xil (parallel tarmoqlar). */
+
+    DbSet<InteractiveBook> InteractiveBooks { get; }
+
+    DbSet<InteractiveUnit> InteractiveUnits { get; }
+
+    /// <summary>🔴 Javob kalitlari va ustoz izohlari shu yerda — o'quvchiga faqat proyeksiya orqali.</summary>
+    DbSet<InteractiveUnitVersion> InteractiveUnitVersions { get; }
+
+    DbSet<InteractiveAudio> InteractiveAudio { get; }
+
+    DbSet<InteractiveImportRun> InteractiveImportRuns { get; }
+
+    DbSet<InteractiveUnitProgress> InteractiveUnitProgress { get; }
+
+    DbSet<InteractiveItemResult> InteractiveItemResults { get; }
+
+    DbSet<InteractiveTestAttempt> InteractiveTestAttempts { get; }
+
+    /* ===== /2026-10-29 ===== */
+
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 
     /// <summary>

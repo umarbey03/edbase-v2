@@ -15,6 +15,7 @@ import {
   testTitle,
 } from '@/entities/test'
 import SubmitAssignmentDialog from '@/features/assignment-submit/ui/SubmitAssignmentDialog.vue'
+import BookEntryCard from './BookEntryCard.vue'
 import { useMySubscription } from '@/entities/subscription'
 import { LessonChatPanel } from '@/features/lesson-chat'
 import { LessonVideoPlayer } from '@/features/lesson-video-player'
@@ -232,6 +233,13 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
           @watched="handleVideoWatched"
         />
       </div>
+
+      <!--
+        ------------------------------------------- interaktiv darslik (2026-10-29)
+        Karta, tab emas: darslik o'z marshrutida ochiladi. Huquq bo'lmasa
+        (`none`) karta umuman chizilmaydi.
+      -->
+      <BookEntryCard :lesson-id="props.lesson.id" />
 
       <!-- ------------------------------------------- Vazifa/Test/Chat tablari -->
       <div

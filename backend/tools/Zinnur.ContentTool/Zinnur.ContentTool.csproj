@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    INTERAKTIV DARSLIK KONTENTI — CLI (2026-10-29).
+    `verify` (bazasiz) va `import` (baza + ombor). API imijiga qo'shiladi
+    (Dockerfile), shuning uchun prodda alohida sozlama kerak emas: API bilan
+    AYNI muhit o'zgaruvchilaridan (ConnectionStrings__Postgres, Storage__*,
+    Jwt__Secret) foydalanadi.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Zinnur.ContentTool</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Zinnur.Infrastructure\Zinnur.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="forbidden-terms.allow.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="maps\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

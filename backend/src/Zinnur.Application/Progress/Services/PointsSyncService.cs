@@ -87,6 +87,8 @@ public sealed class PointsSyncService(
         await AddAssignmentsAsync(desired, from, ct).ConfigureAwait(false);
         await AddTestsAsync(desired, from, ct).ConfigureAwait(false);
         await AddVideosAsync(desired, from, ct).ConfigureAwait(false);
+        await AddInteractiveUnitsAsync(desired, from, ct).ConfigureAwait(false);
+        await AddInteractiveTestsAsync(desired, from, ct).ConfigureAwait(false);
 
         var existing = await db.StudentPoints
             .Where(p => p.OccurredAt >= from)
@@ -349,6 +351,53 @@ public sealed class PointsSyncService(
         {
             desired[(w.StudentId, Ref("video", w.ModuleLessonId))] =
                 new DesiredPoint(PointKind.VideoWatched, PointRules.VideoWatched, w.WatchedAt, null);
+        }
+    }
+
+    // ================================================================ interaktiv darslik
+
+    /// <summary>
+    /// Darslik birligi yakunlandi (2026-10-29, egasi qarori 3): barcha
+    /// mashqlarning BIRINCHI urinishi foizidan 0–5 ball, birlikka bir marta
+    /// (<c>Ref = iunit:{unitId}</c>). Mashqsiz birlik ball bermaydi.
+    /// </summary>
+    private async Task AddInteractiveUnitsAsync(
+        Dictionary<(long StudentId, string Ref), DesiredPoint> desired, DateTimeOffset from, CancellationToken ct)
+    {
+        var completed = await db.InteractiveUnitProgress.AsNoTracking()
+            .Where(p => p.CompletedAt != null && p.CompletedAt >= from)
+            .Select(p => new { p.StudentId, p.UnitId, p.ExerciseRight, p.ExerciseTotal, CompletedAt = p.CompletedAt!.Value })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        foreach (var p in completed)
+        {
+            var delta = PointRules.ToFive(p.ExerciseRight, p.ExerciseTotal);
+            if (delta == 0) continue;
+            desired[(p.StudentId, Ref("iunit", p.UnitId))] =
+                new DesiredPoint(PointKind.InteractiveUnit, delta, p.CompletedAt, null);
+        }
+    }
+
+    /// <summary>
+    /// Darslik mini-testi (2026-10-29): faqat BIRINCHI topshiriq, mavjud test
+    /// shkalasi bilan 0–10 (<c>Ref = itest:{unitId}</c>).
+    /// </summary>
+    private async Task AddInteractiveTestsAsync(
+        Dictionary<(long StudentId, string Ref), DesiredPoint> desired, DateTimeOffset from, CancellationToken ct)
+    {
+        var attempts = await db.InteractiveTestAttempts.AsNoTracking()
+            .Where(a => a.IsFirst && a.SubmittedAt != null && a.SubmittedAt >= from && a.MaxScore != null && a.MaxScore > 0)
+            .Select(a => new { a.StudentId, a.UnitId, Score = a.Score ?? 0, MaxScore = a.MaxScore!.Value, SubmittedAt = a.SubmittedAt!.Value })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        foreach (var a in attempts)
+        {
+            var delta = PointRules.Test(a.Score, a.MaxScore);
+            if (delta == 0) continue;
+            desired[(a.StudentId, Ref("itest", a.UnitId))] =
+                new DesiredPoint(PointKind.InteractiveTest, delta, a.SubmittedAt, null);
         }
     }
 

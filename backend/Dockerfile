@@ -67,6 +67,12 @@ COPY src/Zinnur.WebApi/Zinnur.WebApi.csproj                 src/Zinnur.WebApi/
 # ular prod image uchun keraksiz (xUnit va h.k. — ortiqcha yuklash va vaqt).
 RUN dotnet restore src/Zinnur.WebApi/Zinnur.WebApi.csproj
 
+# Interaktiv darslik kontenti CLI (2026-10-29) — API bilan AYNI imijda, shunda
+# prodda `docker compose run --rm api dotnet Zinnur.ContentTool.dll import …`
+# alohida sozlamasiz ishlaydi (API ning muhit o'zgaruvchilari bilan).
+COPY tools/Zinnur.ContentTool/Zinnur.ContentTool.csproj   tools/Zinnur.ContentTool/
+RUN dotnet restore tools/Zinnur.ContentTool/Zinnur.ContentTool.csproj
+
 
 # =============================================================================
 #  BOSQICH 2 — BUILD + PUBLISH
@@ -95,6 +101,14 @@ COPY . .
 #  bitta ogohlantirish ham build'ni to'xtatadi — bu ATAYLAB (SPEC 9.10),
 #  chala kod prod'ga chiqmaydi.
 RUN dotnet publish src/Zinnur.WebApi/Zinnur.WebApi.csproj \
+      -c Release \
+      --no-restore \
+      -o /app/publish \
+      /p:UseAppHost=false
+
+# ⚠️ AYNI papkaga: kutubxonalar (Application, Infrastructure) bir xil build —
+#   ustma-ust yozilishi zararsiz; CLI o'z `*.deps.json` / `*.runtimeconfig.json` i bilan.
+RUN dotnet publish tools/Zinnur.ContentTool/Zinnur.ContentTool.csproj \
       -c Release \
       --no-restore \
       -o /app/publish \

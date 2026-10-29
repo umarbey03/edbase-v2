@@ -1,0 +1,1036 @@
+{
+  "meta": {
+    "birlik_nomi": "dars",
+    "kurs_nomi": "Arab tili fonetikasi",
+    "daraja": "ATF-1",
+    "birlik": 29,
+    "hafta": 15,
+    "nom_uz": "1-bosqich yakuniy imtihoni",
+    "nom_ar": "الاِخْتِبَارُ النِّهَائِيُّ",
+    "shior": "28 harfni o'rgandim: endi bilimimni ko'rsataman.",
+    "kirish": "Bu — ATF 1-bosqichining yakuniy imtihoni (80 daqiqa). U ikki qismdan iborat: yozma qism (eshitib tanlash, harflarni yozish, diktant, harflar haqida bilim — 42 ball) va imtihonchi bilan og'zaki qism (alifbo, zina, so'zlar va matn o'qish — 25 ball). Jami 67 ball. O'tish bali — 70% (47 ball). «Test» bo'limida 20 savollik zaxira variant bor: unda ham o'tish bali 70% (14 ta to'g'ri javob).",
+    "can_do": [
+      "28 harfni 4 xil ko'rinishda taniyman va yoza olaman.",
+      "O'xshash harflarni (ك/ق، س/ص، ت/ط، خ/ح، غ/ع، د/ض، ذ/ز/ظ) eshitib farqlay olaman.",
+      "Harflarning maxrajini va asosiy sifatlarini bilaman.",
+      "Harakat, sukun, shadda va tanvinli so'z va qisqa matnni ravon o'qiy olaman."
+    ],
+    "grammatika": [
+      "1–28-darslarning barcha harflari va o'qish qoidalari"
+    ],
+    "vazifa": "Og'zaki qism: alifbo, zina, so'zlar va matn (25 ball).",
+    "tovush": "ATF 1-bosqich: barcha harflar"
+  },
+  "personajlar": [
+    {
+      "id": "aziz",
+      "ar": "عَزِيزٌ",
+      "uz": "Aziz",
+      "izoh": "Harf, bo'g'in va so'zlarni o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#00784f"
+    },
+    {
+      "id": "malika",
+      "ar": "مَلِيكَةُ",
+      "uz": "Malika",
+      "izoh": "Iboralarni o'qiydi",
+      "ovoz": "ar-SA-ZariyahNeural",
+      "rang": "#00a36c"
+    },
+    {
+      "id": "rovi",
+      "ar": "الرَّاوِي",
+      "uz": "Hikoyachi",
+      "izoh": "Test savollarini o'qiydi",
+      "ovoz": "ar-SA-HamedNeural",
+      "rang": "#033a26"
+    }
+  ],
+  "lugat": [],
+  "darslar": {
+    "A": {
+      "nom_uz": "Yozma qism",
+      "nom_ar": "الاِخْتِبَارُ الكِتَابِيُّ",
+      "qisqa": "Yozma qism",
+      "bloklar": [
+        {
+          "id": "A1",
+          "tur": "tovush",
+          "vaqt": 10,
+          "sarlavha_uz": "1-topshiriq: eshitib tanlash",
+          "sarlavha_ar": "اِسْتَمِعْ وَاخْتَرْ",
+          "izoh": "Kitobdagi o'xshash harflar juftliklari. Ustoz yoki audio juftlikdan bitta so'zni o'qiydi — qaysi birini eshitganingizni belgilang. Har bir to'g'ri javob — 1 ball (9 ball).",
+          "juftlar": [
+            {
+              "sozlar": [
+                "كَدَرْ",
+                "قَدَرْ"
+              ],
+              "uz": [
+                "Kadar",
+                "Qodar"
+              ],
+              "audio": [
+                "s01",
+                "s02"
+              ]
+            },
+            {
+              "sozlar": [
+                "سَمَرْ",
+                "ثَمَرْ"
+              ],
+              "uz": [
+                "Samar",
+                "S̲amar"
+              ],
+              "audio": [
+                "s03",
+                "s04"
+              ]
+            },
+            {
+              "sozlar": [
+                "سَيْفُ",
+                "صَيْفُ"
+              ],
+              "uz": [
+                "Sayfu",
+                "S\"oyfu"
+              ],
+              "audio": [
+                "s05",
+                "s06"
+              ]
+            },
+            {
+              "sozlar": [
+                "تَرَفْ",
+                "طَرَفْ"
+              ],
+              "uz": [
+                "Taraf",
+                "T̲oraf"
+              ],
+              "audio": [
+                "s07",
+                "s08"
+              ]
+            },
+            {
+              "sozlar": [
+                "خَلْقُ",
+                "حَلْقُ"
+              ],
+              "uz": [
+                "Xolqu",
+                "H̲alqu"
+              ],
+              "audio": [
+                "s09",
+                "s10"
+              ]
+            },
+            {
+              "sozlar": [
+                "غَيْنُ",
+                "عَيْنُ"
+              ],
+              "uz": [
+                "G'oynu",
+                "'aynu"
+              ],
+              "audio": [
+                "s11",
+                "s12"
+              ]
+            },
+            {
+              "sozlar": [
+                "دَرْسُ",
+                "ضَرْسُ"
+              ],
+              "uz": [
+                "Darsu",
+                "D̲orsu"
+              ],
+              "audio": [
+                "s13",
+                "s14"
+              ]
+            },
+            {
+              "sozlar": [
+                "بَذْلُ",
+                "بَزْلُ"
+              ],
+              "uz": [
+                "Baz̲lu",
+                "Bazlu"
+              ],
+              "audio": [
+                "s15",
+                "s16"
+              ]
+            },
+            {
+              "sozlar": [
+                "زَهَرَ",
+                "ظَهَرَ"
+              ],
+              "uz": [
+                "Zahara",
+                "Z:ohara"
+              ],
+              "audio": [
+                "s17",
+                "s18"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s01",
+              "variantlar": [
+                "قَدَرْ",
+                "كَدَرْ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s04",
+              "variantlar": [
+                "سَمَرْ",
+                "ثَمَرْ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s05",
+              "variantlar": [
+                "صَيْفُ",
+                "سَيْفُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s08",
+              "variantlar": [
+                "تَرَفْ",
+                "طَرَفْ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s09",
+              "variantlar": [
+                "حَلْقُ",
+                "خَلْقُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s12",
+              "variantlar": [
+                "غَيْنُ",
+                "عَيْنُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s13",
+              "variantlar": [
+                "ضَرْسُ",
+                "دَرْسُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s16",
+              "variantlar": [
+                "بَذْلُ",
+                "بَزْلُ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s17",
+              "variantlar": [
+                "ظَهَرَ",
+                "زَهَرَ"
+              ],
+              "javob": 1
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Eslatma",
+            "matn": "Har bir so'zni faqat 2 marta tinglash mumkin. Javobni tanlagach, o'zgartirmang."
+          }
+        },
+        {
+          "id": "A2",
+          "tur": "yozish",
+          "vaqt": 12,
+          "sarlavha_uz": "2-topshiriq: harflarni yozish",
+          "sarlavha_ar": "كِتَابَةُ الحُرُوفِ",
+          "pogonalar": [
+            {
+              "n": 1,
+              "uz": "Imtihon harflarini (kitob, 36-bet: خ ص ض غ ط ق ظ ر ج ح ع ه) 4 xil ko'rinishda yozing: alohida, so'z boshida, o'rtasida, oxirida (12 ball).",
+              "maqsad_gap": 4
+            },
+            {
+              "n": 2,
+              "uz": "Alifboning 28 harfini tartib bilan yozing (5 ball).",
+              "maqsad_gap": 2
+            }
+          ],
+          "ustozga": "Baholash: har bir harfning 4 shakli to'g'ri — 1 ball (12). Alifbo: 0–2 xato — 5, 3–5 xato — 3, 6 dan ko'p — 1 ball. ر qo'l bermasligi (2 shakl) to'g'ri hisoblanadi."
+        },
+        {
+          "id": "A3",
+          "tur": "yozish",
+          "vaqt": 10,
+          "sarlavha_uz": "3-topshiriq: diktant",
+          "sarlavha_ar": "الإِمْلَاءُ",
+          "pogonalar": [
+            {
+              "n": 1,
+              "uz": "Ustoz 10 ta so'zni o'qiydi, har birini 2 marta. So'zni daftaringizga harakati bilan yozing. To'g'ri yozilgan so'z — 1 ball (10 ball).",
+              "maqsad_gap": 10
+            }
+          ],
+          "ustozga": "Diktant so'zlari (o'quvchilarga ko'rsatmang): قَلَمٌ، صَيْفُ، طَرَفْ، حَسَنْ، عَمَلْ، خَبَرْ، ضَيْفُ، ذَهَبْ، نَظَرَ، غَالِبٌ. Har birini 2 marta, aniq maxraj bilan o'qing. Baholash: harf to'g'ri, harakat xato — 0,5 ball; o'xshash harf almashsa (س o'rniga ص) — 0 ball."
+        },
+        {
+          "id": "A4",
+          "tur": "grammatika",
+          "vaqt": 8,
+          "sarlavha_uz": "4-topshiriq: harflar haqida bilim",
+          "sarlavha_ar": "مَعْلُومَاتٌ عَنِ الحُرُوفِ",
+          "kuzat": [
+            {
+              "ar": "ح ض ق ذ ع",
+              "uz": "Savollarda shu harflar haqida so'raladi: maxraji, sifati va yozilishi",
+              "rangli": "ح"
+            }
+          ],
+          "savol": "Har bir harfning maxraji va sifatlarini eslang, keyin javob bering.",
+          "qoida": [
+            "Har bir savolga bitta javob tanlang.",
+            "Javobni tanlagach, o'zgartirmang."
+          ],
+          "mashqlar": [
+            {
+              "id": "A4m1",
+              "tur": "tanla",
+              "korsatma": "To'g'ri javobni tanlang. Har biri 1 ball (6 ball).",
+              "savollar": [
+                {
+                  "uz": "ح ning maxraji:",
+                  "variantlar": [
+                    "halqumning yuqorisi",
+                    "halqum tubi",
+                    "halqumning o'rtasi"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "Qaysi harf doim yo'g'on o'qiladi?",
+                  "variantlar": [
+                    "ك",
+                    "ق",
+                    "ت"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "Qaysi harf keyingi harfga qo'l bermaydi?",
+                  "variantlar": [
+                    "ذ",
+                    "ب",
+                    "ن"
+                  ],
+                  "javob": 0
+                },
+                {
+                  "uz": "Tanvin ـٌ qanday o'qiladi?",
+                  "variantlar": [
+                    "«-an»",
+                    "«-in»",
+                    "«-un»"
+                  ],
+                  "javob": 2
+                },
+                {
+                  "uz": "ض ning maxraji:",
+                  "variantlar": [
+                    "til uchi va old tishlar uchi",
+                    "tilning yon cheti va yuqori oziq tishlar",
+                    "ikki lab"
+                  ],
+                  "javob": 1
+                },
+                {
+                  "uz": "Sukun nimani bildiradi?",
+                  "variantlar": [
+                    "harf unlisiz o'qiladi",
+                    "uzun unli",
+                    "ikkilangan harf"
+                  ],
+                  "javob": 0
+                }
+              ]
+            }
+          ],
+          "ustozga": "Bu qism avtomatik tekshiriladi (interaktiv darsda) yoki qog'ozda — har biri 1 ball."
+        }
+      ]
+    },
+    "B": {
+      "nom_uz": "Og'zaki qism",
+      "nom_ar": "الاِخْتِبَارُ الشَّفَهِيُّ",
+      "qisqa": "Og'zaki qism",
+      "bloklar": [
+        {
+          "id": "B1",
+          "tur": "tovush",
+          "vaqt": 8,
+          "sarlavha_uz": "Tayyorgarlik: imtihon harflari zinasi",
+          "sarlavha_ar": "سُلَّمُ حُرُوفِ الاِخْتِبَارِ",
+          "izoh": "Kitobdagi imtihon harflari (36-bet): خ ص ض غ ط ق ظ ر ج ح ع ه — har biri uch harakat, keyin hamza va sukun bilan. Og'zaki qismdan oldin tinglab, o'zingizni tekshiring.",
+          "juftlar": [
+            {
+              "sozlar": [
+                "خَ",
+                "خِ",
+                "خُ",
+                "أَخْ"
+              ],
+              "uz": [
+                "Xo",
+                "Xi",
+                "Xu",
+                "Ax"
+              ],
+              "audio": [
+                "s19",
+                "s20",
+                "s21",
+                "s22"
+              ]
+            },
+            {
+              "sozlar": [
+                "صَ",
+                "صِ",
+                "صُ",
+                "أَصْ"
+              ],
+              "uz": [
+                "S\"o",
+                "S\"i",
+                "S\"u",
+                "As\""
+              ],
+              "audio": [
+                "s23",
+                "s24",
+                "s25",
+                "s26"
+              ]
+            },
+            {
+              "sozlar": [
+                "ضَ",
+                "ضِ",
+                "ضُ",
+                "أَضْ"
+              ],
+              "uz": [
+                "D̲o",
+                "D̲i",
+                "D̲u",
+                "Ad̲"
+              ],
+              "audio": [
+                "s27",
+                "s28",
+                "s29",
+                "s30"
+              ]
+            },
+            {
+              "sozlar": [
+                "غَ",
+                "غِ",
+                "غُ",
+                "أَغْ"
+              ],
+              "uz": [
+                "G'o",
+                "G'i",
+                "G'u",
+                "Ag'"
+              ],
+              "audio": [
+                "s31",
+                "s32",
+                "s33",
+                "s34"
+              ]
+            },
+            {
+              "sozlar": [
+                "طَ",
+                "طِ",
+                "طُ",
+                "أَطْ"
+              ],
+              "uz": [
+                "T̲o",
+                "T̲i",
+                "T̲u",
+                "At̲"
+              ],
+              "audio": [
+                "s35",
+                "s36",
+                "s37",
+                "s38"
+              ]
+            },
+            {
+              "sozlar": [
+                "قَ",
+                "قِ",
+                "قُ",
+                "أَقْ"
+              ],
+              "uz": [
+                "Qo",
+                "Qi",
+                "Qu",
+                "Aq"
+              ],
+              "audio": [
+                "s39",
+                "s40",
+                "s41",
+                "s42"
+              ]
+            },
+            {
+              "sozlar": [
+                "ظَ",
+                "ظِ",
+                "ظُ",
+                "أَظْ"
+              ],
+              "uz": [
+                "Z:o",
+                "Z:i",
+                "Z:u",
+                "Az:"
+              ],
+              "audio": [
+                "s43",
+                "s44",
+                "s45",
+                "s46"
+              ]
+            },
+            {
+              "sozlar": [
+                "رَ",
+                "رِ",
+                "رُ",
+                "أَرْ"
+              ],
+              "uz": [
+                "Ra",
+                "Ri",
+                "Ru",
+                "Ar"
+              ],
+              "audio": [
+                "s47",
+                "s48",
+                "s49",
+                "s50"
+              ]
+            },
+            {
+              "sozlar": [
+                "جَ",
+                "جِ",
+                "جُ",
+                "أَجْ"
+              ],
+              "uz": [
+                "Ja",
+                "Ji",
+                "Ju",
+                "Aj"
+              ],
+              "audio": [
+                "s51",
+                "s52",
+                "s53",
+                "s54"
+              ]
+            },
+            {
+              "sozlar": [
+                "حَ",
+                "حِ",
+                "حُ",
+                "أَحْ"
+              ],
+              "uz": [
+                "H̲a",
+                "H̲i",
+                "H̲u",
+                "Ah̲"
+              ],
+              "audio": [
+                "s55",
+                "s56",
+                "s57",
+                "s58"
+              ]
+            },
+            {
+              "sozlar": [
+                "عَ",
+                "عِ",
+                "عُ",
+                "أَعْ"
+              ],
+              "uz": [
+                "'a",
+                "'i",
+                "'u",
+                "A'"
+              ],
+              "audio": [
+                "s59",
+                "s60",
+                "s61",
+                "s62"
+              ]
+            },
+            {
+              "sozlar": [
+                "هَ",
+                "هِ",
+                "هُ",
+                "أَهْ"
+              ],
+              "uz": [
+                "Ha",
+                "Hi",
+                "Hu",
+                "Ah"
+              ],
+              "audio": [
+                "s63",
+                "s64",
+                "s65",
+                "s66"
+              ]
+            }
+          ],
+          "test": [
+            {
+              "audio": "s42",
+              "variantlar": [
+                "أَكْ",
+                "أَغْ",
+                "أَقْ"
+              ],
+              "javob": 2
+            },
+            {
+              "audio": "s55",
+              "variantlar": [
+                "هَ",
+                "حَ",
+                "خَ"
+              ],
+              "javob": 1
+            },
+            {
+              "audio": "s60",
+              "variantlar": [
+                "عِ",
+                "إِ",
+                "غِ"
+              ],
+              "javob": 0
+            }
+          ],
+          "ehtiyot": {
+            "sarlavha": "Eslatma",
+            "matn": "Og'zaki qismda imtihonchi zinadan 3 ta harfni tasodifiy tanlaydi."
+          }
+        },
+        {
+          "id": "B2",
+          "tur": "vazifa",
+          "vaqt": 22,
+          "sarlavha_uz": "Og'zaki qism (imtihonchi bilan)",
+          "sarlavha_ar": "الاِخْتِبَارُ الشَّفَهِيُّ",
+          "maqsad": "Har bir o'quvchi imtihonchi bilan 4–5 daqiqa ishlaydi: 1) alifboni bir nafasda aytadi; 2) imtihonchi tanlagan 3 ta harfni zina bo'yicha o'qiydi (uch harakat + sukun); 3) 10 ta so'zni o'qiydi; 4) qisqa matnni (keyingi qism) o'qiydi.",
+          "qolip": [
+            "ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي",
+            "خَ خِ خُ أَخْ",
+            "كَدَرْ · قَدَرْ · سَيْفُ · صَيْفُ · تَرَفْ · طَرَفْ · خَلْقُ · حَلْقُ · دَرْسُ · ضَرْسُ"
+          ],
+          "rollar": [
+            {
+              "ism": "1-qadam",
+              "belgi": "Alifbo",
+              "qatorlar": [
+                "Alifboni bir nafasda, sifatlarini buzmay ayting"
+              ]
+            },
+            {
+              "ism": "2-qadam",
+              "belgi": "Zina",
+              "qatorlar": [
+                "Imtihonchi tanlagan 3 harfni uch harakat va sukun bilan o'qing"
+              ]
+            },
+            {
+              "ism": "3-qadam",
+              "belgi": "So'zlar",
+              "qatorlar": [
+                "Juftlik so'zlarini (10 ta) o'qing — har bir harfning maxraji aniq bo'lsin"
+              ]
+            },
+            {
+              "ism": "4-qadam",
+              "belgi": "Matn",
+              "qatorlar": [
+                "Qisqa matnni ravon o'qing"
+              ]
+            }
+          ],
+          "natija": "Imtihonchi rubrika bo'yicha 25 ballgacha baholaydi.",
+          "baholash": [
+            {
+              "mezon": "Alifbo: to'liq va tartib bilan",
+              "ball": 3
+            },
+            {
+              "mezon": "Zina: harakat va sukun to'g'ri",
+              "ball": 6
+            },
+            {
+              "mezon": "So'zlar: maxraj va sifatlar aniq (o'xshash harflar farqlandi)",
+              "ball": 8
+            },
+            {
+              "mezon": "Matn: ravon, to'xtamasdan o'qish",
+              "ball": 5
+            },
+            {
+              "mezon": "Hamza, shadda va tanvin to'g'ri",
+              "ball": 3
+            }
+          ],
+          "ustozga": "Guruhda 8–10 o'quvchi bo'lsa, og'zaki qism alohida vaqtda (yoki yordamchi ustoz bilan parallel) o'tkaziladi. Har bir o'quvchiga 4–5 daqiqa. Natijalarni o'zlashtirish jadvaliga (kitob, 5-bet) yozing."
+        },
+        {
+          "id": "B3",
+          "tur": "oqish",
+          "vaqt": 10,
+          "sarlavha_uz": "O'qish matni",
+          "sarlavha_ar": "نَصُّ القِرَاءَةِ",
+          "oldin": "Matnni avval ichingizda o'qing, keyin ovoz chiqarib, ravon o'qing. Matnda barcha 28 harf bor.",
+          "matn": [
+            "اِسْمِي عُمَرُ. أَنَا مِنْ أُوزْبَكِسْتَانَ.",
+            "عِنْدِي كِتَابٌ جَدِيدٌ وَقَلَمٌ. أَقْرَأُ الدَّرْسَ صَبَاحًا.",
+            "فِي الصَّفِّ عَشَرَةُ طُلَّابٍ. نَظَرَ المُعَلِّمُ إِلَى الطُّلَّابِ وَقَالَ: أَحْسَنْتُمْ!",
+            "بَعْدَ الظُّهْرِ خَرَجْنَا إِلَى الحَدِيقَةِ، وَشَرِبْنَا الشَّايَ."
+          ],
+          "yangi": [
+            {
+              "ar": "طُلَّابٍ",
+              "uz": "talabalar"
+            },
+            {
+              "ar": "أَحْسَنْتُمْ",
+              "uz": "barakalla, yaxshi qildingiz"
+            },
+            {
+              "ar": "بَعْدَ الظُّهْرِ",
+              "uz": "tushdan keyin"
+            },
+            {
+              "ar": "الحَدِيقَةِ",
+              "uz": "bog'"
+            }
+          ],
+          "audio": "q1",
+          "mashqlar": [
+            {
+              "id": "B3m1",
+              "tur": "ovlash",
+              "korsatma": "Matndan doim yo'g'on o'qiladigan harf (خ ص ض غ ط ق ظ) bor so'zlarni toping.",
+              "javoblar": [
+                "أَقْرَأُ",
+                "صَبَاحًا",
+                "الصَّفِّ",
+                "طُلَّابٍ",
+                "نَظَرَ",
+                "الطُّلَّابِ",
+                "وَقَالَ",
+                "الظُّهْرِ",
+                "خَرَجْنَا",
+                "الحَدِيقَةِ"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "mashq_daftari": [
+    {
+      "id": "W1",
+      "sessiya": 1,
+      "tur": "ovoz",
+      "uz": "Imtihondan oldin: alifboni bir nafasda va sukunli qilib ayting, yozib yuboring."
+    },
+    {
+      "id": "W2",
+      "sessiya": 2,
+      "tur": "diktant",
+      "uz": "Sinov diktant: so'zni tinglang va yozing.",
+      "sozlar": [
+        "قَدَرْ",
+        "صَيْفُ",
+        "حَلْقُ",
+        "عَيْنُ",
+        "ضَرْسُ"
+      ],
+      "audio": [
+        "w2_1",
+        "w2_2",
+        "w2_3",
+        "w2_4",
+        "w2_5"
+      ]
+    },
+    {
+      "id": "W3",
+      "sessiya": 3,
+      "tur": "ovoz",
+      "uz": "Imtihondan keyin: xatolaringiz ustida ishlang — xato qilgan harflaringizni zina bo'yicha 10 marta o'qib yuboring."
+    }
+  ],
+  "test": {
+    "nom": "Zaxira variant: 20 savollik test (o'tish bali 70% — 14 ta to'g'ri javob)",
+    "savollar": [
+      {
+        "kon": "tinglash",
+        "audio": "x01",
+        "matn": "قَدَرْ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "كَدَرْ",
+          "قَدَرْ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x02",
+        "matn": "ثَمَرْ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "سَمَرْ",
+          "ثَمَرْ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x03",
+        "matn": "صَيْفُ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "سَيْفُ",
+          "صَيْفُ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x04",
+        "matn": "طَرَفْ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "تَرَفْ",
+          "طَرَفْ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x05",
+        "matn": "حَلْقُ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "خَلْقُ",
+          "حَلْقُ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "tinglash",
+        "audio": "x06",
+        "matn": "عَيْنُ",
+        "uz": "Qaysi so'zni eshitdingiz?",
+        "variantlar": [
+          "غَيْنُ",
+          "عَيْنُ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "خ ning maxraji:",
+        "variantlar": [
+          "halqumning o'rtasi",
+          "til uchi",
+          "halqumning yuqorisi"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "ع ning maxraji:",
+        "variantlar": [
+          "halqumning yuqorisi",
+          "halqumning o'rtasi",
+          "ikki lab"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "Qaysi guruh — doim yo'g'on o'qiladigan harflar?",
+        "variantlar": [
+          "خ ص ض غ ط ق ظ",
+          "ب ت ث ن ي",
+          "ا و ي"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Qaysi harflar keyingi harfga qo'l bermaydi?",
+        "variantlar": [
+          "ب ت ث ن ي",
+          "ج ح خ",
+          "ا د ذ ر ز و"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "Qalqala qaysi harfda bor?",
+        "variantlar": [
+          "س",
+          "د",
+          "م"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "Roxova nimani bildiradi?",
+        "variantlar": [
+          "2 harakat miqdorida cho'ziladi",
+          "tovush birdan to'xtaydi",
+          "til titraydi"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Tanvin ـً qanday o'qiladi?",
+        "variantlar": [
+          "«-un»",
+          "«-in»",
+          "«-an»"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "oqish",
+        "uz": "جَيْبٌ qanday o'qiladi?",
+        "variantlar": [
+          "jaybin",
+          "jaybun",
+          "jiibun"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "oqish",
+        "uz": "So'z oxiridagi ع shakli:",
+        "variantlar": [
+          "ـع",
+          "عـ",
+          "ـعـ"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "oqish",
+        "uz": "Ligatura nima?",
+        "variantlar": [
+          "harfning maxraji",
+          "uzun unli",
+          "harflarning maxsus birikkan shakli"
+        ],
+        "javob": 2
+      },
+      {
+        "kon": "lugat",
+        "uz": "«Besh» arabchada:",
+        "variantlar": [
+          "سِتَّةٌ",
+          "خَمْسَةٌ",
+          "سَبْعَةٌ"
+        ],
+        "javob": 1
+      },
+      {
+        "kon": "lugat",
+        "uz": "«Qayerdansiz?»",
+        "variantlar": [
+          "مِنْ أَيْنَ أَنْتَ؟",
+          "مَا اسْمُكَ؟",
+          "كَيْفَ حَالُكَ؟"
+        ],
+        "javob": 0
+      },
+      {
+        "kon": "yozish",
+        "uz": "«Z:ohara» ni arab yozuvida yozing",
+        "javob_matn": "ظَهَرَ"
+      },
+      {
+        "kon": "gapirish",
+        "uz": "Ovozli: imtihon harflari zinasidan 3 ta harfni va o'qish matnini o'qing.",
+        "ochiq": true
+      }
+    ]
+  }
+}
