@@ -134,11 +134,21 @@ export const PAYMENT_METHOD_OPTIONS: ReadonlyArray<{ value: PaymentMethodName; l
   yoziladi. Eski tizimda bunday yozuv umuman yo'q edi (balans tushunchasi
   yo'q edi), shuning uchun uni ko'chiradigan matn ham yo'q.
 */
+/*
+  ★ 2026-10-29 (Q-5): mustaqil o'qish obunasi puli ham jurnalga tushadi —
+  O'Z turlari bilan, guruh to'lovlariga aralashmaydi. `LessonReversal`
+  serverda ilgaridan bor edi, lekin bu yerda yorlig'i yo'q edi.
+*/
 const KIND_LABELS: Record<PaymentTransactionKindName, string> = {
   Payment: 'To‘landi',
   Refund: 'Pul qaytarildi',
   Waiver: 'Kechirildi',
   BalanceUse: 'Balansdan yopildi',
+  LessonReversal: 'Dars puli qaytdi',
+  Subscription: 'Obuna to‘landi',
+  SubscriptionRefund: 'Obuna puli qaytarildi',
+  SubscriptionCredit: 'Obunadan balansga',
+  SubscriptionBalanceUse: 'Obuna balansdan',
 }
 
 const KIND_TONES: Record<PaymentTransactionKindName, PaymentTone> = {
@@ -146,6 +156,11 @@ const KIND_TONES: Record<PaymentTransactionKindName, PaymentTone> = {
   Refund: 'danger',
   Waiver: 'warning',
   BalanceUse: 'accent',
+  LessonReversal: 'neutral',
+  Subscription: 'success',
+  SubscriptionRefund: 'danger',
+  SubscriptionCredit: 'neutral',
+  SubscriptionBalanceUse: 'accent',
 }
 
 export function transactionKindLabel(kind: PaymentTransactionKindName): string {
@@ -158,7 +173,7 @@ export function transactionKindTone(kind: PaymentTransactionKindName): PaymentTo
 
 /** Jurnalda pul CHIQIMI (qaytarish) minus bilan ko'rsatiladi. */
 export function isOutgoingTransaction(kind: PaymentTransactionKindName): boolean {
-  return kind === 'Refund'
+  return kind === 'Refund' || kind === 'SubscriptionRefund'
 }
 
 /* ================================================================= blok === */
