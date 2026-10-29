@@ -481,3 +481,31 @@ public enum PointKind
     /// <summary>Dars videosi oxirigacha ko'rildi.</summary>
     VideoWatched = 7,
 }
+
+/// <summary>
+/// Tarif turi (2026-10-29, onlayn sotuv). Tartib MUHIM (bazaga int sifatida yoziladi).
+/// </summary>
+public enum PlanKind
+{
+    /// <summary>Mustaqil o'qish: video darslar va vazifalar, tasdiqlangach obuna ochiladi.</summary>
+    SelfStudy = 0,
+
+    /// <summary>Guruhda jonli darslar: tasdiqlangach pul balansga tushadi, guruhga o'quv bo'limi joylaydi.</summary>
+    Group = 1,
+}
+
+/// <summary>Onlayn buyurtma holati (2026-10-29). Tartib MUHIM.</summary>
+public enum PurchaseOrderStatus
+{
+    /// <summary>To'lov kutilmoqda — xodim tasdiqlashi kerak.</summary>
+    Pending = 0,
+
+    /// <summary>To'lov topildi va tasdiqlandi.</summary>
+    Confirmed = 1,
+
+    /// <summary>To'lov topilmadi — xodim rad etdi.</summary>
+    Rejected = 2,
+
+    /// <summary>O'quvchi o'zi bekor qildi.</summary>
+    Cancelled = 3,
+}

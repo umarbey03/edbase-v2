@@ -7,6 +7,17 @@ import type { PaymentMethodName } from '@/shared/types'
  * testlari. Guruh va obuna bir-birini taqiqlaydi (server qoidasi), ya'ni
  * obunasi bor o'quvchi har doim "mustaqil o'quvchi".
  */
+/**
+ * Tarif turi (2026-10-29, onlayn sotuv): mustaqil o'qish obunasi yoki
+ * guruhdagi jonli kursning oylik to'lovi (pul balansga tushadi).
+ */
+export type PlanKindName = 'SelfStudy' | 'Group'
+
+export const PLAN_KIND_LABELS: Record<PlanKindName, string> = {
+  SelfStudy: 'Mustaqil o‘qish',
+  Group: 'Guruhda jonli dars',
+}
+
 export interface SubscriptionPlanDto {
   id: number
   name: string
@@ -15,6 +26,11 @@ export interface SubscriptionPlanDto {
   months: number
   price: number
   isActive: boolean
+  kind: PlanKindName
+  /** Saytdagi taklif matni — har qatori alohida afzallik. */
+  description: string | null
+  /** Saytdagi tariflar ro'yxatida ko'rinadimi. */
+  isPublic: boolean
 }
 
 export interface SaveSubscriptionPlanRequest {
@@ -23,6 +39,9 @@ export interface SaveSubscriptionPlanRequest {
   months: number
   price: number
   isActive: boolean
+  kind: PlanKindName
+  description: string | null
+  isPublic: boolean
 }
 
 export interface SubscriptionPeriodDto {

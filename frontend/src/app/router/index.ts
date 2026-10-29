@@ -193,6 +193,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Profil', roles: STUDENT },
       },
       {
+        // Onlayn sotuv (2026-10-29): tarif tanlash, buyurtma va to'lov yo'riqnomasi.
+        path: 'tariflar',
+        name: 'student-plans',
+        component: () => import('@/pages/student/StudentPlansPage.vue'),
+        meta: { title: 'Tariflar', roles: STUDENT },
+      },
+      {
         path: 'oquv/vazifalarim',
         name: 'student-assignments',
         component: () => import('@/pages/student/StudentAssignmentsPage.vue'),
@@ -405,6 +412,17 @@ const routes: RouteRecordRaw[] = [
         name: 'manage-applications',
         component: () => import('@/pages/manage/ManageApplicationsPage.vue'),
         meta: { title: 'Arizalar', roles: MANAGERS },
+      },
+      {
+        /*
+          ONLAYN BUYURTMALAR (2026-10-29) — o'quvchi saytda tarif tanlab
+          to'lagan; kassir Payme/Click xabarini ko'rib tasdiqlaydi. Xuddi shu
+          amal Telegram guruhidagi tugma orqali ham bajariladi.
+        */
+        path: 'boshqaruv/buyurtmalar',
+        name: 'manage-orders',
+        component: () => import('@/pages/manage/ManageOrdersPage.vue'),
+        meta: { title: 'Buyurtmalar', roles: MANAGERS },
       },
       {
         /*

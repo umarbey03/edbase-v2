@@ -1,4 +1,5 @@
 using Zinnur.Domain.Common;
+using Zinnur.Domain.Enums;
 using Zinnur.Domain.Exceptions;
 
 namespace Zinnur.Domain.Entities;
@@ -10,11 +11,16 @@ namespace Zinnur.Domain.Entities;
 /// orasidagi reytingini ko'radi. Jonli dars, chat va guruh ma'lumotlari
 /// UMUMAN kirmaydi — ular guruh a'zoligiga bog'liq va mustaqil o'quvchi
 /// hech qachon guruh a'zosi bo'lmaydi.
+///
+/// ★ 2026-10-29 — ONLAYN SOTUV: reja endi saytdagi TARIF ham. <see cref="Kind"/>
+/// = <see cref="PlanKind.Group"/> bo'lsa bu guruhdagi jonli kursning oylik
+/// narxi: tasdiqlangan to'lov o'quvchi balansiga tushadi, obuna OCHILMAYDI.
 /// </summary>
 public class SubscriptionPlan : BaseEntity
 {
     public const int MaxNameLength = 100;
     public const int MaxMonths = 12;
+    public const int MaxDescriptionLength = 1000;
 
     public required string Name { get; set; }
 
@@ -31,6 +37,18 @@ public class SubscriptionPlan : BaseEntity
     /// <summary>O'chirilgan reja yangi obunaga berilmaydi; eskilari saqlanadi.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Tarif turi — mustaqil o'qish yoki guruhdagi jonli kurs.</summary>
+    public PlanKind Kind { get; set; } = PlanKind.SelfStudy;
+
+    /// <summary>
+    /// Saytdagi taklif matni: har qatori alohida afzallik ("Haftada 3 marta
+    /// jonli dars"). <c>null</c> — tarif kartasida faqat nom va narx.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>Saytda ko'rinadimi (faol bo'lsa ham ichki reja bo'lishi mumkin).</summary>
+    public bool IsPublic { get; set; }
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Name) || Name.Length > MaxNameLength)
@@ -39,5 +57,11 @@ public class SubscriptionPlan : BaseEntity
             throw new DomainException($"Muddat 1 dan {MaxMonths} oygacha bo'lishi kerak.");
         if (Price < 0)
             throw new DomainException("Narx manfiy bo'lishi mumkin emas.");
+        if (Description is { Length: > MaxDescriptionLength })
+            throw new DomainException($"Taklif matni {MaxDescriptionLength} belgidan oshmasin.");
+        if (!Enum.IsDefined(Kind))
+            throw new DomainException("Tarif turi noma'lum.");
+        if (IsPublic && Price <= 0)
+            throw new DomainException("Saytdagi tarifning narxi noldan katta bo'lishi kerak.");
     }
 }

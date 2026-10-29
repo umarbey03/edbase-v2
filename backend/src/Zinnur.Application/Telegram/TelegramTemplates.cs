@@ -238,6 +238,21 @@ public static class TelegramTemplates
         + "boshqa qaror qabul qildi — dars sizga o'tmaydi. Rahmat!";
 
     /* ===== /2026-10-22 ===== */
+    /// <summary>
+    /// Yangi onlayn buyurtma — XODIMLAR GURUHIGA, «Tasdiqlash / Rad etish»
+    /// tugmalari bilan (2026-10-29). <c>callback_data</c>: <c>so:ok:{id}</c>,
+    /// <c>so:no:{id}</c>.
+    /// </summary>
+    public const string ShopOrderStaff = "shop_order_staff";
+
+    /// <summary>Buyurtma hal qilindi — xodimlar guruhiga qisqa izoh (kim, nima qildi).</summary>
+    public const string ShopOrderDecided = "shop_order_decided";
+
+    /// <summary>O'quvchiga: to'lov tasdiqlandi. Tugma — «Ilovani ochish».</summary>
+    public const string ShopOrderConfirmed = "shop_order_confirmed";
+
+    /// <summary>O'quvchiga: to'lov topilmadi.</summary>
+    public const string ShopOrderRejected = "shop_order_rejected";
 
     /* ===== /2026-08-17 ===== */
 
@@ -280,6 +295,10 @@ public static class TelegramTemplates
         SessionStarted => TelegramMarkup.OpenApp,
 
         PointsLesson => TelegramMarkup.OpenApp,
+
+        ShopOrderStaff => TelegramMarkup.InlineButtons,
+        ShopOrderConfirmed => TelegramMarkup.OpenApp,
+        ShopOrderDecided or ShopOrderRejected => TelegramMarkup.None,
 
         // Kelmaganlik xabari — «Ilovani ochish» tugmasi bilan: o'quvchi
         // dars yozuvini ko'rishi yoki jadvalni tekshirishi mumkin, ya'ni
@@ -776,6 +795,57 @@ public static class TelegramTemplates
     }
 
     /* ===== /2026-10-23 ===== */
+
+    /* ===== 2026-10-29: onlayn sotuv ===== */
+
+    /// <summary>Xodimlar guruhiga: yangi buyurtma.</summary>
+    public static string ShopOrderStaffText(
+        string code, string studentName, string? phone, string? telegramUsername,
+        string planName, string courseName, decimal amount)
+    {
+        var contact = NotificationText.Parameter(phone ?? "—", 32);
+        if (!string.IsNullOrWhiteSpace(telegramUsername))
+            contact += $", @{NotificationText.Parameter(telegramUsername, 32)}";
+
+        return $"🛒 <b>Yangi buyurtma {NotificationText.Parameter(code, 12)}</b>\n"
+            + $"👤 {NotificationText.Parameter(studentName, 80)} ({contact})\n"
+            + $"📦 {NotificationText.Parameter(planName, 100)} — {NotificationText.Parameter(courseName, 100)}\n"
+            + $"💰 <b>{FormatMoney(amount)} so'm</b>\n\n"
+            + "Payme/Click xabarlarida shu summani toping va tasdiqlang.";
+    }
+
+    /// <summary>Xodim tugmalari.</summary>
+    public static string ShopOrderButtons(long orderId) =>
+        EncodeButtons([[
+            ("✅ Tasdiqlash", string.Create(CultureInfo.InvariantCulture, $"so:ok:{orderId}")),
+            ("❌ Rad etish", string.Create(CultureInfo.InvariantCulture, $"so:no:{orderId}")),
+        ]]);
+
+    /// <summary>Xodimlar guruhiga: buyurtma hal qilindi.</summary>
+    public static string ShopOrderDecidedText(string code, bool confirmed, string actorName) =>
+        (confirmed ? "✅ " : "❌ ")
+        + $"<b>{NotificationText.Parameter(code, 12)}</b> "
+        + (confirmed ? "tasdiqlandi" : "rad etildi")
+        + $" — {NotificationText.Parameter(actorName, 80)}";
+
+    /// <summary>O'quvchiga: to'lov tasdiqlandi.</summary>
+    public static string ShopOrderConfirmedText(string code, string planName, bool selfStudy) =>
+        $"✅ To'lovingiz tasdiqlandi (<b>{NotificationText.Parameter(code, 12)}</b>).\n"
+        + $"📦 {NotificationText.Parameter(planName, 100)}\n\n"
+        + (selfStudy
+            ? "Darslar ochildi — ilovani oching va o'qishni boshlang!"
+            : "To'lov hisobingizga tushdi. O'quv bo'limi sizni guruhga joylab, dars vaqtini xabar qiladi.");
+
+    /// <summary>O'quvchiga: to'lov topilmadi.</summary>
+    public static string ShopOrderRejectedText(string code, string? reason) =>
+        $"❌ <b>{NotificationText.Parameter(code, 12)}</b> buyurtmasi bo'yicha to'lov tasdiqlanmadi."
+        + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"\nSabab: {NotificationText.Parameter(reason, 300)}")
+        + "\n\nTo'lagan bo'lsangiz, chekni o'quv bo'limiga yuboring.";
+
+    private static string FormatMoney(decimal amount) =>
+        amount.ToString("#,0", CultureInfo.InvariantCulture).Replace(',', ' ');
+
+    /* ===== /2026-10-29 ===== */
 }
 
 /// <summary>

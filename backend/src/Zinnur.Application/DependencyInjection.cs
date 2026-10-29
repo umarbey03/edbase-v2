@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Zinnur.Application.Shop;
 using Zinnur.Application.Subscriptions;
 using Zinnur.Application.Absentees.Services;
 using Zinnur.Application.AnalysisCriteria.Services;
@@ -284,6 +285,8 @@ public static class DependencyInjection
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<ISubscriptionAccess, SubscriptionAccess>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
+        services.AddScoped<IShopService, ShopService>();
+        services.AddScoped<ISelfSignupService, SelfSignupService>();
         services.AddScoped<IPointsService, PointsService>();
         services.AddScoped<IPointsSyncService, PointsSyncService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();

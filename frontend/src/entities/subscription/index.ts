@@ -7,10 +7,11 @@ export {
   grantSubscription,
   updateSubscriptionPlan,
 } from './api/subscription-api'
-export { periodState, periodStateLabel } from './model/types'
+export { PLAN_KIND_LABELS, periodState, periodStateLabel } from './model/types'
 export type {
   MySubscriptionDto,
   PeriodState,
+  PlanKindName,
   SaveSubscriptionPlanRequest,
   SubscriptionPeriodDto,
   SubscriptionPlanDto,
