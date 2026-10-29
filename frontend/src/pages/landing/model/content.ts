@@ -141,10 +141,23 @@ export const HERO = {
   */
   title: '8 oyda arab tilidagi harakatli kitoblarni',
   titleAccent: 'mustaqil o‘qiysiz',
+  /*
+    ⚠️ 2026-10-29 — LEAD QAYTA YOZILDI.
+
+    🔴 ESKI GAP IKKI XATO QILARDI: 1) grammatik jihatdan buzilgan edi —
+       "jonli darslar … va barcha kitoblar … pochtaga yetkaziladi" bo'lib
+       chiqardi; 2) support teacher va kitoblarni HAMMAGA va'da qilardi.
+       Ular faqat Milliy tarifda va u yerda ham «qo'shimcha» (narxga
+       kirmaydi). Mustaqil xaridori birinchi ekranda o'zi olmaydigan
+       narsani o'qirdi.
+
+    ★ ENDI LEAD IKKALA YO'LNI AYTADI: ustoz bilan jonli guruh yoki
+      qulay vaqtda video darslar. Tafsilot `PRICE` da.
+  */
   lead:
-    'Quruq grammatika va qoida yodlash emas — darslarning asosi amaliyot. '
-    + 'Jonli darslar, support teacher bilan alohida mashg‘ulotlar va barcha '
-    + 'kitoblar sizga eng yaqin Uzpost pochtasiga yetkaziladi.',
+    'Quruq qoida yodlash emas — har dars amaliyot. Ustoz bilan jonli '
+    + 'guruh darslari yoki o‘zingizga qulay vaqtda video darslar: '
+    + 'o‘zingizga mos shaklni tanlang.',
 } as const
 
 /*
@@ -156,6 +169,11 @@ export const HERO = {
     ekran faqat MATNDAN iborat bo'lardi. Bu kartalar kursning to'rtta
     ajratuvchi tomonini bir qarashda ko'rsatadi — o'qimasdan, ko'z bilan:
     jonli dars bor, talaffuz tekshiriladi, kitob yo'lda, guruh kichik.
+
+  ⚠️ 2026-10-29 — KARTALAR HAMMA TARIFGA TEGISHLI QILINDI. Ilgari
+     «Talaffuz tekshirildi · Support teacher» va «Kitoblar yo'lda» turardi —
+     ikkalasi faqat Milliy va «qo'shimcha». Guruh hajmi kartasi esa
+     o'rnini Nuriga berdi (u raqamlar lentasida baribir bor).
 
   🔴 KARTALARDA YANGI VA'DA YO'Q. To'rtalasi ham sahifada pastroqda
      matn bilan aytilgan (`WEEK`, `OUTCOMES`, `BOOKS`, `STATS`). Ular
@@ -180,19 +198,14 @@ export const HERO_CARDS: readonly HeroCard[] = [
     kind: 'avatars',
   },
   {
-    title: 'Talaffuz tekshirildi',
-    text: 'Support teacher · audio',
+    title: 'Ovozli vazifa tekshirildi',
+    text: 'Izoh bilan · 9/10',
     kind: 'wave',
   },
   {
-    title: 'Kitoblar yo‘lda',
-    text: 'Uzpost · 5–7 kun ichida',
+    title: 'Keyingi dars ochildi',
+    text: 'O‘quv yo‘li · 7-dars',
     kind: 'progress',
-  },
-  {
-    title: `${COURSE_FACTS.groupSize} kishilik guruh`,
-    text: 'Har o‘quvchiga vaqt yetadi',
-    kind: 'plain',
   },
 ]
 
@@ -232,9 +245,14 @@ export const DECOR_LETTERS: readonly string[] = ['ع', 'ب', 'ن']
   🔴 NARX YONIDAGI YOZUV "so'm / oy" EMAS, "so'm / 8 ta dars" (2026-08-30).
      Sabab `PRICE` izohida: oy — dars soni O'ZGARIB turadigan birlik.
 */
+/*
+  ⚠️ 2026-10-29 — «5 kun haftasiga dars» → «2 + 3». 5 kunning 3 kuni
+     support teacher, ya'ni Milliy tarifdagi «qo'shimcha» (narxga
+     kirmaydi). Bitta «5» uni asosiy dars bilan teng ko'rsatardi.
+*/
 export const STATS: readonly { value: string, label: string }[] = [
   { value: COURSE_FACTS.courseDuration, label: 'Fonetika kursi' },
-  { value: COURSE_FACTS.weeklyLessonDays, label: 'haftasiga dars' },
+  { value: '2 + 3', label: 'kun: ustoz + support teacher' },
   { value: COURSE_FACTS.groupSize, label: 'kishilik guruh' },
   { value: COURSE_FACTS.price, label: `so‘m / ${COURSE_FACTS.lessonsPerPayment} · Milliy` },
 ]
@@ -287,6 +305,24 @@ export interface Outcome {
   text: string
 }
 
+/*
+  ⚠️ 2026-10-29 — 2- VA 3-KARTALAR ALMASHDI.
+
+  ★ Sarlavha «8 oydan keyin» emas, «ATF kursidan keyin»: 8 oy — Milliy
+    guruhining tempi, Mustaqilda esa tempni o'quvchining o'zi belgilaydi.
+
+  🔴 2-karta «Support teacher talaffuzingizni eshitadi» der edi — bu faqat
+     Milliy tarifda va u yerda ham «qo'shimcha». Endi va'da HAMMA tarifga
+     tegishli: ovozli vazifa tekshiriladi.
+  🔴 3-karta «Grammatikani amalda ishlatasiz» edi. ATF — o'qish va
+     talaffuz kursi, Grammatika esa ALOHIDA kurs (`COURSE_PATH`). Hero ham
+     «quruq qoida emas» deydi — karta sahifaning o'zi bilan ziddiyatda edi.
+*/
+export const OUTCOMES_SECTION = {
+  eyebrow: 'Natija',
+  title: 'ATF kursidan keyin nima o‘zgaradi',
+} as const
+
 export const OUTCOMES: readonly Outcome[] = [
   {
     icon: 'book',
@@ -298,17 +334,17 @@ export const OUTCOMES: readonly Outcome[] = [
   },
   {
     icon: 'message-circle',
-    title: 'Talaffuzingiz to‘g‘rilanadi',
+    title: 'Har tovushni to‘g‘ri talaffuz qilasiz',
     text:
-      'Support teacher audio orqali talaffuzingizni eshitadi va '
-      + 'xatolaringiz aynan qayerda ekanini ko‘rsatib to‘g‘rilaydi.',
+      'Ovozli vazifalaringiz tekshiriladi: xato aynan qaysi harfda ekanini '
+      + 'bilasiz va uni darhol tuzatasiz.',
   },
   {
     icon: 'graduation',
-    title: 'Grammatikani amalda ishlatasiz',
+    title: 'To‘xtamasdan, ravon o‘qiysiz',
     text:
-      'Qoidalarni yodlab qo‘yish emas — har mavzu darhol mashq, test va '
-      + 'jonli suhbatda mustahkamlanadi.',
+      'Amaliyot modulida matn ustida muntazam mashq qilinadi — o‘qish '
+      + 'tezligi va ishonchingiz oshadi.',
   },
 ]
 
@@ -516,9 +552,14 @@ export const COURSE_PATH: readonly CourseStage[] = [
       { name: '2-modul — Qoida moduli', short: '2-modul · Qoida', duration: '4 oy', months: 4 },
       { name: '3-modul — Amaliyot I moduli', short: '3-modul', duration: '1 oy', months: 1 },
     ],
+    /*
+      ⚠️ 2026-10-29 — «Milliy tarifda» ANIQLASHTIRILDI: 2 kun asosiy ustoz
+         narxga kiradi, 3 kun support teacher — «qo'shimcha». Mustaqil
+         tariflarda ikkalasi ham yo'q.
+    */
     facts: [
-      { label: 'Haftasiga', value: '5 kun dars' },
-      { label: 'Support teacher', value: 'Bor — haftada 3 kun' },
+      { label: 'Milliy tarifda', value: '2 kun ustoz + 3 kun support' },
+      { label: 'Support teacher', value: 'Milliy · qo‘shimcha' },
       { label: 'Test va mashqlar', value: 'Bor' },
     ],
   },
@@ -566,7 +607,7 @@ export const FEATURES: readonly Feature[] = [
     icon: 'award',
     title: 'Sertifikatli ustozlar',
     text:
-      'Ustozalarimizning 4–7 yillik tajribasi va arab tili bo‘yicha '
+      'Ustozlarimizning 4–7 yillik tajribasi va arab tili bo‘yicha '
       + 'CEFR yoki TANAL xalqaro sertifikatlari bor.',
   },
   {
@@ -637,16 +678,20 @@ export const FEATURES: readonly Feature[] = [
 export const BOOKS = {
   eyebrow: 'Milliy tarifda qo‘shimcha',
   title: 'Kitoblarni pochtangizgacha yetkazamiz',
+  /*
+    ⚠️ 2026-10-29 — «MILLIY TARIFDA» QO'SHILDI: Mustaqil tariflarda kitob
+       yo'q. «Uyingizga emas, uyingizga…» takrori ham olib tashlandi.
+  */
   lead:
-    'O‘quv qurollari yoki adabiyot qidirib vaqt sarflamaysiz — kurs uchun '
-    + 'kerakli barcha kitoblarni o‘zimiz yuboramiz. Kitob uyingizga emas, '
-    + 'uyingizga eng yaqin Uzpost pochtasiga boradi va uni o‘sha yerdan '
-    + 'olasiz.',
+    'Milliy tarifda kurs uchun kerakli kitoblarni o‘zimiz yuboramiz: '
+    + 'uyingizga eng yaqin Uzpost bo‘limiga 5–7 kunda yetib boradi, uni '
+    + 'o‘sha yerdan olasiz.',
   points: [
     'Respublikaning istalgan viloyatiga — uyingizga eng yaqin Uzpost pochtasiga',
     '5–7 kun ichida yetkaziladi',
     'Milliy tarifda qo‘shimcha — alohida pul olinmaydi',
-    'Telefonda ko‘z og‘ritmaysiz — qog‘oz kitobdan dars qilasiz',
+    // ★ Ekranni yomonlamaydi: Mustaqil+ ning o'zi interaktiv darslik sotadi.
+    'Qog‘oz kitob qo‘lingizda — darsni ekransiz ham takrorlaysiz',
   ],
 } as const
 
@@ -889,6 +934,25 @@ export const STEPS: readonly Step[] = [
   },
 ]
 
+/* ──────────────────────────── FOOTER ──────────────────────────────── */
+
+/*
+  ⚠️ 2026-10-29 — FOOTER MATNI SHU YERGA KO'CHIRILDI VA TUZATILDI.
+
+  🔴 Ilgari sahifada qotib yozilgan edi: «ATF — 8 oylik asosiy kurs: jonli
+     darslar, support teacher va kitoblar Uzpost orqali». Bu «hammasi
+     kursga kiradi» deb o'qilardi — holbuki support teacher va kitoblar
+     faqat Milliy tarifda va «qo'shimcha» (narxga kirmaydi).
+*/
+export const FOOTER = {
+  about:
+    'Arab tili akademiyasi. Asosiy kurs — ATF (Arab tili fonetikasi), 8 oy. '
+    + 'Ustoz bilan jonli darslar yoki mustaqil o‘qish.',
+  login: 'Tizimga kirish',
+  bot: 'Telegram bot',
+  rights: 'ZIN-NUR ONLINE. Barcha huquqlar himoyalangan.',
+} as const
+
 /* ─────────────────────────── SAVOLLAR ─────────────────────────────── */
 
 export interface Faq {
@@ -902,7 +966,9 @@ export const FAQ: readonly Faq[] = [
     answer:
       'Ha. ATF (Arab tili Fonetika) kursi alifbodan boshlanadi va 8 oy '
       + 'davomida bosqichma-bosqich olib boradi. Ariza qoldirganingizdan '
-      + 'keyin menejerlarimiz darajangizni aniqlab, mos guruhni tanlaydi.',
+      + 'keyin menejerlarimiz darajangizni aniqlab, mos guruhni tanlaydi. '
+      + 'Darajangizni hoziroq bilmoqchi bo‘lsangiz — sahifadagi bepul '
+      + 'testni yeching.',
   },
   {
     question: 'Kurs qanday bosqichlardan iborat?',
@@ -927,8 +993,8 @@ export const FAQ: readonly Faq[] = [
     question: 'Fonetika va Grammatika kurslarining farqi nima?',
     answer:
       'Fonetika (ATF) — arab yozuvini o‘qishni o‘rgatadigan asosiy kurs: '
-      + 'haftasiga 5 kun dars, support teacher bilan alohida mashg‘ulotlar '
-      + 'va har mavzudan keyin test bor. Grammatika esa alohida kurs va '
+      + 'har mavzudan keyin test bor, Milliy tarifda esa haftasiga 2 kun '
+      + 'ustoz darsi va 3 kun support teacher bilan qo‘shimcha mashg‘ulot. Grammatika esa alohida kurs va '
       + 'boshqacha quriladi: haftasiga 2 kun dars, support teacher yo‘q va '
       + 'hozircha testlar ham yo‘q. Grammatika o‘qishni emas, matnni '
       + 'tahlil qilishni o‘rgatadi.',
@@ -936,34 +1002,53 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Bitta dars qancha davom etadi?',
     answer:
-      'Fonetika kursida asosiy ustoz bilan jonli dars — 1 soat 20 daqiqa. '
-      + 'Haftasiga bunday dars 2 kun bo‘ladi, qolgan 3 kun esa support '
-      + 'teacher darsi.',
+      'Milliy tarifda asosiy ustoz bilan jonli dars — 1 soat 20 daqiqa. '
+      + 'Haftasiga bunday dars 2 kun bo‘ladi; qolgan 3 kun support teacher '
+      + 'darsi — u qo‘shimcha, narxga kirmaydi.',
   },
   {
     question: 'To‘lov qanday hisoblanadi?',
     answer:
-      '540 000 so‘m — asosiy ustozning 8 ta darsi uchun, ya’ni bitta dars '
-      + '67 500 so‘m. Buni ataylab oyga emas, darsga bog‘laganmiz: ba’zi '
-      + 'oylarda darslar soni 9 taga to‘g‘ri keladi va o‘shanda siz faqat '
-      + 'haqiqiy dars soni uchun to‘laysiz.',
+      'Milliy tarifda 540 000 so‘m — asosiy ustozning 8 ta jonli darsi '
+      + 'uchun, ya’ni bitta dars 67 500 so‘m. Buni ataylab oyga emas, darsga '
+      + 'bog‘laganmiz: ba’zi oylarda darslar soni 9 taga to‘g‘ri keladi va '
+      + 'o‘shanda siz faqat haqiqiy dars soni uchun to‘laysiz. Mustaqil va '
+      + 'Mustaqil+ tariflarida to‘lov oyiga.',
   },
+  /*
+    ⚠️ 2026-10-29 — UCHINCHI TARIF (Mustaqil+) QO'SHILDI. Ilgari savol faqat
+       ikki tarif haqida edi.
+
+    🔴 «TO'LOV ICHIDA» DEYILMAYDI: Milliy narxi FAQAT 8 ta jonli dars uchun,
+       qolgani «qo'shimcha» — narxga kirmaydi va ular uchun alohida pul
+       olinmaydi (loyiha egasi, 2026-10-29).
+  */
   {
-    question: 'Milliy va Mustaqil tariflarining farqi nima?',
+    question: 'Milliy, Mustaqil va Mustaqil+ farqi nima?',
     answer:
       'Milliy — asosiy ustoz bilan guruhda jonli darslar (haftasiga 2 kun); '
-      + 'narx 8 ta dars uchun 540 000 so‘m. Qo‘shimcha sifatida support teacher '
-      + 'darslari (haftasiga 3 kun), kitoblar va dars yozuvlari beriladi — ular '
-      + 'narxga kirmaydi, alohida pul olinmaydi. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
+      + 'narx 8 ta jonli dars uchun 540 000 so‘m. Support teacher darslari '
+      + '(haftasiga 3 kun), kitoblar, video darslar, dars yozuvlari va guruh '
+      + 'chati — qo‘shimcha: narxga kirmaydi, ular uchun alohida pul '
+      + 'olinmaydi. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
       + 'qulay vaqtda ko‘rasiz, vazifa va testlarni bajarasiz, ular tekshirib '
-      + 'beriladi; to‘lov oyiga. Mustaqil tarifni saytning o‘zida sotib olasiz.',
+      + 'beriladi; to‘lov oyiga. Mustaqil+ — shularning ustiga interaktiv '
+      + 'darslik: u ATF kursidan boshlab bosqichma-bosqich ochiladi; to‘lov '
+      + 'ham oyiga. Mustaqil tariflarni saytning o‘zida sotib olasiz.',
+  },
+  {
+    question: 'Platformani to‘lovdan oldin ko‘rsam bo‘ladimi?',
+    answer:
+      'Ha — «Platforma ichidan» bo‘limida kabinetning asosiy ekranlari bor: '
+      + 'bosh sahifa, o‘quv yo‘li, dars, vazifalar, testlar va reyting. '
+      + 'Bepul darsni esa ro‘yxatdan o‘tmasdan ko‘rishingiz mumkin.',
   },
   {
     question: 'Darsga ulgurmasam nima bo‘ladi?',
     answer:
-      'Jonli dars yozib olinadi va kabinetingizda qoladi — istalgan vaqtda '
+      'Milliy tarifda jonli dars yozib olinadi va kabinetingizda qoladi — istalgan vaqtda '
       + 'ko‘rasiz. Tushunmagan joyingizni esa support teacher bilan '
-      + 'alohida muhokama qilasiz.',
+      + 'alohida muhokama qilasiz (ikkalasi ham qo‘shimcha).',
   },
   {
     question: 'Kitoblar uchun alohida pul to‘lanadimi?',
@@ -977,7 +1062,7 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Guruhda nechta o‘quvchi bo‘ladi?',
     answer:
-      'Atigi 18–20 kishi. Bu ataylab shunday: ustoz har bir o‘quvchiga '
+      'Milliy tarifda guruh 18–20 kishidan iborat. Bu ataylab shunday: ustoz har bir o‘quvchiga '
       + 'vaqt ajrata olishi uchun guruh hajmi cheklangan. Shuning uchun '
       + 'joylar tez tugaydi.',
   },

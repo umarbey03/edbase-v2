@@ -19,12 +19,14 @@ import {
   DECOR_LETTERS,
   FAQ,
   FEATURES,
+  FOOTER,
   FREE_LESSON,
   HERO,
   HERO_CARDS,
   HERO_LETTER,
   LEVEL_TEST,
   OUTCOMES,
+  OUTCOMES_SECTION,
   PRICE,
   SOCIALS,
   STATS,
@@ -1429,12 +1431,12 @@ const year = new Date().getFullYear()
         <div class="relative mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
           <div class="max-w-2xl">
             <span class="eyebrow text-xs font-bold uppercase tracking-[1.4px] text-brand-500">
-              Natija
+              {{ OUTCOMES_SECTION.eyebrow }}
             </span>
             <h2
               class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
             >
-              8 oydan keyin nima o‘zgaradi
+              {{ OUTCOMES_SECTION.title }}
             </h2>
           </div>
 
@@ -2660,8 +2662,7 @@ const year = new Date().getFullYear()
               </span>
             </div>
             <p class="mt-3 text-sm leading-relaxed text-slate-400">
-              Arab tili akademiyasi. ATF — 8 oylik asosiy kurs: jonli
-              darslar, support teacher va kitoblar Uzpost orqali.
+              {{ FOOTER.about }}
             </p>
 
             <div class="mt-5 flex items-center gap-2">
@@ -2695,7 +2696,7 @@ const year = new Date().getFullYear()
               class="text-slate-400 transition-colors hover:text-slate-100"
               to="/login"
             >
-              Tizimga kirish
+              {{ FOOTER.login }}
             </RouterLink>
 
             <!--
@@ -2709,12 +2710,12 @@ const year = new Date().getFullYear()
               :href="BOT_LINK"
               target="_blank"
               rel="noopener noreferrer"
-            >Telegram bot</a>
+            >{{ FOOTER.bot }}</a>
           </div>
         </div>
 
         <p class="mt-10 border-t border-line pt-6 text-xs text-slate-500">
-          © {{ year }} ZIN-NUR ONLINE. Barcha huquqlar himoyalangan.
+          © {{ year }} {{ FOOTER.rights }}
         </p>
       </div>
     </footer>
