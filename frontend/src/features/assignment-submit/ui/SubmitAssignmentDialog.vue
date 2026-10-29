@@ -349,8 +349,9 @@ async function handleSubmit(): Promise<void> {
                 @click="cameraInput?.click()"
               >
                 <template #icon>
+                  <!-- `camera` EMAS: u videoqo'ng'iroq kamerasi (`icon-names.ts`). -->
                   <AppIcon
-                    name="camera"
+                    name="image"
                     :size="15"
                   />
                 </template>

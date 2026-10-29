@@ -70,9 +70,14 @@ const playbackUrl = ref<string | null>(null)
 
 watch(
   recording,
-  (file) => {
+  (file, previous) => {
     if (playbackUrl.value !== null) URL.revokeObjectURL(playbackUrl.value)
     playbackUrl.value = file === null ? null : URL.createObjectURL(file)
+
+    // Ro'yxatdagi "×" bilan olib tashlansa ham ekran o'quvchi bilsin.
+    if (file === null && previous !== null && previous !== undefined) {
+      announcement.value = 'Yozuv o‘chirildi.'
+    }
   },
   { immediate: true },
 )
@@ -102,7 +107,6 @@ function rerecord(): void {
 function remove(): void {
   recording.value = null
   recorder.clearError()
-  announcement.value = 'Yozuv o‘chirildi.'
 }
 </script>
 
@@ -180,10 +184,10 @@ function remove(): void {
         :src="playbackUrl"
         aria-label="Yozilgan ovozni tinglash"
       />
+      <p class="text-[11px] tabular-nums text-dim">
+        Ovozli javob · {{ formatDuration(durationSeconds) }} · {{ formatFileSize(recording.size) }}
+      </p>
       <div class="flex flex-wrap items-center gap-2">
-        <span class="mr-auto text-[11px] tabular-nums text-dim">
-          Ovozli javob · {{ formatDuration(durationSeconds) }} · {{ formatFileSize(recording.size) }}
-        </span>
         <BaseButton
           variant="secondary"
           size="sm"
