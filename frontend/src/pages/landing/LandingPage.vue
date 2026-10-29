@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
 import { EnrollmentRequestForm } from '@/features/enrollment-request'
+import { PublicPlans } from '@/features/shop-offers'
 import { LevelTestModal } from '@/features/level-test'
 import { COURSE_FACTS } from '@/shared/config/course-facts'
 import { AppIcon, BaseButton } from '@/shared/ui'
@@ -251,6 +252,7 @@ const NAV: readonly { href: string, label: string }[] = [
   { href: '#kurs', label: 'Kurs tuzilmasi' },
   { href: '#daraja', label: 'Daraja testi' },
   { href: '#narx', label: 'Narx' },
+  { href: '#tariflar', label: 'Tariflar' },
   { href: '#savollar', label: 'Savollar' },
 ]
 
@@ -2290,6 +2292,9 @@ const year = new Date().getFullYear()
         </div>
       </section>
 
+
+      <!-- Onlayn tariflar (2026-10-29) — bazadan; tarif bo'lmasa chizilmaydi. -->
+      <PublicPlans />
 
       <!-- ═══════════════════════════════════════════ ARIZA ═══ -->
       <section
