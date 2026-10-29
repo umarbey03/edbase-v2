@@ -81,6 +81,28 @@ export function countsTowardProgress(lesson: CourseLessonDto): boolean {
   return lesson.lockReason !== 'BeforeGroupStart'
 }
 
+/**
+ * Darsning kursdagi o'rni — `lessonsById` qiymati.
+ *
+ * ★ 2026-10-29: dars endi alohida marshrutda (`student-lesson`) va vazifa
+ * kartochkasida «7-dars · …» yozuvi bor. Ikkalasiga ham "shu id qaysi dars,
+ * qaysi modulda, nechanchi" savoliga javob kerak — har sahifa daraxtni
+ * o'zicha aylanib chiqmasin, javob shu yerda BIR MARTA hisoblanadi.
+ */
+export interface StudentCourseLesson {
+  lesson: CourseLessonDto
+  module: CourseModuleDto
+  /**
+   * Kurs bo'ylab 1 dan boshlanadigan TARTIB RAQAMI (modullar ketma-ket).
+   *
+   * ⚠️ `lesson.position` EMAS: u modul ICHIDAGI o'rin va har modulda
+   * 1 dan qayta boshlanadi — «3-dars» deb yozsak, o'quvchi uchta modulda
+   * uchta «3-dars» ni ko'rardi. Raqam server daraxti tartibidan olinadi
+   * (yo'lakcha ham aynan shu tartibda chiziladi).
+   */
+  number: number
+}
+
 export interface StudentCourse {
   tree: ComputedRef<CourseTreeDto | null>
   modules: ComputedRef<CourseModuleDto[]>
@@ -99,6 +121,8 @@ export interface StudentCourse {
   progressPercent: ComputedRef<number>
   /** Keyingi qadam: birinchi OCHIQ dars (eski ilovadagi "Boshlash" tugmasi). */
   nextLessonId: ComputedRef<number | null>
+  /** `lessonId` -> dars, uning moduli va kursdagi tartib raqami. */
+  lessonsById: ComputedRef<ReadonlyMap<number, StudentCourseLesson>>
   isPending: ComputedRef<boolean>
   isFetching: ComputedRef<boolean>
   error: ComputedRef<string | null>
@@ -131,6 +155,18 @@ export function useStudentCourse(): StudentCourse {
   )
 
   const lessonCount = computed(() => allLessons.value.length)
+
+  const lessonsById = computed<ReadonlyMap<number, StudentCourseLesson>>(() => {
+    const map = new Map<number, StudentCourseLesson>()
+    let number = 0
+    for (const module of modules.value) {
+      for (const lesson of module.lessons ?? []) {
+        number += 1
+        map.set(lesson.id, { lesson, module, number })
+      }
+    }
+    return map
+  })
 
   /*
     Progress SURATI ham, MAXRAJI ham AYNI to'plamdan olinadi (`countsTowardProgress`
@@ -169,6 +205,7 @@ export function useStudentCourse(): StudentCourse {
     completedCount,
     progressPercent,
     nextLessonId,
+    lessonsById,
     isPending: computed(
       () => listQuery.isPending.value || (courseId.value !== null && treeQuery.isPending.value),
     ),

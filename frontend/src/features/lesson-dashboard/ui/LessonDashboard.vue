@@ -21,7 +21,7 @@ import { LessonVideoPlayer } from '@/features/lesson-video-player'
 import { invalidateGatedQueries } from '@/features/student-course/model/invalidateGatedQueries'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { CourseLessonDto, StudentAssignmentDto } from '@/shared/types'
-import { AppIcon, BaseBadge, BaseButton, BaseModal } from '@/shared/ui'
+import { AppIcon, BaseBadge, BaseButton } from '@/shared/ui'
 import type { IconName } from '@/shared/ui'
 
 /**
@@ -42,13 +42,30 @@ import type { IconName } from '@/shared/ui'
  * bo'limlar — Vazifa, Test, Savol-javob. Har biri INLINE (marshrut
  * sakramaydi), faqat test yechish o'zining sahifasiga o'tadi — sabab
  * `student-test-take` marshrutining o'zidagi izohda (20+ savol).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  ★ 2026-10-29: MODAL EMAS, SAHIFA MAZMUNI (audit 2.4-d)
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Bu komponent ilgari `BaseModal wide xl` edi. Telefonda video, uchta tab
+ * va chat bitta modalda turardi: tizimning "orqaga" tugmasi (Android,
+ * Telegram) modalni YOPMAS, butun O'quv sahifasidan chiqib ketardi, darsga
+ * esa havola berib bo'lmasdi.
+ *
+ * Endi dars — `student-lesson` marshruti (`/oquv/dars/:lessonId`,
+ * `StudentLessonPage`), bu komponent esa faqat MAZMUN. Sarlavha, orqaga
+ * tugmasi, yuklanish, "topilmadi" va qulf holatlari sahifada. Shuning
+ * uchun `lesson` endi `null` bo'lmaydi va `close` hodisasi yo'q.
+ *
+ * 🔴 MODAL QOBIG'I DESKTOP UCHUN HAM QOLDIRILMADI (ataylab): ikki xil
+ * kirish yo'li bo'lsa, desktopda nusxalangan havola telefonda boshqa
+ * ko'rinishda ochilardi, "orqaga" esa ikki joyda ikki xil ishlardi. Keng
+ * ekranda sahifa ustuni modal bilan bir xil kenglikka qulflanadi
+ * (`StudentLessonPage` dagi `max-w-5xl`), ya'ni ko'rinish deyarli o'zgarmadi.
  */
 const props = defineProps<{
-  lesson: CourseLessonDto | null
-  moduleName: string
+  lesson: CourseLessonDto
 }>()
-
-const emit = defineEmits<{ close: [] }>()
 
 const router = useRouter()
 const queryClient = useQueryClient()
@@ -56,18 +73,15 @@ const queryClient = useQueryClient()
 const assignmentsQuery = useQuery({
   queryKey: ['assignments', 'mine'],
   queryFn: ({ signal }) => fetchMyAssignments({ signal }),
-  enabled: computed(() => props.lesson !== null),
 })
 
 const testsQuery = useQuery({
   queryKey: ['tests', 'available'],
   queryFn: ({ signal }) => fetchAvailableTests({ signal }),
-  enabled: computed(() => props.lesson !== null),
 })
 
 const lessonAssignments = computed(() => {
-  const lessonId = props.lesson?.id
-  if (lessonId === undefined) return []
+  const lessonId = props.lesson.id
   return (assignmentsQuery.data.value ?? []).filter((a) => a.moduleLessonId === lessonId)
 })
 
@@ -80,8 +94,7 @@ const assignmentRows = computed(() =>
 )
 
 const lessonTests = computed(() => {
-  const lessonId = props.lesson?.id
-  if (lessonId === undefined) return []
+  const lessonId = props.lesson.id
   return (testsQuery.data.value ?? []).filter((t) => t.moduleLessonId === lessonId)
 })
 
@@ -127,20 +140,38 @@ const tabs = computed<{ key: DashboardTab; label: string; icon: IconName }[]>(()
   return list
 })
 
-const activeTab = ref<DashboardTab>('chat')
+/*
+  ★ TANLOV VA SUKUT AJRATILDI (2026-10-29).
 
-// Har yangi dars ochilganda birinchi mavjud tab tanlanadi (Vazifa bo'lsa —
-// u, aks holda Test, aks holda Savol-javob) — oldingi darsning tanlovi
-// keyingisida QOLIB ketmasin.
+  Ilgari `activeTab` dars ochilgan ONDA bir marta `tabs[0]` ga tenglanardi.
+  Modalda vazifa/test ro'yxati odatda keshda tayyor edi, sahifaga esa
+  havoladan TO'G'RIDAN-TO'G'RI kirish mumkin — o'sha onda so'rovlar hali
+  kelmagan, `tabs` da faqat «Savol-javob» bor va u QOTIB qolardi: vazifa
+  kelgach ham o'quvchi chatni ko'rib turardi (mustaqil o'quvchida esa
+  hech qaysi bo'lim ochilmasdi).
+
+  Endi `chosenTab` — faqat o'quvchi BOSGAN tab; `activeTab` uni ro'yxatda
+  bor bo'lsa oladi, aks holda birinchi mavjud tabni (Vazifa -> Test ->
+  Savol-javob). Ma'lumot kelishi bilan sukut o'zi to'g'rilanadi.
+*/
+const chosenTab = ref<DashboardTab | null>(null)
+
+const activeTab = computed<DashboardTab | null>(() => {
+  const keys = tabs.value.map((tab) => tab.key)
+  if (chosenTab.value !== null && keys.includes(chosenTab.value)) return chosenTab.value
+  return keys[0] ?? null
+})
+
+// Boshqa darsga o'tilganda (bir marshrut, boshqa `:lessonId` — komponent
+// QAYTA ISHLATILADI) oldingi darsning tanlovi keyingisida qolib ketmasin.
 watch(
-  () => props.lesson?.id,
+  () => props.lesson.id,
   () => {
-    activeTab.value = tabs.value[0]?.key ?? 'chat'
+    chosenTab.value = null
   },
 )
 
 function openTest(testId: number): void {
-  emit('close')
   void router.push({ name: 'student-test-take', params: { testId: String(testId) } })
 }
 
@@ -170,22 +201,16 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
 </script>
 
 <template>
-  <BaseModal
-    :open="props.lesson !== null"
-    :title="props.lesson?.name ?? ''"
-    wide
-    xl
-    @close="emit('close')"
-  >
-    <div v-if="props.lesson !== null">
-      <p
-        class="text-[10.5px] font-bold uppercase tracking-[0.5px] text-slate-400"
-        v-text="props.moduleName"
-      />
-
+  <!--
+    Modul nomi va dars sarlavhasi endi SAHIFA sarlavhasida
+    (`StudentLessonPage` -> `StudentSubHeader`), shuning uchun bu yerda
+    takrorlanmaydi.
+  -->
+  <div>
+    <div>
       <p
         v-if="props.lesson.durationMin !== null"
-        class="mt-1.5 inline-flex items-center gap-1.5 text-xs text-slate-400"
+        class="inline-flex items-center gap-1.5 text-xs text-slate-400"
       >
         <AppIcon
           name="clock"
@@ -196,12 +221,12 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
 
       <p
         v-if="(props.lesson.description ?? '').length > 0"
-        class="mt-2.5 whitespace-pre-wrap rounded-xl border border-line bg-ink-800 p-3.5 text-sm leading-relaxed text-slate-300"
+        class="mt-2.5 whitespace-pre-wrap rounded-xl first:mt-0 border border-line bg-ink-800 p-3.5 text-sm leading-relaxed text-slate-300"
         v-text="props.lesson.description"
       />
 
       <!-- ------------------------------------------------------------- video -->
-      <div class="mt-4">
+      <div class="mt-4 first:mt-0">
         <LessonVideoPlayer
           :assets="props.lesson.assets ?? []"
           @watched="handleVideoWatched"
@@ -435,5 +460,5 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
       @close="submitting = null"
       @submitted="handleSubmitted"
     />
-  </BaseModal>
+  </div>
 </template>

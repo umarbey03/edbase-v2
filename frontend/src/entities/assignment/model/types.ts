@@ -55,6 +55,18 @@ export function assignmentState(item: StudentAssignmentDto): AssignmentState {
   */
   const blocked = !item.canSubmit
 
+  /*
+    ★ QAYTA YUBORISH SO'RALGAN (2026-10-29, vazifalar segmentlari).
+    Ustoz `ReopenForResubmit` qilganda holat O'ZGARMAYDI (`Graded` yoki
+    `Submitted` qoladi), faqat `allowResubmit` yonadi. Ilgari kartochka
+    "Baholandi: 6 / 10" yoki "Tekshiruvda" deb turardi, holbuki o'quvchidan
+    endi HARAKAT kutilyapti — endi bu «Topshirish kerak» segmentiga tushadi
+    va yorlig'i ham shuni aytadi.
+  */
+  if (submission !== null && submission.allowResubmit && !blocked) {
+    return { label: 'Qayta yuborish kerak', tone: 'warning', blockedReason: null }
+  }
+
   if (submission !== null && submission.status === 'Graded') {
     return {
       label: `Baholandi: ${submission.score ?? 0} / ${item.maxScore}`,
@@ -94,6 +106,37 @@ export function assignmentState(item: StudentAssignmentDto): AssignmentState {
   }
 
   return { label: 'Topshirish kerak', tone: 'accent', blockedReason: null }
+}
+
+/* ==========================================================================
+   VAZIFALAR SEGMENTI (2026-10-29, audit 2.5-a)
+
+   O'quvchi ro'yxati ilgari tekis va server tartibida edi: topshirilishi
+   kerak, tekshirilayotgan va baholangan ishlar aralash turardi. Endi har
+   vazifa UCHTA guruhdan biriga tushadi. Qoida `assignmentState` bilan bir
+   joyda — yorliq va segment bir-biriga zid bo'lmasin.
+   ========================================================================== */
+
+export type AssignmentBucket = 'todo' | 'review' | 'graded'
+
+/**
+ * Vazifa qaysi segmentga tegishli.
+ *
+ *  • `todo` — javob hali YO'Q yoki ustoz QAYTA yuborishni so'ragan
+ *    (`allowResubmit`). Qulflangan dars va muddati o'tgan vazifa ham shu
+ *    yerda: ish baribir o'quvchining zimmasida, karta esa SABABni aytadi
+ *    (muddat o'tgan bo'lsa ham server javobni qabul qiladi — `isLate`).
+ *  • `review` — javob yuborilgan, baho hali yo'q.
+ *  • `graded` — baholangan.
+ *
+ * ⚠️ `allowResubmit` HOLATDAN USTUN: qayta ochilgan ish `Graded` bo'lib
+ * qolsa ham "Baholangan" ga tushmaydi — aks holda o'quvchi ustoz so'ragan
+ * tuzatishni ko'rmay qolardi.
+ */
+export function assignmentBucket(item: StudentAssignmentDto): AssignmentBucket {
+  const submission = item.mySubmission
+  if (submission === null || submission.allowResubmit) return 'todo'
+  return submission.status === 'Graded' ? 'graded' : 'review'
 }
 
 /**

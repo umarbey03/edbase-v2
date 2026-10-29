@@ -30,6 +30,7 @@ export {
   ANSWER_FORMAT_OPTIONS,
   answerFormatsLabel,
   ASSIGNMENT_ATTACHMENT_ACCEPT,
+  assignmentBucket,
   assignmentState,
   assignmentTitle,
   attachmentKindLabel,
@@ -46,4 +47,9 @@ export {
   submissionStatusTone,
   validateAttachments,
 } from './model/types'
-export type { AnswerFormatName, AssignmentState, AssignmentTone } from './model/types'
+export type {
+  AnswerFormatName,
+  AssignmentBucket,
+  AssignmentState,
+  AssignmentTone,
+} from './model/types'
