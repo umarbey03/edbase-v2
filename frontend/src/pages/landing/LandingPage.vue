@@ -2389,7 +2389,7 @@ const year = new Date().getFullYear()
           v-if="selfStudyPlan !== null"
           class="mt-5 text-center text-sm text-slate-400"
         >
-          {{ PRICE.booksNote }}
+          {{ PRICE.booksNoteMilliy }}
         </p>
       </section>
 

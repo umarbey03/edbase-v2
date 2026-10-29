@@ -679,8 +679,7 @@ export const PRICE = {
   planTagline: 'Ustoz bilan guruhda jonli darslar, support teacher va kitoblar',
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
   selfExcludes:
-    'Vazifa va testlaringiz tekshirib beriladi. Jonli dars, support teacher '
-    + 'darslari va guruh chati bu tarifga kirmaydi.',
+    'Jonli dars, support teacher darslari va guruh chati bu tarifga kirmaydi.',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
     + 'Mustaqil — video darslar, vazifa va testlar, to‘lov oyiga.',
@@ -722,6 +721,7 @@ export const PRICE = {
        aynan to'lov qarori oldida shubha tug'dirardi.
   */
   booksNote: 'Kitoblar uchun alohida pul to‘lanmaydi — hammasi shu to‘lov ichida.',
+  booksNoteMilliy: 'Milliy tarifda kitoblar uchun alohida pul to‘lanmaydi — hammasi kurs to‘lovi ichida.',
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
     'Haftasiga 3 kun support teacher darsi',
