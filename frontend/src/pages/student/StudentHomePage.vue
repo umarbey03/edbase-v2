@@ -143,8 +143,15 @@ const isSelfStudy = subscription.isSelfStudy
 
       <SubscriptionStatusCard :data="subscription.data.value" />
 
+      <!--
+        ★ TAKRORLANMASIN (loyiha egasi, 2026-10-29): Nuri kartasining tugmasi
+          ham «O'quv» ga olib borsa, bu karta ikkinchi marta o'sha gapni
+          aytardi ("Birinchi darsni ochib ko'r" + "Darsni davom ettirish").
+          Nuri boshqa ishni (masalan, vazifani) taklif qilganda esa karta
+          darsga yagona yo'l bo'lib qoladi.
+      -->
       <RouterLink
-        v-if="subscription.data.value.isActive"
+        v-if="subscription.data.value.isActive && mood.result.value?.action !== 'learn'"
         :to="{ name: 'student-learn' }"
         class="group flex min-h-11 items-center gap-3 rounded-[15px] border border-brand-500/40 bg-brand-500/10 p-[15px] transition-colors hover:bg-brand-500/15"
       >
