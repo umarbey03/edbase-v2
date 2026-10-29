@@ -645,7 +645,7 @@ export const BOOKS = {
   points: [
     'Respublikaning istalgan viloyatiga — uyingizga eng yaqin Uzpost pochtasiga',
     '5–7 kun ichida yetkaziladi',
-    'Narxi kurs to‘lovi ichida, alohida pul to‘lanmaydi',
+    'Milliy tarifda qo‘shimcha — alohida pul olinmaydi',
     'Telefonda ko‘z og‘ritmaysiz — qog‘oz kitobdan dars qilasiz',
   ],
 } as const
@@ -676,7 +676,14 @@ export const BOOKS = {
 export const PRICE = {
   eyebrow: 'Tariflar',
   planName: 'Milliy',
-  planTagline: 'Ustoz bilan guruhda jonli darslar, support teacher va kitoblar',
+  planTagline: 'Asosiy ustoz bilan guruhda jonli darslar va qo‘shimchalar',
+  /*
+    🔴 NARX FAQAT 8 TA DARS UCHUN (loyiha egasi, 2026-10-29). Support
+       teacher, kitoblar, video darslar va boshqalar — QO'SHIMCHA: ular
+       narxga kirmaydi va ular uchun alohida pul olinmaydi. Matnda
+       «to'lov ichida» degan gap ishlatilmasin.
+  */
+  bonusNote: '«Qo‘shimcha» — kurs narxiga kirmaydi, ular uchun alohida pul olinmaydi.',
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
@@ -718,8 +725,8 @@ export const PRICE = {
        Uni javobsiz qoldirib, javobni ikki bo'lim yuqorida qoldirish
        aynan to'lov qarori oldida shubha tug'dirardi.
   */
-  booksNote: 'Kitoblar uchun alohida pul to‘lanmaydi — hammasi shu to‘lov ichida.',
-  booksNoteMilliy: 'Milliy tarifda kitoblar uchun alohida pul to‘lanmaydi — hammasi kurs to‘lovi ichida.',
+  booksNote: 'Kitoblar qo‘shimcha sifatida beriladi — ular uchun alohida pul olinmaydi.',
+  booksNoteMilliy: 'Kurs narxi — faqat 8 ta jonli dars uchun. Kitoblar va boshqa qo‘shimchalar uchun alohida pul olinmaydi.',
   /*
     TARIFLAR SOLISHTIRMASI — ikkala kartada BIR XIL qatorlar, har birida
     ✓ yoki ✗.
@@ -731,13 +738,14 @@ export const PRICE = {
     🔴 Mustaqil tarifda kitob yetkazib berilmaydi (loyiha egasi, 2026-10-29).
   */
   compare: [
-    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, group: true },
-    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, group: true },
-    { label: 'Shaxsiy kabinet va reyting', self: true, group: true },
-    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, group: true },
-    { label: 'Haftasiga 3 kun support teacher darsi', self: false, group: true },
-    { label: 'Guruh chati va dars yozuvlari', self: false, group: true },
-    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, group: true },
+    // `bonus` — Milliy kartasida «qo'shimcha» belgisi: narxga kirmaydi.
+    { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, group: true, bonus: true },
+    { label: 'Vazifa va testlar — tekshirib beriladi', self: true, group: true, bonus: true },
+    { label: 'Shaxsiy kabinet va reyting', self: true, group: true, bonus: true },
+    { label: 'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)', self: false, group: true, bonus: false },
+    { label: 'Haftasiga 3 kun support teacher darsi', self: false, group: true, bonus: true },
+    { label: 'Guruh chati va dars yozuvlari', self: false, group: true, bonus: true },
+    { label: 'Kitoblar va ularni Uzpost pochtasiga yetkazib berish', self: false, group: true, bonus: true },
   ],
   includes: [
     'Asosiy ustoz bilan 8 ta jonli dars (har biri 1 soat 20 daqiqa)',
@@ -934,9 +942,10 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Milliy va Mustaqil tariflarining farqi nima?',
     answer:
-      'Milliy — ustoz bilan guruhda jonli darslar (haftasiga 2 kun asosiy ustoz, '
-      + '3 kun support teacher), kitoblar va dars yozuvlari; to‘lov 8 ta dars '
-      + 'uchun 540 000 so‘m. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
+      'Milliy — asosiy ustoz bilan guruhda jonli darslar (haftasiga 2 kun); '
+      + 'narx 8 ta dars uchun 540 000 so‘m. Qo‘shimcha sifatida support teacher '
+      + 'darslari (haftasiga 3 kun), kitoblar va dars yozuvlari beriladi — ular '
+      + 'narxga kirmaydi, alohida pul olinmaydi. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
       + 'qulay vaqtda ko‘rasiz, vazifa va testlarni bajarasiz, ular tekshirib '
       + 'beriladi; to‘lov oyiga. Mustaqil tarifni saytning o‘zida sotib olasiz.',
   },
@@ -950,7 +959,8 @@ export const FAQ: readonly Faq[] = [
   {
     question: 'Kitoblar uchun alohida pul to‘lanadimi?',
     answer:
-      'Yo‘q. Barcha kitoblar to‘lov ichiga kiradi. Kitob uyingizgacha emas, '
+      'Yo‘q. Milliy tarifda kitoblar qo‘shimcha sifatida beriladi — ular uchun '
+      + 'alohida pul olinmaydi (Mustaqil tarifda kitob yo‘q). Kitob uyingizgacha emas, '
       + 'uyingizga eng yaqin Uzpost pochtasiga 5–7 kun ichida yetkaziladi '
       + '— respublikaning qaysi viloyatida bo‘lishingizdan qat’i nazar — '
       + 'va uni o‘sha pochtadan olasiz.',

@@ -2261,9 +2261,19 @@ const year = new Date().getFullYear()
                   <span
                     class="text-sm leading-relaxed"
                     :class="row.group ? 'text-slate-300' : 'text-slate-500 line-through decoration-slate-600'"
-                  >{{ row.label }}</span>
+                  >{{ row.label }}<span
+                    v-if="row.bonus"
+                    class="ml-2 whitespace-nowrap rounded-full border border-line-strong px-2 py-0.5 align-middle text-[11px] font-semibold text-slate-400"
+                  >qo‘shimcha</span></span>
                 </li>
               </ul>
+
+              <p
+                v-if="selfStudyPlan !== null"
+                class="mt-3 text-[13px] leading-relaxed text-slate-400"
+              >
+                {{ PRICE.bonusNote }}
+              </p>
 
               <p class="mt-5 text-sm leading-relaxed text-slate-400">
                 {{ PRICE.note }}
@@ -2361,7 +2371,7 @@ const year = new Date().getFullYear()
             class="rounded-3xl border border-line bg-ink-900 p-7 shadow-xs sm:p-9"
           >
             <h3 class="font-display text-xl font-semibold tracking-tight text-slate-100">
-              To‘lov ichiga nima kiradi
+              Kurs bilan nimalar beriladi
             </h3>
             <ul class="mt-5">
               <li
