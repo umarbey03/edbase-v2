@@ -177,6 +177,9 @@ public enum SettingGroup
 
     /// <summary>O'quvchilar uchun ball tizimi (2026-10-23).</summary>
     Gamification = 8,
+
+    /// <summary>Onlayn sotuv: o'zi ro'yxatdan o'tish va buyurtmalar (2026-10-29).</summary>
+    Sales = 9,
 }
 
 /// <summary>

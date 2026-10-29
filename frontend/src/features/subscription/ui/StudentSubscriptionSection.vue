@@ -42,7 +42,9 @@ const plansQuery = useQuery({
 })
 
 const periods = computed(() => periodsQuery.data.value ?? [])
-const activePlans = computed(() => (plansQuery.data.value ?? []).filter((p) => p.isActive))
+const activePlans = computed(() =>
+  (plansQuery.data.value ?? []).filter((p) => p.isActive && p.kind === 'SelfStudy'),
+)
 
 const formOpen = ref(false)
 const planId = ref<number | null>(null)

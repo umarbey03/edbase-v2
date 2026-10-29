@@ -76,6 +76,7 @@ public static class SettingsRegistry
         SettingGroup.Content => "O'quv kontenti",
         SettingGroup.Chat => "Guruh chati",
         SettingGroup.Gamification => "Ball tizimi",
+        SettingGroup.Sales => "Onlayn sotuv",
         _ => group.ToString(),
     };
 
@@ -92,6 +93,8 @@ public static class SettingsRegistry
         SettingGroup.Chat =>
             "Guruh chati tarixini avtomatik tozalash. 🔴 O'chirish QAYTARILMAYDI.",
         SettingGroup.Gamification => "O'quvchilar balli, reytingi va darsdan keyingi xabarlar.",
+        SettingGroup.Sales =>
+            "Saytda o'zi ro'yxatdan o'tish, tarif sotib olish va to'lovni xodim tasdiqlashi.",
         _ => string.Empty,
     };
 
@@ -1273,6 +1276,84 @@ public static class SettingsRegistry
             // kutilmagan xabar ketmasin. Administrator matnni ko'rib, o'zi yoqadi.
             DefaultValue = "false",
         },
+
+        // ================================================================ ONLAYN SOTUV
+        //
+        // Hammasini `ShopService` va bot HAR CHAQIRUVDA o'qiydi — paneldan
+        // o'zgartirilgan qiymat darhol ishlaydi.
+
+        new()
+        {
+            Key = "sales.self_signup_enabled",
+            Group = SettingGroup.Sales,
+            DisplayName = "Saytda o'zi ro'yxatdan o'tish",
+            Description =
+                "Yoqilsa, bazada yo'q raqam bilan botga kelgan odamga o'quvchi profili OCHILADI "
+                + "(guruhsiz va obunasiz). U faqat tariflar va o'z profilini ko'radi — darslar "
+                + "to'lov tasdiqlangandan keyin ochiladi. O'chiq bo'lsa, profilni faqat o'quv "
+                + "bo'limi ochadi (avvalgi tartib).",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:SelfSignupEnabled",
+
+            // ★ STANDART — O'CHIQ: yopiq tizimni ochish — ongli qaror bo'lsin.
+            DefaultValue = "false",
+        },
+
+        new()
+        {
+            Key = "sales.staff_chat_id",
+            Group = SettingGroup.Sales,
+            DisplayName = "Buyurtmalar uchun Telegram guruh ID'si",
+            Description =
+                "Yangi buyurtma shu guruhga «Tasdiqlash / Rad etish» tugmalari bilan keladi. "
+                + "Botni guruhga qo'shing va guruh ID'sini yozing (masalan -1001234567890). "
+                + "Tugmani faqat botga ulangan administrator yoki o'quv bo'limi xodimi bosa oladi. "
+                + "Bo'sh bo'lsa buyurtmalar faqat paneldagi «Buyurtmalar» sahifasida ko'rinadi.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:StaffChatId",
+            MaxLength = 32,
+        },
+
+        new()
+        {
+            Key = "sales.payment_instructions",
+            Group = SettingGroup.Sales,
+            DisplayName = "To'lov yo'riqnomasi",
+            Description =
+                "Buyurtma berilgach o'quvchiga ko'rsatiladigan matn: qayerga va qanday to'lash kerak.",
+            Kind = SettingValueKind.Text,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:PaymentInstructions",
+            DefaultValue =
+                "Payme yoki Click ilovasida ZIN-NUR kassasiga ko'rsatilgan summani to'lang va "
+                + "izohga buyurtma kodini yozing. To'lov tekshirilgach darslar ochiladi.",
+        },
+
+        new()
+        {
+            Key = "sales.payme_url",
+            Group = SettingGroup.Sales,
+            DisplayName = "Payme to'lov havolasi",
+            Description = "Kassangizning Payme havolasi. Bo'sh bo'lsa tugma ko'rinmaydi.",
+            Kind = SettingValueKind.Text,
+            Format = SettingFormat.Url,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:PaymeUrl",
+        },
+
+        new()
+        {
+            Key = "sales.click_url",
+            Group = SettingGroup.Sales,
+            DisplayName = "Click to'lov havolasi",
+            Description = "Kassangizning Click havolasi. Bo'sh bo'lsa tugma ko'rinmaydi.",
+            Kind = SettingValueKind.Text,
+            Format = SettingFormat.Url,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:ClickUrl",
+        },
     ];
 
     /// <summary>
@@ -1406,6 +1487,13 @@ public static class SettingsRegistry
         // ---------------------------------------------------------------- ball tizimi
         public const string PointsEnabled = "gamification.points_enabled";
         public const string PointsLessonMessageEnabled = "gamification.lesson_message_enabled";
+
+        // ---------------------------------------------------------------- onlayn sotuv
+        public const string SalesSelfSignupEnabled = "sales.self_signup_enabled";
+        public const string SalesStaffChatId = "sales.staff_chat_id";
+        public const string SalesPaymentInstructions = "sales.payment_instructions";
+        public const string SalesPaymeUrl = "sales.payme_url";
+        public const string SalesClickUrl = "sales.click_url";
 
         // ---------------------------------------------------------------- R5: yozuv ko'rinishi
         //

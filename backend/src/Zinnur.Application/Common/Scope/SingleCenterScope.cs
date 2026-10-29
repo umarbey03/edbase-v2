@@ -51,6 +51,8 @@ public sealed class SingleCenterScope(IApplicationDbContext db, ISubscriptionAcc
     /// <summary>Mustaqil o'quvchilar jadvali — alohida kesh kaliti (2026-10-23).</summary>
     private const string SelfStudyCenter = "solo:self";
 
+    private const string GuestCenter = "solo:guest";
+
     public async Task<LearningCenterAudience> ResolveForViewerAsync(
         long viewerId, CancellationToken ct = default)
     {
@@ -84,6 +86,18 @@ public sealed class SingleCenterScope(IApplicationDbContext db, ISubscriptionAcc
                 SelfStudyCenter,
                 selfStudents.ConvertAll(s => new CenterStudent(s.Id, s.FullName, PrimaryGroupId: null)),
                 []);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ★ MEHMON (2026-10-29, onlayn sotuv): saytda o'zi ro'yxatdan o'tgan,
+        //   hali na guruhi, na obunasi bor o'quvchi. U hech kimning ismini
+        //   ko'rmasligi kerak — aks holda bot orqali profil ochgan har kim
+        //   markazdagi barcha o'quvchilar ro'yxatini olardi.
+        // ══════════════════════════════════════════════════════════════
+        if (viewer.Role == UserRole.Student
+            && !await db.GroupMembers.AnyAsync(m => m.StudentId == viewer.Id, ct).ConfigureAwait(false))
+        {
+            return new LearningCenterAudience(GuestCenter, [], []);
         }
 
         // ------------------------------------------------------------ o'quvchilar

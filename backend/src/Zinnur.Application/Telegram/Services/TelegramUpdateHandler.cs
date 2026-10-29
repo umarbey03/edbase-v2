@@ -7,6 +7,7 @@ using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.Shop;
 using Zinnur.Application.TeacherAvailability.Services;
 using Zinnur.Application.Telegram.Dtos;
 using Zinnur.Domain.Entities;
@@ -52,6 +53,8 @@ public sealed class TelegramUpdateHandler(
     IAbsenceNoticeService absenceNotices,
     ITelegramCallbackAcknowledger callbackAcknowledger,
     ITelegramLoginService telegramLogin,
+    ISelfSignupService selfSignup,
+    IShopService shop,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
     /// <summary>Faqat shaxsiy suhbat bilan ishlaymiz (guruhda bot hech nima bog'lamaydi).</summary>
@@ -216,7 +219,8 @@ public sealed class TelegramUpdateHandler(
         var toast = string.IsNullOrEmpty(data)
             ? null
             : await availability.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
-              ?? await absenceNotices.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
+              ?? await absenceNotices.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
+              ?? await shop.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
 
         await callbackAcknowledger.AcknowledgeAsync(callback.Id, toast, ct).ConfigureAwait(false);
 
@@ -450,8 +454,32 @@ public sealed class TelegramUpdateHandler(
 
         if (candidate is null)
         {
-            // ★ AKKAUNT YARATILMAYDI. O'quvchini faqat o'quv bo'limi
-            //   qo'shadi — aks holda bot orqali istalgan odam o'ziga
+            // ★ O'ZI RO'YXATDAN O'TISH (2026-10-29) — FAQAT sozlama yoqilgan
+            //   bo'lsa. Raqam egaligi yuqorida tasdiqlangan; profil guruhsiz
+            //   o'quvchi bo'lib ochiladi va faqat tariflarni ko'radi
+            //   (xavfsizlik tahlili `SelfSignupService` izohida).
+            var registered = await selfSignup
+                .TryRegisterAsync(sender.Id, sender.FirstName, sender.LastName, sender.Username,
+                    contact.PhoneNumber ?? normalized, ct)
+                .ConfigureAwait(false);
+
+            if (registered is not null)
+            {
+                TelegramBotLog.Linked(logger, updateId, registered.Id);
+
+                await ReplyAsync(updateId, chatId, registered.Id,
+                    TelegramTemplates.ContactLinked,
+                    TelegramTemplates.ContactLinkedText(registered.FullName), ct).ConfigureAwait(false);
+
+                _ = await telegramLogin
+                    .ContinueAfterLinkAsync(registered, chatId, ct)
+                    .ConfigureAwait(false);
+
+                return TelegramUpdateOutcome.Linked;
+            }
+
+            // ★ AKKAUNT YARATILMAYDI (sozlama o'chiq). O'quvchini faqat o'quv
+            //   bo'limi qo'shadi — aks holda bot orqali istalgan odam o'ziga
             //   profil ochib olardi.
             TelegramBotLog.PhoneNotFound(logger, updateId, sender.Id);
 

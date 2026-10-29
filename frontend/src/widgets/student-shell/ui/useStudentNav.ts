@@ -2,8 +2,9 @@ import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
-import { navItemsForRole, SELF_STUDY_NAV } from '@/entities/user'
+import { GUEST_NAV, navItemsForRole, SELF_STUDY_NAV } from '@/entities/user'
 import type { NavItem } from '@/entities/user'
 
 /**
@@ -34,7 +35,12 @@ export function useStudentNav(): StudentNav {
 
   // Mustaqil o'quvchida Kalendar va Chat o'rniga Profil (2026-10-23).
   const { isSelfStudy } = useMySubscription()
-  const items = computed(() => (isSelfStudy.value ? SELF_STUDY_NAV : navItemsForRole('Student')))
+  // Mehmonda (guruhsiz, obunasiz) faqat Tariflar va Profil (2026-10-29).
+  const { isGuest } = useShopMe()
+  const items = computed(() => {
+    if (isGuest.value) return GUEST_NAV
+    return isSelfStudy.value ? SELF_STUDY_NAV : navItemsForRole('Student')
+  })
 
   /*
     ★ `active-class` / `exact-active-class` YETMAYDI: "O'quv" bandi `/oquv`

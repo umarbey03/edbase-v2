@@ -82,6 +82,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<SubscriptionPeriod> SubscriptionPeriods => Set<SubscriptionPeriod>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<StudentPoint> StudentPoints => Set<StudentPoint>();
 
     // ---------------------------------------------------------------- WAVE 1: dars mediasi

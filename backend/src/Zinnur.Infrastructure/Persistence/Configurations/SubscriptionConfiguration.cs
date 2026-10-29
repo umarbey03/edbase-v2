@@ -20,6 +20,7 @@ public sealed class SubscriptionPlanConfiguration : IEntityTypeConfiguration<Sub
 
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Name).HasMaxLength(SubscriptionPlan.MaxNameLength).IsRequired();
+        builder.Property(p => p.Description).HasMaxLength(SubscriptionPlan.MaxDescriptionLength);
         builder.Property(p => p.Price).HasPrecision(PaymentConfiguration.MoneyPrecision, PaymentConfiguration.MoneyScale);
 
         builder.HasOne(p => p.Course)
@@ -77,5 +78,57 @@ public sealed class SubscriptionPeriodConfiguration : IEntityTypeConfiguration<S
         // "Hozir faol obunasi bormi" — har so'rovda gating va reyting so'raydi.
         builder.HasIndex(p => new { p.StudentId, p.EndsAt })
             .HasDatabaseName("IX_SubscriptionPeriods_StudentId_EndsAt");
+    }
+}
+
+public sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder>
+{
+    public void Configure(EntityTypeBuilder<PurchaseOrder> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable(
+            "PurchaseOrders",
+            table => table.HasCheckConstraint("CK_PurchaseOrders_Amount", "\"Amount\" > 0"));
+
+        builder.HasKey(o => o.Id);
+        builder.Property(o => o.Code).HasMaxLength(PurchaseOrder.CodeLength).IsRequired();
+        builder.Property(o => o.Amount).HasPrecision(PaymentConfiguration.MoneyPrecision, PaymentConfiguration.MoneyScale);
+        builder.Property(o => o.DecisionNote).HasMaxLength(PurchaseOrder.MaxNoteLength);
+        builder.Ignore(o => o.IsPending);
+
+        builder.HasIndex(o => o.Code).IsUnique().HasDatabaseName("IX_PurchaseOrders_Code");
+        builder.HasIndex(o => new { o.Status, o.CreatedAt }).HasDatabaseName("IX_PurchaseOrders_Status_CreatedAt");
+        builder.HasIndex(o => new { o.StudentId, o.CreatedAt }).HasDatabaseName("IX_PurchaseOrders_StudentId_CreatedAt");
+
+        builder.HasOne(o => o.Student)
+            .WithMany()
+            .HasForeignKey(o => o.StudentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(o => o.Plan)
+            .WithMany()
+            .HasForeignKey(o => o.PlanId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Course>()
+            .WithMany()
+            .HasForeignKey(o => o.CourseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(o => o.DecidedById)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<SubscriptionPeriod>()
+            .WithMany()
+            .HasForeignKey(o => o.SubscriptionPeriodId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<PaymentTransaction>()
+            .WithMany()
+            .HasForeignKey(o => o.PaymentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

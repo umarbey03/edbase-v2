@@ -2411,6 +2411,91 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("PenaltyCategories", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.PurchaseOrder", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<long>("CourseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("DecidedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Months")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("PaymentTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PlanId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SubscriptionPeriodId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PurchaseOrders_Code");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("DecidedById");
+
+                    b.HasIndex("PaymentTransactionId");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("SubscriptionPeriodId");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_PurchaseOrders_Status_CreatedAt");
+
+                    b.HasIndex("StudentId", "CreatedAt")
+                        .HasDatabaseName("IX_PurchaseOrders_StudentId_CreatedAt");
+
+                    b.ToTable("PurchaseOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseOrders_Amount", "\"Amount\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.RecordingTrack", b =>
                 {
                     b.Property<long>("Id")
@@ -3315,8 +3400,18 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Months")
                         .HasColumnType("integer");
@@ -4773,6 +4868,46 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Session");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.PurchaseOrder", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.PaymentTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.SubscriptionPlan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.SubscriptionPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("SubscriptionPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Plan");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.RecordingTrack", b =>

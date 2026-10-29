@@ -60,9 +60,21 @@ const tone = computed(() => {
       v-else
       class="mt-1 text-sm text-rose-200"
     >
-      Obuna muddati tugagan. Darslarni davom ettirish uchun o‘quv bo‘limiga
-      murojaat qilib, obunani uzaytiring.
+      Obuna muddati tugagan. Darslarni davom ettirish uchun obunani uzaytiring.
     </p>
+
+    <!-- Uzaytirish — «Tariflar» sahifasida (2026-10-29, onlayn sotuv). -->
+    <RouterLink
+      v-if="tone !== 'ok'"
+      :to="{ name: 'student-plans' }"
+      class="mt-3 inline-flex items-center gap-1 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-semibold text-on-brand hover:bg-brand-600"
+    >
+      Obunani uzaytirish
+      <AppIcon
+        name="chevron-right"
+        :size="14"
+      />
+    </RouterLink>
 
     <template v-if="props.showHistory && props.data.history.length > 0">
       <h3 class="mb-2 mt-4 text-[11px] font-bold uppercase tracking-[1.2px] text-dim">

@@ -93,6 +93,16 @@ export const SELF_STUDY_NAV: NavItem[] = [
   { routeName: 'student-profile', label: 'Profil', icon: 'user' },
 ]
 
+/**
+ * MEHMON — 2 tab (2026-10-29, onlayn sotuv): saytda o'zi ro'yxatdan o'tgan,
+ * hali na guruhi, na obunasi bor o'quvchi. Unga ochiq narsa — tariflar va
+ * o'z profili; darslar to'lov tasdiqlangach ochiladi.
+ */
+export const GUEST_NAV: NavItem[] = [
+  { routeName: 'student-plans', label: 'Tariflar', icon: 'award' },
+  { routeName: 'student-profile', label: 'Profil', icon: 'user' },
+]
+
 /*
   ★ "Chatlar" — eski `teacher.html` menyusidagi band (657-qator). U yerda
   AYNAN "Tekshirish" dan KEYIN turgan, shu nisbiy o'rni saqlandi. Mavjud
@@ -192,6 +202,8 @@ const MANAGE_NAV: NavItem[] = [
       turgani shu oqimni qisqartiradi.
   */
   { routeName: 'manage-applications', label: 'Arizalar', icon: 'note' },
+  // Onlayn buyurtmalar (2026-10-29) — arizalar yonida: ikkalasi ham saytdan keladi.
+  { routeName: 'manage-orders', label: 'Buyurtmalar', icon: 'clipboard' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
   /*
     Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda
@@ -312,6 +324,7 @@ const ACADEMIC_SECTION_ROUTES = [
   'manage-groups',
   'manage-users',
   'manage-applications',
+  'manage-orders',
   'manage-teacher-availability',
   'manage-absentees',
   'manage-attrition',

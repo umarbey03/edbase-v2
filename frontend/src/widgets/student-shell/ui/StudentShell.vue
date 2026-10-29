@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
+import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import { useAuthStore } from '@/features/auth/model/auth.store'
@@ -178,7 +179,25 @@ provide(STUDENT_SHELL_ACTIONS, {
 */
 const route = useRoute()
 const { isSelfStudy } = useMySubscription()
+const { isGuest } = useShopMe()
 const GROUP_ONLY_ROUTES = new Set(['student-calendar', 'student-chat', 'student-recordings'])
+
+/*
+  ★ MEHMON (2026-10-29) — tariflar va profildan boshqa hamma joy bo'sh bo'lardi
+  (server unga guruh ham, kurs ham bermaydi), shuning uchun u har doim
+  «Tariflar» ga qaytariladi. To'lov tasdiqlangach `isGuest` o'zi o'chadi.
+*/
+const GUEST_ROUTES = new Set(['student-plans', 'student-profile'])
+
+watch(
+  [isGuest, () => route.name],
+  ([guest, name]) => {
+    if (guest && typeof name === 'string' && !GUEST_ROUTES.has(name)) {
+      void router.replace({ name: 'student-plans' })
+    }
+  },
+  { immediate: true },
+)
 
 watch(
   [isSelfStudy, () => route.name],

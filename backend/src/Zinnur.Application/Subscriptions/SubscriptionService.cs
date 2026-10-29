@@ -21,6 +21,13 @@ public interface ISubscriptionService
     /// <summary>Obuna beradi yoki uzaytiradi — yangi davr avvalgisining oxiridan boshlanadi.</summary>
     Task<SubscriptionPeriodDto> GrantAsync(GrantSubscriptionRequest request, long actorId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Onlayn buyurtma tasdiqlanganda obuna ochadi — narx BUYURTMADAN
+    /// (o'quvchi ko'rgan summa), reja keyin o'chirilgan bo'lsa ham. Davr Id'si.
+    /// </summary>
+    Task<long> GrantForOrderAsync(
+        long studentId, long planId, decimal amount, string note, long actorId, CancellationToken ct = default);
+
     Task<SubscriptionPeriodDto> CancelAsync(
         long periodId, CancelSubscriptionRequest request, long actorId, CancellationToken ct = default);
 
@@ -58,7 +65,8 @@ public sealed class SubscriptionService(
             .ThenBy(p => p.Course!.Name)
             .ThenBy(p => p.Months)
             .Select(p => new SubscriptionPlanDto(
-                p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive))
+                p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive,
+                p.Kind, p.Description, p.IsPublic))
             .ToListAsync(ct);
     }
 
@@ -103,6 +111,11 @@ public sealed class SubscriptionService(
         plan.Months = request.Months;
         plan.Price = request.Price;
         plan.IsActive = request.IsActive;
+        plan.Kind = request.Kind;
+        plan.IsPublic = request.IsPublic;
+
+        var description = request.Description?.Trim();
+        plan.Description = string.IsNullOrEmpty(description) ? null : description;
 
         try
         {
@@ -118,7 +131,8 @@ public sealed class SubscriptionService(
         db.SubscriptionPlans.AsNoTracking()
             .Where(p => p.Id == planId)
             .Select(p => new SubscriptionPlanDto(
-                p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive))
+                p.Id, p.Name, p.CourseId, p.Course!.Name, p.Months, p.Price, p.IsActive,
+                p.Kind, p.Description, p.IsPublic))
             .FirstAsync(ct);
 
     // ================================================================ obuna
@@ -129,11 +143,42 @@ public sealed class SubscriptionService(
         ArgumentNullException.ThrowIfNull(request);
         var actor = await EnsureManagerAsync(actorId, ct);
 
-        var student = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == request.StudentId, ct)
-            ?? throw new NotFoundException(nameof(User), request.StudentId);
+        var plan = await db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.PlanId, ct)
+            ?? throw new NotFoundException(nameof(SubscriptionPlan), request.PlanId);
+
+        if (!plan.IsActive)
+            throw new ConflictException("Bu reja o'chirilgan — yangi obuna berilmaydi.");
+
+        var periodId = await GrantCoreAsync(
+            request.StudentId, plan, plan.Price, request.Method, Clip(request.Note), actor.Id, ct);
+
+        return await PeriodDtoAsync(periodId, ct);
+    }
+
+    public async Task<long> GrantForOrderAsync(
+        long studentId, long planId, decimal amount, string note, long actorId, CancellationToken ct = default)
+    {
+        var actor = await EnsureManagerAsync(actorId, ct);
+
+        var plan = await db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planId, ct)
+            ?? throw new NotFoundException(nameof(SubscriptionPlan), planId);
+
+        return await GrantCoreAsync(studentId, plan, amount, PaymentMethod.Card, Clip(note), actor.Id, ct);
+    }
+
+    private async Task<long> GrantCoreAsync(
+        long studentId, SubscriptionPlan plan, decimal amount, PaymentMethod method, string? note,
+        long actorId, CancellationToken ct)
+    {
+        // ★ GURUH TARIFI OBUNA EMAS: u jonli kursning oylik narxi va pul balansga tushadi.
+        if (plan.Kind != PlanKind.SelfStudy)
+            throw Invalid("planId", "Bu guruh kursi tarifi — mustaqil o'qish obunasi berilmaydi.");
+
+        var student = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == studentId, ct)
+            ?? throw new NotFoundException(nameof(User), studentId);
 
         if (student.Role != UserRole.Student)
-            throw Invalid(nameof(request.StudentId), "Obuna faqat o'quvchiga beriladi.");
+            throw Invalid("studentId", "Obuna faqat o'quvchiga beriladi.");
         if (!student.IsActive)
             throw new ConflictException("Foydalanuvchi profili faol emas.");
 
@@ -150,12 +195,6 @@ public sealed class SubscriptionService(
                 $"O'quvchi \"{inGroup}\" guruhida. Mustaqil o'qish obunasi faqat guruhsiz "
                 + "o'quvchiga beriladi — avval guruhdan chiqaring.");
         }
-
-        var plan = await db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.PlanId, ct)
-            ?? throw new NotFoundException(nameof(SubscriptionPlan), request.PlanId);
-
-        if (!plan.IsActive)
-            throw new ConflictException("Bu reja o'chirilgan — yangi obuna berilmaydi.");
 
         var now = clock.GetUtcNow();
         var upcoming = await db.SubscriptionPeriods.AsNoTracking()
@@ -180,10 +219,10 @@ public sealed class SubscriptionService(
             CourseId = plan.CourseId,
             StartsAt = startsAt,
             EndsAt = startsAt.AddMonths(plan.Months),
-            Amount = plan.Price,
-            Method = request.Method,
-            Note = Clip(request.Note),
-            CreatedById = actor.Id,
+            Amount = amount,
+            Method = method,
+            Note = note,
+            CreatedById = actorId,
             CreatedAt = now,
         };
 
@@ -191,7 +230,7 @@ public sealed class SubscriptionService(
         await db.SaveChangesAsync(ct);
         await gating.InvalidateAsync(student.Id, ct);
 
-        return await PeriodDtoAsync(period.Id, ct);
+        return period.Id;
     }
 
     public async Task<SubscriptionPeriodDto> CancelAsync(

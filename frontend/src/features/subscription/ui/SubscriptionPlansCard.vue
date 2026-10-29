@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import { fetchCourses } from '@/entities/course'
-import { createSubscriptionPlan, fetchSubscriptionPlans, updateSubscriptionPlan } from '@/entities/subscription'
+import {
+  PLAN_KIND_LABELS,
+  createSubscriptionPlan,
+  fetchSubscriptionPlans,
+  updateSubscriptionPlan,
+} from '@/entities/subscription'
 import type { SaveSubscriptionPlanRequest, SubscriptionPlanDto } from '@/entities/subscription'
 import { toUserMessage } from '@/shared/api'
 import { formatMoney } from '@/shared/lib/money'
@@ -16,6 +21,10 @@ import { AppIcon, BaseBadge, BaseButton, BaseCard, BaseSpinner } from '@/shared/
  * Reja = kurs + muddat (oy) + narx. O'chirilgan reja yangi obunaga
  * berilmaydi, lekin u bilan sotilgan davrlar saqlanadi (narx har davrda
  * alohida yozilgan) — shuning uchun o'chirish yo'q, faqat nofaol qilish.
+ *
+ * ★ 2026-10-29 — ONLAYN SOTUV: reja endi saytdagi TARIF ham. «Saytda
+ *   ko'rsatish» belgilansa o'quvchilar uni «Tariflar» sahifasida ko'radi va
+ *   sotib oladi; «Guruhda jonli dars» turi — guruh kursining oylik narxi.
  */
 const queryClient = useQueryClient()
 
@@ -36,7 +45,16 @@ const formOpen = ref(false)
 const form = ref<SaveSubscriptionPlanRequest>(emptyForm())
 
 function emptyForm(): SaveSubscriptionPlanRequest {
-  return { name: '', courseId: 0, months: 1, price: 0, isActive: true }
+  return {
+    name: '',
+    courseId: 0,
+    months: 1,
+    price: 0,
+    isActive: true,
+    kind: 'SelfStudy',
+    description: null,
+    isPublic: false,
+  }
 }
 
 function openCreate(): void {
@@ -53,6 +71,9 @@ function openEdit(plan: SubscriptionPlanDto): void {
     months: plan.months,
     price: plan.price,
     isActive: plan.isActive,
+    kind: plan.kind,
+    description: plan.description,
+    isPublic: plan.isPublic,
   }
   formOpen.value = true
 }
@@ -72,7 +93,7 @@ const save = useMutation({
 </script>
 
 <template>
-  <BaseCard title="Mustaqil o‘qish rejalari">
+  <BaseCard title="Tariflar va rejalar">
     <template #actions>
       <BaseButton
         size="sm"
@@ -102,6 +123,20 @@ const save = useMutation({
           placeholder="Masalan: Oylik paket"
           class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
         >
+      </label>
+      <label class="block space-y-1 sm:col-span-2">
+        <span class="text-xs text-slate-400">Turi</span>
+        <select
+          v-model="form.kind"
+          class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
+        >
+          <option value="SelfStudy">
+            {{ PLAN_KIND_LABELS.SelfStudy }} — video darslar va vazifalar
+          </option>
+          <option value="Group">
+            {{ PLAN_KIND_LABELS.Group }} — oylik to‘lov balansga tushadi
+          </option>
+        </select>
       </label>
       <label class="block space-y-1 sm:col-span-2">
         <span class="text-xs text-slate-400">Kurs</span>
@@ -147,12 +182,29 @@ const save = useMutation({
           class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
         >
       </label>
+      <label class="block space-y-1 sm:col-span-2">
+        <span class="text-xs text-slate-400">Saytdagi taklif matni (har qatorga bitta afzallik)</span>
+        <textarea
+          v-model="form.description"
+          rows="4"
+          maxlength="1000"
+          placeholder="Haftada 3 marta jonli dars&#10;Uy vazifalari ustoz tekshiruvida&#10;Sertifikat"
+          class="w-full rounded-lg bg-ink-800 px-3 py-2 text-sm text-slate-100 ring-1 ring-inset ring-line"
+        />
+      </label>
       <label class="flex items-center gap-2 text-sm text-slate-300 sm:col-span-2">
         <input
           v-model="form.isActive"
           type="checkbox"
         >
         Faol (yangi obunaga beriladi)
+      </label>
+      <label class="flex items-center gap-2 text-sm text-slate-300 sm:col-span-2">
+        <input
+          v-model="form.isPublic"
+          type="checkbox"
+        >
+        Saytda ko‘rsatish (o‘quvchilar o‘zi sotib oladi)
       </label>
       <div class="flex justify-end gap-2 sm:col-span-2">
         <BaseButton
@@ -204,9 +256,16 @@ const save = useMutation({
             <BaseBadge :tone="plan.isActive ? 'success' : 'neutral'">
               {{ plan.isActive ? 'Faol' : 'Nofaol' }}
             </BaseBadge>
+            <BaseBadge
+              v-if="plan.isPublic"
+              tone="accent"
+            >
+              Saytda
+            </BaseBadge>
           </div>
           <p class="mt-0.5 text-[11px] text-slate-400">
-            {{ plan.courseName }} · {{ plan.months }} oy · {{ formatMoney(plan.price) }}
+            {{ PLAN_KIND_LABELS[plan.kind] }} · {{ plan.courseName }} · {{ plan.months }} oy ·
+            {{ formatMoney(plan.price) }}
           </p>
         </div>
         <BaseButton

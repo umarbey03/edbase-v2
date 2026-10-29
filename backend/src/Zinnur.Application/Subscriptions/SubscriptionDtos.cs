@@ -9,14 +9,20 @@ public sealed record SubscriptionPlanDto(
     string CourseName,
     int Months,
     decimal Price,
-    bool IsActive);
+    bool IsActive,
+    PlanKind Kind,
+    string? Description,
+    bool IsPublic);
 
 public sealed record SaveSubscriptionPlanRequest(
     string Name,
     long CourseId,
     int Months,
     decimal Price,
-    bool IsActive = true);
+    bool IsActive = true,
+    PlanKind Kind = PlanKind.SelfStudy,
+    string? Description = null,
+    bool IsPublic = false);
 
 /// <summary>Obuna berish yoki uzaytirish (to'lov qo'lda qabul qilingan).</summary>
 public sealed record GrantSubscriptionRequest(
