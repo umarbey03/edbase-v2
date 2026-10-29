@@ -154,6 +154,18 @@ public static class Program
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration);
 
+        // ★ CLI butun API ni emas, faqat Application + Infrastructure ni ulaydi:
+        //   SignalR/Telegram xabarchilari (`ILiveSessionNotifier`, outbox …) WebApi
+        //   qatlamida ro'yxatdan o'tadi. Development muhitida standart
+        //   `ValidateOnBuild` ularni talab qilib xostni yiqitardi — import esa
+        //   ularga umuman tegmaydi. Shuning uchun faqat shu tekshiruv o'chiriladi
+        //   (scope tekshiruvi qoladi). (2026-10-29)
+        builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
+        {
+            ValidateOnBuild = false,
+            ValidateScopes = true,
+        }));
+
         using var host = builder.Build();
 
         // Ish vaqtidagi sozlamalar (ombor manzili paneldan o'zgartirilgan bo'lishi
