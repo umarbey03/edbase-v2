@@ -2582,6 +2582,40 @@ qaytarishi kerak.
 > TEGMAYDI — qoida faqat `recordings/` va `raw/` da ishlaydi. Bucket'da
 > boshqa loyiha ham bo'lsa, ularning prefikslarini tekshiring.
 
+### 11.2. Tungi montaj arzonlashtirildi (720p / 15 fps)
+
+Kod o'zgarishi — serverda hech narsa qilish shart emas. Yangi standart
+**keyingi kechadan** kuchga kiradi (allaqachon tayyor mp4 lar qayta
+kodlanmaydi).
+
+| Parametr | Oldin | Endi | Panel kaliti |
+|---|---|---|---|
+| O'lcham | 1920×1080 | **1280×720** | `recordings.compose_resolution` (`720p`/`1080p`) |
+| Kadr chastotasi | 30 fps | **15 fps** | `recordings.compose_fps` (10–30) |
+| x264 CRF | 21 | **24** | `recordings.compose_crf` (16–28) |
+| x264 preset | veryfast | veryfast | `recordings.compose_preset` |
+| Ovoz | AAC 128k stereo | **AAC 64k mono** | `recordings.compose_audio_bitrate_kbps`, `recordings.compose_audio_channels` |
+| Kamera kichik oynasi | 480 px, chetdan 24 px | 320 px, chetdan 16 px | o'lchamdan avtomatik |
+| Tasvirsiz dars | 5 fps | 5 fps | o'zgarmadi |
+
+Bitreyt chegarasi (`-maxrate`) ataylab yo'q: CRF ekrandagi mayda matnga
+kerakli bitni baribir beradi. Kutilgan natija: montaj CPU ~4–6 barobar kam,
+fayl ~2–4 barobar kichik (~0.25–0.35 GB / 80 daqiqa).
+
+**Orqaga qaytish (deploysiz):** admin panel → Sozlamalar → Kontent:
+`compose_resolution = 1080p`, `compose_fps = 30`, `compose_crf = 21`,
+`compose_audio_bitrate_kbps = 128`, `compose_audio_channels = stereo`.
+
+**Tekshirish (birinchi kechadan keyin):**
+
+```bash
+docker compose logs compositor | grep -iE "yig'ildi|composed" | tail
+# Bitta tayyor faylni tekshirish (lokal nusxada):
+ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,channels,bit_rate \
+        -of compact lesson.mp4
+# kutilgan: h264 1280x720 15/1 ; aac channels=1 ~64000
+```
+
 ---
 
 ## Ilova A — SPEC bo'yicha risklar

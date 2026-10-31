@@ -962,11 +962,18 @@ public static class SettingsRegistry
             DisplayName = "Montaj sifati (x264 CRF)",
             Description =
                 "Kichik raqam — yaxshiroq sifat va KATTA fayl; katta raqam — "
-                + "aksincha. 21 — dars videosi uchun ko'zga sezilmaydigan sifat. "
+                + "aksincha. 24 — 720p dars videosi uchun yetarli (ekrandagi matn "
+                + "o'qiladi), 21 — eski 1080p sifati. "
                 + "Har 6 birlik taxminan fayl hajmini ikki barobar o'zgartiradi.",
             Kind = SettingValueKind.Number,
             Source = SettingSource.Database,
-            DefaultValue = "21",
+
+            // ★ 2026-10-31: 21 → 24 (720p15 bilan birga, livekit-review §4).
+            //   Bitreyt chegarasi (`-maxrate`) ATAYLAB yo'q: CRF murakkab
+            //   kadrga (ekrandagi mayda matn) kerakli bitni baribir beradi,
+            //   chegara esa aynan o'sha kadrni xiralashtirardi.
+            //   ORQAGA QAYTISH: panelda 21.
+            DefaultValue = "24",
 
             // 🔴 CHEGARALAR — HALOKATGA QARSHI TO'SIQ, "aql bovar qilmaydigan
             //    qiymat" filtri EMAS. `crf=0` yo'qotishsiz kodlash, ya'ni
@@ -980,6 +987,79 @@ public static class SettingsRegistry
             //    qo'yish mumkin, ffmpeg esa buni tekshirmaydi.
             Minimum = 16m,
             Maximum = 28m,
+        },
+
+        /* ================================================================
+           MONTAJ CHIQISHI — O'LCHAM, KADR, OVOZ (2026-10-31)
+
+           ★ NIMA UCHUN: tungi montaj server CPU'sining eng katta
+             iste'molchisi. 1080p30 + AAC 128k stereo 30 guruhda tungi
+             oynaga sig'maydi (livekit-review §3–4). Standart endi 720p,
+             15 fps, CRF 24, 64k mono — taxminan 4–6 barobar kam CPU va
+             2–4 barobar kichik fayl.
+
+           🔴 ORQAGA QAYTISH (deploysiz, keyingi kechadan): 1080p / 30 /
+             CRF 21 / 128 / stereo. Kod standarti:
+             `CompositionPlanSettings.Legacy1080p`. */
+
+        new()
+        {
+            Key = "recordings.compose_resolution",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj o'lchami",
+            Description =
+                "Tayyor dars videosining o'lchami. `720p` (1280x720) — standart: "
+                + "ustoz kamerasi baribir 720p, ekrandagi matn o'qiladi, kodlash "
+                + "~2 barobar tez. `1080p` — eski sifat (CPU va joy ko'proq). "
+                + "Keyingi kechadan kuchga kiradi.",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+            Choices = ["720p", "1080p"],
+            DefaultValue = "720p",
+        },
+
+        new()
+        {
+            Key = "recordings.compose_fps",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj kadr chastotasi (fps)",
+            Description =
+                "Tasvirli darsning kadr chastotasi. 15 — standart (ekran ulashish "
+                + "baribir 15 fps dan oshmaydi). 30 — eski qiymat, kodlash ~2 barobar "
+                + "uzoq. Tasvirsiz (faqat ovoz) darsga ta'sir qilmaydi — u doim 5 fps.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "15",
+            Minimum = 10m,
+            Maximum = 30m,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_audio_bitrate_kbps",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj ovoz bitreyti (kbit/s)",
+            Description =
+                "AAC ovoz sifati. 64 — nutq uchun yetarli (standart), 128 — eski qiymat.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "64",
+            Minimum = 32m,
+            Maximum = 192m,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_audio_channels",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj ovoz kanallari",
+            Description =
+                "`mono` — standart: dars ovozi mikrofondan keladi va u mono. "
+                + "`stereo` — eski qiymat (ikki bir xil kanal, joy ikki barobar).",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+            Choices = ["mono", "stereo"],
+            DefaultValue = "mono",
         },
 
         new()
@@ -1594,6 +1674,12 @@ public static class SettingsRegistry
         public const string RecordingsComposeWindowEnd = "recordings.compose_window_end";
         public const string RecordingsComposePreset = "recordings.compose_preset";
         public const string RecordingsComposeCrf = "recordings.compose_crf";
+
+        // ★ 2026-10-31: montaj chiqishi (standart 720p / 15 fps / 64k mono).
+        public const string RecordingsComposeResolution = "recordings.compose_resolution";
+        public const string RecordingsComposeFps = "recordings.compose_fps";
+        public const string RecordingsComposeAudioBitrateKbps = "recordings.compose_audio_bitrate_kbps";
+        public const string RecordingsComposeAudioChannels = "recordings.compose_audio_channels";
 
         /// <summary>Xona ovozi (o'quvchilar bilan) yoki faqat ustoz treki.</summary>
         public const string RecordingsAudioCaptureMode = "recordings.audio_capture_mode";

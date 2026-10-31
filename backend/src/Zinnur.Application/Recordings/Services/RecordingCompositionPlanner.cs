@@ -73,18 +73,38 @@ public static class RecordingCompositionPlanner
 {
     // ---------------------------------------------------------------- kadr o'lchamlari
 
-    /// <summary>Chiqish kadrining kengligi (§4.6).</summary>
-    public const int CanvasWidth = 1920;
+    /// <summary>
+    /// Chiqish kadrining STANDART kengligi (§4.6). Haqiqiy qiymat
+    /// <see cref="CompositionPlanSettings.Width"/> dan olinadi
+    /// (<c>recordings.compose_resolution</c>).
+    ///
+    /// ★ 2026-10-31: 1920×1080 → 1280×720. SABAB — O'LCHOV VA ARIFMETIKA:
+    ///   • manba ustoz kamerasi 720p (yuqori simulcast qatlami), ya'ni
+    ///     1080p chiqish uni faqat KATTALASHTIRARDI — piksellar ko'payadi,
+    ///     ma'lumot qo'shilmaydi;
+    ///   • 1080p30 da kunlik ~40 soatlik manba (30 guruh) 9 soatlik tungi
+    ///     oynaga sig'maydi; 720p15 da ~5–8 soat CPU (livekit-review §3).
+    /// ⚠️ Ekran ulashishdagi MATN 720p da ham o'qiladi (slayd/doska shrifti
+    ///    odatda ≥ 14px); sifat bitreyt chegarasi bilan emas, CRF bilan
+    ///    boshqariladi, ya'ni murakkab kadr kerakli bitni baribir oladi.
+    /// ORQAGA QAYTISH: <see cref="CompositionPlanSettings.Legacy1080p"/>.
+    /// </summary>
+    public const int CanvasWidth = 1280;
 
-    /// <summary>Chiqish kadrining balandligi.</summary>
-    public const int CanvasHeight = 1080;
+    /// <summary>Chiqish kadrining STANDART balandligi (eski qiymat 1080).</summary>
+    public const int CanvasHeight = 720;
 
     /// <summary>
-    /// Chiqish kadr chastotasi. 25 EMAS (D3): kamera 30 fps beradi va 25 ga
-    /// tushirish odam DIQQAT BILAN qaraydigan yagona narsada — ustozning
-    /// harakatida — sezilarli silkinish hosil qiladi.
+    /// Tasvirli darsning STANDART kadr chastotasi (eski qiymat 30, D3).
+    ///
+    /// ★ 2026-10-31: 30 → 15. Ekran ulashish allaqachon ko'pi bilan
+    /// 15 fps bilan keladi, ustoz kamerasi esa dars videosida asosan
+    /// "gapirayotgan bosh" — 15 fps yetarli. Kodlash ishi deyarli ikki
+    /// barobar kamayadi. D3 dagi "silkinish" mulohazasi 25 fps haqida edi
+    /// (30 dan 25 ga NOTEKIS tushirish); 15 — 30 ning aniq yarmi, kadrlar
+    /// TEKIS tashlanadi.
     /// </summary>
-    public const int CanvasFps = 30;
+    public const int CanvasFps = 15;
 
     /// <summary>
     /// TASVIRSIZ dars uchun fon kadr chastotasi (2026-09-08).
@@ -109,11 +129,15 @@ public static class RecordingCompositionPlanner
     /// </summary>
     public const int StillCanvasFps = 5;
 
-    /// <summary>Kichik oynaning (kamera) kengligi; balandligi nisbatdan.</summary>
-    public const int InsetWidth = 480;
+    /// <summary>
+    /// Kichik oyna (kamera) kengligi = kadr kengligi / shu son
+    /// (1920 → 480, 1280 → 320). Ulush o'zgarmaydi — o'lcham o'zgarsa ham
+    /// kamera ekrandagi matnni bir xil darajada yopadi.
+    /// </summary>
+    public const int InsetWidthDivisor = 4;
 
-    /// <summary>Kichik oynaning kadr chetidan masofasi.</summary>
-    public const int InsetMargin = 24;
+    /// <summary>Kichik oynaning chetdan masofasi = balandlik / shu son (1080 → 24, 720 → 16).</summary>
+    public const int InsetMarginDivisor = 45;
 
     /// <summary>Chiqish ovozining namuna chastotasi.</summary>
     public const int AudioSampleRate = 48000;
@@ -146,17 +170,22 @@ public static class RecordingCompositionPlanner
     /// hisoblanishi SHART — <c>eval=frame</c>siz portret video markazdan
     /// siljib chap chetga yopishib qolardi (sinovda ko'rildi).
     /// </summary>
-    private static readonly string ScaleToCanvas = string.Create(
+    private static string ScaleToCanvas(CompositionPlanSettings s) => string.Create(
         CultureInfo.InvariantCulture,
-        $"scale={CanvasWidth}:{CanvasHeight}:force_original_aspect_ratio=decrease:eval=frame,"
-        + $"pad={CanvasWidth}:{CanvasHeight}:(ow-iw)/2:(oh-ih)/2:eval=frame");
+        $"scale={s.Width}:{s.Height}:force_original_aspect_ratio=decrease:eval=frame,"
+        + $"pad={s.Width}:{s.Height}:(ow-iw)/2:(oh-ih)/2:eval=frame");
 
     /// <summary>
     /// Kichik oyna: kenglik qat'iy, balandlik nisbatdan va JUFT
     /// (<c>-2</c>) — <c>yuv420p</c> toq balandlikni qabul qilmaydi.
     /// </summary>
-    private static readonly string ScaleToInset =
-        string.Create(CultureInfo.InvariantCulture, $"scale={InsetWidth}:-2:eval=frame");
+    private static string ScaleToInset(CompositionPlanSettings s) =>
+        string.Create(CultureInfo.InvariantCulture, $"scale={InsetWidth(s)}:-2:eval=frame");
+
+    /// <summary>Kichik oyna kengligi — JUFT son (<c>yuv420p</c> toq o'lchamni qabul qilmaydi).</summary>
+    private static int InsetWidth(CompositionPlanSettings s) => s.Width / InsetWidthDivisor / 2 * 2;
+
+    private static int InsetMargin(CompositionPlanSettings s) => s.Height / InsetMarginDivisor;
 
     /// <summary>
     /// Ovoz oqimining oxirgi bo'g'ini.
@@ -321,7 +350,7 @@ public static class RecordingCompositionPlanner
 
         var graph = new StringBuilder();
 
-        BuildVideoGraph(graph, videos, timeline);
+        BuildVideoGraph(graph, videos, timeline, settings);
 
         var silent = audio.Count == 0;
 
@@ -335,7 +364,9 @@ public static class RecordingCompositionPlanner
             TimelineSeconds: timeline,
             Preset: settings.Preset,
             Crf: settings.Crf,
-            Warning: silent ? SilentWarning : null);
+            Warning: silent ? SilentWarning : null,
+            AudioBitrateKbps: settings.AudioBitrateKbps,
+            AudioChannels: settings.AudioChannels);
 
         return CompositionPlanResult.Ok(plan);
     }
@@ -404,7 +435,10 @@ public static class RecordingCompositionPlanner
     }
 
     private static void BuildVideoGraph(
-        StringBuilder graph, IReadOnlyList<VideoLayer> layers, double timeline)
+        StringBuilder graph,
+        IReadOnlyList<VideoLayer> layers,
+        double timeline,
+        CompositionPlanSettings settings)
     {
         var index = new Dictionary<long, int>(layers.Count);
 
@@ -422,16 +456,16 @@ public static class RecordingCompositionPlanner
                 // Bitta manba IKKI o'lchamda kerak — `split` busiz filtr
                 // chiqishini ikki marta ishlatib bo'lmaydi.
                 Add(graph, $"[{i}:v]split=2[v{i}a][v{i}b]");
-                Add(graph, $"[v{i}a]{ScaleToCanvas}[v{i}full]");
-                Add(graph, $"[v{i}b]{ScaleToInset}[v{i}pip]");
+                Add(graph, $"[v{i}a]{ScaleToCanvas(settings)}[v{i}full]");
+                Add(graph, $"[v{i}b]{ScaleToInset(settings)}[v{i}pip]");
             }
             else if (hasFull)
             {
-                Add(graph, $"[{i}:v]{ScaleToCanvas}[v{i}full]");
+                Add(graph, $"[{i}:v]{ScaleToCanvas(settings)}[v{i}full]");
             }
             else
             {
-                Add(graph, $"[{i}:v]{ScaleToInset}[v{i}pip]");
+                Add(graph, $"[{i}:v]{ScaleToInset(settings)}[v{i}pip]");
             }
         }
 
@@ -444,7 +478,7 @@ public static class RecordingCompositionPlanner
         //   `CanvasFps`.
         string Background(int fps) => string.Create(
             CultureInfo.InvariantCulture,
-            $"color=c=black:s={CanvasWidth}x{CanvasHeight}:r={fps}:d={Num(timeline)}");
+            $"color=c=black:s={settings.Width}x{settings.Height}:r={fps}:d={Num(timeline)}");
 
         var steps = new List<(string Source, string Filter, string Enable)>();
 
@@ -473,7 +507,7 @@ public static class RecordingCompositionPlanner
         {
             steps.Add((
                 $"[v{index[layer.Track.Id]}pip]",
-                $"overlay=W-w-{InsetMargin}:H-h-{InsetMargin}",
+                $"overlay=W-w-{InsetMargin(settings)}:H-h-{InsetMargin(settings)}",
                 Interval.Enable(layer.InsetIntervals)));
         }
 
@@ -487,7 +521,7 @@ public static class RecordingCompositionPlanner
             return;
         }
 
-        Add(graph, $"{Background(CanvasFps)}[bg]");
+        Add(graph, $"{Background(settings.Fps)}[bg]");
 
         var previous = "[bg]";
 
@@ -848,10 +882,48 @@ public sealed record CompositionPlanResult(CompositionPlan? Plan, string? Error)
 /// tuzatib BO'LMAYDI (§9.1). Ikkalasini ajratishning yagona yo'li —
 /// darsning uch nuqtasida o'lchash.
 /// </param>
-public sealed record CompositionPlanSettings(string Preset, int Crf, int AudioOffsetMs)
+/// <param name="Width">Chiqish kengligi (<c>recordings.compose_resolution</c>).</param>
+/// <param name="Height">Chiqish balandligi.</param>
+/// <param name="Fps">Tasvirli darsning kadr chastotasi (<c>recordings.compose_fps</c>).</param>
+/// <param name="AudioBitrateKbps">AAC bitreyti (<c>recordings.compose_audio_bitrate_kbps</c>).</param>
+/// <param name="AudioChannels">1 — mono, 2 — stereo (<c>recordings.compose_audio_channels</c>).</param>
+public sealed record CompositionPlanSettings(
+    string Preset,
+    int Crf,
+    int AudioOffsetMs,
+    int Width = RecordingCompositionPlanner.CanvasWidth,
+    int Height = RecordingCompositionPlanner.CanvasHeight,
+    int Fps = RecordingCompositionPlanner.CanvasFps,
+    int AudioBitrateKbps = CompositionPlanSettings.DefaultAudioBitrateKbps,
+    int AudioChannels = CompositionPlanSettings.DefaultAudioChannels)
 {
-    /// <summary>SPEC §2.7 dagi standart qiymatlar (sozlama registrda yo'q bo'lsa).</summary>
-    public static CompositionPlanSettings Default { get; } = new("medium", 21, 0);
+    /// <summary>
+    /// ★ 2026-10-31: 128 → 64 kbit/s. Dars ovozi — NUTQ: 64k AAC mono nutq
+    /// uchun 128k stereo bilan eshitib farqlanmaydi. Manbaning o'zi Opus
+    /// 24–32 kbit/s (ustoz 32k, o'quvchi 24k), ya'ni 128k stereo bo'sh
+    /// baytlar edi.
+    /// </summary>
+    public const int DefaultAudioBitrateKbps = 64;
+
+    /// <summary>★ 2026-10-31: stereo → MONO. Mikrofon manbalari mono — "stereo" ikki bir xil kanal edi.</summary>
+    public const int DefaultAudioChannels = 1;
+
+    /// <summary>
+    /// Standart qiymatlar (sozlama registrda yo'q bo'lsa) — registr bilan
+    /// AYNI (<c>RecordingPipelineSettingsTests</c>): veryfast, CRF 24,
+    /// 1280×720, 15 fps, AAC 64k mono.
+    /// </summary>
+    public static CompositionPlanSettings Default { get; } = new("veryfast", 24, 0);
+
+    /// <summary>
+    /// 2026-10-31 GACHA bo'lgan qiymatlar — ORQAGA QAYTISH uchun: veryfast,
+    /// CRF 21, 1920×1080, 30 fps, AAC 128k stereo. Panelda:
+    /// <c>compose_resolution=1080p</c>, <c>compose_fps=30</c>,
+    /// <c>compose_crf=21</c>, <c>compose_audio_bitrate_kbps=128</c>,
+    /// <c>compose_audio_channels=stereo</c>.
+    /// </summary>
+    public static CompositionPlanSettings Legacy1080p { get; } =
+        new("veryfast", 21, 0, 1920, 1080, 30, 128, 2);
 }
 
 /// <summary>
