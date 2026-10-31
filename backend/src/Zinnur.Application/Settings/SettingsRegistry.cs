@@ -1033,6 +1033,48 @@ public static class SettingsRegistry
             Maximum = 2000m,
         },
 
+        /* ================================================================
+           YOZUVLARNI SAQLASH MUDDATI (2026-10-31, loyiha egasi qarori)
+
+           🔴 BU KALIT MA'LUMOTNI DOIMIY O'CHIRADI — mexanizm izohi:
+             `RecordingRetentionJob`. Egasining talabi: "yozuvlar 30 KUN
+             saqlansin, keyin o'chirilsin" (narx va shaxsiy ma'lumot: yozuvda
+             o'quvchilarning yuzi va ovozi bor).
+
+           ★ NIMA UCHUN ALOHIDA "YOQILGAN" KALITI YO'Q (`chat.retention_*`
+             dan farqli): bu yerda egasi muddatni ANIQ aytgan va u standart.
+             "O'chirilmasin" degan holat amalda yo'q — R2 lifecycle qoidasi
+             (ikkinchi to'siq, `docs/DEPLOY_UBUNTU.md`) baribir 31-kuni
+             o'chiradi. Ikkita kalit esa "panelda 30 kun, lekin o'chiq"
+             degan jimgina yolg'on holatni yaratardi. */
+
+        new()
+        {
+            Key = "recordings.retention_days",
+            Group = SettingGroup.Content,
+            DisplayName = "Dars yozuvlari saqlanadigan muddat (kun)",
+            Description =
+                "🔴 Shu muddatdan ESKI yozuvlar ombordan (R2/MinIO) va ro'yxatdan "
+                + "DOIMIY o'chiriladi — ularni TIKLAB BO'LMAYDI. Muddat dars tugagan "
+                + "paytdan sanaladi. O'quvchi va ustoz ro'yxatida \"yozuv N kungacha "
+                + "saqlanadi\" deb ko'rsatiladi. "
+                + "⚠️ Omborda ikkinchi to'siq ham bor (R2 lifecycle, 31 kun): bu yerdagi "
+                + "qiymatni 30 dan KATTA qilsangiz, o'sha qoidani ham uzaytiring.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "30",
+
+            // 🔴 PASTKI CHEGARA 7 KUN — HALOKATGA QARSHI TO'SIQ: `1` yoki
+            //    `0` panelda bitta xato bosish, natijasi esa KECHAGI darsning
+            //    yozuvi ham yo'qolishi. Chegara vazifaning O'ZIDA ham bor
+            //    (`RecordingRetentionJob.MinDays`) — sabab `chat.retention_months`
+            //    dagi AYNI: qiymatni `AppSettings` ga qo'lda yozish mumkin.
+            Minimum = 7m,
+
+            // 10 yil — amalda "o'chirilmasin".
+            Maximum = 3650m,
+        },
+
         // ================================================================ GURUH CHATI
         //
         // 🔴 BU IKKI KALIT MA'LUMOTNI DOIMIY O'CHIRADI. Registrdagi boshqa
@@ -1557,6 +1599,11 @@ public static class SettingsRegistry
         public const string RecordingsAudioCaptureMode = "recordings.audio_capture_mode";
 
         public const string RecordingsComposeAudioOffsetMs = "recordings.compose_audio_offset_ms";
+
+        // ---------------------------------------------------------------- yozuv saqlash muddati (2026-10-31)
+
+        /// <summary>Shu kundan eski yozuvlar DOIMIY o'chiriladi (<c>RecordingRetentionJob</c>).</summary>
+        public const string RecordingsRetentionDays = "recordings.retention_days";
     }
 
     /// <summary>

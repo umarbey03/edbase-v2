@@ -263,4 +263,23 @@ public class RecordingPipelineSettingsTests
 
         definition.Group.Should().Be(SettingGroup.Content);
     }
+
+    /// <summary>
+    /// 🔴 SAQLASH MUDDATI (2026-10-31): egasining qarori — 30 kun. Pastki
+    /// chegara 7 kun — panelda bitta xato bosish kechagi darsni o'chirmasin.
+    /// Chegaralar vazifadagi nusxa bilan AYNI bo'lishi shart.
+    /// </summary>
+    [Fact]
+    public void RetentionDays_DefaultsToThirty_AndIsBounded()
+    {
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsRetentionDays, out var days)
+            .Should().BeTrue();
+
+        days.Kind.Should().Be(SettingValueKind.Number);
+        days.Source.Should().Be(SettingSource.Database);
+        days.DefaultValue.Should().Be("30");
+        days.Minimum.Should().Be(Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.MinDays);
+        days.Maximum.Should().Be(Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.MaxDays);
+        Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.DefaultDays.Should().Be(30);
+    }
 }

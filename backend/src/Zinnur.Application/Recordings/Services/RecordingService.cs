@@ -7,6 +7,7 @@ using Zinnur.Application.LiveSessions.Dtos;
 using Zinnur.Application.LiveSessions.Services;
 using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Recordings.Dtos;
+using Zinnur.Application.Recordings.Jobs;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Entities;
@@ -333,11 +334,15 @@ public sealed class RecordingService(
         // Xodim uchun bo'lim HECH QACHON yopilmaydi: global va guruh
         // kalitlari o'quvchiga qaratilgan, arxiv esa xodimga har doim
         // kerak ("nega bu darsning yozuvi yo'q?").
+        var retentionDays = await RecordingRetentionJob
+            .ResolveDaysAsync(settings, ct)
+            .ConfigureAwait(false);
+
         if (await IsStaffAsync(actorId, ct).ConfigureAwait(false))
-            return new RecordingSectionDto(true);
+            return new RecordingSectionDto(true, retentionDays);
 
         if (!await SectionOpenAsync(ct).ConfigureAwait(false))
-            return new RecordingSectionDto(false);
+            return new RecordingSectionDto(false, retentionDays);
 
         // ★ GLOBAL KALIT YOQIQ BO'LSA HAM O'QUVCHINING HAMMA GURUHI
         //   YOPIQ BO'LISHI MUMKIN — bunda ham kartochka ko'rsatilmaydi.
@@ -352,7 +357,7 @@ public sealed class RecordingService(
                 ct)
             .ConfigureAwait(false);
 
-        return new RecordingSectionDto(anyOpenGroup);
+        return new RecordingSectionDto(anyOpenGroup, retentionDays);
     }
 
     // ================================================================= ichki

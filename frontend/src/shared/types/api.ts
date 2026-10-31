@@ -2640,6 +2640,11 @@ export interface RecordingDto {
  */
 export interface RecordingSectionDto {
   visible: boolean
+  /**
+   * Yozuv necha kun saqlanadi (`recordings.retention_days`, 2026-10-31).
+   * Shu muddatdan keyin fayl ombordan ham, ro'yxatdan ham DOIMIY o'chiriladi.
+   */
+  retentionDays: number
 }
 
 /** `GET /api/v1/recordings` qaytaradigan qator: yozuv + qaysi dars/guruh. */

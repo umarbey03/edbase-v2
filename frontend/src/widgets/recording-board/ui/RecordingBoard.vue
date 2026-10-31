@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 
 import {
+  fetchRecordingSection,
   isAwaitingComposition,
   RecordingCard,
   recordingItemTitle,
@@ -48,6 +50,19 @@ const list = useRecordingList({ fixedGroupId: props.fixedGroupId })
 const confirm = useConfirm()
 
 const showGroupFilter = computed(() => props.fixedGroupId === null)
+
+/*
+  ★ SAQLASH MUDDATI (2026-10-31): yozuvlar `recordings.retention_days` kundan
+  keyin ombordan DOIMIY o'chiriladi (`RecordingRetentionJob`). Ustoz buni
+  oldindan bilishi kerak — "kecha bor edi, bugun yo'q" savoliga javob shu
+  qatorda. Kalit o'quvchi sahifasi bilan AYNI: ikki joy bitta so'rovni bo'lishadi.
+*/
+const sectionQuery = useQuery({
+  queryKey: ['recordings', 'section'],
+  queryFn: ({ signal }) => fetchRecordingSection({ signal }),
+})
+
+const retentionDays = computed(() => sectionQuery.data.value?.retentionDays ?? null)
 
 /** Ochiq pleyer: `null` — yopiq. */
 const playingId = ref<number | null>(null)
@@ -350,6 +365,17 @@ async function bulkSetVisibility(visible: boolean): Promise<void> {
          bog'lanib qolardi va xato bo'lmaganda RO'YXAT UMUMAN
          chizilmasdi.
     -->
+    <p
+      v-if="retentionDays !== null"
+      class="mb-3 flex items-center gap-1.5 text-xs text-dim"
+    >
+      <AppIcon
+        name="clock"
+        :size="14"
+      />
+      <span>Har bir yozuv {{ retentionDays }} kungacha saqlanadi, keyin avtomatik o‘chiriladi.</span>
+    </p>
+
     <p
       v-if="visibilityError !== null"
       class="mb-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200"

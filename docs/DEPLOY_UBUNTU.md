@@ -28,6 +28,7 @@
 | 8 | [Sig'im (capacity) — halol tahlil](#8-sigim-capacity--halol-tahlil) |
 | 9 | [compose / nginx / livekit egasi uchun talablar](#9-compose--nginx--livekit-egasi-uchun-talablar) |
 | 10 | [Xatolarni bartaraf etish](#10-xatolarni-bartaraf-etish) |
+| 11 | [Jonli dars sozlamalari (2026-10-31): yozuv muddati, montaj, TURN/443](#11-jonli-dars-sozlamalari-2026-10-31) |
 | A | [SPEC bo'yicha risklar](#ilova-a--spec-boyicha-risklar) |
 
 **Bu qo'llanmaga tegishli fayllar:**
@@ -2485,6 +2486,101 @@ Ikkita ehtimol:
 docker compose exec -T redis redis-cli CONFIG GET maxmemory-policy
 docker compose exec -T redis redis-cli INFO stats | grep evicted_keys
 ```
+
+---
+
+## 11. Jonli dars sozlamalari (2026-10-31)
+
+Bu bo'lim `feat/live-sozlash` filialidagi o'zgarishlar uchun **serverda
+qo'lda bajariladigan** qadamlarni jamlaydi. Kod tomoni o'zi ishlaydi, lekin
+quyidagilarni ilova o'zi qila olmaydi (DNS, sertifikat, firewall, R2 qoidasi).
+
+### 11.1. Dars yozuvlari 30 kun saqlanadi
+
+**Ilova tomoni (o'zi ishlaydi):** `RecordingRetentionJob` soatiga bir marta
+`recordings.retention_days` (standart **30**) kundan eski yozuvni R2'dan
+(yakuniy mp4 + qolib ketgan xom bo'laklar) va bazadan o'chiradi. Muddat
+dars tugagan paytdan sanaladi. Ombor javob bermasa qator **qoladi** va keyingi
+soatda qayta uriniladi (fayl yetim qolmaydi). Har yurish logda:
+
+```bash
+docker compose logs api | grep "Yozuvlar muddati"
+```
+
+O'quvchi va ustoz ro'yxati ustida "Har bir yozuv 30 kungacha saqlanadi" deb
+ko'rinadi. Muddatni admin panelidagi **Sozlamalar → Kontent → "Dars yozuvlari
+saqlanadigan muddat (kun)"** dan o'zgartirish mumkin (7–3650).
+
+> 🔴 **Birinchi deploy'dan keyingi bir soat ichida 30 kundan eski HAMMA
+> yozuv o'chadi.** Kerakli eski darslar bo'lsa, deploy'dan OLDIN yuklab oling
+> yoki muddatni vaqtincha kattaroq qiling.
+
+**Ikkinchi to'siq — R2 lifecycle qoidasi (QO'LDA, bir marta).** Ilova
+to'xtab qolsa ham (masalan `api` uzoq vaqt yiqilgan bo'lsa) fayllar
+cheksiz qolmasin. Qoida ilovadan **1 kun keyin** ishlaydi (31 kun), ya'ni
+odatiy holatda u hech narsa topmaydi.
+
+Yozuv kalitlari bucket ildizida turadi (`Storage:KeyPrefix` ishlatilmaydi):
+yakuniy fayl `recordings/YYYY-MM/<dars>/<...>.mp4`, xom bo'laklar
+`raw/<dars>/<yozuv>/<trek>.webm|ogg`.
+
+*A variant — Cloudflare paneli:*
+
+1. Cloudflare → **R2 Object Storage** → yozuvlar bucket'i (`.env` dagi
+   `R2_BUCKET`) → **Settings** → **Object lifecycle rules** → **Add rule**.
+2. Rule name: `recordings-31d`; **Prefix:** `recordings/`;
+   Action: **Delete uploaded objects** → **after 31 days**. Saqlang.
+3. Yana bitta: `raw-31d`, prefix `raw/`, **31 days** keyin o'chirish.
+4. "Abort incomplete multipart uploads" qoidasi (R2 standart, 7 kun) turgan
+   bo'lsa — tegmang.
+
+*B variant — `aws` CLI (R2 S3 API orqali):*
+
+```bash
+# ⚠️ put-bucket-lifecycle-configuration MAVJUD QOIDALARNI ALMASHTIRADI.
+#    Avval borini ko'ring va kerak bo'lsa quyidagi JSON ga qo'shing:
+aws s3api get-bucket-lifecycle-configuration     --bucket "$R2_BUCKET"     --endpoint-url "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
+
+cat > /tmp/r2-lifecycle.json <<'JSON'
+{
+  "Rules": [
+    {
+      "ID": "recordings-31d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "recordings/" },
+      "Expiration": { "Days": 31 }
+    },
+    {
+      "ID": "raw-31d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "raw/" },
+      "Expiration": { "Days": 31 }
+    },
+    {
+      "ID": "abort-multipart-7d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    }
+  ]
+}
+JSON
+
+aws s3api put-bucket-lifecycle-configuration     --bucket "$R2_BUCKET"     --endpoint-url "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"     --lifecycle-configuration file:///tmp/r2-lifecycle.json
+```
+
+`aws` kalitlari — R2 paneldagi **Manage R2 API Tokens** dan "Object Read &
+Write" + "Admin Read & Write" (lifecycle uchun admin huquq kerak) token.
+Tekshirish: `get-bucket-lifecycle-configuration` yana uchala qoidani
+qaytarishi kerak.
+
+> ⚠️ Panelda muddatni 30 dan **katta** qilsangiz, bu qoidani ham shunga
+> mos uzaytiring — aks holda R2 faylni ilovadan oldin o'chiradi va ro'yxatda
+> "o'lik" yozuv qoladi.
+>
+> ⚠️ Prefikslar `submissions/` (uy vazifalari) va dars materiallariga
+> TEGMAYDI — qoida faqat `recordings/` va `raw/` da ishlaydi. Bucket'da
+> boshqa loyiha ham bo'lsa, ularning prefikslarini tekshiring.
 
 ---
 

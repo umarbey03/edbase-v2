@@ -155,6 +155,18 @@ builder.Services.AddScoped<IScheduledJob>(sp => new RecordingTrackReconcileJob(
     RecordingTrackReconcileSettings.Default,
     sp.GetRequiredService<ILogger<RecordingTrackReconcileJob>>()));
 
+// ★ YOZUVLARNI SAQLASH MUDDATI (2026-10-31) — N kundan eski yozuv ombordan
+//   va bazadan o'chiriladi (`recordings.retention_days`, standart 30).
+//   SHARTSIZ ro'yxatdan o'tadi: `ChatRetentionJob` dagi AYNI sabab —
+//   siyosat PANELDA, muhit bayrog'ida emas. AYNI qulf, AYNI sikl.
+builder.Services.AddScoped<IScheduledJob>(sp => new RecordingRetentionJob(
+    sp.GetRequiredService<IApplicationDbContext>(),
+    sp.GetRequiredService<IRecordingStorage>(),
+    sp.GetRequiredService<ISettingsResolver>(),
+    sp.GetRequiredService<TimeProvider>(),
+    RecordingRetentionSettings.Default,
+    sp.GetRequiredService<ILogger<RecordingRetentionJob>>()));
+
 // TUNGI YIG'ISH (SPEC-RECORDING-V2 §4.2–4.5): xom bo'laklardan bitta mp4.
 //
 // 🔴 FON SIKLI FAQAT `Composition:Enabled=true` BO'LGAN KONTEYNERDA
