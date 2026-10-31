@@ -43,4 +43,33 @@ public interface ILiveKitRoomControl
         string identity,
         ParticipantMediaSource source,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Ishtirokchini xonadan CHIQARADI (<c>RemoveParticipant</c>, 2026-10-31).
+    ///
+    /// ★ IDEMPOTENT: ishtirokchi allaqachon xonada bo'lmasa — muvaffaqiyat
+    /// (natija kerakli holatda).
+    ///
+    /// ⚠️ TOKENNI BEKOR QILMAYDI: LiveKit tokenni qaytarib olib bo'lmaydi.
+    /// Rasmiy klient <c>PARTICIPANT_REMOVED</c> dan keyin qayta ulanmaydi
+    /// (<c>useLiveKitRoom.shouldReconnect</c>), yangi token esa server
+    /// tomonda rad etiladi (<c>LiveSessionService.CreateJoinTokenAsync</c>).
+    /// O'zgartirilgan klient eski token bilan muddati tugaguncha (dars
+    /// oxiri + 30 daqiqa) qayta kira olishi mumkin — qolgan risk.
+    /// </summary>
+    Task<RoomControlResult> RemoveParticipantAsync(
+        string roomName,
+        string identity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Xonani YOPADI (<c>DeleteRoom</c>, 2026-10-31): hamma ishtirokchi
+    /// <c>ROOM_DELETED</c> bilan uziladi, xona yo'qoladi.
+    ///
+    /// ★ IDEMPOTENT: xona yo'q bo'lsa (hamma chiqib ketgan va
+    /// <c>empty_timeout</c> o'tgan) — muvaffaqiyat.
+    /// </summary>
+    Task<RoomControlResult> DeleteRoomAsync(
+        string roomName,
+        CancellationToken ct = default);
 }

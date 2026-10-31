@@ -188,7 +188,12 @@ public class RecordingPipelineSettingsTests
         preset.Choices.Should().ContainInOrder("veryfast", "faster", "fast", "medium", "slow");
 
         crf.Kind.Should().Be(SettingValueKind.Number);
-        crf.DefaultValue.Should().Be("21");
+
+        // ★ 2026-10-31: 21 → 24 (720p15 montaj bilan birga). Kod standarti
+        //   bilan AYNI bo'lishi shart — registr yo'q bazada ham bir xil fayl.
+        crf.DefaultValue.Should().Be("24");
+        crf.DefaultValue.Should().Be(
+            CompositionPlanSettings.Default.Crf.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         // 🔴 `crf = 0` yo'qotishsiz kodlash — bitta darsdan o'nlab
         //    gigabayt. Chegara halokatga qarshi to'siq.
@@ -262,5 +267,63 @@ public class RecordingPipelineSettingsTests
         SettingsRegistry.TryGet(key, out var definition).Should().BeTrue();
 
         definition.Group.Should().Be(SettingGroup.Content);
+    }
+
+    /// <summary>
+    /// ★ MONTAJ CHIQISHI (2026-10-31): 720p / 15 fps / 64k / mono — kod
+    /// standarti (<c>CompositionPlanSettings.Default</c>) bilan AYNI.
+    /// Eski qiymatlar ham tanlovda turadi (orqaga qaytish deploysiz).
+    /// </summary>
+    [Fact]
+    public void ComposeOutput_DefaultsMatchTheCode_AndAllowRollback()
+    {
+        var defaults = CompositionPlanSettings.Default;
+
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsComposeResolution, out var resolution)
+            .Should().BeTrue();
+        resolution.DefaultValue.Should().Be("720p");
+        resolution.Choices.Should().BeEquivalentTo(["720p", "1080p"]);
+        defaults.Height.Should().Be(720);
+
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsComposeFps, out var fps).Should().BeTrue();
+        fps.DefaultValue.Should().Be("15");
+        defaults.Fps.Should().Be(15);
+        fps.Maximum.Should().Be(30m, "eski 30 fps ga qaytish mumkin bo'lsin");
+
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsComposeAudioBitrateKbps, out var kbps)
+            .Should().BeTrue();
+        kbps.DefaultValue.Should().Be("64");
+        defaults.AudioBitrateKbps.Should().Be(64);
+        kbps.Maximum.Should().BeGreaterThanOrEqualTo(128m);
+
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsComposeAudioChannels, out var channels)
+            .Should().BeTrue();
+        channels.DefaultValue.Should().Be("mono");
+        defaults.AudioChannels.Should().Be(1);
+
+        foreach (var definition in new[] { resolution, fps, kbps, channels })
+        {
+            definition.Source.Should().Be(SettingSource.Database);
+            definition.Group.Should().Be(SettingGroup.Content);
+        }
+    }
+
+    /// <summary>
+    /// 🔴 SAQLASH MUDDATI (2026-10-31): egasining qarori — 30 kun. Pastki
+    /// chegara 7 kun — panelda bitta xato bosish kechagi darsni o'chirmasin.
+    /// Chegaralar vazifadagi nusxa bilan AYNI bo'lishi shart.
+    /// </summary>
+    [Fact]
+    public void RetentionDays_DefaultsToThirty_AndIsBounded()
+    {
+        SettingsRegistry.TryGet(SettingsRegistry.Keys.RecordingsRetentionDays, out var days)
+            .Should().BeTrue();
+
+        days.Kind.Should().Be(SettingValueKind.Number);
+        days.Source.Should().Be(SettingSource.Database);
+        days.DefaultValue.Should().Be("30");
+        days.Minimum.Should().Be(Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.MinDays);
+        days.Maximum.Should().Be(Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.MaxDays);
+        Zinnur.Application.Recordings.Jobs.RecordingRetentionJob.DefaultDays.Should().Be(30);
     }
 }

@@ -118,6 +118,15 @@ public interface IRecordingComposer
 /// yagona holat — "ovoz yo'q": fayl jimlik bilan chiqadi va buni
 /// ochmasdan bilish kerak (§4.6).
 /// </param>
+/// <param name="AudioBitrateKbps">
+/// AAC bitreyti (<c>recordings.compose_audio_bitrate_kbps</c>, 2026-10-31).
+/// </param>
+/// <param name="AudioChannels">
+/// Chiqish kanallari: 1 — mono (standart), 2 — stereo. ⚠️ Filtr grafi
+/// ichida ovoz stereo bo'lib qoladi (<c>anullsrc ... cl=stereo</c>,
+/// <c>aresample</c>) — kamaytirish faqat CHIQISHDA (<c>-ac</c>), ya'ni
+/// graf va uning oltin testlari o'zgarmaydi.
+/// </param>
 public sealed record CompositionPlan(
     long RecordingId,
     string TargetObjectKey,
@@ -126,7 +135,9 @@ public sealed record CompositionPlan(
     double TimelineSeconds,
     string Preset,
     int Crf,
-    string? Warning)
+    string? Warning,
+    int AudioBitrateKbps = CompositionPlanSettings.DefaultAudioBitrateKbps,
+    int AudioChannels = CompositionPlanSettings.DefaultAudioChannels)
 {
     /// <summary>Filtr grafidagi tayyor TASVIR oqimining yorlig'i.</summary>
     public const string VideoLabel = "[v]";

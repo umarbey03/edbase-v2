@@ -628,16 +628,52 @@ public sealed class RecordingCompositionRunner(
     /// </summary>
     private async Task<CompositionPlanSettings> ReadPlanSettingsAsync(CancellationToken ct)
     {
-        var defaults = CompositionPlanSettings.Default;
-
         var preset = await ReadAsync(PresetKey, ct).ConfigureAwait(false);
         var crf = await ReadAsync(CrfKey, ct).ConfigureAwait(false);
         var offset = await ReadAsync(AudioOffsetKey, ct).ConfigureAwait(false);
+        var resolution = await ReadAsync(SettingsRegistry.Keys.RecordingsComposeResolution, ct).ConfigureAwait(false);
+        var fps = await ReadAsync(SettingsRegistry.Keys.RecordingsComposeFps, ct).ConfigureAwait(false);
+        var audioKbps = await ReadAsync(SettingsRegistry.Keys.RecordingsComposeAudioBitrateKbps, ct).ConfigureAwait(false);
+        var channels = await ReadAsync(SettingsRegistry.Keys.RecordingsComposeAudioChannels, ct).ConfigureAwait(false);
+
+        return BuildPlanSettings(preset, crf, offset, resolution, fps, audioKbps, channels);
+    }
+
+    /// <summary>
+    /// Panel qiymatlaridan kodlash sozlamalari (2026-10-31) — SOF funksiya,
+    /// testda bazasiz tekshiriladi.
+    ///
+    /// ★ O'LCHAM FAQAT IKKI QIYMATDAN BIRI: noma'lum satr (qo'lda yozilgan
+    ///   "4k") standartga tushadi — ffmpeg'ga erkin o'lcham BERILMAYDI.
+    /// </summary>
+    public static CompositionPlanSettings BuildPlanSettings(
+        string? preset,
+        string? crf,
+        string? offset,
+        string? resolution,
+        string? fps,
+        string? audioKbps,
+        string? channels)
+    {
+        var defaults = CompositionPlanSettings.Default;
+
+        var (width, height) = string.Equals(resolution?.Trim(), "1080p", StringComparison.OrdinalIgnoreCase)
+            ? (1920, 1080)
+            : (defaults.Width, defaults.Height);
+
+        var audioChannels = string.Equals(channels?.Trim(), "stereo", StringComparison.OrdinalIgnoreCase)
+            ? 2
+            : defaults.AudioChannels;
 
         return new CompositionPlanSettings(
             Preset: string.IsNullOrWhiteSpace(preset) ? defaults.Preset : preset.Trim(),
             Crf: Number(crf, defaults.Crf, MinCrf, MaxCrf),
-            AudioOffsetMs: Number(offset, defaults.AudioOffsetMs, MinAudioOffsetMs, MaxAudioOffsetMs));
+            AudioOffsetMs: Number(offset, defaults.AudioOffsetMs, MinAudioOffsetMs, MaxAudioOffsetMs),
+            Width: width,
+            Height: height,
+            Fps: Number(fps, defaults.Fps, MinFps, MaxFps),
+            AudioBitrateKbps: Number(audioKbps, defaults.AudioBitrateKbps, MinAudioKbps, MaxAudioKbps),
+            AudioChannels: audioChannels);
     }
 
     private async Task<string?> ReadAsync(string key, CancellationToken ct)
@@ -665,6 +701,12 @@ public sealed class RecordingCompositionRunner(
     private const int MaxCrf = 28;
     private const int MinAudioOffsetMs = -2000;
     private const int MaxAudioOffsetMs = 2000;
+
+    // Registr chegaralari bilan AYNI (nusxa ataylab — sabab `Number` izohida).
+    private const int MinFps = 10;
+    private const int MaxFps = 30;
+    private const int MinAudioKbps = 32;
+    private const int MaxAudioKbps = 192;
 
     /// <summary>
     /// ⚠️ SATR SIFATIDA, <c>SettingsRegistry.Keys</c> ORQALI EMAS: o'sha

@@ -295,7 +295,14 @@ services:
     #    IP'siga uzatadi — natijada `requestsReceived: 0` va ICE `checking` da
     #    qotib qoladi. Shuning uchun juftlik KLIENT tomonidan tenglashtirilgan.
     # ══════════════════════════════════════════════════════════════════════
-    image: livekit/livekit-server:v1.13
+    # ★ 2026-10-31: PATCH darajasida qotirildi (livekit-review 14-risk).
+    #   Minor teg (`v1.13`) har `pull` da yangi patch'ni jimgina olib kelardi,
+    #   klient–server protokol juftligi esa aynan shunday buzilgan edi (yuqorida).
+    #   Versiya — serverda ISHLAB TURGAN image'dan olingan
+    #   (`livekit-server --version` -> 1.13.10,
+    #   digest sha256:89ca9ce0791e18d6e03bf6e2c49ceb27e1c754eae8bd50c989386c1a5963791a).
+    #   Yangilash — ATAYLAB: tegni o'zgartirib, dev'da sinab, keyin prod.
+    image: livekit/livekit-server:v1.13.10
     container_name: zinnur-v2-livekit
     restart: unless-stopped
 
@@ -497,7 +504,10 @@ services:
     # (ular Redis orqali RPC bilan gaplashadi). Minor teg — `livekit-server`
     # bilan AYNI uslub: patch'lar avtomatik keladi, minor esa ataylab
     # qo'lda ko'tariladi.
-    image: livekit/egress:v1.14
+    # ★ 2026-10-31: PATCH darajasida qotirildi (server bilan AYNI sabab).
+    #   Ishlab turgan image: v1.14.1 (OCI label `org.opencontainers.image.version`,
+    #   digest sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce).
+    image: livekit/egress:v1.14.1
     container_name: zinnur-v2-egress
     restart: unless-stopped
 

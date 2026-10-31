@@ -42,8 +42,8 @@ public sealed class RecordingCompositionPlannerTests
 
     /// <summary>Har kirish uchun takrorlanadigan masshtablash bo'g'ini.</summary>
     private const string Fit =
-        "scale=1920:1080:force_original_aspect_ratio=decrease:eval=frame,"
-        + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:eval=frame";
+        "scale=1280:720:force_original_aspect_ratio=decrease:eval=frame,"
+        + "pad=1280:720:(ow-iw)/2:(oh-ih)/2:eval=frame";
 
     private const string Tail = "aresample=async=1:first_pts=0";
 
@@ -80,15 +80,15 @@ public sealed class RecordingCompositionPlannerTests
             // kirishlar: kamera ikki o'lchamda kerak (butun kadr + burchak)
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2:eval=frame[v0pip]",
+            "[v0b]scale=320:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             "[2:v]split=2[v2a][v2b]",
             $"[v2a]{Fit}[v2full]",
-            "[v2b]scale=480:-2:eval=frame[v2pip]",
+            "[v2b]scale=320:-2:eval=frame[v2pip]",
 
             // ⚠️ `d=` SHART: fon manbai cheksiz, ffmpeg esa asosiy kirish
             //    tugaguncha kodlaydi.
-            "color=c=black:s=1920x1080:r=30:d=5400[bg]",
+            "color=c=black:s=1280x720:r=15:d=5400[bg]",
 
             // 1-qatlam: ekransiz paytdagi kamera
             "[bg][v0full]overlay=0:0:enable='between(t,5,900)'[ov0]",
@@ -98,8 +98,8 @@ public sealed class RecordingCompositionPlannerTests
             "[ov1][v1full]overlay=0:0:enable='between(t,900,2700)'[ov2]",
 
             // 3-qatlam: kichik oyna — ekran ustida
-            "[ov2][v0pip]overlay=W-w-24:H-h-24:enable='between(t,900,1800)'[ov3]",
-            "[ov3][v2pip]overlay=W-w-24:H-h-24:enable='between(t,1860,2700)'[v]",
+            "[ov2][v0pip]overlay=W-w-16:H-h-16:enable='between(t,900,1800)'[ov3]",
+            "[ov3][v2pip]overlay=W-w-16:H-h-16:enable='between(t,1860,2700)'[v]",
 
             // ovoz: BITTA surish, kesish yo'q, aralashtirish yo'q
             $"[3:a]adelay=0|0,{Tail}[a]"));
@@ -156,13 +156,13 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2:eval=frame[v0pip]",
+            "[v0b]scale=320:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
-            $"color=c=black:s=1920x1080:r=30:d={N(seconds)}[bg]",
+            $"color=c=black:s=1280x720:r=15:d={N(seconds)}[bg]",
             $"[bg][v0full]overlay=0:0:enable='between(t,0,{N(screenStart)})"
             + $"+between(t,{N(screenEnd)},{N(seconds)})'[ov0]",
             $"[ov0][v1full]overlay=0:0:enable='between(t,{N(screenStart)},{N(screenEnd)})'[ov1]",
-            "[ov1][v0pip]overlay=W-w-24:H-h-24:"
+            "[ov1][v0pip]overlay=W-w-16:H-h-16:"
             + $"enable='between(t,{N(screenStart)},{N(screenEnd)})'[v]",
             $"[2:a]adelay=0|0,{Tail}[a]"));
 
@@ -192,7 +192,7 @@ public sealed class RecordingCompositionPlannerTests
 
         plan.FilterGraph.Should().Be(string.Join(';',
             $"[0:v]{Fit}[v0full]",
-            "color=c=black:s=1920x1080:r=30:d=600[bg]",
+            "color=c=black:s=1280x720:r=15:d=600[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,600)'[v]",
             $"[1:a]adelay=0|0,{Tail}[a]"));
 
@@ -215,15 +215,15 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             "[0:v]split=2[v0a][v0b]",
             $"[v0a]{Fit}[v0full]",
-            "[v0b]scale=480:-2:eval=frame[v0pip]",
+            "[v0b]scale=320:-2:eval=frame[v0pip]",
             $"[1:v]{Fit}[v1full]",
             $"[2:v]{Fit}[v2full]",
-            "color=c=black:s=1920x1080:r=30:d=1000[bg]",
+            "color=c=black:s=1280x720:r=15:d=1000[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,100)+between(t,300,600)"
             + "+between(t,800,1000)'[ov0]",
             "[ov0][v1full]overlay=0:0:enable='between(t,100,300)'[ov1]",
             "[ov1][v2full]overlay=0:0:enable='between(t,600,800)'[ov2]",
-            "[ov2][v0pip]overlay=W-w-24:H-h-24:enable='between(t,100,300)"
+            "[ov2][v0pip]overlay=W-w-16:H-h-16:enable='between(t,100,300)"
             + "+between(t,600,800)'[v]",
             $"[3:a]adelay=0|0,{Tail}[a]"));
     }
@@ -248,7 +248,7 @@ public sealed class RecordingCompositionPlannerTests
         plan.FilterGraph.Should().Be(string.Join(';',
             $"[0:v]{Fit}[v0full]",
             $"[1:v]{Fit}[v1full]",
-            "color=c=black:s=1920x1080:r=30:d=3000[bg]",
+            "color=c=black:s=1280x720:r=15:d=3000[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,1000)'[ov0]",
             "[ov0][v1full]overlay=0:0:enable='between(t,1200,3000)'[v]",
             $"[2:a]adelay=0|0,{Tail}[a]"));
@@ -275,7 +275,7 @@ public sealed class RecordingCompositionPlannerTests
         var plan = Plan(Audio(1, 0, 4800));
 
         plan.FilterGraph.Should().Be(string.Join(';',
-            "color=c=black:s=1920x1080:r=5:d=4800[v]",
+            "color=c=black:s=1280x720:r=5:d=4800[v]",
             $"[0:a]adelay=0|0,{Tail}[a]"));
 
         plan.Warning.Should().BeNull("ovoz bor, ya'ni ogohlantiradigan narsa yo'q");
@@ -293,7 +293,7 @@ public sealed class RecordingCompositionPlannerTests
     {
         var plan = Plan(Audio(1, 0, 1800), Camera(2, 0, 1800));
 
-        plan.FilterGraph.Should().Contain("color=c=black:s=1920x1080:r=30:d=1800[bg]");
+        plan.FilterGraph.Should().Contain("color=c=black:s=1280x720:r=15:d=1800[bg]");
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ public sealed class RecordingCompositionPlannerTests
 
         plan.FilterGraph.Should().Be(string.Join(';',
             $"[0:v]{Fit}[v0full]",
-            "color=c=black:s=1920x1080:r=30:d=1800[bg]",
+            "color=c=black:s=1280x720:r=15:d=1800[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,1800)'[v]",
             "anullsrc=r=48000:cl=stereo:d=1800[a]"));
 
@@ -482,7 +482,7 @@ public sealed class RecordingCompositionPlannerTests
 
         plan.FilterGraph.Should().Be(string.Join(';',
             $"[0:v]{Fit}[v0full]",
-            "color=c=black:s=1920x1080:r=30:d=2000[bg]",
+            "color=c=black:s=1280x720:r=15:d=2000[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,2000)'[v]",
             "[1:a]adelay=0|0,atrim=end=1000,apad=whole_dur=1000[a0]",
             $"[a0][2:a]concat=n=2:v=0:a=1,{Tail}[a]"));
@@ -535,7 +535,7 @@ public sealed class RecordingCompositionPlannerTests
 
         plan.FilterGraph.Should().Be(string.Join(';',
             $"[0:v]{Fit}[v0full]",
-            "color=c=black:s=1920x1080:r=30:d=1200[bg]",
+            "color=c=black:s=1280x720:r=15:d=1200[bg]",
             "[bg][v0full]overlay=0:0:enable='between(t,0,1200)'[v]",
             "[1:a]adelay=0|0[a0]",
             "[2:a]adelay=300000|300000[a1]",
@@ -735,6 +735,88 @@ public sealed class RecordingCompositionPlannerTests
         camera.ProbedDurationMs = 5_000_000;
 
         Plan(Audio(1, 0, 5400), camera).FilterGraph.Should().NotContain("atempo");
+    }
+
+    // ═══════════════════════════════════════════════════ 2026-10-31: arzon montaj
+
+    /// <summary>
+    /// ★ STANDART — 720p, 15 fps, kichik oyna 320 px va 16 px chetda;
+    /// ovoz 64k MONO rejaga uzatiladi (ffmpeg `-b:a`/`-ac` shundan oladi).
+    /// </summary>
+    [Fact]
+    public void Defaults_Are720p15_With64kMonoAudio()
+    {
+        CompositionPlanSettings.Default.Should().BeEquivalentTo(new
+        {
+            Preset = "veryfast",
+            Crf = 24,
+            Width = 1280,
+            Height = 720,
+            Fps = 15,
+            AudioBitrateKbps = 64,
+            AudioChannels = 1,
+        });
+
+        var plan = Plan(Audio(1, 0, 1000), Camera(2, 0, 1000), Screen(3, 100, 300));
+
+        plan.Crf.Should().Be(24);
+        plan.AudioBitrateKbps.Should().Be(64);
+        plan.AudioChannels.Should().Be(1);
+        plan.FilterGraph.Should().Contain("color=c=black:s=1280x720:r=15:");
+        plan.FilterGraph.Should().Contain("scale=320:-2:eval=frame");
+        plan.FilterGraph.Should().Contain("overlay=W-w-16:H-h-16");
+    }
+
+    /// <summary>
+    /// 🔴 ORQAGA QAYTISH YO'LI ISHLAYDI: eski qiymatlar (1080p30, kichik oyna
+    /// 480 px / 24 px, 128k stereo) AYNAN eski satrlarni beradi — ya'ni
+    /// panelda qaytarilsa natija 2026-10-31 dan oldingi fayl bilan bir xil.
+    /// </summary>
+    [Fact]
+    public void Legacy1080p_ReproducesTheOldGraph()
+    {
+        var plan = Plan(
+            CompositionPlanSettings.Legacy1080p,
+            Audio(1, 0, 1000),
+            Camera(2, 0, 1000),
+            Screen(3, 100, 300));
+
+        plan.FilterGraph.Should().Contain(
+            "scale=1920:1080:force_original_aspect_ratio=decrease:eval=frame,"
+            + "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:eval=frame");
+        plan.FilterGraph.Should().Contain("color=c=black:s=1920x1080:r=30:d=1000[bg]");
+        plan.FilterGraph.Should().Contain("scale=480:-2:eval=frame");
+        plan.FilterGraph.Should().Contain("overlay=W-w-24:H-h-24");
+        plan.Crf.Should().Be(21);
+        plan.AudioBitrateKbps.Should().Be(128);
+        plan.AudioChannels.Should().Be(2);
+    }
+
+    /// <summary>
+    /// Panel qiymatlari: noma'lum o'lcham standartga tushadi, chegaradan
+    /// tashqari raqamlar QISILADI (qiymatni `AppSettings` ga qo'lda yozish
+    /// mumkin, ffmpeg esa uni tekshirmaydi).
+    /// </summary>
+    [Fact]
+    public void PanelValues_AreParsedAndClamped()
+    {
+        var legacy = RecordingCompositionRunner.BuildPlanSettings(
+            "veryfast", "21", "0", "1080p", "30", "128", "stereo");
+
+        legacy.Should().Be(CompositionPlanSettings.Legacy1080p);
+
+        var junk = RecordingCompositionRunner.BuildPlanSettings(
+            null, "0", null, "4k", "120", "9999", "surround");
+
+        junk.Width.Should().Be(1280);
+        junk.Height.Should().Be(720);
+        junk.Crf.Should().Be(16, "crf=0 yo'qotishsiz kodlash — qisiladi");
+        junk.Fps.Should().Be(30);
+        junk.AudioBitrateKbps.Should().Be(192);
+        junk.AudioChannels.Should().Be(1);
+
+        RecordingCompositionRunner.BuildPlanSettings(null, null, null, null, null, null, null)
+            .Should().Be(CompositionPlanSettings.Default);
     }
 
     private static CompositionPlan Plan(params RecordingTrack[] tracks) =>

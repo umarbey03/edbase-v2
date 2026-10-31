@@ -114,7 +114,13 @@ public sealed record UpdateRecordingVisibilityRequest(bool Visible);
 /// Bo'lim ochiqmi. Xodim uchun HAR DOIM <c>true</c> — global va guruh
 /// kalitlari faqat o'quvchiga tegishli.
 /// </param>
-public sealed record RecordingSectionDto(bool Visible);
+/// <param name="RetentionDays">
+/// Yozuv necha kun saqlanadi (<c>recordings.retention_days</c>, 2026-10-31).
+/// Ro'yxat ustida "yozuv N kungacha saqlanadi" deb ko'rsatiladi — o'quvchi
+/// kerakli darsni muddat tugamasdan ko'rib olsin. Qiymat AYNAN o'chirish
+/// vazifasi o'qiydigan yo'ldan olinadi (<c>RecordingRetentionJob.ResolveDaysAsync</c>).
+/// </param>
+public sealed record RecordingSectionDto(bool Visible, int RetentionDays);
 
 /// <summary>
 /// "Dars yozuvlari" ro'yxatining bitta qatori: yozuv + u tegishli bo'lgan

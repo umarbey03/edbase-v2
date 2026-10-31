@@ -33,6 +33,7 @@ public sealed class GroupService(
     IStudiedLessonCounter studiedLessons,
     ISubscriptionService subscriptions,
     IGatingService gating,
+    ILiveKitRoomControl roomControl,
     TimeProvider clock) : IGroupService
 {
     // ================================================================= o'qish
@@ -618,6 +619,8 @@ public sealed class GroupService(
                 request.ReasonId);
 
             await db.SaveChangesAsync(ct);
+
+            await RemoveFromLiveRoomsAsync(id, studentId, ct);
         }
 
         return await GetMemberDtoAsync(member.Id, ct);
@@ -712,9 +715,51 @@ public sealed class GroupService(
         // hech qaysi guruhda qolmasdi.
         await SaveWithUniqueGuardAsync(ct);
 
+        await RemoveFromLiveRoomsAsync(id, studentId, ct);
+
         return new MoveMemberResponse(
             await GetMemberDtoAsync(member.Id, ct),
             await GetMemberDtoAsync(arrived.Id, ct));
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// GURUHDAN CHIQQAN O'QUVCHINI JONLI XONADAN UZISH (2026-10-31)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// Guruhdan chiqarilgan yoki ko'chirilgan o'quvchi o'sha paytda shu
+    /// guruhning JONLI darsida o'tirgan bo'lishi mumkin. Yangi token unga
+    /// berilmaydi (a'zolik tekshiruvi), lekin MAVJUD ulanish o'z-o'zidan
+    /// uzilmasdi — dars oxirigacha xonada qolardi (livekit-review 3-risk).
+    ///
+    /// ★ SAQLASHDAN KEYIN va HECH QACHON YIQILMAYDI: a'zolik o'zgarishi —
+    ///   asosiy amal, LiveKit esa yordamchi. Video xizmati javob bermasa
+    ///   o'quvchi dars oxirida baribir uziladi (xona yopiladi), xato
+    ///   esa mijoz logida (<c>RoomControlLog</c>).
+    ///
+    /// ⚠️ Faqat ASOSIY xona: ichki guruh holati Redis'da va bu servis unga
+    ///   bog'lanmaydi; ichki guruh tokenini esa a'zoligi yo'q o'quvchi
+    ///   baribir ololmaydi.
+    /// </summary>
+    private async Task RemoveFromLiveRoomsAsync(long groupId, long studentId, CancellationToken ct)
+    {
+        try
+        {
+            var rooms = await db.LiveSessions.AsNoTracking()
+                .Where(s => s.GroupId == groupId && s.Status == SessionStatus.Live)
+                .Select(s => s.RoomName)
+                .ToListAsync(ct);
+
+            var identity = studentId.ToString(CultureInfo.InvariantCulture);
+
+            foreach (var room in rooms)
+                await roomControl.RemoveParticipantAsync(room, identity, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Ataylab yutiladi — sabab izohda. Mijoz o'zi logga yozadi.
+            _ = ex;
+        }
     }
 
     // ================================================================= jadval

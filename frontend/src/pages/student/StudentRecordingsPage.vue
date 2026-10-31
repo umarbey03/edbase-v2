@@ -73,6 +73,14 @@ const sectionQuery = useQuery({
 /** Xato bo'lsa OCHIQ deb hisoblanadi — tarmoq nosozligi bo'limni yopmasin. */
 const sectionOpen = computed(() => sectionQuery.data.value?.visible ?? true)
 
+/**
+ * ★ SAQLASH MUDDATI (2026-10-31): yozuv `retentionDays` kundan keyin DOIMIY
+ * o'chiriladi (`RecordingRetentionJob`). O'quvchi buni OLDINDAN bilsin —
+ * kerakli darsni muddat tugamasdan ko'rib olsin. Javob kelmaguncha qator
+ * chizilmaydi (taxminiy raqam aytilmaydi).
+ */
+const retentionDays = computed(() => sectionQuery.data.value?.retentionDays ?? null)
+
 const playingId = ref<number | null>(null)
 const playingTitle = ref('')
 
@@ -154,6 +162,21 @@ function play(recordingId: number, title: string): void {
         v-text="option.name"
       />
     </div>
+
+    <!--
+      Saqlash muddati — pastdagi `v-if`/`v-else` zanjiridan TASHQARIDA
+      (zanjir ichiga tushsa `DataStatus` dagi `v-else` unga bog'lanardi).
+    -->
+    <p
+      v-if="sectionOpen && retentionDays !== null"
+      class="mb-3 ml-1 flex items-center gap-1.5 text-[12px] text-slate-400"
+    >
+      <AppIcon
+        name="clock"
+        :size="14"
+      />
+      <span>Har bir yozuv {{ retentionDays }} kungacha saqlanadi — kerakli darsni shu muddatda ko‘rib oling.</span>
+    </p>
 
     <!--
       Bo'lim yopilgan — bu BO'SH ro'yxat emas, boshqa holat (izohga qarang).

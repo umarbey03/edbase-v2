@@ -240,7 +240,7 @@ public sealed class FfmpegRecordingComposer(
     /// beradi va uning o'rni filtr grafida (<c>adelay</c>). Sabab
     /// <c>CompositionInput.ItsOffsetSeconds</c> izohida.
     /// </summary>
-    private static List<string> BuildArguments(CompositionPlan plan, string scratch, string output)
+    public static List<string> BuildArguments(CompositionPlan plan, string scratch, string output)
     {
         var args = new List<string>(48)
         {
@@ -295,8 +295,12 @@ public sealed class FfmpegRecordingComposer(
             "-g", "60",
             "-threads", "0",
             "-c:a", "aac",
-            "-b:a", "128k",
-            "-ac", "2",
+
+            // ★ 2026-10-31: 128k stereo → sozlamadan (standart 64k MONO).
+            //   Sabab: `CompositionPlanSettings.DefaultAudioBitrateKbps`.
+            //   Graf ichida ovoz stereo qoladi, mono'ga shu yerda tushiriladi.
+            "-b:a", string.Create(CultureInfo.InvariantCulture, $"{plan.AudioBitrateKbps}k"),
+            "-ac", plan.AudioChannels.ToString(CultureInfo.InvariantCulture),
             "-ar", "48000",
             "-max_muxing_queue_size", "1024",
 

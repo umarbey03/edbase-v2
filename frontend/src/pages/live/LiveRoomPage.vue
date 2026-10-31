@@ -9,10 +9,11 @@ import {
   endLiveSession,
   fetchLiveSession,
   muteParticipant,
+  removeParticipant,
   sessionTitle,
   startLiveSession,
 } from '@/entities/session'
-import type { ParticipantMediaSource } from '@/entities/session'
+import type { ModerationAction } from '@/entities/session'
 import { homeRouteFor } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { useBookBoard } from '@/features/book-share/model/useBookBoard'
@@ -358,15 +359,32 @@ const isStudent = computed(() => auth.role === 'Student')
 */
 const moderating = ref<Set<string>>(new Set())
 
-async function handleModerate(userId: number, source: ParticipantMediaSource): Promise<void> {
-  const key = `${userId}:${source}`
+async function handleModerate(userId: number, action: ModerationAction): Promise<void> {
+  const key = `${userId}:${action}`
   if (moderating.value.has(key)) return
+
+  /*
+    ★ DARSDAN CHIQARISH (2026-10-31) — qaytarib bo'lmaydigan amal (shu dars
+    davomida o'quvchi qayta kira olmaydi), shuning uchun TASDIQ so'raladi.
+    Mute esa bir bosishda qoladi: u zararsiz va o'quvchi o'zi qayta yoqadi.
+  */
+  if (action === 'Remove') {
+    const name = participants.value.find((entry) => entry.userId === userId)?.displayName ?? 'O‘quvchi'
+    const ok = await confirm({
+      title: 'Darsdan chiqarish',
+      message: `${name} jonli darsdan chiqariladi va shu dars davomida qayta kira olmaydi.`,
+      confirmLabel: 'Chiqarish',
+      tone: 'danger',
+    })
+    if (!ok) return
+  }
 
   // `Set` ni ALMASHTIRAMIZ (mutatsiya emas): `VideoStage` prop'i
   // `ReadonlySet` va Vue chuqur kuzatuvni faqat yangi obyektda sezadi.
   moderating.value = new Set(moderating.value).add(key)
   try {
-    await muteParticipant(sessionId, userId, source)
+    if (action === 'Remove') await removeParticipant(sessionId, userId)
+    else await muteParticipant(sessionId, userId, action)
   } catch (error) {
     showToast(toUserMessage(error), 'error')
   } finally {

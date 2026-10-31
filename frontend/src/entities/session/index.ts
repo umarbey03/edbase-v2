@@ -7,11 +7,13 @@ export {
   fetchSessionStats,
   muteParticipant,
   postLiveClientEvents,
+  removeParticipant,
   startLiveSession,
 } from './api/session-api'
 export type {
   LiveClientEvent,
   LiveClientInfo,
+  ModerationAction,
   ParticipantMediaSource,
   SessionStatsParams,
 } from './api/session-api'

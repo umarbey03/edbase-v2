@@ -471,6 +471,27 @@ public static class SettingsRegistry
 
         new()
         {
+            Key = "livekit.close_room_on_end",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Dars tugaganda xonani yopish",
+            Description =
+                "Yoqilgan bo'lsa dars yakunlanganda (ustoz tugmasi yoki avto-yakunlash) "
+                + "LiveKit xonasi va uning ichki guruh xonalari DARHOL yopiladi — hamma "
+                + "ishtirokchi uziladi. O'chirilsa xona oxirgi odam chiqqandan 5 daqiqa "
+                + "keyin o'zi yopiladi (eski xatti-harakat), ya'ni tokeni hali amal "
+                + "qilayotgan o'quvchi dars tugagach ham xonada qolishi mumkin.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+
+            // ★ 2026-10-31: STANDART — YOQIQ (livekit-review 3-risk, DEPLOY_UBUNTU
+            //   Ilova A 4-risk). Kalit faqat ORQAGA QAYTISH yo'li: xona yopilishi
+            //   yozuv egress'ini ham tugatadi (u xona yopilganda faylni yakunlaydi);
+            //   kutilmagan nosozlik ko'rinsa deploysiz o'chirish mumkin.
+            DefaultValue = "true",
+        },
+
+        new()
+        {
             Key = "livekit.cloud_url",
             Group = SettingGroup.LiveKit,
             DisplayName = "Cloud: loyiha manzili",
@@ -962,11 +983,18 @@ public static class SettingsRegistry
             DisplayName = "Montaj sifati (x264 CRF)",
             Description =
                 "Kichik raqam — yaxshiroq sifat va KATTA fayl; katta raqam — "
-                + "aksincha. 21 — dars videosi uchun ko'zga sezilmaydigan sifat. "
+                + "aksincha. 24 — 720p dars videosi uchun yetarli (ekrandagi matn "
+                + "o'qiladi), 21 — eski 1080p sifati. "
                 + "Har 6 birlik taxminan fayl hajmini ikki barobar o'zgartiradi.",
             Kind = SettingValueKind.Number,
             Source = SettingSource.Database,
-            DefaultValue = "21",
+
+            // ★ 2026-10-31: 21 → 24 (720p15 bilan birga, livekit-review §4).
+            //   Bitreyt chegarasi (`-maxrate`) ATAYLAB yo'q: CRF murakkab
+            //   kadrga (ekrandagi mayda matn) kerakli bitni baribir beradi,
+            //   chegara esa aynan o'sha kadrni xiralashtirardi.
+            //   ORQAGA QAYTISH: panelda 21.
+            DefaultValue = "24",
 
             // 🔴 CHEGARALAR — HALOKATGA QARSHI TO'SIQ, "aql bovar qilmaydigan
             //    qiymat" filtri EMAS. `crf=0` yo'qotishsiz kodlash, ya'ni
@@ -980,6 +1008,79 @@ public static class SettingsRegistry
             //    qo'yish mumkin, ffmpeg esa buni tekshirmaydi.
             Minimum = 16m,
             Maximum = 28m,
+        },
+
+        /* ================================================================
+           MONTAJ CHIQISHI — O'LCHAM, KADR, OVOZ (2026-10-31)
+
+           ★ NIMA UCHUN: tungi montaj server CPU'sining eng katta
+             iste'molchisi. 1080p30 + AAC 128k stereo 30 guruhda tungi
+             oynaga sig'maydi (livekit-review §3–4). Standart endi 720p,
+             15 fps, CRF 24, 64k mono — taxminan 4–6 barobar kam CPU va
+             2–4 barobar kichik fayl.
+
+           🔴 ORQAGA QAYTISH (deploysiz, keyingi kechadan): 1080p / 30 /
+             CRF 21 / 128 / stereo. Kod standarti:
+             `CompositionPlanSettings.Legacy1080p`. */
+
+        new()
+        {
+            Key = "recordings.compose_resolution",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj o'lchami",
+            Description =
+                "Tayyor dars videosining o'lchami. `720p` (1280x720) — standart: "
+                + "ustoz kamerasi baribir 720p, ekrandagi matn o'qiladi, kodlash "
+                + "~2 barobar tez. `1080p` — eski sifat (CPU va joy ko'proq). "
+                + "Keyingi kechadan kuchga kiradi.",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+            Choices = ["720p", "1080p"],
+            DefaultValue = "720p",
+        },
+
+        new()
+        {
+            Key = "recordings.compose_fps",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj kadr chastotasi (fps)",
+            Description =
+                "Tasvirli darsning kadr chastotasi. 15 — standart (ekran ulashish "
+                + "baribir 15 fps dan oshmaydi). 30 — eski qiymat, kodlash ~2 barobar "
+                + "uzoq. Tasvirsiz (faqat ovoz) darsga ta'sir qilmaydi — u doim 5 fps.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "15",
+            Minimum = 10m,
+            Maximum = 30m,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_audio_bitrate_kbps",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj ovoz bitreyti (kbit/s)",
+            Description =
+                "AAC ovoz sifati. 64 — nutq uchun yetarli (standart), 128 — eski qiymat.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "64",
+            Minimum = 32m,
+            Maximum = 192m,
+        },
+
+        new()
+        {
+            Key = "recordings.compose_audio_channels",
+            Group = SettingGroup.Content,
+            DisplayName = "Montaj ovoz kanallari",
+            Description =
+                "`mono` — standart: dars ovozi mikrofondan keladi va u mono. "
+                + "`stereo` — eski qiymat (ikki bir xil kanal, joy ikki barobar).",
+            Kind = SettingValueKind.Choice,
+            Source = SettingSource.Database,
+            Choices = ["mono", "stereo"],
+            DefaultValue = "mono",
         },
 
         new()
@@ -1031,6 +1132,48 @@ public static class SettingsRegistry
             // yashirish bo'lardi.
             Minimum = -2000m,
             Maximum = 2000m,
+        },
+
+        /* ================================================================
+           YOZUVLARNI SAQLASH MUDDATI (2026-10-31, loyiha egasi qarori)
+
+           🔴 BU KALIT MA'LUMOTNI DOIMIY O'CHIRADI — mexanizm izohi:
+             `RecordingRetentionJob`. Egasining talabi: "yozuvlar 30 KUN
+             saqlansin, keyin o'chirilsin" (narx va shaxsiy ma'lumot: yozuvda
+             o'quvchilarning yuzi va ovozi bor).
+
+           ★ NIMA UCHUN ALOHIDA "YOQILGAN" KALITI YO'Q (`chat.retention_*`
+             dan farqli): bu yerda egasi muddatni ANIQ aytgan va u standart.
+             "O'chirilmasin" degan holat amalda yo'q — R2 lifecycle qoidasi
+             (ikkinchi to'siq, `docs/DEPLOY_UBUNTU.md`) baribir 31-kuni
+             o'chiradi. Ikkita kalit esa "panelda 30 kun, lekin o'chiq"
+             degan jimgina yolg'on holatni yaratardi. */
+
+        new()
+        {
+            Key = "recordings.retention_days",
+            Group = SettingGroup.Content,
+            DisplayName = "Dars yozuvlari saqlanadigan muddat (kun)",
+            Description =
+                "🔴 Shu muddatdan ESKI yozuvlar ombordan (R2/MinIO) va ro'yxatdan "
+                + "DOIMIY o'chiriladi — ularni TIKLAB BO'LMAYDI. Muddat dars tugagan "
+                + "paytdan sanaladi. O'quvchi va ustoz ro'yxatida \"yozuv N kungacha "
+                + "saqlanadi\" deb ko'rsatiladi. "
+                + "⚠️ Omborda ikkinchi to'siq ham bor (R2 lifecycle, 31 kun): bu yerdagi "
+                + "qiymatni 30 dan KATTA qilsangiz, o'sha qoidani ham uzaytiring.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "30",
+
+            // 🔴 PASTKI CHEGARA 7 KUN — HALOKATGA QARSHI TO'SIQ: `1` yoki
+            //    `0` panelda bitta xato bosish, natijasi esa KECHAGI darsning
+            //    yozuvi ham yo'qolishi. Chegara vazifaning O'ZIDA ham bor
+            //    (`RecordingRetentionJob.MinDays`) — sabab `chat.retention_months`
+            //    dagi AYNI: qiymatni `AppSettings` ga qo'lda yozish mumkin.
+            Minimum = 7m,
+
+            // 10 yil — amalda "o'chirilmasin".
+            Maximum = 3650m,
         },
 
         // ================================================================ GURUH CHATI
@@ -1473,6 +1616,9 @@ public static class SettingsRegistry
 
         // 2026-09-21: LiveKit Cloud — zaxira yo'l (sabab registrda).
         public const string LiveKitProvider = "livekit.provider";
+
+        /// <summary>Dars tugaganda LiveKit xonasini (va ichki guruhlarni) yopish (2026-10-31).</summary>
+        public const string LiveKitCloseRoomOnEnd = "livekit.close_room_on_end";
         public const string LiveKitCloudUrl = "livekit.cloud_url";
         public const string LiveKitCloudApiKey = "livekit.cloud_api_key";
         public const string LiveKitCloudApiSecret = "livekit.cloud_api_secret";
@@ -1553,10 +1699,21 @@ public static class SettingsRegistry
         public const string RecordingsComposePreset = "recordings.compose_preset";
         public const string RecordingsComposeCrf = "recordings.compose_crf";
 
+        // ★ 2026-10-31: montaj chiqishi (standart 720p / 15 fps / 64k mono).
+        public const string RecordingsComposeResolution = "recordings.compose_resolution";
+        public const string RecordingsComposeFps = "recordings.compose_fps";
+        public const string RecordingsComposeAudioBitrateKbps = "recordings.compose_audio_bitrate_kbps";
+        public const string RecordingsComposeAudioChannels = "recordings.compose_audio_channels";
+
         /// <summary>Xona ovozi (o'quvchilar bilan) yoki faqat ustoz treki.</summary>
         public const string RecordingsAudioCaptureMode = "recordings.audio_capture_mode";
 
         public const string RecordingsComposeAudioOffsetMs = "recordings.compose_audio_offset_ms";
+
+        // ---------------------------------------------------------------- yozuv saqlash muddati (2026-10-31)
+
+        /// <summary>Shu kundan eski yozuvlar DOIMIY o'chiriladi (<c>RecordingRetentionJob</c>).</summary>
+        public const string RecordingsRetentionDays = "recordings.retention_days";
     }
 
     /// <summary>

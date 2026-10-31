@@ -320,7 +320,8 @@ limit:
   #  12 raqami qayerdan: odatiy "galereya" ko'rinishi 3x4 = 12 katak.
   #  Frontend undan ko'proq ko'rsatsa — bu sonni birga oshiring.
   #  0 = cheksiz (TAVSIYA ETILMAYDI).
-  subscription_limit_video: 12
+  # ★ 2026-10-31: 12 -> 24 — prod bilan AYNI (sabab livekit.prod.yaml da).
+  subscription_limit_video: 24
 
   # Ovoz uchun cheklov YO'Q (0 = cheksiz).
   # NEGA: ovoz juda arzon (~30 kbps) va LiveKit allaqachon faqat FAOL

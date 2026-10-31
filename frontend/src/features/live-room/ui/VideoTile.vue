@@ -47,6 +47,12 @@ const props = withDefaults(
     /** Server javobi kutilmoqda — mos tugma aylanadi. */
     micModerating?: boolean
     cameraModerating?: boolean
+    /**
+     * "Darsdan chiqarish" tugmasi (2026-10-31) — faqat O'QUVCHI katagida
+     * (ota tekshiradi: host + nishon o'quvchi). Server ham AYNI qoida.
+     */
+    canRemove?: boolean
+    removing?: boolean
   }>(),
   {
     isLocal: false,
@@ -62,12 +68,15 @@ const props = withDefaults(
     canModerate: false,
     micModerating: false,
     cameraModerating: false,
+    canRemove: false,
+    removing: false,
   },
 )
 
 const emit = defineEmits<{
   'mute-mic': []
   'camera-off': []
+  remove: []
 }>()
 
 /** Belgi FAQAT muammoda chiqadi — "yaxshi" holat shovqin bo'lardi. */
@@ -130,7 +139,8 @@ const isSmallChrome = computed(() => props.compact && !props.large && !props.fil
 /** Ustoz tugmalari: faqat hali YONIQ bo'lgan oqim uchun (o'chiqni o'chirib bo'lmaydi). */
 const showMuteMic = computed(() => props.canModerate && props.micEnabled)
 const showCameraOff = computed(() => props.canModerate && hasVideo.value)
-const showModeration = computed(() => showMuteMic.value || showCameraOff.value)
+const showRemove = computed(() => props.canModerate && props.canRemove)
+const showModeration = computed(() => showMuteMic.value || showCameraOff.value || showRemove.value)
 
 /*
   Tugma o'lchami 36px — 44px emas. Sabab: 5×5 to'rda katak ~150px, ikkita
@@ -310,6 +320,26 @@ const MOD_BUTTON =
           :size="16"
         />
         <span class="sr-only">Kamerani o‘chirish</span>
+      </button>
+      <button
+        v-if="showRemove"
+        type="button"
+        :class="MOD_BUTTON"
+        :disabled="props.removing"
+        :aria-busy="props.removing"
+        :title="`${props.name}: darsdan chiqarish`"
+        @click.stop="emit('remove')"
+      >
+        <BaseSpinner
+          v-if="props.removing"
+          size="sm"
+        />
+        <AppIcon
+          v-else
+          name="user-x"
+          :size="16"
+        />
+        <span class="sr-only">Darsdan chiqarish</span>
       </button>
     </div>
   </div>

@@ -5,7 +5,11 @@ namespace Zinnur.Application.Common.Models;
 /// <param name="Identity">Ishtirokchi identifikatori — foydalanuvchi Id'si (satr).</param>
 /// <param name="DisplayName">Xonada ko'rinadigan ism.</param>
 /// <param name="CanPublish">Kamera/mikrofon uzata oladimi.</param>
-/// <param name="IsHost">Host (ustoz/kurator) — <c>roomAdmin</c> huquqini beradi.</param>
+/// <param name="IsHost">
+/// Host (ustoz/kurator). 2026-10-31 dan faqat <c>canPublishData</c> ni beradi —
+/// <c>roomAdmin</c> brauzer tokenida HECH KIMDA yo'q (sabab:
+/// <c>LiveKitTokenService</c>).
+/// </param>
 /// <param name="Ttl">
 /// Amal qilish muddati. Bo'sh bo'lsa zaxira qiymat (2 soat) ishlatiladi —
 /// lekin uni BO'SH QOLDIRMANG: token muddati xavfsizlik chegarasi, chunki
