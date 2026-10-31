@@ -6,11 +6,14 @@ import { fetchAttendanceSummary } from '@/entities/progress'
 import { fetchRecordingSection } from '@/entities/recording'
 import { useMySubscription } from '@/entities/subscription'
 import { ClassroomModal } from '@/features/classroom'
+import BookEntryCard from '@/features/lesson-dashboard/ui/BookEntryCard.vue'
 import { MascotMoodCard, useStudentMood } from '@/features/mascot'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
 import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
+import { useStudentCourse } from '@/features/student-course/model/useStudentCourse'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
 import NextLessonCard from '@/features/student-schedule/ui/NextLessonCard.vue'
+import WeekStrip from '@/features/student-schedule/ui/WeekStrip.vue'
 import { useNow } from '@/shared/lib/use-now'
 import { AppIcon, BaseButton } from '@/shared/ui'
 
@@ -37,6 +40,14 @@ const schedule = useStudentSchedule(now)
   tugma bilan javob beradi, qolgan kartalar esa tafsilot.
 */
 const mood = useStudentMood(now, schedule)
+
+/*
+  ★ INTERAKTIV DARSLIK KARTASI (loyiha egasi, 2026-10-31): hozirgi dars
+    (`nextLessonId`) bo'yicha — darslik o'sha darsga bog'langan bo'lsa,
+    progress halqasi va «Davom ettirish». Huquq bo'lmasa karta o'zi
+    "Mustaqil+ tarifida" deydi yoki umuman chizilmaydi (`BookEntryCard`).
+*/
+const course = useStudentCourse()
 
 const attendanceQuery = useQuery({
   queryKey: ['progress', 'attendance'],
@@ -142,6 +153,12 @@ const isSelfStudy = subscription.isSelfStudy
       />
 
       <SubscriptionStatusCard :data="subscription.data.value" />
+
+      <BookEntryCard
+        v-if="course.nextLessonId.value !== null"
+        class="!mt-0"
+        :lesson-id="course.nextLessonId.value"
+      />
 
       <!--
         ★ TAKRORLANMASIN (loyiha egasi, 2026-10-29): Nuri kartasining tugmasi
@@ -261,6 +278,20 @@ const isSelfStudy = subscription.isSelfStudy
           :now="now"
         />
       </div>
+
+      <!-- «Shu hafta» — Kalendar tabi o'rniga (2026-10-31). -->
+      <BookEntryCard
+        v-if="course.nextLessonId.value !== null"
+        class="!mt-3"
+        :lesson-id="course.nextLessonId.value"
+      />
+
+      <WeekStrip
+        v-if="!schedule.isPending.value && schedule.error.value === null"
+        class="mt-3"
+        :sessions="schedule.sessions.value"
+        :now="now"
+      />
     </div>
 
     <!-- ========================= O'ng ustun: davomat ========================= -->

@@ -67,13 +67,18 @@ export interface NavSection {
  * yodlab olishgan; nomni "yaxshilash" yoki tartibni almashtirish ular uchun
  * qayta o'rganish demakdir.
  *
+ * 🔴 2026-10-31 — LOYIHA EGASINING QARORI BILAN O'ZGARDI: «Kalendar» o'rniga
+ *   «Vazifalar» (o'quvchining eng ko'p qiladigan ishi; ilgari unga «O'quv»
+ *   ichidan kirilardi). Jadval bosh sahifadagi «Shu hafta» qatorida, to'liq
+ *   kalendar esa «Guruhim» → «Dars jadvali» orqali ochiladi.
+ *
  * Xodim menyusidan farqli o'laroq bu ro'yxat yon menyuda emas, `StudentTabBar`
  * da chiziladi — lekin manba bitta bo'lishi uchun shu yerda turadi.
  */
 const STUDENT_NAV: NavItem[] = [
   { routeName: 'student-home', label: 'Bosh sahifa', icon: 'home' },
-  { routeName: 'student-calendar', label: 'Kalendar', icon: 'calendar' },
   { routeName: 'student-learn', label: 'O‘quv', icon: 'book' },
+  { routeName: 'student-assignments', label: 'Vazifalar', icon: 'clipboard' },
   { routeName: 'student-rating', label: 'Reyting', icon: 'chart' },
   { routeName: 'student-chat', label: 'Chat', icon: 'message-circle' },
 ]
@@ -89,6 +94,7 @@ const STUDENT_NAV: NavItem[] = [
 export const SELF_STUDY_NAV: NavItem[] = [
   { routeName: 'student-home', label: 'Bosh sahifa', icon: 'home' },
   { routeName: 'student-learn', label: 'O‘quv', icon: 'book' },
+  { routeName: 'student-assignments', label: 'Vazifalar', icon: 'clipboard' },
   { routeName: 'student-rating', label: 'Reyting', icon: 'chart' },
   { routeName: 'student-profile', label: 'Profil', icon: 'user' },
 ]

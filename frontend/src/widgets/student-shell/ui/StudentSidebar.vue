@@ -28,7 +28,7 @@ const props = defineProps<{ displayName: string }>()
 
 const emit = defineEmits<{ 'open-profile': [] }>()
 
-const { items, isActive } = useStudentNav()
+const { items, isActive, badges } = useStudentNav()
 
 /** `StudentAppBar` dagi avatar bilan bir xil qoida — bitta odam, bitta harf. */
 const initial = computed(() => (props.displayName.trim()[0] ?? '?').toUpperCase())
@@ -119,6 +119,11 @@ const avatarUrl = useAvatar(
         <span
           class="truncate"
           v-text="item.label"
+        />
+        <span
+          v-if="(badges[item.routeName] ?? 0) > 0"
+          class="ml-auto min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+          v-text="badges[item.routeName]"
         />
       </RouterLink>
     </nav>

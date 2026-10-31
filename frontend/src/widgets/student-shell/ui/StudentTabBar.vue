@@ -47,7 +47,7 @@ import { useStudentNav } from './useStudentNav'
  * juft: birini o'zgartirsangiz IKKINCHISINI ham (`StudentShell.vue` dagi
  * ustun klassi).
  */
-const { items, isActive } = useStudentNav()
+const { items, isActive, badges } = useStudentNav()
 </script>
 
 <template>
@@ -74,6 +74,12 @@ const { items, isActive } = useStudentNav()
         v-if="isActive(item.routeName)"
         class="absolute -top-[9px] h-[3px] w-[26px] rounded-[3px] bg-brand-500"
         aria-hidden="true"
+      />
+      <span
+        v-if="(badges[item.routeName] ?? 0) > 0"
+        class="absolute right-[calc(50%-20px)] top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white"
+        :aria-label="`${badges[item.routeName]} ta vazifa`"
+        v-text="badges[item.routeName]"
       />
       <AppIcon
         :name="item.icon"

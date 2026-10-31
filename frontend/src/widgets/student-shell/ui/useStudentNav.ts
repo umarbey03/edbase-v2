@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { assignmentBucket, fetchMyAssignments } from '@/entities/assignment'
 import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
 import { GUEST_NAV, navItemsForRole, SELF_STUDY_NAV } from '@/entities/user'
@@ -28,6 +30,8 @@ export interface StudentNav {
   items: ComputedRef<NavItem[]>
   /** Shu marshrut nomi hozir "faol band" sifatida ko'rsatilishi kerakmi. */
   isActive: (routeName: string) => boolean
+  /** Tab yonidagi son (hozircha faqat «Vazifalar» — topshirish kerak bo'lganlari). */
+  badges: ComputedRef<Record<string, number>>
 }
 
 export function useStudentNav(): StudentNav {
@@ -45,6 +49,25 @@ export function useStudentNav(): StudentNav {
   })
 
   /*
+    ★ «Vazifalar» belgisi — HOZIR topshirsa bo'ladigan vazifalar soni (qulfli
+      darsniki sanalmaydi: bosganda qila olmaydigan ishni sanash bezovta
+      qiladi). So'rov kaliti vazifalar sahifasi bilan bir xil — kesh umumiy.
+  */
+  const assignmentsQuery = useQuery({
+    queryKey: ['assignments', 'mine'],
+    queryFn: ({ signal }) => fetchMyAssignments({ signal }),
+    enabled: computed(() => isLoaded.value && !isGuest.value),
+    staleTime: 60_000,
+  })
+  const badges = computed<Record<string, number>>(() => {
+    const todo = (assignmentsQuery.data.value ?? [])
+      .filter((item) => item.canSubmit && assignmentBucket(item) === 'todo').length
+    const result: Record<string, number> = {}
+    if (todo > 0) result['student-assignments'] = todo
+    return result
+  })
+
+  /*
     ★ `active-class` / `exact-active-class` YETMAYDI: "O'quv" bandi `/oquv`
     dan tashqari uning ICHKI sahifalarida ham yonib turishi kerak
     (`student-assignments`, `student-tests`, `student-test-take`,
@@ -54,9 +77,11 @@ export function useStudentNav(): StudentNav {
   function isActive(routeName: string): boolean {
     if (route.name === routeName) return true
     if (routeName !== 'student-learn') return false
+    // Vazifalar endi o'z tabida — «O'quv» u yerda yonmaydi (2026-10-31).
+    if (route.name === 'student-assignments') return false
     return typeof route.name === 'string' && route.name.startsWith('student-')
       && route.path.startsWith('/oquv')
   }
 
-  return { items, isActive }
+  return { items, isActive, badges }
 }
