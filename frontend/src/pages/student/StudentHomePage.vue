@@ -175,7 +175,16 @@ const isSelfStudy = subscription.isSelfStudy
         :lesson-id="course.nextLessonId.value"
       />
 
-      <SubscriptionStatusCard :data="subscription.data.value" />
+      <!--
+        ★ OBUNA KARTASI PROFILGA KO'CHDI (loyiha egasi, 2026-10-31): har kuni
+          "29 kun qoldi" ni ko'rsatish bosh sahifada joy egallardi. Bu yerda
+          faqat E'TIBOR kerak bo'lganda chiqadi — muddat tugagan yoki 5 kundan
+          kam qolgan (uzaytirish tugmasi bilan). To'liq ma'lumot va tarix — Profilda.
+      -->
+      <SubscriptionStatusCard
+        v-if="!subscription.data.value.isActive || (subscription.data.value.daysLeft ?? 0) <= 5"
+        :data="subscription.data.value"
+      />
 
       <!--
         ★ TAKRORLANMASIN (loyiha egasi, 2026-10-29): Nuri kartasining tugmasi
