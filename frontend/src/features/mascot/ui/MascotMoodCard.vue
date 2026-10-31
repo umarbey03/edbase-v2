@@ -27,6 +27,11 @@ const props = defineProps<{
   /** `null` — ma'lumot kutilmoqda (skelet). */
   result: MoodResult | null
   liveSessionId: number | null
+  /**
+   * Tik, ixcham ko'rinish — bosh sahifada darslik kartasi bilan YONMA-YON
+   * (yarim kenglik, 2026-10-31). Maskot tepada, matn pastda, tugma to'liq kenglikda.
+   */
+  compact?: boolean
 }>()
 
 /*
@@ -40,6 +45,14 @@ const TINT: Record<MascotMood, string> = {
   concerned: 'bg-orange-500/10',
   sleepy: 'bg-slate-500/10',
   thinking: 'bg-cyan-500/10',
+}
+
+/** Yarim kenglikdagi kartada sig'adigan qisqa yozuvlar (ma'nosi o'sha). */
+const SHORT_LABELS: Record<string, string> = {
+  'Darsga qo‘shilish': 'Darsga kirish',
+  'Vazifani topshirish': 'Vazifalar',
+  'Darsni davom ettirish': 'Darsga o‘tish',
+  'Reytingni ko‘rish': 'Reyting',
 }
 
 interface ActionView {
@@ -76,6 +89,44 @@ const action = computed<ActionView | null>(() => {
     v-if="result === null"
     class="h-[118px] animate-pulse rounded-xl border border-line bg-ink-900"
   />
+
+  <section
+    v-else-if="props.compact"
+    class="flex h-full flex-col rounded-xl border border-line bg-ink-900 p-3"
+  >
+    <div class="flex items-center gap-2">
+      <div
+        class="flex size-12 shrink-0 items-center justify-center rounded-xl"
+        :class="TINT[result.mood]"
+      >
+        <div class="h-[44px] w-[39px]">
+          <MascotAvatar :mood="result.mood" />
+        </div>
+      </div>
+      <p class="text-[10px] font-bold uppercase tracking-[1.4px] text-slate-400">
+        Nuri
+      </p>
+    </div>
+    <h2
+      class="mt-2 text-sm font-bold leading-snug text-slate-100"
+      v-text="result.title"
+    />
+    <p
+      class="mb-3 mt-1 line-clamp-3 text-xs leading-relaxed text-slate-300"
+      v-text="result.message"
+    />
+    <RouterLink
+      v-if="action !== null"
+      :to="action.to"
+      class="mt-auto flex h-9 select-none items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-2 text-xs font-semibold text-on-brand shadow-xs transition-colors hover:bg-brand-600"
+    >
+      <AppIcon
+        :name="action.icon"
+        :size="14"
+      />
+      <span class="truncate">{{ SHORT_LABELS[action.label] ?? action.label }}</span>
+    </RouterLink>
+  </section>
 
   <section
     v-else

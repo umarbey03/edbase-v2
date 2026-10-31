@@ -17,7 +17,11 @@ import { AppIcon } from '@/shared/ui'
  *   `upsell` (oddiy Mustaqil) — "Mustaqil+ tarifida" va Tariflarga havola;
  *   `none` — hech narsa chizilmaydi (kontent borligi ham aytilmaydi).
  */
-const props = defineProps<{ lessonId: number }>()
+const props = defineProps<{
+  lessonId: number
+  /** Tik, ixcham ko'rinish — bosh sahifada Nuri bilan yonma-yon (2026-10-31). */
+  compact?: boolean
+}>()
 const router = useRouter()
 
 const query = useQuery({
@@ -44,7 +48,77 @@ function open(): void {
 
 <template>
   <button
-    v-if="book?.access === 'granted' && unit"
+    v-if="props.compact && book?.access === 'granted' && unit"
+    type="button"
+    class="flex h-full w-full flex-col rounded-xl border border-line bg-ink-900 p-3 text-left transition-colors hover:border-brand-500"
+    @click="open"
+  >
+    <span class="flex items-center gap-2">
+      <span class="relative flex size-12 shrink-0 items-center justify-center">
+        <svg
+          viewBox="0 0 44 44"
+          class="absolute inset-0 -rotate-90"
+          aria-hidden="true"
+        >
+          <circle
+            cx="22"
+            cy="22"
+            r="18"
+            fill="none"
+            stroke-width="4"
+            class="stroke-ink-800"
+          />
+          <circle
+            cx="22"
+            cy="22"
+            r="18"
+            fill="none"
+            stroke-width="4"
+            stroke-linecap="round"
+            class="stroke-green-500"
+            :stroke-dasharray="RING"
+            :stroke-dashoffset="RING * (1 - percent / 100)"
+          />
+        </svg>
+        <AppIcon
+          name="book"
+          :size="18"
+          class="text-brand-500"
+        />
+      </span>
+      <span class="text-[10px] font-bold uppercase leading-tight tracking-[1.2px] text-brand-500">Interaktiv darslik</span>
+    </span>
+    <span class="mt-2 line-clamp-2 text-sm font-bold leading-snug text-slate-100">{{ unit.titleUz }}</span>
+    <span class="mb-3 mt-1 text-xs text-slate-400">
+      {{ unit.progress.completed ? 'Bajarildi' : `${unit.progress.blocksDone}/${unit.progress.blocksTotal} blok` }}
+    </span>
+    <span class="mt-auto flex h-9 items-center justify-center rounded-xl bg-brand-500 px-2 text-xs font-semibold text-on-brand">
+      {{ unit.progress.blocksDone > 0 ? 'Davom ettirish' : 'Ochish' }}
+    </span>
+  </button>
+
+  <div
+    v-else-if="props.compact && book?.access === 'upsell'"
+    class="flex h-full flex-col rounded-xl border border-dashed border-line bg-ink-850 p-3"
+  >
+    <span class="flex size-12 items-center justify-center rounded-full bg-ink-800 text-slate-400">
+      <AppIcon
+        name="lock"
+        :size="18"
+      />
+    </span>
+    <span class="mt-2 text-sm font-bold leading-snug text-slate-100">Interaktiv darslik</span>
+    <span class="mb-3 mt-1 text-xs text-slate-400">Mustaqil+ tarifida: audio, mashqlar, harf yozish.</span>
+    <RouterLink
+      :to="{ name: 'student-plans' }"
+      class="mt-auto flex h-9 items-center justify-center rounded-xl border border-line bg-ink-900 text-xs font-semibold text-slate-200 hover:bg-ink-800"
+    >
+      Tariflar
+    </RouterLink>
+  </div>
+
+  <button
+    v-else-if="book?.access === 'granted' && unit"
     type="button"
     class="mt-4 flex w-full items-center gap-3.5 rounded-xl border border-line bg-ink-900 px-4 py-3.5 text-left transition-colors hover:border-brand-500"
     @click="open"
