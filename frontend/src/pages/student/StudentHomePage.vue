@@ -51,10 +51,9 @@ const mood = useStudentMood(now, schedule)
 const course = useStudentCourse()
 
 /*
-  ★ NURI + DARSLIK YONMA-YON (loyiha egasi, 2026-10-31): darslik kartasi
-    chiziladigan bo'lsa (huquq bor yoki Mustaqil+ taklifi), ikkalasi yarim-
-    yarim ixcham ko'rinishda; aks holda Nuri to'liq kenglikda. So'rov kaliti
-    `BookEntryCard` bilan bir xil — kesh umumiy, ikkinchi so'rov ketmaydi.
+  ★ DARSLIK KARTASI NURI OSTIDA (loyiha egasi, 2026-10-31): Nuri kartasi
+    birinchi kadrda to'liq kenglikda turadi, darslik — uning ostida. So'rov
+    kaliti `BookEntryCard` bilan bir xil — kesh umumiy, ikkinchi so'rov ketmaydi.
 */
 const bookQuery = useQuery({
   queryKey: computed(() => interactiveKeys.lesson(course.nextLessonId.value ?? 0)),
@@ -166,24 +165,14 @@ const isSelfStudy = subscription.isSelfStudy
     class="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6"
   >
     <div class="space-y-4 lg:min-w-0">
-      <div
-        v-if="bookVisible && course.nextLessonId.value !== null"
-        class="grid grid-cols-2 items-stretch gap-3"
-      >
-        <MascotMoodCard
-          compact
-          :result="mood.result.value"
-          :live-session-id="mood.liveSessionId.value"
-        />
-        <BookEntryCard
-          compact
-          :lesson-id="course.nextLessonId.value"
-        />
-      </div>
       <MascotMoodCard
-        v-else
         :result="mood.result.value"
         :live-session-id="mood.liveSessionId.value"
+      />
+      <BookEntryCard
+        v-if="bookVisible && course.nextLessonId.value !== null"
+        class="!mt-3"
+        :lesson-id="course.nextLessonId.value"
       />
 
       <SubscriptionStatusCard :data="subscription.data.value" />
@@ -243,25 +232,15 @@ const isSelfStudy = subscription.isSelfStudy
       kengaytirib yuborardi.
     -->
     <div class="lg:min-w-0">
-      <div
-        v-if="bookVisible && course.nextLessonId.value !== null"
-        class="mb-4 grid grid-cols-2 items-stretch gap-3"
-      >
-        <MascotMoodCard
-          compact
-          :result="mood.result.value"
-          :live-session-id="mood.liveSessionId.value"
-        />
-        <BookEntryCard
-          compact
-          :lesson-id="course.nextLessonId.value"
-        />
-      </div>
       <MascotMoodCard
-        v-else
         class="mb-4"
         :result="mood.result.value"
         :live-session-id="mood.liveSessionId.value"
+      />
+      <BookEntryCard
+        v-if="bookVisible && course.nextLessonId.value !== null"
+        class="!-mt-1 mb-4"
+        :lesson-id="course.nextLessonId.value"
       />
 
       <div

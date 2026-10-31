@@ -27,11 +27,6 @@ const props = defineProps<{
   /** `null` — ma'lumot kutilmoqda (skelet). */
   result: MoodResult | null
   liveSessionId: number | null
-  /**
-   * Tik, ixcham ko'rinish — bosh sahifada darslik kartasi bilan YONMA-YON
-   * (yarim kenglik, 2026-10-31). Maskot tepada, matn pastda, tugma to'liq kenglikda.
-   */
-  compact?: boolean
 }>()
 
 /*
@@ -87,62 +82,29 @@ const action = computed<ActionView | null>(() => {
 <template>
   <div
     v-if="result === null"
-    class="h-[118px] animate-pulse rounded-xl border border-line bg-ink-900"
+    class="h-[176px] animate-pulse rounded-xl border border-line bg-ink-900"
   />
 
-  <section
-    v-else-if="props.compact"
-    class="flex h-full flex-col rounded-xl border border-line bg-ink-900 p-3"
-  >
-    <div class="flex items-center gap-2">
-      <div
-        class="flex size-12 shrink-0 items-center justify-center rounded-xl"
-        :class="TINT[result.mood]"
-      >
-        <div class="h-[44px] w-[39px]">
-          <MascotAvatar :mood="result.mood" />
-        </div>
-      </div>
-      <p class="text-[10px] font-bold uppercase tracking-[1.4px] text-slate-400">
-        Nuri
-      </p>
-    </div>
-    <h2
-      class="mt-2 text-sm font-bold leading-snug text-slate-100"
-      v-text="result.title"
-    />
-    <p
-      class="mb-3 mt-1 line-clamp-3 text-xs leading-relaxed text-slate-300"
-      v-text="result.message"
-    />
-    <RouterLink
-      v-if="action !== null"
-      :to="action.to"
-      class="mt-auto flex h-9 select-none items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-2 text-xs font-semibold text-on-brand shadow-xs transition-colors hover:bg-brand-600"
-    >
-      <AppIcon
-        :name="action.icon"
-        :size="14"
-      />
-      <span class="truncate">{{ SHORT_LABELS[action.label] ?? action.label }}</span>
-    </RouterLink>
-  </section>
-
+  <!--
+    ★ TENG IKKI YARIM (loyiha egasi, 2026-10-31): chap yarmi — katta Nuri,
+      o'ng yarmi — gap va tugma. Nuri sahifaning BIRINCHI kadrida, katta
+      bo'lib turishi kerak: u bosh sahifaning "yuzi".
+  -->
   <section
     v-else
-    class="flex items-center gap-3.5 rounded-xl border border-line bg-ink-900 p-[14px] xs:gap-4 lg:p-4"
+    class="grid grid-cols-2 items-center gap-3 overflow-hidden rounded-xl border border-line bg-ink-900 p-3 lg:gap-4 lg:p-4"
   >
     <div
-      class="flex size-[88px] shrink-0 items-center justify-center rounded-2xl transition-colors xs:size-[96px]"
+      class="flex h-full min-h-[150px] items-center justify-center rounded-2xl transition-colors"
       :class="TINT[result.mood]"
     >
       <!-- viewBox nisbati 160×180 — o'ram ham shu nisbatda. -->
-      <div class="h-[80px] w-[71px] xs:h-[88px] xs:w-[78px]">
+      <div class="h-[135px] w-[120px] lg:h-[160px] lg:w-[142px]">
         <MascotAvatar :mood="result.mood" />
       </div>
     </div>
 
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0">
       <p class="text-[10px] font-bold uppercase tracking-[1.4px] text-slate-400">
         Nuri
       </p>
@@ -158,13 +120,13 @@ const action = computed<ActionView | null>(() => {
       <RouterLink
         v-if="action !== null"
         :to="action.to"
-        class="mt-2.5 inline-flex h-9 select-none items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-3 text-xs font-semibold text-on-brand shadow-xs transition-colors hover:bg-brand-600 active:bg-brand-700"
+        class="mt-3 flex h-9 w-full select-none items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-2 text-xs font-semibold text-on-brand shadow-xs transition-colors hover:bg-brand-600 active:bg-brand-700"
       >
         <AppIcon
           :name="action.icon"
           :size="15"
         />
-        {{ action.label }}
+        <span class="truncate">{{ SHORT_LABELS[action.label] ?? action.label }}</span>
       </RouterLink>
     </div>
   </section>
