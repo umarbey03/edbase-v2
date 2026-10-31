@@ -116,7 +116,49 @@ public sealed class LiveRoomControlTests(RoomControlFactory factory)
         factory.Rooms.Removed.Should().Contain($"{room}|{world.Student.Id}");
     }
 
+    /// <summary>
+    /// 🔴 TOKEN TORAYTIRILGAN (2026-10-31): brauzer tokenida `roomAdmin` HECH
+    /// KIMDA yo'q, ma'lumot kanali faqat hostda. O'quvchi baribir efirga
+    /// chiqadi (kamera/mikrofon).
+    /// </summary>
+    [Fact]
+    public async Task JoinTokens_HaveNoRoomAdmin_AndDataOnlyForHost()
+    {
+        var world = await WorldBuilder.CreateAsync(factory, "rctok");
+        var sessionId = await RecordingWorld.AddSessionAsync(factory, world.GroupId, SessionStatus.Live);
+
+        using var student = await WorldBuilder.ClientAsync(factory, world.Student);
+        using var teacher = await WorldBuilder.ClientAsync(factory, world.Teacher);
+
+        var studentGrant = await GrantAsync(student, sessionId);
+        var teacherGrant = await GrantAsync(teacher, sessionId);
+
+        studentGrant.GetProperty("roomAdmin").GetBoolean().Should().BeFalse();
+        studentGrant.GetProperty("canPublishData").GetBoolean().Should().BeFalse();
+        studentGrant.GetProperty("canPublish").GetBoolean().Should().BeTrue();
+
+        teacherGrant.GetProperty("roomAdmin").GetBoolean().Should().BeFalse(
+            "boshqaruv backend orqali — brauzer tokeni host tekshiruvini chetlab o'tmasin");
+        teacherGrant.GetProperty("canPublishData").GetBoolean().Should().BeTrue();
+    }
+
     // ================================================================= yordamchilar
+
+    private static async Task<System.Text.Json.JsonElement> GrantAsync(HttpClient client, long sessionId)
+    {
+        var response = await TokenAsync(client, sessionId);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(response));
+
+        using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var token = body.RootElement.GetProperty("token").GetString()!;
+
+        var payload = token.Split('.')[1].Replace('-', '+').Replace('_', '/');
+        payload = payload.PadRight(payload.Length + ((4 - (payload.Length % 4)) % 4), '=');
+
+        using var claims = System.Text.Json.JsonDocument.Parse(Convert.FromBase64String(payload));
+
+        return claims.RootElement.GetProperty("video").Clone();
+    }
 
     private Task<string> RoomOfAsync(long sessionId) =>
         factory.WithDbAsync(async db =>

@@ -35,7 +35,7 @@ namespace Zinnur.Infrastructure.Services;
 ///   "iss":"&lt;ApiKey&gt;", "sub":"&lt;Identity&gt;", "name":"&lt;DisplayName&gt;",
 ///   "nbf":1730000000, "exp":1730021600,
 ///   "video":{"roomJoin":true,"room":"&lt;RoomName&gt;","canPublish":true,
-///            "canSubscribe":true,"canPublishData":true,"roomAdmin":false}
+///            "canSubscribe":true,"canPublishData":&lt;host&gt;,"roomAdmin":false}
 /// }
 ///
 /// ══════════════════════════════════════════════════════════════════════════
@@ -140,8 +140,30 @@ public sealed class LiveKitTokenService : ILiveKitTokenService
             json.WriteString("room", request.RoomName);
             json.WriteBoolean("canPublish", request.CanPublish);
             json.WriteBoolean("canSubscribe", true);
-            json.WriteBoolean("canPublishData", true);      // chat/signal ma'lumotlari uchun
-            json.WriteBoolean("roomAdmin", request.IsHost); // host xonani boshqara oladi
+
+            // ════════════════════════════════════════════════════════════
+            // 🔴 TOKEN TORAYTIRILDI (2026-10-31, livekit-review 8–9-risklar)
+            //
+            // ★ `canPublishData` — FAQAT HOSTGA. Chat, qo'l ko'tarish va
+            //   presence LiveKit ma'lumot kanali orqali EMAS, SignalR
+            //   (`LiveClassHub`) orqali ishlaydi — frontend'da `publishData`
+            //   umuman yo'q (grep bilan tekshirilgan). O'quvchi, kuzatuvchi
+            //   va yashirin `-monitor` uchun ochiq kanal faqat "soxta signal"
+            //   yuborish imkoniyati edi.
+            //
+            // ★ `roomAdmin` — HECH KIMGA (brauzer tokeni). Brauzer SDK'si
+            //   RoomService'ni chaqirmaydi: mute, chiqarish va xonani yopish
+            //   BACKEND orqali (`ILiveKitRoomControl`, o'z 5 daqiqalik admin
+            //   tokeni bilan). Brauzerdagi `roomAdmin` esa ustoz tokenini
+            //   egallagan har kimga backend'dagi "faqat host" tekshiruvlarini
+            //   CHETLAB o'tib istalgan ishtirokchini chiqarish/mute qilish
+            //   imkonini berardi. Ekran ulashish ruxsati bunga bog'liq EMAS
+            //   (u `canPublish` va UI'da).
+            //
+            //   ORQAGA QAYTISH: shu ikki qatorni `true` / `request.IsHost` ga.
+            // ════════════════════════════════════════════════════════════
+            json.WriteBoolean("canPublishData", request.IsHost);
+            json.WriteBoolean("roomAdmin", false);
             // Ko'rinmas kuzatuvchi: boshqa ishtirokchilar uni umuman ko'rmaydi.
             if (request.Hidden) json.WriteBoolean("hidden", true);
             json.WriteEndObject();

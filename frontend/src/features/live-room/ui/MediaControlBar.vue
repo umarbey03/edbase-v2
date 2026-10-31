@@ -7,7 +7,7 @@ const props = withDefaults(
     isMicOn: boolean
     isCameraOn: boolean
     isScreenSharing: boolean
-    /** Ekran ulashish faqat host uchun (SPEC: `roomAdmin` grant'i hostda). */
+    /** Ekran ulashish: asosiy xonada faqat host, ichki guruhda hamma (UI qarori; 2026-10-31 dan `roomAdmin` brauzer tokenida yo'q). */
     canShareScreen: boolean
     /**
      * KITOB TAXTASI (2026-09-09) — hostda: PDF kitob sahifasini chizma
