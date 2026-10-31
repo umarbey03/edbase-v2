@@ -418,6 +418,8 @@ docker inspect -f '{{json .HostConfig.LogConfig}}' \
 | **7880** | tcp | LiveKit WS / HTTP API | **YO'Q** (tavsiya) | nginx `443 → 127.0.0.1:7880` proxy qiladi. Faqat nginx'siz topologiyada oching |
 | **7881** | tcp | LiveKit **ICE/TCP fallback** | **Ha** | UDP bloklangan tarmoqlarda (korporativ, ba'zi mobil operatorlar) yagona yo'l |
 | **7882** | udp | LiveKit **RTC media (UDP mux)** | **Ha** | **Barcha audio/video shu bitta portdan.** Yopilsa video umuman ishlamaydi |
+| **3478** | udp | LiveKit **TURN/UDP** rele | **Ha** | NAT/qattiq tarmoq ortidagi klientlar uchun. `livekit.prod.yaml` da `turn.udp_port` |
+| 5349 / 5350 / 8443 | tcp | TURN/TLS ichki zanjiri (11.3): LiveKit TURN/TCP, nginx TLS, HTTPS | **YO'Q** | 5350 va 8443 `127.0.0.1` da; 5349 ni LiveKit `0.0.0.0` da ochadi — firewall YOPIQ tutsin |
 | 5432 | tcp | PostgreSQL | **HECH QACHON** | Faqat `zinnur-net` ichida |
 | 6379 | tcp | Redis | **HECH QACHON** | Faqat `zinnur-net` ichida |
 | 8080 | tcp | `api` konteyner ichki porti | Yo'q | nginx `127.0.0.1` orqali |
@@ -454,6 +456,8 @@ sudo ufw allow 443/tcp  comment 'HTTPS app.domen.uz + livekit.domen.uz'
 # 3) LiveKit
 sudo ufw allow 7881/tcp comment 'LiveKit ICE/TCP fallback'
 sudo ufw allow 7882/udp comment 'LiveKit RTC media (UDP mux)'
+sudo ufw allow 3478/udp comment 'LiveKit TURN/UDP'
+# TURN/TLS 443/tcp yuqoridagi 443 qoidasi bilan ochiq (11.3). 5349 OCHILMAYDI.
 # 7880 OCHILMAYDI — nginx 443 -> 127.0.0.1:7880
 
 sudo ufw enable
@@ -2616,6 +2620,116 @@ ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,chann
 # kutilgan: h264 1280x720 15/1 ; aac channels=1 ~64000
 ```
 
+### 11.3. TURN/TLS 443 — qattiq tarmoqlar uchun (QO'LDA, bir marta)
+
+**Nima uchun:** UDP ni bloklaydigan yoki faqat 443/TCP ni o'tkazadigan
+tarmoqlarda (korporativ va jamoat Wi-Fi, ba'zi mobil operatorlar) media
+faqat TCP 7881 ga qoladi, u ham yopiq bo'lsa "xona ochildi, ovoz yo'q".
+TURN/TLS 443 bunday tarmoqdan oddiy HTTPS kabi o'tadi.
+
+**Sxema:** 443 ni host nginx `stream` bloki SNI bo'yicha bo'ladi:
+`turn.<domen>` → nginx TLS ni ochadi (127.0.0.1:5350) → LiveKit TURN/TCP
+(127.0.0.1:5349, `external_tls: true`); qolgan hamma domen →
+127.0.0.1:8443 dagi odatiy HTTPS (`zinnur.conf`). Haqiqiy mijoz IP'si
+`proxy_protocol` orqali o'tadi (rate-limit buzilmaydi). Ikkinchi IP kerak
+emas.
+
+> Kod tomoni xavfsiz: `.env` da `TURN_DOMAIN` bo'sh ekan, LiveKit eski
+> holatda qoladi (faqat TURN/UDP). Quyidagi qadamlar **tartib bilan** va
+> **darslar orasida** bajarilsin (LiveKit qayta ishga tushadi — jonli dars
+> uziladi).
+
+**Tekshiruv ro'yxati:**
+
+1. **DNS.** `turn.<domen>` uchun A-yozuvi (va IPv6 bo'lsa AAAA) — serverning
+   oq IP'si (`livekit.<domen>` bilan AYNI). Cloudflare ishlatilsa: **DNS only
+   (kulrang bulut)**, proxied EMAS — Cloudflare proxy TURN'ni o'tkazmaydi.
+   Tekshirish: `dig +short turn.<domen>` → server IP'si.
+
+2. **Firewall — ikki qatlam.**
+   - `ufw`: 80/tcp, 443/tcp, 7881/tcp, 7882/udp, **3478/udp** ochiq (3.2).
+     5349, 5350, 8443 **ochilmaydi**.
+   - **DigitalOcean Cloud Firewall** (agar panelda droplet'ga biriktirilgan
+     bo'lsa — Networking → Firewalls): Inbound rules'da AYNI ro'yxat:
+     TCP 22 (yoki SSH porti), TCP 80, TCP 443, TCP 7881, UDP 7882,
+     **UDP 3478**. DO firewall'i `ufw` dan OLDIN ishlaydi — u yerda yopiq
+     port `ufw` da ochiq bo'lsa ham kelmaydi. Biriktirilgan firewall
+     bo'lmasa — faqat `ufw` yetarli.
+   - TURN rele portlari (`turn.relay_range_*`, standart 30000–40000/udp)
+     tashqariga ochilmaydi: rele'ning narigi tomoni shu serverdagi
+     LiveKit'ning o'zi.
+
+3. **Sertifikat** (`turn.<domen>` uchun alohida):
+   ```bash
+   # 80-port server bloki shu domenga ham javob bersin (ACME):
+   sudo sed -i 's/livekit.zinnuronline.uz;/livekit.zinnuronline.uz turn.zinnuronline.uz;/' \
+        /etc/nginx/conf.d/zinnur.conf      # domeningizga moslang
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo certbot certonly --webroot -w /var/www/certbot -d turn.<domen>
+   ```
+   Yangilanish 4.4 dagi deploy hook bilan avtomatik (nginx reload).
+
+4. **nginx `stream` moduli bormi:**
+   ```bash
+   ls /etc/nginx/modules-enabled/ | grep -i stream || sudo apt-get install -y libnginx-mod-stream
+   ```
+
+5. **nginx — ikkala o'zgarish BIR VAQTDA** (aks holda `nginx -t` 443
+   "already in use" deb yiqiladi — bu xavfsiz, eski holat ishlayveradi):
+   ```bash
+   cd /opt/zinnur        # loyiha papkasi
+   set -a; . ./.env; set +a
+   export TURN_DOMAIN=turn.<domen>   # .env ga ham yozing (6-qadam)
+   sed "s|__TURN_DOMAIN__|${TURN_DOMAIN}|g" infra/nginx/zinnur-stream.conf \
+       | sudo tee /etc/nginx/zinnur-stream.conf >/dev/null
+   # /etc/nginx/nginx.conf: ENG YUQORI darajaga (http { } dan TASHQARIGA):
+   #     include /etc/nginx/zinnur-stream.conf;
+   # /etc/nginx/conf.d/zinnur.conf: IKKALA 443 server blokida
+   #     listen 443 ssl http2;  +  listen [::]:443 ssl http2;
+   # O'RNIGA ("TURN/443 REJIMI" izohidagi uch qator):
+   #     listen 127.0.0.1:8443 ssl http2 proxy_protocol;
+   #     set_real_ip_from 127.0.0.1;
+   #     real_ip_header   proxy_protocol;
+   sudo nginx -t && sudo systemctl reload nginx
+   curl -sI https://<domen> | head -1          # 200 — sayt ishlayapti
+   ```
+
+6. **LiveKit.** `.env` ga `TURN_DOMAIN=turn.<domen>` yozing va darslar
+   orasida `infra/scripts/deploy.sh` ni yurgizing (u
+   `livekit.prod.generated.yaml` ni `tls_port: 5349`, `domain: turn.<domen>`
+   bilan qayta yasaydi), keyin:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate livekit
+   grep -A6 '^turn:' infra/livekit/livekit.prod.generated.yaml
+   ss -ltnp | grep -E ':(443|5349|5350|8443)\b'   # 443 nginx, 5349 livekit, 5350/8443 nginx (127.0.0.1)
+   ```
+
+7. **Tekshirish.**
+   - TLS: `openssl s_client -connect turn.<domen>:443 -servername turn.<domen> </dev/null 2>/dev/null | grep -E 'subject=|Verify return'`
+     → sertifikat `turn.<domen>` uchun, `Verify return code: 0 (ok)`.
+   - Sayt IP'lari: api logida mijoz IP'lari 127.0.0.1 EMAS, haqiqiy IP.
+   - **Trickle ICE:** https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
+     — TURN serverni qo'shing: `turns:turn.<domen>:443?transport=tcp`,
+     username/credential esa LiveKit bergan qiymat (brauzerda darsga kirib,
+     DevTools → `chrome://webrtc-internals` → `iceServers` dan oling;
+     ular vaqtinchalik). "Gather candidates" → `relay` turidagi nomzod
+     chiqishi kerak.
+   - Haqiqiy sinov: telefonda Wi-Fi'ni o'chirib, UDP ni bloklaydigan
+     tarmoqdan (yoki `chrome://webrtc-internals` da faqat `relay` juftlik)
+     darsga kiring — video va ovoz kelishi kerak.
+
+**Orqaga qaytish:** `.env` dan `TURN_DOMAIN` ni bo'shating → `deploy.sh`
+(LiveKit eski holatga). nginx: `include` qatorini o'chiring, `listen 443`
+larni qaytaring, `nginx -t && reload`.
+
+### 11.4. Video obuna chegarasi 12 → 24
+
+`limit.subscription_limit_video: 24` (prod va dev). 12 o'quvchi kamerasi
+yoqilgach ustoz ekran ulashsa, ba'zi o'quvchilarda ekran obuna bo'lmay
+qolardi. Klient ham ustozning treklarini birinchi navbatda obuna qiladi
+(`useLiveKitRoom.ts`). Serverda: `deploy.sh` + livekit'ni darslar orasida
+qayta yaratish (11.3, 6-qadam).
+
 ---
 
 ## Ilova A — SPEC bo'yicha risklar
@@ -2640,7 +2754,7 @@ bog'liq.
 | **3** | **`LIVEKIT_KEYS=devkey: …`** | `devkey` — LiveKit misollaridagi ommaviy qiymat. Secret sizib chiqsa, kimdir **istalgan xonaga host huquqi bilan** kiradi | ✅ **MAJBURLANADI (2026-08-22).** `ProductionSecretsGuard` `Production` da `devkey` ni ko'rsa ilovani ISHGA TUSHIRMAYDI. Kalit nomini 7.1 bo'yicha yarating |
 | **4** | ~~**LiveKit token TTL 6 soat**~~ (SPEC 4-bo'lim) | ~~Guruhdan chiqarilgan o'quvchi **6 soat davomida** xonaga kira oladi~~ | ✅ **HAL QILINGAN (2026-08-22).** Muddat endi darsga bog'langan: `LiveSessionService.JoinTokenTtl` = dars tugashi + 30 daqiqa (eng kami 15 daq, eng ko'pi 6 soat). Zaxira qiymat ham 6 → 2 soatga tushirildi. ⚠️ Tavsiyaning ikkinchi yarmi — **xona tugaganda LiveKit API orqali yopish** — hali BAJARILMAGAN |
 | **5** | ~~**Recording uchun `egress` xizmati yo'q**~~ | Backend'da yozuv TO'LIQ yozilgan edi (FAZA 5.3), lekin yozuvni BAJARADIGAN xizmat compose'da yo'q edi. Oqibati: `api` "yozuvni boshla" deb so'rardi, LiveKit "egress xizmati javob bermadi" derdi, dars esa o'z yo'lida davom etardi — ya'ni **yozuv hech qachon paydo bo'lmasdi va buni hech kim sezmasdi** | ✅ **YOPILDI (2026-08-24).** `livekit-egress` xizmati qo'shildi (dev + prod), fayl to'g'ridan **R2** ga yoziladi (7.1.2). Kvota: `EGRESS_CPUS=3.0` ≈ **2 parallel yozuv**. 8 vCPU serverda bir vaqtda **ko'pi bilan 2-3 yozuv** |
-| **6** | **TURN yo'q** | 7881 TCP fallback ko'p holatni qoplaydi, lekin faqat 443'ga ruxsat beradigan qattiq korporativ proxy ortidan ulanib bo'lmaydi | LiveKit'ning ichki TURN'ini yoqish. **Lekin 443 nginx tomonidan band** — TURN/TLS uchun alohida IP yoki 5349 port kerak |
+| **6** | **TURN yo'q** | 7881 TCP fallback ko'p holatni qoplaydi, lekin faqat 443'ga ruxsat beradigan qattiq korporativ proxy ortidan ulanib bo'lmaydi | 🟡 **KOD TAYYOR (2026-10-31).** TURN/TLS 443 nginx `stream` SNI orqali (`infra/nginx/zinnur-stream.conf`, `TURN_DOMAIN`). Serverdagi qo'lda qadamlar — 11.3 |
 | **7** | **Redis bitta instance, uch vazifada** (kesh + presence + SignalR backplane) | `maxmemory` bosimi yoki `allkeys-lru` presence'ni **jimgina** o'chiradi → davomat buziladi | `volatile-lru` yoki `noeviction` (6.3); kelajakda ajratish |
 | **8** | **Connection string'da pool sozlamasi yo'q** | Npgsql default `Maximum Pool Size=100`; ikkinchi `api` replikasi qo'shilsa `too many clients` | `Maximum Pool Size=40` (6.2) |
 | **9** | **`Cors__AllowedOrigins__0=http://localhost:5173`** | Prod'da qolib ketsa — frontend API'ga ulanolmaydi (yoki xavfsizlik teshigi) | ✅ **MAJBURLANADI (2026-08-22).** `ProductionSecretsGuard` `Production` da `localhost` / `127.0.0.1` / `0.0.0.0` / `::1` ni ko'rsa ilova ko'tarilmaydi. `.env` da `https://app.domen.uz` (7.1) |

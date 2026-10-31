@@ -35,7 +35,10 @@
 #     YONIDA turadi va prod'da uning O'RNIGA ulanadi. Ikkalasining amaldagi
 #     sozlamalari AYNI bo'lishi kerak — pastdagi `webhook:` blokidan boshqa.
 #
-#     TEKSHIRUV (chiqishda FAQAT `webhook:` bloki qo'shilgan bo'lishi shart):
+#     ⚠️ 2026-10-31 DAN: `turn:` bloki ham farq qiladi (prod'da TURN/TLS
+#        shablon qiymatlari va `external_tls: true`). Boshqa farq bo'lmasin.
+#
+#     TEKSHIRUV (chiqishda FAQAT `webhook:` va `turn:` bloklari farq qilsin):
 #       diff <(grep -vE '^\s*#|^\s*$' infra/livekit/livekit.yaml) \
 #            <(grep -vE '^\s*#|^\s*$' infra/livekit/livekit.prod.yaml)
 # =============================================================================
@@ -77,17 +80,30 @@ redis:
 
 
 # --- TURN ---
-# Dev fayli bilan AYNI. ⚠️ `domain: localhost` bu yerda ham qoldi va bu
-# BILIB QOLDIRILDI: prod'da TURN allaqachon shu sozlama bilan ishlab turibdi
-# (`tls_port: 0`, ya'ni faqat UDP rele). Uni to'g'rilash — media serverning
-# ulanish yo'lini o'zgartirish, ya'ni ALOHIDA ish va alohida sinov.
-# Yozuv webhook'ini yoqish bilan bir kommitda qilinmaydi.
+# ★ 2026-10-31: TURN/TLS 443 (livekit-review 1-risk, P0). UDP ni bloklaydigan
+#   yoki faqat 443/TCP ni o'tkazadigan tarmoqlarda media shu yo'ldan o'tadi.
+#
+#   Ikki qiymat `deploy.sh` da `.env` dagi `TURN_DOMAIN` dan qo'yiladi:
+#     • TURN_DOMAIN bor   -> tls_port: 5349, domain: <TURN_DOMAIN>
+#     • TURN_DOMAIN bo'sh -> tls_port: 0,    domain: localhost  (ESKI holat:
+#                            faqat TURN/UDP 3478) — ya'ni DNS/sertifikat
+#                            tayyor bo'lmaguncha hech narsa o'zgarmaydi.
+#
+#   ★ `external_tls: true`: TLS ni HOST nginx ochadi
+#     (`infra/nginx/zinnur-stream.conf`, 443 -> SNI -> 127.0.0.1:5350 -> 5349),
+#     LiveKit 5349 da OCHIQ TURN/TCP kutadi. Bu rejimda LiveKit klientlarga
+#     `turns:<domain>:443?transport=tcp` ni e'lon qiladi — ya'ni 5349 ni
+#     tashqariga OCHMANG (firewall'da yopiq qolsin).
+#     Nega TLS LiveKit'da emas: sertifikat yangilanganda LiveKit'ni qayta
+#     ishga tushirish kerak bo'lardi — bu jonli darslarni uzadi.
+#
+#   ⚠️ Dev fayli (`livekit.yaml`) da TURN/TLS O'CHIQ qoladi (tls_port: 0).
 turn:
   enabled: true
-  tls_port: 0
+  tls_port: __TURN_TLS_PORT__
   udp_port: 3478
-  domain: localhost
-  external_tls: false
+  domain: __TURN_DOMAIN__
+  external_tls: true
 
 
 # --- XONA ---
@@ -105,7 +121,12 @@ room:
 
 # --- CHEGARALAR ---
 limit:
-  subscription_limit_video: 12
+  # ★ 2026-10-31: 12 -> 24 (livekit-review 2-risk). Limit "faol so'zlovchi"
+  #   ustuvorligini BILMAYDI — obunalar kelish tartibida egallanadi. 12 o'quvchi
+  #   kamerasi yoqilgach ustoz ekran ulashsa, ba'zi o'quvchilarda EKRAN obuna
+  #   bo'lmay qolardi (qora katak). O'quvchi kamerasi 240p/150k, adaptiveStream
+  #   ko'rinmayotganini pauza qiladi — 24 ning narxi past. Dev fayli bilan AYNI.
+  subscription_limit_video: 24
   subscription_limit_audio: 0
   num_tracks: -1
   bytes_per_sec: 0

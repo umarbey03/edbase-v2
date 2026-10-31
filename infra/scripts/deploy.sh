@@ -53,6 +53,7 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
 log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m  ✓ %s\033[0m\n' "$*"; }
 fail() { printf '\033[1;31m  ✗ %s\033[0m\n' "$*" >&2; }
+warn() { printf '\033[1;33m  ! %s\033[0m\n' "$*"; }
 
 trap 'fail "Deploy TO'\''XTADI (satr $LINENO). Tizim eski holatida qolgan bo'\''lishi mumkin — docker compose ps bilan tekshiring."' ERR
 
@@ -110,12 +111,31 @@ if [[ -z "${LIVEKIT_API_KEY:-}" ]]; then
     exit 1
 fi
 
-sed "s|__LIVEKIT_API_KEY__|${LIVEKIT_API_KEY}|" "$LK_TEMPLATE" > "$LK_GENERATED"
+# ★ TURN/TLS 443 (2026-10-31): `TURN_DOMAIN` bo'lsa yoqiladi, bo'sh bo'lsa
+#   ESKI holat (faqat TURN/UDP). Domen TEKSHIRILADI — sed ichiga tushadigan
+#   qiymat faqat oddiy hostname bo'lsin (`|`, bo'shliq va hokazo emas).
+if [[ -n "${TURN_DOMAIN:-}" ]]; then
+    if [[ ! "$TURN_DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
+        fail ".env dagi TURN_DOMAIN yaroqsiz: '$TURN_DOMAIN'"
+        exit 1
+    fi
+    LK_TURN_DOMAIN="$TURN_DOMAIN"
+    LK_TURN_TLS_PORT="5349"
+else
+    warn "TURN_DOMAIN bo'sh — TURN/TLS 443 O'CHIQ (faqat TURN/UDP 3478). DEPLOY_UBUNTU 11.3."
+    LK_TURN_DOMAIN="localhost"
+    LK_TURN_TLS_PORT="0"
+fi
+
+sed -e "s|__LIVEKIT_API_KEY__|${LIVEKIT_API_KEY}|" \
+    -e "s|__TURN_DOMAIN__|${LK_TURN_DOMAIN}|" \
+    -e "s|__TURN_TLS_PORT__|${LK_TURN_TLS_PORT}|" \
+    "$LK_TEMPLATE" > "$LK_GENERATED"
 
 # Shablon almashtirilmay qolgan bo'lsa (masalan kimdir belgini o'zgartirgan)
 # LiveKit ko'tariladi-yu, webhook JIMGINA ishlamasdi. Balandlashtiramiz.
-if grep -q '__LIVEKIT_API_KEY__' "$LK_GENERATED"; then
-    fail "$LK_GENERATED da hali ham __LIVEKIT_API_KEY__ turibdi."
+if grep -qE '__(LIVEKIT_API_KEY|TURN_DOMAIN|TURN_TLS_PORT)__' "$LK_GENERATED"; then
+    fail "$LK_GENERATED da almashtirilmagan shablon belgisi qoldi."
     exit 1
 fi
 ok "$LK_GENERATED tayyor (webhook api_key = .env dagi LIVEKIT_API_KEY)"
