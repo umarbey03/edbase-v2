@@ -86,6 +86,17 @@ public interface ILiveSessionService
         CancellationToken ct = default);
 
     /// <summary>
+    /// O'quvchini jonli darsdan CHIQARADI (2026-10-31) — faqat host, faqat
+    /// JONLI darsda, faqat O'QUVCHINI. Shu darsga qayta token berilmaydi
+    /// (dars davomida), asosiy va ichki guruh xonasidan uziladi.
+    /// </summary>
+    Task RemoveParticipantAsync(
+        long sessionId,
+        long targetUserId,
+        long actorId,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Brauzerning diagnostika hodisalarini LOGGA yozadi (bazaga emas) —
     /// har hodisa bitta qator. Ruxsat — <see cref="CreateJoinTokenAsync"/>
     /// dagi AYNI a'zolik/host tekshiruvi, lekin qarzdorlik darvozasi va dars

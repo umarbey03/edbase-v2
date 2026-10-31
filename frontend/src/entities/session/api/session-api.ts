@@ -129,6 +129,9 @@ export function postLiveClientEvents(
 /** Ustoz o'chira oladigan oqim turi (server enum'i, satr ko'rinishida). */
 export type ParticipantMediaSource = 'Microphone' | 'Camera'
 
+/** Ustoz amali katakchada: oqimni o'chirish yoki o'quvchini darsdan chiqarish (2026-10-31). */
+export type ModerationAction = ParticipantMediaSource | 'Remove'
+
 /**
  * `POST /api/v1/live-sessions/{id}/participants/{userId}/mute` (2026-09-09).
  *
@@ -146,4 +149,14 @@ export function muteParticipant(
   source: ParticipantMediaSource,
 ): Promise<void> {
   return http.post<void>(`${BASE}/${sessionId}/participants/${userId}/mute`, { source })
+}
+
+/**
+ * `POST /api/v1/live-sessions/{id}/participants/{userId}/remove` (2026-10-31).
+ *
+ * Ustoz O'QUVCHINI jonli darsdan chiqaradi: LiveKit xonasidan uziladi va shu
+ * dars davomida qayta token olmaydi (server 403). Xodimni chiqarib bo'lmaydi.
+ */
+export function removeParticipant(sessionId: number, userId: number): Promise<void> {
+  return http.post<void>(`${BASE}/${sessionId}/participants/${userId}/remove`)
 }

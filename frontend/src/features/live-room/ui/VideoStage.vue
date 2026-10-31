@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-import type { ParticipantMediaSource } from '@/entities/session'
+import type { ModerationAction } from '@/entities/session'
 import { roleLabel } from '@/entities/user'
 import { useBreakpoint } from '@/shared/lib/useBreakpoint'
 import type { UserRoleName } from '@/shared/types'
@@ -46,7 +46,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: []
-  moderate: [userId: number, source: ParticipantMediaSource]
+  moderate: [userId: number, action: ModerationAction]
 }>()
 
 /*
@@ -256,13 +256,20 @@ function canModerateTile(tile: ParticipantTile): boolean {
   return props.canModerate && !tile.isLocal && !tile.isScreenShare && tile.userId !== null
 }
 
-function isModerating(tile: ParticipantTile, source: ParticipantMediaSource): boolean {
-  return tile.userId !== null && props.moderating.has(`${tile.userId}:${source}`)
+/** "Darsdan chiqarish" — faqat O'QUVCHI katagida (server ham xodimni rad etadi). */
+function canRemoveTile(tile: ParticipantTile): boolean {
+  return (
+    canModerateTile(tile) && tile.userId !== null && props.roleByUserId.get(tile.userId) === 'Student'
+  )
 }
 
-function moderate(tile: ParticipantTile, source: ParticipantMediaSource): void {
+function isModerating(tile: ParticipantTile, action: ModerationAction): boolean {
+  return tile.userId !== null && props.moderating.has(`${tile.userId}:${action}`)
+}
+
+function moderate(tile: ParticipantTile, action: ModerationAction): void {
   if (tile.userId === null) return
-  emit('moderate', tile.userId, source)
+  emit('moderate', tile.userId, action)
 }
 
 const isBusyState = computed(() => props.status === 'loading' || props.status === 'connecting')
@@ -319,9 +326,12 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
           :can-moderate="canModerateTile(mainTile)"
           :mic-moderating="isModerating(mainTile, 'Microphone')"
           :camera-moderating="isModerating(mainTile, 'Camera')"
+          :can-remove="canRemoveTile(mainTile)"
+          :removing="isModerating(mainTile, 'Remove')"
           :quality="mainTile.quality"
           @mute-mic="moderate(mainTile, 'Microphone')"
           @camera-off="moderate(mainTile, 'Camera')"
+          @remove="moderate(mainTile, 'Remove')"
         />
       </div>
 
@@ -358,9 +368,12 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
             :can-moderate="canModerateTile(tile)"
             :mic-moderating="isModerating(tile, 'Microphone')"
             :camera-moderating="isModerating(tile, 'Camera')"
+            :can-remove="canRemoveTile(tile)"
+            :removing="isModerating(tile, 'Remove')"
             :quality="tile.quality"
             @mute-mic="moderate(tile, 'Microphone')"
             @camera-off="moderate(tile, 'Camera')"
+            @remove="moderate(tile, 'Remove')"
           />
         </div>
         <div
@@ -516,9 +529,12 @@ const isErrorState = computed(() => props.status === 'failed' || props.status ==
             :can-moderate="canModerateTile(tile)"
             :mic-moderating="isModerating(tile, 'Microphone')"
             :camera-moderating="isModerating(tile, 'Camera')"
+            :can-remove="canRemoveTile(tile)"
+            :removing="isModerating(tile, 'Remove')"
             :quality="tile.quality"
             @mute-mic="moderate(tile, 'Microphone')"
             @camera-off="moderate(tile, 'Camera')"
+            @remove="moderate(tile, 'Remove')"
           />
         </div>
         <div

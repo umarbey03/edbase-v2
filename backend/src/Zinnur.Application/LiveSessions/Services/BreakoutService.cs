@@ -186,6 +186,10 @@ public sealed class BreakoutService(
             number = RoomOf(state, userId)
                 ?? throw new ConflictException("Siz hech qaysi guruhda emassiz — asosiy xonada qoling.");
 
+            // ★ Ustoz chiqargan o'quvchi ichki guruhga ham kirmaydi (2026-10-31).
+            if (await LiveRoomRemoval.IsRemovedAsync(cache, sessionId, userId, ct))
+                throw new ForbiddenException(LiveRoomRemoval.RemovedMessage);
+
             await paymentBlock.EnsureAllowedAsync(userId, PaymentBlockScope.Live, ct);
         }
         else
@@ -258,7 +262,14 @@ public sealed class BreakoutService(
     private static bool IsStudent(PresenceEntry entry) =>
         string.Equals(entry.Role, nameof(UserRole.Student), StringComparison.Ordinal);
 
-    private static string Key(long sessionId) =>
+    private static string Key(long sessionId) => StateKey(sessionId);
+
+    /// <summary>
+    /// Ichki guruhlar holatining Redis kaliti. <c>public</c> — dars tugaganda
+    /// <c>LiveSessionService</c> ochiq guruh xonalarini shu yerdan topib
+    /// yopadi (2026-10-31).
+    /// </summary>
+    public static string StateKey(long sessionId) =>
         $"breakout:{sessionId.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>LiveKit xona nomi. Asosiy xona nomidan yasaladi — begona darsga to'qnashmaydi.</summary>

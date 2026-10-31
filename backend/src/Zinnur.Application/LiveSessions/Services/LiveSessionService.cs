@@ -14,6 +14,8 @@ using Zinnur.Application.Payments.Services;
 using Zinnur.Application.Penalties.Services;
 using Zinnur.Application.Recordings.Services;
 using Zinnur.Application.Scheduling.Services;
+using Zinnur.Application.Settings;
+using Zinnur.Application.Settings.Services;
 using Zinnur.Application.Telegram;
 using Zinnur.Domain.Common;
 using Zinnur.Domain.Entities;
@@ -38,6 +40,8 @@ public sealed class LiveSessionService(
     INotificationOutbox outbox,
     IPresenceService presence,
     IPenaltyService penalties,
+    ICacheService cache,
+    ISettingsResolver settings,
     ILogger<LiveSessionService> logger,
     TimeProvider clock) : ILiveSessionService
 {
@@ -556,7 +560,78 @@ public sealed class LiveSessionService(
             LiveSessionLog.PresenceClearFailed(logger, ex, sessionId);
         }
 
+        // ★ XONANI YOPISH (2026-10-31) — xabar va presence'dan KEYIN: o'quvchi
+        //   avval "dars tugadi" ekranini oladi, keyin media uziladi. Teskari
+        //   tartibda u bir lahza "ulanish uzildi, qayta ulanmoqda" ko'rardi.
+        await CloseRoomsAsync(session, ct);
+
         return Map(session, isHost: true, await ResolveHostNameAsync(session, ct));
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// DARS TUGAGACH LIVEKIT XONASINI YOPISH (2026-10-31)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 🔴 MUAMMO (livekit-review 3-risk, DEPLOY_UBUNTU Ilova A 4-risk):
+    /// dars yakunlansa ham xona ochiq qolardi va token yana 30 daqiqa amal
+    /// qilardi — o'quvchilar dars tugagach NAZORATSIZ xonada qolishi mumkin
+    /// edi (yozuvsiz, kuzatuvsiz). Endi asosiy xona VA ichki guruh xonalari
+    /// (<c>{xona}-b{n}</c>) darhol yopiladi.
+    ///
+    /// ★ HECH QACHON YIQILMAYDI: dars bazada allaqachon yakunlangan, pul
+    ///   hisoblangan. LiveKit javob bermasa xona baribir oxirgi odam
+    ///   chiqqach 5 daqiqada o'zi yopiladi (<c>empty_timeout</c>) — ya'ni
+    ///   nosozlik faqat logda.
+    ///
+    /// ★ ICHKI GURUHLAR HOLATI REDIS'DAN (<c>BreakoutService.StateKey</c>):
+    ///   ochiq guruhlar soni faqat u yerda ma'lum.
+    /// </summary>
+    private async Task CloseRoomsAsync(LiveSession session, CancellationToken ct)
+    {
+        try
+        {
+            if (!await CloseRoomOnEndAsync(ct)) return;
+
+            var stateKey = BreakoutService.StateKey(session.Id);
+            var breakouts = await cache.GetAsync<BreakoutState>(stateKey, ct);
+
+            if (breakouts is not null)
+            {
+                foreach (var room in breakouts.Rooms)
+                {
+                    await DeleteRoomAsync(
+                        BreakoutService.RoomName(session.RoomName, room.Number), session.Id, ct);
+                }
+
+                await cache.RemoveAsync(stateKey, ct);
+            }
+
+            await DeleteRoomAsync(session.RoomName, session.Id, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LiveSessionLog.RoomCloseFailed(logger, ex, session.Id, session.RoomName);
+        }
+    }
+
+    private async Task DeleteRoomAsync(string roomName, long sessionId, CancellationToken ct)
+    {
+        var result = await roomControl.DeleteRoomAsync(roomName, ct);
+
+        if (!result.Succeeded)
+            LiveSessionLog.RoomCloseRejected(logger, sessionId, roomName, result.Error ?? "?");
+    }
+
+    /// <summary>Panel kaliti <c>livekit.close_room_on_end</c>; o'qib bo'lmasa — YOQIQ (xavfsiz tomon).</summary>
+    private async Task<bool> CloseRoomOnEndAsync(CancellationToken ct)
+    {
+        if (!SettingsRegistry.TryGet(SettingsRegistry.Keys.LiveKitCloseRoomOnEnd, out var definition))
+            return true;
+
+        var resolved = await settings.ResolveAsync(definition, ct);
+
+        return !SettingValueParser.TryReadBool(resolved.Value, out var enabled) || enabled;
     }
 
     /// <summary>
@@ -654,6 +729,14 @@ public sealed class LiveSessionService(
         // Faqat O'QUVCHIGA: ustoz va kurator o'z darsiga hech qachon
         // bloklanmaydi. Qarzsiz o'quvchi uchun bu bitta indeksli
         // `SUM` so'rovi (`IX_Payments_StudentId_Status`).
+        // ★ USTOZ CHIQARGAN O'QUVCHI (2026-10-31) — shu dars davomida qayta
+        //   token olmaydi. Belgi Redis'da, dars uzunligidan uzoq yashaydi.
+        if (!host && user.Role == UserRole.Student
+            && await LiveRoomRemoval.IsRemovedAsync(cache, sessionId, user.Id, ct))
+        {
+            throw new ForbiddenException(LiveRoomRemoval.RemovedMessage);
+        }
+
         if (!host && user.Role == UserRole.Student)
             await paymentBlock.EnsureAllowedAsync(user.Id, PaymentBlockScope.Live, ct);
 
@@ -768,6 +851,68 @@ public sealed class LiveSessionService(
             targetUserId.ToString(CultureInfo.InvariantCulture),
             source,
             ct);
+
+        if (!result.Succeeded)
+            throw new ConflictException(result.Error ?? "Video xizmati amalni bajarmadi.");
+    }
+
+    /// <summary>
+    /// O'quvchini jonli darsdan CHIQARISH (2026-10-31).
+    ///
+    /// ★ RUXSAT — <see cref="MuteParticipantAsync"/> bilan AYNI (host).
+    /// ★ FAQAT O'QUVCHI: xodimni (kurator, boshqa ustoz, kuzatuvchi admin)
+    ///   chiqarib bo'lmaydi — ular darsni boshqarish huquqiga ega va
+    ///   "bir-birini chiqarish" chalkashlikdan boshqa narsa bermaydi.
+    /// ★ TARTIB: AVVAL belgi (qayta token yo'q), KEYIN uzish. Teskarisi
+    ///   bo'lsa o'quvchi uzilgan lahzada yangi token olib qaytib kirardi.
+    /// ⚠️ Eski token bekor bo'lmaydi (LiveKit cheklovi) — izoh:
+    ///   <see cref="ILiveKitRoomControl.RemoveParticipantAsync"/>.
+    /// </summary>
+    public async Task RemoveParticipantAsync(
+        long sessionId,
+        long targetUserId,
+        long actorId,
+        CancellationToken ct = default)
+    {
+        var (session, actor) = await LoadAndAuthorizeAsync(sessionId, actorId, ct);
+
+        if (!IsHost(session, actor))
+            throw new ForbiddenException("Ishtirokchilarni faqat darsning ustozi boshqara oladi.");
+
+        if (session.Status != SessionStatus.Live)
+            throw new ConflictException("Dars hozir jonli emas.");
+
+        if (targetUserId == actorId)
+            throw new ConflictException("O'zingizni darsdan chiqara olmaysiz.");
+
+        var targetRole = await db.Users.AsNoTracking()
+            .Where(u => u.Id == targetUserId)
+            .Select(u => (UserRole?)u.Role)
+            .FirstOrDefaultAsync(ct);
+
+        if (targetRole is null)
+            throw new NotFoundException("Foydalanuvchi", targetUserId);
+
+        if (targetRole != UserRole.Student)
+            throw new ConflictException("Darsdan faqat o'quvchini chiqarish mumkin.");
+
+        await LiveRoomRemoval.MarkRemovedAsync(cache, sessionId, targetUserId, ct);
+
+        var identity = targetUserId.ToString(CultureInfo.InvariantCulture);
+
+        // Ichki guruhda bo'lsa — u yerdan ham (o'quvchi bir vaqtda faqat
+        // bittasida, lekin ikkalasini so'rash arzon va idempotent).
+        var breakouts = await cache.GetAsync<BreakoutState>(BreakoutService.StateKey(sessionId), ct);
+
+        if (breakouts?.Rooms.FirstOrDefault(r => r.StudentIds.Contains(targetUserId)) is { } room)
+        {
+            await roomControl.RemoveParticipantAsync(
+                BreakoutService.RoomName(session.RoomName, room.Number), identity, ct);
+        }
+
+        var result = await roomControl.RemoveParticipantAsync(session.RoomName, identity, ct);
+
+        LiveSessionLog.ParticipantRemoved(logger, sessionId, targetUserId, actorId);
 
         if (!result.Succeeded)
             throw new ConflictException(result.Error ?? "Video xizmati amalni bajarmadi.");
@@ -1461,4 +1606,23 @@ internal static partial class LiveSessionLog
         Level = LogLevel.Warning,
         Message = "Dars yakunida presence tozalanmadi: dars={SessionId}")]
     internal static partial void PresenceClearFailed(ILogger logger, Exception exception, long sessionId);
+
+    /// <summary>Dars yakunida LiveKit xonasini yopishda kutilmagan xato (xona 5 daqiqada o'zi yopiladi).</summary>
+    [LoggerMessage(
+        EventId = 6670,
+        Level = LogLevel.Warning,
+        Message = "Dars yakunida xona yopilmadi: dars={SessionId}, xona={Room}")]
+    internal static partial void RoomCloseFailed(ILogger logger, Exception exception, long sessionId, string room);
+
+    [LoggerMessage(
+        EventId = 6671,
+        Level = LogLevel.Warning,
+        Message = "Dars yakunida LiveKit xonani yopishni rad etdi: dars={SessionId}, xona={Room}: {Error}")]
+    internal static partial void RoomCloseRejected(ILogger logger, long sessionId, string room, string error);
+
+    [LoggerMessage(
+        EventId = 6672,
+        Level = LogLevel.Information,
+        Message = "O'quvchi darsdan chiqarildi: dars={SessionId}, o'quvchi={StudentId}, kim={ActorId}")]
+    internal static partial void ParticipantRemoved(ILogger logger, long sessionId, long studentId, long actorId);
 }

@@ -99,6 +99,57 @@ public sealed class LiveKitRoomControlClient(
         return RoomControlResult.Ok();
     }
 
+    /// <inheritdoc />
+    public async Task<RoomControlResult> RemoveParticipantAsync(
+        string roomName, string identity, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(roomName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+
+        var keys = liveKit.Current;
+
+        if (!IsConfigured(keys))
+            return RoomControlResult.Fail("Video xizmati sozlanmagan (`LiveKit:*`).");
+
+        var result = await CallAsync(
+            "RemoveParticipant", BuildParticipantPayload(roomName, identity), keys, roomName, ct)
+            .ConfigureAwait(false);
+
+        // ★ Allaqachon yo'q — natija kerakli holatda (idempotent).
+        if (!result.Succeeded && !result.NotFound)
+            return RoomControlResult.Fail(result.Error!);
+
+        RoomControlLog.Removed(logger, roomName, identity, result.NotFound);
+
+        return RoomControlResult.Ok();
+    }
+
+    /// <inheritdoc />
+    public async Task<RoomControlResult> DeleteRoomAsync(string roomName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(roomName);
+
+        var keys = liveKit.Current;
+
+        if (!IsConfigured(keys))
+            return RoomControlResult.Fail("Video xizmati sozlanmagan (`LiveKit:*`).");
+
+        var result = await CallAsync("DeleteRoom", BuildRoomPayload(roomName), keys, roomName, ct)
+            .ConfigureAwait(false);
+
+        if (!result.Succeeded && !result.NotFound)
+            return RoomControlResult.Fail(result.Error!);
+
+        RoomControlLog.RoomDeleted(logger, roomName, result.NotFound);
+
+        return RoomControlResult.Ok();
+    }
+
+    private static bool IsConfigured(LiveKitOptions keys) =>
+        !string.IsNullOrWhiteSpace(keys.ApiKey)
+        && !string.IsNullOrWhiteSpace(keys.ApiSecret)
+        && !string.IsNullOrWhiteSpace(keys.Url);
+
     // ================================================================= Twirp
 
     private async Task<TwirpResponse> CallAsync(
@@ -151,6 +202,11 @@ public sealed class LiveKitRoomControlClient(
             if (response.IsSuccessStatusCode)
                 return TwirpResponse.Ok(body);
 
+            // ★ "Topilmadi" — o'chirish/chiqarish uchun MUVAFFAQIYAT (idempotent).
+            //   Twirp `not_found` -> HTTP 404; eski versiyalar matnda aytadi.
+            if (IsNotFound(body, (int)response.StatusCode))
+                return TwirpResponse.Missing(TwirpMessage(body, (int)response.StatusCode));
+
             RoomControlLog.CallRejected(logger, method, (int)response.StatusCode, Trim(body));
 
             return TwirpResponse.Fail(TwirpMessage(body, (int)response.StatusCode));
@@ -183,6 +239,20 @@ public sealed class LiveKitRoomControlClient(
             json.WriteStartObject();
             json.WriteString("room", roomName);
             json.WriteString("identity", identity);
+            json.WriteEndObject();
+        }
+
+        return buffer.WrittenSpan.ToArray();
+    }
+
+    private static byte[] BuildRoomPayload(string roomName)
+    {
+        var buffer = new ArrayBufferWriter<byte>(initialCapacity: 96);
+
+        using (var json = new Utf8JsonWriter(buffer))
+        {
+            json.WriteStartObject();
+            json.WriteString("room", roomName);
             json.WriteEndObject();
         }
 
@@ -352,16 +422,54 @@ public sealed class LiveKitRoomControlClient(
     private static string Trim(string value) =>
         value.Length <= MaxErrorLength ? value : value[..MaxErrorLength];
 
-    private readonly record struct TwirpResponse(bool Succeeded, string? Body, string? Error)
+    /// <summary>
+    /// Xona yoki ishtirokchi YO'Q degan javobmi. Twirp <c>not_found</c> ->
+    /// HTTP 404; matn ham tekshiriladi ("does not exist" / "not found"),
+    /// chunki LiveKit ba'zi versiyalarda boshqa kod bilan qaytaradi.
+    /// </summary>
+    internal static bool IsNotFound(string? body, int status)
+    {
+        if (status == 404) return true;
+
+        if (string.IsNullOrWhiteSpace(body)) return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return false;
+
+            if (document.RootElement.TryGetProperty("code", out var code)
+                && code.ValueKind == JsonValueKind.String
+                && string.Equals(code.GetString(), "not_found", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return document.RootElement.TryGetProperty("msg", out var msg)
+                && msg.ValueKind == JsonValueKind.String
+                && msg.GetString() is { } text
+                && (text.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("not found", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private readonly record struct TwirpResponse(bool Succeeded, string? Body, string? Error, bool NotFound = false)
     {
         public static TwirpResponse Ok(string? body) => new(true, body, null);
 
         public static TwirpResponse Fail(string error) => new(false, null, error);
+
+        public static TwirpResponse Missing(string error) => new(false, null, error, NotFound: true);
     }
 }
 
 /// <summary>
-/// Manba-generatsiyali log metodlari (CA1848). EventId makoni: <c>6630–6639</c>.
+/// Manba-generatsiyali log metodlari (CA1848). EventId makoni: <c>6630–6634</c>, <c>6650–6651</c>.
 /// 🔴 TOKEN HECH QACHON YOZILMAYDI.
 /// </summary>
 internal static partial class RoomControlLog
@@ -391,6 +499,18 @@ internal static partial class RoomControlLog
         Level = LogLevel.Error,
         Message = "Xona boshqaruvi: LiveKit'ga ulanib bo'lmadi — metod={Method}")]
     internal static partial void CallFailed(ILogger logger, Exception exception, string method);
+
+    [LoggerMessage(
+        EventId = 6650,
+        Level = LogLevel.Information,
+        Message = "Xona boshqaruvi: ishtirokchi chiqarildi — xona={Room}, identity={Identity}, allaqachon_yo'q={Absent}")]
+    internal static partial void Removed(ILogger logger, string room, string identity, bool absent);
+
+    [LoggerMessage(
+        EventId = 6651,
+        Level = LogLevel.Information,
+        Message = "Xona boshqaruvi: xona yopildi — xona={Room}, allaqachon_yo'q={Absent}")]
+    internal static partial void RoomDeleted(ILogger logger, string room, bool absent);
 
     [LoggerMessage(
         EventId = 6634,

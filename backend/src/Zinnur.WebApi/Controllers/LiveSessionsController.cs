@@ -170,6 +170,23 @@ public sealed class LiveSessionsController(
     }
 
     /// <summary>
+    /// O'quvchini jonli darsdan CHIQARISH (2026-10-31). Faqat host, faqat
+    /// o'quvchini; shu dars davomida qayta token berilmaydi. Ruxsat va
+    /// "aynan shu dars" tekshiruvi servis ichida (mute bilan AYNI).
+    /// </summary>
+    [HttpPost("{id:long}/participants/{userId:long}/remove")]
+    [Authorize(Roles = "Teacher,Assistant,Academic,Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RemoveParticipant(long id, long userId, CancellationToken ct)
+    {
+        await sessions.RemoveParticipantAsync(id, userId, CurrentUserId, ct);
+        return NoContent();
+    }
+
+    /// <summary>
     /// KLIENT DIAGNOSTIKASI (2026-09-14): brauzer jonli darsdagi ulanish
     /// hodisalarini paket qilib yuboradi, har hodisa bitta strukturali LOG
     /// qatori bo'ladi. Bazaga YOZILMAYDI. Nima uchun kerakligi —

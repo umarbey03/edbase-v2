@@ -471,6 +471,27 @@ public static class SettingsRegistry
 
         new()
         {
+            Key = "livekit.close_room_on_end",
+            Group = SettingGroup.LiveKit,
+            DisplayName = "Dars tugaganda xonani yopish",
+            Description =
+                "Yoqilgan bo'lsa dars yakunlanganda (ustoz tugmasi yoki avto-yakunlash) "
+                + "LiveKit xonasi va uning ichki guruh xonalari DARHOL yopiladi — hamma "
+                + "ishtirokchi uziladi. O'chirilsa xona oxirgi odam chiqqandan 5 daqiqa "
+                + "keyin o'zi yopiladi (eski xatti-harakat), ya'ni tokeni hali amal "
+                + "qilayotgan o'quvchi dars tugagach ham xonada qolishi mumkin.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+
+            // ★ 2026-10-31: STANDART — YOQIQ (livekit-review 3-risk, DEPLOY_UBUNTU
+            //   Ilova A 4-risk). Kalit faqat ORQAGA QAYTISH yo'li: xona yopilishi
+            //   yozuv egress'ini ham tugatadi (u xona yopilganda faylni yakunlaydi);
+            //   kutilmagan nosozlik ko'rinsa deploysiz o'chirish mumkin.
+            DefaultValue = "true",
+        },
+
+        new()
+        {
             Key = "livekit.cloud_url",
             Group = SettingGroup.LiveKit,
             DisplayName = "Cloud: loyiha manzili",
@@ -1595,6 +1616,9 @@ public static class SettingsRegistry
 
         // 2026-09-21: LiveKit Cloud — zaxira yo'l (sabab registrda).
         public const string LiveKitProvider = "livekit.provider";
+
+        /// <summary>Dars tugaganda LiveKit xonasini (va ichki guruhlarni) yopish (2026-10-31).</summary>
+        public const string LiveKitCloseRoomOnEnd = "livekit.close_room_on_end";
         public const string LiveKitCloudUrl = "livekit.cloud_url";
         public const string LiveKitCloudApiKey = "livekit.cloud_api_key";
         public const string LiveKitCloudApiSecret = "livekit.cloud_api_secret";
