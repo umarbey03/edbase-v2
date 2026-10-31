@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
 import { useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
+import { ClassroomModal } from '@/features/classroom'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
+import MilliyPaymentCard from '@/features/student-payment/ui/MilliyPaymentCard.vue'
 import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
 import { formatPhone } from '@/shared/lib/phone'
 import { AppIcon, BaseButton } from '@/shared/ui'
@@ -27,6 +30,21 @@ const actions = useStudentShellActions()
 const subscription = useMySubscription()
 // Mehmonda ball ham, reyting ham yo'q — karta boshi berk ko'chaga olib borardi.
 const { isGuest } = useShopMe()
+
+/*
+  ★ MILLIY (GURUH) O'QUVCHISI (2026-10-31): unga ham shu sahifa — avatar
+    varag'idagi «Profil va to'lovlar» orqali (pastki menyuda 5 tab band).
+    Unda obuna yo'q, o'rniga to'lov kartasi (balans, nechta darsga yetadi,
+    qarz) va «Guruhim» — ustoz, kurator, guruhdoshlar.
+*/
+const isGroupStudent = computed(() =>
+  !isGuest.value && subscription.isLoaded.value && !subscription.isSelfStudy.value,
+)
+const classroomOpen = ref(false)
+const router = useRouter()
+function goPay(): void {
+  void router.push({ name: 'student-plans' })
+}
 
 const fullName = computed(() => auth.user?.fullName ?? '')
 const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
@@ -65,6 +83,12 @@ const avatarUrl = useAvatar(
           class="text-sm text-slate-400"
           v-text="phone"
         />
+        <p
+          v-if="isGroupStudent"
+          class="mt-1 inline-flex rounded-full bg-brand-500/12 px-2.5 py-0.5 text-[11px] font-bold text-brand-300"
+        >
+          Milliy tarif
+        </p>
       </div>
       <BaseButton
         variant="secondary"
@@ -85,6 +109,38 @@ const avatarUrl = useAvatar(
       show-history
     />
 
+    <template v-if="isGroupStudent && auth.user !== null">
+      <MilliyPaymentCard
+        :student-id="auth.user.id"
+        @pay="goPay"
+      />
+
+      <button
+        type="button"
+        class="group flex min-h-11 w-full items-center gap-3 rounded-xl border border-line bg-ink-900 p-[15px] text-left transition-colors hover:border-line-strong hover:bg-ink-800"
+        @click="classroomOpen = true"
+      >
+        <span
+          class="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-300"
+          aria-hidden="true"
+        >
+          <AppIcon
+            name="users"
+            :size="20"
+          />
+        </span>
+        <span class="min-w-0 flex-1">
+          <b class="block text-base">Guruhim</b>
+          <span class="block text-xs text-dim">Asosiy ustoz, support teacher, guruhdoshlar</span>
+        </span>
+        <AppIcon
+          name="chevron-right"
+          :size="20"
+          class="shrink-0 text-dim"
+        />
+      </button>
+    </template>
+
     <MyPointsCard v-if="!isGuest" />
 
     <button
@@ -98,5 +154,11 @@ const avatarUrl = useAvatar(
       />
       Chiqish
     </button>
+
+    <ClassroomModal
+      v-if="isGroupStudent"
+      :open="classroomOpen"
+      @close="classroomOpen = false"
+    />
   </div>
 </template>

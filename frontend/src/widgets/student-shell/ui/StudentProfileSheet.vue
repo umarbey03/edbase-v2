@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useAvatar } from '@/entities/user'
 import type { User } from '@/entities/user'
@@ -25,6 +26,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ close: []; logout: []; edit: [] }>()
+
+// To'liq profil sahifasi: to'lov, guruh, natijalar (2026-10-31).
+const router = useRouter()
+function openFullProfile(): void {
+  emit('close')
+  void router.push({ name: 'student-profile' })
+}
 
 const fullName = computed(() => props.user?.fullName ?? '')
 const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
@@ -188,6 +196,22 @@ const phone = computed(() => {
             :size="16"
           />
           Tahrirlash
+        </span>
+      </BaseButton>
+
+      <BaseButton
+        class="mt-2.5"
+        variant="secondary"
+        size="lg"
+        block
+        @click="openFullProfile"
+      >
+        <span class="inline-flex items-center gap-2">
+          <AppIcon
+            name="wallet"
+            :size="16"
+          />
+          Profil va to‘lovlar
         </span>
       </BaseButton>
 
