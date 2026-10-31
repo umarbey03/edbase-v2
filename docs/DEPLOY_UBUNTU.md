@@ -2726,9 +2726,16 @@ larni qaytaring, `nginx -t && reload`.
 
 `limit.subscription_limit_video: 24` (prod va dev). 12 o'quvchi kamerasi
 yoqilgach ustoz ekran ulashsa, ba'zi o'quvchilarda ekran obuna bo'lmay
-qolardi. Klient ham ustozning treklarini birinchi navbatda obuna qiladi
-(`useLiveKitRoom.ts`). Serverda: `deploy.sh` + livekit'ni darslar orasida
-qayta yaratish (11.3, 6-qadam).
+qolardi. Serverda: `deploy.sh` + livekit'ni darslar orasida qayta yaratish
+(11.3, 6-qadam).
+
+> **Keyingi qadam (hali QILINMAGAN, ataylab):** klientda
+> `autoSubscribe: false` va ustozning kamera/ekran/ovoz treklariga MAJBURIY
+> obuna, o'quvchi kameralariga esa faqat ko'rinayotgan kataklar uchun
+> (`useLiveKitRoom.ts`, `connect(..., { autoSubscribe: true })`). Bu obuna
+> tartibini to'liq klientga o'tkazadi va jonli LiveKit bilan sinovsiz
+> chiqarilmaydi. 24 ta limit 25 kishilik guruhda amalda yetadi; muammo
+> qaytsa — shu ish birinchi.
 
 ---
 
