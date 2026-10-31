@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import {
   currentPeriod,
@@ -9,9 +9,11 @@ import {
   isOutgoingTransaction,
   transactionKindLabel,
 } from '@/entities/payment'
+import { fetchShopOffers } from '@/entities/shop'
 import { formatDateNumeric } from '@/shared/lib/datetime'
 import { formatMoney } from '@/shared/lib/money'
-import { AppIcon, BaseSpinner } from '@/shared/ui'
+import { showToast } from '@/shared/lib/useToast'
+import { AppIcon, BaseModal, BaseSpinner } from '@/shared/ui'
 
 /**
  * ══════════════════════════════════════════════════════════════════════════
@@ -31,8 +33,7 @@ import { AppIcon, BaseSpinner } from '@/shared/ui'
  *   darsdan kam qolsa — sariq, to'lash tugmasi bilan. Qarz bo'lsa — qizil.
  *   Ayblash yo'q: nima qilish kerakligi aytiladi.
  */
-const props = defineProps<{ studentId: number }>()
-const emit = defineEmits<{ pay: [] }>()
+const props = defineProps<{ studentId: number, fullName: string, phone: string }>()
 
 /** Milliy paketi — loyiha egasi belgilagan narx (`landing/model/content.ts` PRICE). */
 const PACKAGE_LESSONS = 8
@@ -75,6 +76,33 @@ const tone = computed<Tone>(() => {
   if (left < PACKAGE_LESSONS) return 'soon'
   return 'ok'
 })
+
+/*
+  ★ TO'LASH — RAHMAT HAVOLASI (loyiha egasi, 2026-10-31). Havola sozlamadan
+    (`sales.rahmat_url`) keladi. To'lov avtomatik bog'lanmaydi: xodim
+    pulni o'quvchiga yozadi, shuning uchun izohga ism va telefon
+    yozilishi so'raladi — nusxa olish tugmasi bilan.
+*/
+const offersQuery = useQuery({
+  queryKey: ['shop', 'offers'],
+  queryFn: ({ signal }) => fetchShopOffers({ signal }),
+  staleTime: 5 * 60_000,
+})
+const rahmatUrl = computed(() => offersQuery.data.value?.rahmatUrl ?? null)
+const payOpen = ref(false)
+const payAmount = computed(() => {
+  const a = account.value
+  return a !== null && a.debt > 0 ? a.debt : PACKAGE_PRICE
+})
+const payNote = computed(() => `${props.fullName}, ${props.phone}`)
+async function copyNote(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(payNote.value)
+    showToast('Nusxa olindi', 'success')
+  } catch {
+    showToast('Nusxa olib bo‘lmadi — qo‘lda yozing', 'error')
+  }
+}
 
 const recent = computed(() => (account.value?.recentTransactions ?? []).slice(0, 5))
 </script>
@@ -178,13 +206,22 @@ const recent = computed(() => (account.value?.recentTransactions ?? []).slice(0,
           v-if="tone === 'debt' || tone === 'low'"
           type="button"
           class="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-bold text-on-brand hover:bg-brand-600"
-          @click="emit('pay')"
+          @click="payOpen = true"
         >
           To‘lash
           <AppIcon
             name="chevron-right"
             :size="16"
           />
+        </button>
+
+        <button
+          v-if="tone === 'soon' || tone === 'ok'"
+          type="button"
+          class="mt-3 text-sm font-semibold text-brand-400 underline underline-offset-2"
+          @click="payOpen = true"
+        >
+          Oldindan to‘lash
         </button>
 
         <p class="mt-4 text-xs text-slate-400">
@@ -213,5 +250,68 @@ const recent = computed(() => (account.value?.recentTransactions ?? []).slice(0,
         </li>
       </ul>
     </template>
+
+    <BaseModal
+      :open="payOpen"
+      title="To‘lov qilish"
+      @close="payOpen = false"
+    >
+      <p class="text-sm text-slate-300">
+        To‘lov summasi: <b class="text-slate-100">{{ formatMoney(payAmount) }} so‘m</b>
+        <span v-if="account !== null && account.debt === 0">({{ PACKAGE_LESSONS }} ta dars)</span>
+      </p>
+
+      <ol class="mt-4 space-y-3 text-sm text-slate-300">
+        <li class="flex gap-2.5">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-300">1</span>
+          <span class="min-w-0 flex-1">
+            To‘lov izohiga ism va telefon raqamingizni yozing:
+            <button
+              type="button"
+              class="mt-1.5 flex w-full items-center justify-between gap-2 rounded-lg bg-ink-950 px-3 py-2 text-left ring-1 ring-inset ring-line"
+              @click="copyNote"
+            >
+              <span
+                class="min-w-0 truncate font-semibold text-slate-100"
+                v-text="payNote"
+              />
+              <AppIcon
+                name="clipboard"
+                :size="15"
+                class="shrink-0 text-slate-400"
+              />
+            </button>
+          </span>
+        </li>
+        <li class="flex gap-2.5">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-300">2</span>
+          <span>Rahmat orqali to‘lang — karta yoki Payme/Click ilovasidan.</span>
+        </li>
+        <li class="flex gap-2.5">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-300">3</span>
+          <span>To‘lov tekshirilgach balansingiz shu yerda yangilanadi (ish vaqtida odatda 1 soat ichida).</span>
+        </li>
+      </ol>
+
+      <a
+        v-if="rahmatUrl !== null"
+        :href="rahmatUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 text-base font-bold text-on-brand hover:bg-brand-600"
+      >
+        Rahmat orqali to‘lash
+        <AppIcon
+          name="chevron-right"
+          :size="17"
+        />
+      </a>
+      <p
+        v-else
+        class="mt-5 text-sm text-slate-400"
+      >
+        To‘lov havolasi hali sozlanmagan — o‘quv bo‘limiga murojaat qiling.
+      </p>
+    </BaseModal>
   </section>
 </template>

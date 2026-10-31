@@ -1354,6 +1354,22 @@ public static class SettingsRegistry
             Source = SettingSource.Database,
             ConfigurationKey = "Sales:ClickUrl",
         },
+
+        // ★ RAHMAT (2026-10-31, loyiha egasi): Milliy o'quvchisi profilidagi
+        //   «To'lash» tugmasi shu havolaga olib boradi. Standart qiymat — markaz
+        //   kassasining hozirgi havolasi; almashsa, shu yerdan o'zgartiriladi.
+        new()
+        {
+            Key = "sales.rahmat_url",
+            Group = SettingGroup.Sales,
+            DisplayName = "Rahmat to'lov havolasi",
+            Description = "Milliy o'quvchilari profildagi «To'lash» orqali shu havolada to'laydi. Bo'sh bo'lsa tugma ko'rinmaydi.",
+            Kind = SettingValueKind.Text,
+            Format = SettingFormat.Url,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Sales:RahmatUrl",
+            DefaultValue = "https://l.rhmt.uz/cRxlRe",
+        },
     ];
 
     /// <summary>
@@ -1494,6 +1510,7 @@ public static class SettingsRegistry
         public const string SalesPaymentInstructions = "sales.payment_instructions";
         public const string SalesPaymeUrl = "sales.payme_url";
         public const string SalesClickUrl = "sales.click_url";
+        public const string SalesRahmatUrl = "sales.rahmat_url";
 
         // ---------------------------------------------------------------- R5: yozuv ko'rinishi
         //

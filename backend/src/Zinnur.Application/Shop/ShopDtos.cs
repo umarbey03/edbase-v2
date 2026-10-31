@@ -19,7 +19,8 @@ public sealed record ShopOffersDto(
     IReadOnlyList<ShopPlanDto> Plans,
     string? PaymentInstructions,
     string? PaymeUrl,
-    string? ClickUrl);
+    string? ClickUrl,
+    string? RahmatUrl = null);
 
 public sealed record ShopOrderDto(
     long Id,

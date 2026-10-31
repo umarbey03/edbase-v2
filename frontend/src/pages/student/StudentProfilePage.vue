@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 
 import { useShopMe } from '@/entities/shop'
 import { useMySubscription } from '@/entities/subscription'
@@ -41,10 +40,6 @@ const isGroupStudent = computed(() =>
   !isGuest.value && subscription.isLoaded.value && !subscription.isSelfStudy.value,
 )
 const classroomOpen = ref(false)
-const router = useRouter()
-function goPay(): void {
-  void router.push({ name: 'student-plans' })
-}
 
 const fullName = computed(() => auth.user?.fullName ?? '')
 const initial = computed(() => (fullName.value.trim()[0] ?? '?').toUpperCase())
@@ -112,7 +107,8 @@ const avatarUrl = useAvatar(
     <template v-if="isGroupStudent && auth.user !== null">
       <MilliyPaymentCard
         :student-id="auth.user.id"
-        @pay="goPay"
+        :full-name="fullName"
+        :phone="phone"
       />
 
       <button

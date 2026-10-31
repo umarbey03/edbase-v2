@@ -26,6 +26,8 @@ export interface ShopOffersDto {
   paymentInstructions: string | null
   paymeUrl: string | null
   clickUrl: string | null
+  /** Milliy to'lovi uchun Rahmat havolasi (2026-10-31). */
+  rahmatUrl: string | null
 }
 
 export interface ShopOrderDto {

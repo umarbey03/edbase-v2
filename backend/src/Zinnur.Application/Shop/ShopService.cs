@@ -109,7 +109,8 @@ public sealed class ShopService(
         var values = await settings.ResolveManyAsync(
             [Definition(SettingsRegistry.Keys.SalesPaymentInstructions),
              Definition(SettingsRegistry.Keys.SalesPaymeUrl),
-             Definition(SettingsRegistry.Keys.SalesClickUrl)],
+             Definition(SettingsRegistry.Keys.SalesClickUrl),
+             Definition(SettingsRegistry.Keys.SalesRahmatUrl)],
             ct);
 
         return new ShopOffersDto(
@@ -118,7 +119,8 @@ public sealed class ShopService(
                 p.IncludesInteractiveBook)),
             Blank(values[0].Value),
             Blank(values[1].Value),
-            Blank(values[2].Value));
+            Blank(values[2].Value),
+            Blank(values[3].Value));
     }
 
     // ================================================================ o'quvchi
