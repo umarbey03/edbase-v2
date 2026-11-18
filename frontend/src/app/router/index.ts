@@ -335,6 +335,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Vazifalar', roles: STAFF },
       },
       {
+        // Mustaqil o'quvchilar (2026-11-18): kurator o'z o'quvchilarini, o'quv
+        // bo'limi esa kuratorsiz qolganlarini ham ko'radi.
+        path: 'ustoz/mustaqil',
+        name: 'teacher-self-study',
+        component: () => import('@/pages/teacher/TeacherSelfStudyPage.vue'),
+        meta: { title: 'Mustaqil o‘quvchilar', roles: STAFF_AND_MANAGERS },
+      },
+      {
         // Guruh tafsilotini o'quv bo'limi ham ochadi (guruhlar ro'yxatidan).
         path: 'ustoz/guruh/:groupId(\\d+)',
         name: 'teacher-group',

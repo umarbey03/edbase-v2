@@ -3045,6 +3045,66 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("RecordingTracks", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.SelfStudyCuratorAssignment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("AssignedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("BackupCuratorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("CuratorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("EndedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedById");
+
+                    b.HasIndex("EndedById");
+
+                    b.HasIndex("StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SelfStudyCuratorAssignments_ActiveStudent")
+                        .HasFilter(" \"EndedAt\" IS NULL ");
+
+                    b.HasIndex("BackupCuratorId", "EndedAt")
+                        .HasDatabaseName("IX_SelfStudyCuratorAssignments_BackupCuratorId_EndedAt");
+
+                    b.HasIndex("CuratorId", "EndedAt")
+                        .HasDatabaseName("IX_SelfStudyCuratorAssignments_CuratorId_EndedAt");
+
+                    b.ToTable("SelfStudyCuratorAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SelfStudyCuratorAssignments_BackupDiffers", "\"BackupCuratorId\" IS NULL OR \"BackupCuratorId\" <> \"CuratorId\"");
+
+                            t.HasCheckConstraint("CK_SelfStudyCuratorAssignments_NotSelf", "\"StudentId\" <> \"CuratorId\"");
+                        });
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionCoverageRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -5496,6 +5556,43 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Recording");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SelfStudyCuratorAssignment", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "BackupCurator")
+                        .WithMany()
+                        .HasForeignKey("BackupCuratorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Curator")
+                        .WithMany()
+                        .HasForeignKey("CuratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("EndedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BackupCurator");
+
+                    b.Navigation("Curator");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionCoverageRequest", b =>

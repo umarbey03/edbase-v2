@@ -143,7 +143,9 @@ public sealed partial class PhoneLoginEndpointsTests(TelegramApiFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var body = await response.Content.ReadAsStringAsync();
+        // ★ JSON matni EMAS, o'qilgan qiymat: serializer apostrofni unicode-escape
+        //   qilib kodlaydi va xom satrda "ro'yxatda" hech qachon uchramaydi.
+        var body = await Zinnur.IntegrationTests.Api.ProblemText.ReadAsync(response);
         body.Should().Contain("ro'yxatda yo'q",
             "foydalanuvchi kod kutib o'tirmasligi uchun sabab AYNIQSA aytilishi kerak");
     }

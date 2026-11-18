@@ -87,6 +87,7 @@ public sealed class SubscriptionService(
     ISubscriptionAccess access,
     IGatingService gating,
     IPaymentService payments,
+    SelfStudy.ISelfStudyCuratorService selfStudyCurators,
     TimeProvider clock) : ISubscriptionService
 {
     // ================================================================ rejalar
@@ -515,6 +516,10 @@ public sealed class SubscriptionService(
                     period.UpdatedAt = now;
                 }
             }
+
+            // ★ Guruhga o'tgach mas'ul guruh o'rindig'idan keladi: mustaqil
+            //   kurator biriktirishi shu tranzaksiyada yopiladi (tarix qoladi).
+            await selfStudyCurators.EndForGroupTransferAsync(studentId, actor.Id, token);
 
             await db.SaveChangesAsync(token);
 

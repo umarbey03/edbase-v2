@@ -11,6 +11,7 @@ import {
   roleLabel,
   roleTone,
 } from '@/entities/user'
+import { fetchStudentSubscriptions } from '@/entities/subscription'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import LessonChargesDialog from '@/features/payment-actions/ui/LessonChargesDialog.vue'
 import RecordPaymentDialog from '@/features/payment-actions/ui/RecordPaymentDialog.vue'
@@ -18,6 +19,7 @@ import ReversePaymentDialog from '@/features/payment-actions/ui/ReversePaymentDi
 import StaffGroupsSection from '@/features/staff-profile/ui/StaffGroupsSection.vue'
 import StaffPayrollSection from '@/features/staff-profile/ui/StaffPayrollSection.vue'
 import StudentNotesSection from '@/features/student-notes/ui/StudentNotesSection.vue'
+import StudentCuratorSection from '@/features/self-study-curator/ui/StudentCuratorSection.vue'
 import StudentSubscriptionSection from '@/features/subscription/ui/StudentSubscriptionSection.vue'
 import { toUserMessage } from '@/shared/api'
 import type { UserRoleName } from '@/shared/types'
@@ -152,6 +154,20 @@ const student = computed(() =>
 */
 const canUnlink = computed(() => isManagerRole(auth.role ?? ''))
 const canManageMoney = computed(() => isAdminRole(auth.role ?? ''))
+
+/*
+  KURATOR BO'LIMI (2026-11-18) faqat Mustaqil o'quvchida: obuna davrlari
+  `StudentSubscriptionSection` bilan AYNI kalitdan o'qiladi, ya'ni ikkinchi
+  so'rov ketmaydi — kesh umumiy.
+*/
+const subscriptionsQuery = useQuery({
+  queryKey: computed(() => ['subscriptions', 'student', props.userId]),
+  queryFn: ({ signal }) => fetchStudentSubscriptions(props.userId as number, { signal }),
+  enabled: computed(() => canUnlink.value && props.userId !== null),
+})
+const hasSubscription = computed(() =>
+  (subscriptionsQuery.data.value ?? []).some((period) => period.cancelledAt === null),
+)
 
 /*
   🔴 KONTAKT USTOZDAN KESILGAN (talab R27) — bu YO'QLIK, "yashirish" emas:
@@ -361,6 +377,13 @@ function openGroup(groupId: number): void {
           <StudentSubscriptionSection
             v-if="canUnlink && props.userId !== null"
             :student-id="props.userId"
+          />
+
+          <!-- Mustaqil o'quvchining kuratori (2026-11-18). -->
+          <StudentCuratorSection
+            v-if="canUnlink && props.userId !== null"
+            :student-id="props.userId"
+            :has-subscription="hasSubscription"
           />
 
           <!-- 3 ---------------------------------------------------- guruhlar -->

@@ -127,6 +127,7 @@ const TEACHER_NAV: NavItem[] = [
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
   { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
+  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
   { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
 ]
@@ -170,6 +171,7 @@ const ASSISTANT_NAV: NavItem[] = [
   { routeName: 'teacher-curator', label: 'Kuratorlik', icon: 'user-check' },
   { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
+  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
   { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
   { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
 ]
@@ -210,6 +212,8 @@ const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-applications', label: 'Arizalar', icon: 'note' },
   // Onlayn buyurtmalar (2026-10-29) — arizalar yonida: ikkalasi ham saytdan keladi.
   { routeName: 'manage-orders', label: 'Buyurtmalar', icon: 'clipboard' },
+  // Mustaqil o'quvchilar kuratori (2026-11-18): buyurtmalardan keyin — yangi o'quvchiga shu yerda kurator beriladi.
+  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
   /*
     Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda

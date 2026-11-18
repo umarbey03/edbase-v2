@@ -1300,10 +1300,21 @@ public sealed class AssignmentService(
     {
         var groupIds = StaffGroupIds(staffId, duty, assignmentOverride);
 
+        // ★ MUSTAQIL O'QUVCHILAR (2026-11-18): guruhsiz, kuratori bevosita
+        //   biriktirilgan. Asosiy VA zaxira kurator — har uch vazifada
+        //   (ko'rish, tekshirish, savol): zaxira asosiy yo'qligida ishni
+        //   to'xtatmasin. Vazifa darajasidagi o'rindiq istisnosi
+        //   (`assignmentOverride`) bu yerda ma'nosiz — o'rindiq yo'q.
+        var selfStudy = db.SelfStudyCuratorAssignments
+            .AsNoTracking()
+            .Where(SelfStudyCuratorAssignment.ActiveFor(staffId))
+            .Select(a => a.StudentId);
+
         return db.GroupMembers
             .AsNoTracking()
             .Where(m => m.Status == MemberStatus.Active && groupIds.Contains(m.GroupId))
-            .Select(m => m.StudentId);
+            .Select(m => m.StudentId)
+            .Concat(selfStudy);
     }
 
     /// <summary>Xodim mas'ul bo'lgan guruhlar (ichma-ich so'rov sifatida).</summary>

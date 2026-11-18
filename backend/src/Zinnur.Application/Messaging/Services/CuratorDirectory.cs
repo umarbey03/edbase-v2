@@ -59,6 +59,16 @@ public sealed class CuratorDirectory(IApplicationDbContext db) : ICuratorDirecto
             }
         }
 
+        // ★ MUSTAQIL O'QUVCHI (2026-11-18): guruhi yo'q, kuratori esa
+        //   to'g'ridan-to'g'ri biriktirilgan. Yozishmada faqat ASOSIY kurator
+        //   suhbatdosh — zaxira kurator alohida suhbat ochmaydi.
+        var selfStudyCuratorId = await db.SelfStudyCuratorAssignments.AsNoTracking()
+            .Where(a => a.StudentId == studentId && a.EndedAt == null)
+            .Select(a => (long?)a.CuratorId)
+            .FirstOrDefaultAsync(ct);
+        if (selfStudyCuratorId is { } curatorId && !ordered.Contains(curatorId))
+            ordered.Add(curatorId);
+
         if (ordered.Count == 0) return [];
 
         var users = await db.Users.AsNoTracking()
@@ -117,9 +127,17 @@ public sealed class CuratorDirectory(IApplicationDbContext db) : ICuratorDirecto
             .Where(StaffResponsibility.Predicate(staffId, StaffDuty.Questions))
             .Select(g => g.Id);
 
+        // ★ Mustaqil o'quvchilar ham — faqat ASOSIY kurator sifatida
+        //   (`ResolveRespondersAsync` bilan AYNI qoida, aks holda juftlik
+        //   bir tomondan ruxsat, ikkinchi tomondan rad bo'lardi).
+        var selfStudy = db.SelfStudyCuratorAssignments.AsNoTracking()
+            .Where(SelfStudyCuratorAssignment.ActiveFor(staffId, includeBackup: false))
+            .Select(a => a.StudentId);
+
         return await db.GroupMembers.AsNoTracking()
             .Where(m => groupIds.Contains(m.GroupId) && m.Status == MemberStatus.Active)
             .Select(m => m.StudentId)
+            .Concat(selfStudy)
             .Distinct()
             .ToListAsync(ct);
     }

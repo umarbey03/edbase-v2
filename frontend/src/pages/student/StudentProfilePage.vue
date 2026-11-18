@@ -6,6 +6,7 @@ import { useMySubscription } from '@/entities/subscription'
 import { useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { ClassroomModal } from '@/features/classroom'
+import { MyCuratorCard } from '@/features/self-study-curator'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
 import MilliyPaymentCard from '@/features/student-payment/ui/MilliyPaymentCard.vue'
 import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
@@ -103,6 +104,9 @@ const avatarUrl = useAvatar(
       :data="subscription.data.value"
       show-history
     />
+
+    <!-- Mustaqil o'quvchining kuratori (2026-11-18). -->
+    <MyCuratorCard v-if="subscription.data.value?.hasSubscription === true && !isGroupStudent" />
 
     <template v-if="isGroupStudent && auth.user !== null">
       <MilliyPaymentCard
