@@ -19,7 +19,7 @@ import StudentSubHeader from '@/widgets/student-shell/ui/StudentSubHeader.vue'
  *   ichida skroll" bo'lardi. Telegram "orqaga" tugmasi marshrut tarixi bilan
  *   darsga qaytaradi; `?b=A3` — joriy blok (havola berish mumkin).
  * ★ `oquv/` ostida — "O'quv" bandi yonib turadi; mehmon `GUEST_ROUTES` bo'yicha
- *   Tariflarga ketadi; `GROUP_ONLY_ROUTES` ga QO'SHILMAGAN (Mustaqil+ ham ochadi).
+ *   Tariflarga ketadi; `GROUP_ONLY_ROUTES` ga QO'SHILMAGAN (darslikli Mustaqil ham ochadi).
  * 🔴 Himoya SERVERDA: huquqsiz o'quvchiga birlik 404 (borligi ham aytilmaydi),
  *   bu sahifa faqat holatni ko'rsatadi.
  */
@@ -118,11 +118,11 @@ function backToLesson(): void {
         class="mx-auto text-slate-400"
       />
       <p class="mt-3 text-[15px] font-bold">
-        {{ access === 'upsell' ? 'Interaktiv darslik Mustaqil+ tarifida' : 'Bu darsda interaktiv darslik yo‘q' }}
+        {{ access === 'upsell' ? 'Interaktiv darslik yangi Mustaqil tarifida' : 'Bu darsda interaktiv darslik yo‘q' }}
       </p>
       <p class="mt-[7px] text-[13px] leading-relaxed text-slate-400">
         {{ access === 'upsell'
-          ? 'Audio, mashqlar, harf yozish va mini-test — Mustaqil+ tarifiga o‘tsangiz ochiladi.'
+          ? 'Audio, mashqlar, harf yozish va mini-test — keyingi oy to‘lovida ochiladi.'
           : 'Darslik hali bu darsga ulanmagan yoki dars yopiq.' }}
       </p>
       <div class="mt-4 flex flex-wrap justify-center gap-2">

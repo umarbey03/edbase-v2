@@ -194,7 +194,7 @@ const routes: RouteRecordRaw[] = [
           ★ INTERAKTIV DARSLIK (2026-10-29) — dars ichidagi to'liq ekranli
           marshrut. `oquv/` ostida: "O'quv" bandi yonib turadi; mehmon
           `GUEST_ROUTES` bo'yicha Tariflarga ketadi. `GROUP_ONLY_ROUTES` ga
-          QO'SHILMAYDI — Mustaqil+ o'quvchisi ham ochadi (huquq serverda).
+          QO'SHILMAYDI — darslikli Mustaqil o'quvchisi ham ochadi (huquq serverda).
           `?b=A3` — joriy blok.
         */
         path: 'oquv/dars/:lessonId(\\d+)/darslik',

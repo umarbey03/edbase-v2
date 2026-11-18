@@ -943,7 +943,7 @@ export const BOOKS = {
     'Respublikaning istalgan viloyatiga — uyingizga eng yaqin Uzpost pochtasiga',
     '5–7 kun ichida yetkaziladi',
     'Milliy tarifda qo‘shimcha — alohida pul olinmaydi',
-    // ★ Ekranni yomonlamaydi: Mustaqil+ ning o'zi interaktiv darslik sotadi.
+    // ★ Ekranni yomonlamaydi: Mustaqilning o'zida interaktiv darslik bor.
     'Qog‘oz kitob qo‘lingizda — darsni ekransiz ham takrorlaysiz',
   ],
 } as const
@@ -979,7 +979,6 @@ export const PRICE = {
   */
   titleSingle: 'Kurs to‘lovi',
   titleTwo: 'Ikki xil o‘qish shakli',
-  titleThree: 'Uch xil o‘qish shakli',
   planName: 'Milliy',
   /** Milliy kartasidagi kurs nomi (qisqartma + to'liq shakli). */
   planCourse: 'ATF — Arab tili fonetikasi',
@@ -1020,15 +1019,12 @@ export const PRICE = {
     'Dars yozuvlari va guruh chati',
   ],
   selfTagline: 'Jonli darssiz: video darslar, vazifa va testlar o‘zingizga qulay vaqtda',
-  leadThreePlans:
-    'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
-    + 'Mustaqil va Mustaqil+ — jonli darssiz, to‘lov oyiga; Mustaqil+ da '
-    + 'interaktiv darslik ham bor.',
-  /** Mustaqil+ kartasidagi eslatma — darslik hali to'liq emas (2026-10-29). */
+  /** Darslikli Mustaqil kartasidagi eslatma — darslik hali to'liq emas. */
   plusNote: 'Interaktiv darslik ATF kursidan boshlab bosqichma-bosqich ochiladi.',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
-    + 'Mustaqil — video darslar, vazifa va testlar, to‘lov oyiga.',
+    + 'Mustaqil — video darslar, vazifa va testlar, interaktiv darslik, '
+    + 'to‘lov oyiga.',
   amount: '540 000',
   currency: 'so‘m',
   period: '8 ta dars',
@@ -1081,8 +1077,9 @@ export const PRICE = {
     🔴 Mustaqil tarifda kitob yetkazib berilmaydi (loyiha egasi, 2026-10-29).
   */
   compare: [
-    // `self` — Mustaqil, `plus` — Mustaqil+ (interaktiv darslik bilan).
-    // `bookOnly` — qator faqat Mustaqil+ sotuvda bo'lsa ko'rinadi.
+    // `self` — darsliksiz mustaqil reja, `plus` — darslikli (2026-11-18 dan
+    // Mustaqilning o'zi; Mustaqil+ unga qo'shildi). `bookOnly` — qator faqat
+    // darslikli reja sotuvda bo'lsa ko'rinadi.
     { label: 'Video darslar — o‘zingizga qulay vaqtda', self: true, plus: true, bookOnly: false },
     { label: 'Vazifa va testlar — tekshirib beriladi', self: true, plus: true, bookOnly: false },
     { label: 'Shaxsiy kabinet va reyting', self: true, plus: true, bookOnly: false },
@@ -1330,19 +1327,19 @@ export const FAQ: readonly Faq[] = [
       'Milliy tarifda 540 000 so‘m — asosiy ustozning 8 ta jonli darsi '
       + 'uchun, ya’ni bitta dars 67 500 so‘m. Buni ataylab oyga emas, darsga '
       + 'bog‘laganmiz: ba’zi oylarda darslar soni 9 taga to‘g‘ri keladi va '
-      + 'o‘shanda siz faqat haqiqiy dars soni uchun to‘laysiz. Mustaqil va '
-      + 'Mustaqil+ tariflarida to‘lov oyiga.',
+      + 'o‘shanda siz faqat haqiqiy dars soni uchun to‘laysiz. Mustaqil '
+      + 'tarifida to‘lov oyiga.',
   },
   /*
-    ⚠️ 2026-10-29 — UCHINCHI TARIF (Mustaqil+) QO'SHILDI. Ilgari savol faqat
-       ikki tarif haqida edi.
+    ⚠️ 2026-11-18 — YANA IKKI TARIF: Mustaqil+ Mustaqilga qo'shildi
+       (loyiha egasi). Interaktiv darslik endi Mustaqilning o'zida.
 
     🔴 «TO'LOV ICHIDA» DEYILMAYDI: Milliy narxi FAQAT 8 ta jonli dars uchun,
        qolgani «qo'shimcha» — narxga kirmaydi va ular uchun alohida pul
        olinmaydi (loyiha egasi, 2026-10-29).
   */
   {
-    question: 'Milliy, Mustaqil va Mustaqil+ farqi nima?',
+    question: 'Milliy va Mustaqil farqi nima?',
     answer:
       'Milliy — asosiy ustoz bilan guruhda jonli darslar (haftasiga 2 kun); '
       + 'narx 8 ta jonli dars uchun 540 000 so‘m. Support teacher darslari '
@@ -1350,9 +1347,9 @@ export const FAQ: readonly Faq[] = [
       + 'chati — qo‘shimcha: narxga kirmaydi, ular uchun alohida pul '
       + 'olinmaydi. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
       + 'qulay vaqtda ko‘rasiz, vazifa va testlarni bajarasiz, ular tekshirib '
-      + 'beriladi; to‘lov oyiga. Mustaqil+ — shularning ustiga interaktiv '
-      + 'darslik: u ATF kursidan boshlab bosqichma-bosqich ochiladi; to‘lov '
-      + 'ham oyiga. Mustaqil tariflarni saytning o‘zida sotib olasiz.',
+      + 'beriladi; interaktiv darslik ham kiradi — u ATF kursidan boshlab '
+      + 'bosqichma-bosqich ochiladi; to‘lov oyiga. Mustaqil tarifni saytning '
+      + 'o‘zida sotib olasiz.',
   },
   {
     question: 'Platformani to‘lovdan oldin ko‘rsam bo‘ladimi?',

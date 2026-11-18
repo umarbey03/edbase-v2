@@ -213,7 +213,7 @@ const save = useMutation({
           v-model="form.includesInteractiveBook"
           type="checkbox"
         >
-        Interaktiv darslik kiradi (Mustaqil+)
+        Interaktiv darslik kiradi
       </label>
       <div class="flex justify-end gap-2 sm:col-span-2">
         <BaseButton

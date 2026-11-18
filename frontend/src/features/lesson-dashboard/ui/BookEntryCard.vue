@@ -14,7 +14,8 @@ import { AppIcon } from '@/shared/ui'
  * ★ TAB EMAS, KARTA: darslik — alohida to'liq ekranli marshrut
  *   (`student-lesson-book`), bu yerda faqat kirish nuqtasi va progress.
  * ★ Holatlar: `granted` — progress halqasi va "Ochish/Davom ettirish";
- *   `upsell` (oddiy Mustaqil) — "Mustaqil+ tarifida" va Tariflarga havola;
+ *   `upsell` (darsliksiz eski Mustaqil davri, 2026-11-18 gacha sotilgan) —
+ *   "keyingi to'lovda ochiladi" va Tariflarga havola;
  *   `none` — hech narsa chizilmaydi (kontent borligi ham aytilmaydi).
  */
 const props = defineProps<{ lessonId: number }>()
@@ -107,8 +108,8 @@ function open(): void {
       />
     </span>
     <span class="min-w-0 flex-1">
-      <span class="block text-[15px] font-semibold text-slate-100">Interaktiv darslik Mustaqil+ tarifida</span>
-      <span class="block text-xs text-slate-400">Audio, mashqlar, harf yozish va mini-test.</span>
+      <span class="block text-[15px] font-semibold text-slate-100">Interaktiv darslik yangi Mustaqil tarifida</span>
+      <span class="block text-xs text-slate-400">Audio, mashqlar, harf yozish va mini-test — keyingi to‘lovda ochiladi.</span>
     </span>
     <RouterLink
       :to="{ name: 'student-plans' }"

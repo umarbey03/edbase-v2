@@ -270,19 +270,20 @@ const offersQuery = useQuery({
   queryFn: ({ signal }) => fetchShopOffers({ signal }),
   staleTime: 5 * 60_000,
 })
-const selfStudyPlan = computed(
-  () => offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy' && !plan.includesInteractiveBook) ?? null,
-)
 /*
-  MUSTAQIL+ (2026-10-29) — «Interaktiv darslik kiradi» belgilangan mustaqil
-  reja. Faqat oddiy Mustaqil ham sotuvda bo'lsa chiqadi: solishtirma uchun
-  pastki pog'ona kerak.
+  ⚠️ 2026-11-18 — IKKI TARIF: Milliy va Mustaqil. Mustaqil+ Mustaqilga
+     qo'shildi (loyiha egasi): interaktiv darslik endi Mustaqilning o'zida.
+     Ilgari `selfStudyPlan` faqat darsliksiz rejani olardi — darslikli
+     yagona Mustaqil qolganda bo'lim jimgina faqat Milliyni ko'rsatardi.
+     Endi saytda ko'rsatilgan HAR QANDAY mustaqil reja olinadi, arzonidan.
 */
-const plusPlan = computed(() => selfStudyPlan.value === null
-  ? null
-  : offersQuery.data.value?.plans.find((plan) => plan.kind === 'SelfStudy' && plan.includesInteractiveBook) ?? null)
-const selfPlans = computed(() => [selfStudyPlan.value, plusPlan.value].filter((plan) => plan !== null))
-const compareRows = computed(() => PRICE.compare.filter((row) => !row.bookOnly || plusPlan.value !== null))
+const selfPlans = computed(() => [...(offersQuery.data.value?.plans ?? [])]
+  .filter((plan) => plan.kind === 'SelfStudy')
+  .sort((a, b) => a.price - b.price))
+const hasSelfPlans = computed(() => selfPlans.value.length > 0)
+const compareRows = computed(() => PRICE.compare.filter(
+  (row) => !row.bookOnly || selfPlans.value.some((plan) => plan.includesInteractiveBook),
+))
 function has(row: (typeof PRICE.compare)[number], plan: { includesInteractiveBook: boolean }): boolean {
   return plan.includesInteractiveBook ? row.plus : row.self
 }
@@ -2314,24 +2315,24 @@ const year = new Date().getFullYear()
           <h2
             class="mt-3 font-display text-3xl font-semibold tracking-tight text-slate-100 sm:text-[2.5rem] sm:leading-[1.1]"
           >
-            {{ selfStudyPlan === null ? PRICE.titleSingle : plusPlan === null ? PRICE.titleTwo : PRICE.titleThree }}
+            {{ hasSelfPlans ? PRICE.titleTwo : PRICE.titleSingle }}
           </h2>
           <p class="mx-auto mt-4 max-w-[60ch] text-base leading-relaxed text-slate-400">
-            {{ selfStudyPlan === null ? PRICE.lead : plusPlan === null ? PRICE.leadTwoPlans : PRICE.leadThreePlans }}
+            {{ hasSelfPlans ? PRICE.leadTwoPlans : PRICE.lead }}
           </p>
         </div>
 
         <div
           class="mt-12 grid items-stretch gap-5"
-          :class="selfStudyPlan === null
+          :class="!hasSelfPlans
             ? 'mx-auto max-w-2xl'
-            : plusPlan === null ? 'lg:grid-cols-2' : 'lg:grid-cols-3'"
+            : selfPlans.length === 1 ? 'lg:grid-cols-2' : 'lg:grid-cols-3'"
         >
           <!-- ═══════════════════════════════════ MILLIY (GURUH) ═══ -->
           <!-- Mustaqil sotuvda bo'lsa Milliy O'NG ustunda (loyiha egasi, 2026-10-29). -->
           <div
             class="price-card surface-brand relative overflow-hidden rounded-3xl p-8 sm:p-10"
-            :class="selfStudyPlan !== null ? 'order-last' : ''"
+            :class="hasSelfPlans ? 'order-last' : ''"
           >
             <span
               class="price-deco lt-arabic"
@@ -2349,7 +2350,7 @@ const year = new Date().getFullYear()
               <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <span
                   class="price-amount font-display text-5xl font-semibold tracking-tight sm:text-6xl"
-                  :class="plusPlan === null ? '' : 'lg:text-5xl'"
+                  :class="selfPlans.length > 1 ? 'lg:text-5xl' : ''"
                 >
                   {{ PRICE.amount }}
                 </span>
@@ -2452,17 +2453,17 @@ const year = new Date().getFullYear()
             </div>
           </div>
 
-          <!-- ═══════════════════════ MUSTAQIL va MUSTAQIL+ (BAZADAN) ═══ -->
+          <!-- ═══════════════════════ MUSTAQIL (BAZADAN) ═══ -->
           <div
             v-for="plan in selfPlans"
             :key="plan.id"
             class="flex flex-col rounded-3xl bg-ink-900 p-7 shadow-xs sm:p-9"
-            :class="plan.includesInteractiveBook ? 'border-2 border-brand-500' : 'border border-line'"
+            :class="plan.includesInteractiveBook && selfPlans.length > 1 ? 'border-2 border-brand-500' : 'border border-line'"
           >
             <p class="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-[0.13em] text-brand-500">
               {{ plan.name }} · {{ plan.courseName }}
               <span
-                v-if="plan.includesInteractiveBook"
+                v-if="plan.includesInteractiveBook && selfPlans.length > 1"
                 class="rounded-full bg-brand-500 px-2.5 py-0.5 text-[11px] tracking-normal text-on-brand normal-case"
               >{{ PRICE.newBadge }}</span>
             </p>
@@ -2473,7 +2474,7 @@ const year = new Date().getFullYear()
             <div class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <span
                 class="font-display text-5xl font-semibold tracking-tight text-slate-100 sm:text-6xl"
-                :class="plusPlan === null ? '' : 'lg:text-5xl'"
+                :class="selfPlans.length > 1 ? 'lg:text-5xl' : ''"
               >
                 {{ formatMoney(plan.price) }}
               </span>
