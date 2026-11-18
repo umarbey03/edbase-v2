@@ -181,7 +181,8 @@ const route = useRoute()
 const { isSelfStudy } = useMySubscription()
 const shopMe = useShopMe()
 const { isGuest } = shopMe
-const GROUP_ONLY_ROUTES = new Set(['student-calendar', 'student-chat', 'student-recordings'])
+// ★ 2026-11-18: `student-chat` olib tashlandi — Mustaqil o'quvchining 24/7 kurator chati shu sahifada.
+const GROUP_ONLY_ROUTES = new Set(['student-calendar', 'student-recordings'])
 
 /*
   ★ MEHMON (2026-10-29) — tariflar va profildan boshqa hamma joy bo'sh bo'lardi

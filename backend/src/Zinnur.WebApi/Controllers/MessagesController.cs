@@ -95,10 +95,16 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
         [FromForm] IFormFileCollection? files,
         [FromForm] string? body,
         [FromForm] long? moduleLessonId,
+        [FromForm] int? durationSec,
         CancellationToken ct)
     {
         if (files is null || files.Count == 0)
             throw MediaResponse.MissingFile();
+
+        // ★ OVOZLI XABAR (24/7 chat, 2026-11-18): brauzer yozgan WebM'da
+        //   davomiylik yozilmaydi va pleyer «0:00» ko'rsatardi. Klient uni
+        //   o'zi o'lchab yuboradi — faqat BITTA faylli xabarda ma'noli.
+        var duration = files.Count == 1 ? durationSec : null;
 
         // Oqimlar `finally` da yopiladi — `GroupChatController.SendWithAttachments`
         // dagi AYNI naqsh.
@@ -113,7 +119,8 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
                 var stream = file.OpenReadStream();
                 streams.Add(stream);
 
-                uploads.Add(new LessonAssetUpload(file.FileName, file.ContentType, stream, file.Length));
+                uploads.Add(new LessonAssetUpload(
+                    file.FileName, file.ContentType, stream, file.Length, Title: null, DurationSec: duration));
             }
 
             var created = await messages.SendWithAttachmentsAsync(

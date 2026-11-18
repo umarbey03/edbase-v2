@@ -205,6 +205,16 @@ function handleCreated(payload: unknown): void {
   scheduleInvalidate()
 }
 
+/**
+ * ★ YANGI SHAXSIY XABAR (24/7 chat, 2026-11-18) — yozishma va suhbatlar
+ * ro'yxati DARHOL yangilanadi (debounce'siz: bu odam kutib turgan javob).
+ * Xabarning o'zi REST orqali olinadi — hodisa faqat "yangila" signali.
+ */
+function handleDirectMessage(): void {
+  if (disposed || client === null) return
+  void client.invalidateQueries({ queryKey: ['dm'] })
+}
+
 function buildConnection(): HubConnection {
   const built = new HubConnectionBuilder()
     .withUrl(hubUrlFor('notifications'), {
@@ -222,6 +232,7 @@ function buildConnection(): HubConnection {
   built.keepAliveIntervalInMilliseconds = KEEP_ALIVE_MS
 
   built.on(NotificationHubEvent.NotificationCreated, handleCreated)
+  built.on(NotificationHubEvent.DirectMessageReceived, handleDirectMessage)
 
   built.onreconnecting(() => {
     if (disposed) return
@@ -320,6 +331,7 @@ async function dispose(): Promise<void> {
   if (target === null) return
 
   target.off(NotificationHubEvent.NotificationCreated, handleCreated)
+  target.off(NotificationHubEvent.DirectMessageReceived, handleDirectMessage)
 
   try {
     await target.stop()

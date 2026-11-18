@@ -41,4 +41,12 @@ public interface INotificationNotifier
     /// </summary>
     Task NotificationCreatedAsync(
         long userId, NotificationDto notification, CancellationToken ct = default);
+
+    /// <summary>
+    /// Yangi shaxsiy xabar keldi (24/7 chat, 2026-11-18): oluvchining ochiq
+    /// oynasi yozishmani shu zahoti yangilasin. Tanada faqat suhbatdosh Id'si —
+    /// xabarning o'zi REST orqali, ruxsat tekshiruvidan o'tib olinadi.
+    /// Istisno YUTILADI (yetkazilmasa klient 15 s ichida o'zi so'raydi).
+    /// </summary>
+    Task DirectMessageReceivedAsync(long userId, long peerId, CancellationToken ct = default);
 }

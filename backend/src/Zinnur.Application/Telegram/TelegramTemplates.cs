@@ -134,6 +134,9 @@ public static class TelegramTemplates
     /// <summary>Kurator darsga qaror chiqardi (Mustaqil, 2026-11-18).</summary>
     public const string LessonMasteryDecided = "lesson_mastery_decided";
 
+    /// <summary>Mustaqil yozishmasida yangi xabar (24/7 chat, 2026-11-18).</summary>
+    public const string DirectMessageReceived = "direct_message_received";
+
     /* ===== /R35/R36 ===== */
 
     /* ===== 2026-08-17 · USTOZ KUNLIK TASDIQLASH + O'RINBOSAR ===== */
@@ -543,6 +546,25 @@ public static class TelegramTemplates
         var note = NotificationText.Parameter(feedback, FeedbackMaxLength);
 
         if (note.Length > 0) text += $"\n\n💬 {note}";
+
+        return text;
+    }
+
+    /// <summary>
+    /// Yangi shaxsiy xabar turtkisi. Matnning boshi ko'rsatiladi (200 belgi) —
+    /// to'liq yozishma ilovada; biriktirma bo'lsa "rasm/ovoz" deb aytiladi.
+    /// </summary>
+    public static string DirectMessageText(string? senderName, string? body, bool hasAttachments, bool fromStudent)
+    {
+        var who = NotificationText.Parameter(senderName);
+        var head = fromStudent
+            ? $"💬 <b>O'quvchidan yangi xabar</b>{(who.Length > 0 ? $" — {who}" : "")}"
+            : $"💬 <b>Kuratoringiz javob yozdi</b>{(who.Length > 0 ? $" — {who}" : "")}";
+
+        var preview = NotificationText.Parameter(body);
+        var text = head;
+        if (preview.Length > 0) text += $"\n\n{preview}";
+        else if (hasAttachments) text += "\n\n📎 Rasm yoki ovozli xabar";
 
         return text;
     }

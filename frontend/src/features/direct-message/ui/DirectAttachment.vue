@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { fetchDirectMessageAttachment } from '@/entities/direct-message'
 import { useProtectedBlobUrl } from '@/features/lesson-media'
 import { saveBlob } from '@/shared/lib/download'
+import { formatDuration } from '@/shared/lib/useVoiceRecorder'
 import { formatFileSize } from '@/shared/lib/text'
 import type { DirectMessageAttachmentDto } from '@/shared/types'
 import { AppIcon, BaseSpinner } from '@/shared/ui'
@@ -22,11 +23,18 @@ const props = withDefaults(
     attachment: DirectMessageAttachmentDto
     zoomable?: boolean
     flush?: boolean
+    /** Rasm ustida «Tahrirlash» tugmasi (24/7 chat, 2026-11-18). */
+    editable?: boolean
   }>(),
-  { zoomable: true, flush: false },
+  { zoomable: true, flush: false, editable: false },
 )
 
-const emit = defineEmits<{ zoom: [url: string] }>()
+const emit = defineEmits<{ zoom: [url: string], edit: [blob: Blob, fileName: string] }>()
+
+function edit(): void {
+  const blob = file.blob.value
+  if (blob !== null) emit('edit', blob, displayName.value)
+}
 
 const file = useProtectedBlobUrl(
   'direct-message-attachment',
@@ -78,6 +86,19 @@ function openZoom(): void {
 
     <template v-else-if="file.url.value !== null">
       <button
+        v-if="isImage && props.editable"
+        type="button"
+        class="mb-1 inline-flex items-center gap-1 rounded-md bg-black/30 px-2 py-1 text-[11px] font-semibold hover:bg-black/40"
+        title="Rasm ustida belgilab, qayta yuborish"
+        @click="edit"
+      >
+        <AppIcon
+          name="edit"
+          :size="12"
+        />
+        Tahrirlash
+      </button>
+      <button
         v-if="isImage && props.zoomable"
         type="button"
         class="block w-full cursor-zoom-in overflow-hidden"
@@ -100,13 +121,22 @@ function openZoom(): void {
         :class="props.flush ? '' : 'rounded-lg'"
       >
 
-      <audio
+      <div
         v-else-if="isAudio"
-        class="w-full"
-        controls
-        preload="metadata"
-        :src="file.url.value"
-      />
+        class="flex items-center gap-2"
+      >
+        <audio
+          class="w-full min-w-52"
+          controls
+          preload="metadata"
+          :src="file.url.value"
+        />
+        <!-- Brauzer yozgan WebM'da davomiylik yo'q — server saqlagan qiymat (2026-11-18). -->
+        <span
+          v-if="props.attachment.durationSec != null"
+          class="shrink-0 text-[11px] tabular-nums opacity-75"
+        >{{ formatDuration(props.attachment.durationSec) }}</span>
+      </div>
 
       <button
         v-else

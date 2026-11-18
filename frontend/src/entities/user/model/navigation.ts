@@ -95,7 +95,13 @@ export const SELF_STUDY_NAV: NavItem[] = [
   { routeName: 'student-home', label: 'Bosh sahifa', icon: 'home' },
   { routeName: 'student-learn', label: 'O‘quv', icon: 'book' },
   { routeName: 'student-assignments', label: 'Vazifalar', icon: 'clipboard' },
-  { routeName: 'student-rating', label: 'Reyting', icon: 'chart' },
+  /*
+    ★ 2026-11-18 — «YORDAMCHI» (24/7 kurator chati) «Reyting» o'rnida.
+    Mustaqil tarifining asosiy va'dasi — biriktirilgan kurator bilan yozishma
+    (matn, ovoz, rasm). Pastki panelda 5 tabdan oshsa telefonda sig'maydi,
+    reyting esa bosh sahifadagi ball kartasidan ochiladi (`MyPointsCard`).
+  */
+  { routeName: 'student-chat', label: 'Yordamchi', icon: 'message-circle' },
   { routeName: 'student-profile', label: 'Profil', icon: 'user' },
 ]
 

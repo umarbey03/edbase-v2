@@ -8,6 +8,10 @@ using Zinnur.Application.Courses.Services;
 using Zinnur.Application.Gating.Services;
 using Zinnur.Application.Media;
 using Zinnur.Application.Messaging.Dtos;
+using Zinnur.Application.Notifications;
+using Zinnur.Application.Notifications.Dtos;
+using Zinnur.Application.Notifications.Services;
+using Zinnur.Application.Telegram;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
 using Zinnur.Domain.Entities;
@@ -47,8 +51,17 @@ public sealed class DirectMessageService(
     IMediaStorage storage,
     ISettingsResolver settings,
     ILogger<DirectMessageService> logger,
+    // ===== 2026-11-18 · 24/7 CHAT: jonli yetkazish va Telegram turtkisi =====
+    INotificationNotifier notifier,
+    INotificationOutbox outbox,
     TimeProvider clock) : IDirectMessageService
 {
+    /// <summary>
+    /// Telegram turtkisi oralig'i: bir suhbatda ketma-ket yozilgan xabarlar
+    /// uchun BITTA xabar. Har xabarga Telegram jiringlashi spam bo'lardi.
+    /// </summary>
+    private static readonly TimeSpan TelegramNudgeWindow = TimeSpan.FromMinutes(10);
+
     /// <summary>Suhbatlar ro'yxatidagi oxirgi xabar ko'chirmasining uzunligi.</summary>
     private const int PreviewLength = 120;
 
@@ -305,6 +318,8 @@ public sealed class DirectMessageService(
         db.DirectMessages.Add(message);
         await db.SaveChangesAsync(ct);
 
+        await AfterSentAsync(message, pair, ct);
+
         var lessonNames = await LessonNamesAsync([message], ct);
 
         return Map(message, userId, pair, lessonNames);
@@ -421,6 +436,8 @@ public sealed class DirectMessageService(
             // Baza qabul qildi — kalitlar endi "yetim" emas.
             savedKeys.Clear();
 
+            await AfterSentAsync(message, pair, ct);
+
             var lessonNames = await LessonNamesAsync([message], ct);
 
             return Map(message, userId, pair, lessonNames);
@@ -430,6 +447,74 @@ public sealed class DirectMessageService(
             // Faqat MUVAFFAQIYATSIZ yo'lda to'ladi (yuqorida `Clear`).
             foreach (var key in savedKeys)
                 await TryDeleteFromStorageAsync(key, ct);
+        }
+    }
+
+    /// <summary>
+    /// ════════════════════════════════════════════════════════════════════
+    /// XABAR SAQLANGACH (24/7 chat, 2026-11-18)
+    /// ════════════════════════════════════════════════════════════════════
+    ///
+    /// 1) JONLI: oluvchining ochiq oynasi darhol yangilanadi (SignalR).
+    /// 2) TELEGRAM — faqat MUSTAQIL juftlikda (kurator ↔ o'quvchi): ilova
+    ///    yopiq bo'lsa ham kurator savolni, o'quvchi esa javobni ko'radi.
+    ///    Ketma-ket xabarlar uchun bitta turtki (<see cref="TelegramNudgeWindow"/>).
+    ///
+    /// ★ XABAR ALLAQACHON SAQLANGAN: bu yerdagi har qanday nosozlik
+    ///   yuborishni yiqitmaydi — jurnalga yoziladi va o'tkazib yuboriladi.
+    /// </summary>
+    private async Task AfterSentAsync(DirectMessage message, ConversationPair pair, CancellationToken ct)
+    {
+        var recipientId = message.SentByStudent ? pair.StaffId : pair.StudentId;
+        var senderId = message.SenderId;
+
+        await notifier.DirectMessageReceivedAsync(recipientId, senderId, ct);
+
+        try
+        {
+            var selfStudyPair = await db.SelfStudyCuratorAssignments.AsNoTracking()
+                .AnyAsync(a => a.StudentId == pair.StudentId && a.EndedAt == null
+                            && (a.CuratorId == pair.StaffId || a.BackupCuratorId == pair.StaffId), ct);
+            if (!selfStudyPair) return;
+
+            var since = message.SentAt - TelegramNudgeWindow;
+            var recentBurst = await db.DirectMessages.AsNoTracking()
+                .AnyAsync(m => m.StudentId == pair.StudentId
+                            && m.StaffId == pair.StaffId
+                            && m.SenderId == senderId
+                            && m.Id != message.Id
+                            && m.SentAt >= since, ct);
+            if (recentBurst) return;
+
+            var recipient = await db.Users.AsNoTracking()
+                .Where(u => u.Id == recipientId && u.IsActive)
+                .Select(u => new { u.TelegramId })
+                .FirstOrDefaultAsync(ct);
+            if (recipient?.TelegramId is not { } chatId) return;
+
+            var senderName = await db.Users.AsNoTracking()
+                .Where(u => u.Id == senderId).Select(u => u.FullName).FirstOrDefaultAsync(ct);
+
+            await outbox.EnqueueAsync(
+                new NotificationRequest
+                {
+                    Channel = NotificationChannel.Telegram,
+                    RecipientUserId = recipientId,
+                    RecipientAddress = chatId.ToString(CultureInfo.InvariantCulture),
+                    TemplateKey = TelegramTemplates.DirectMessageReceived,
+                    Body = TelegramTemplates.DirectMessageText(
+                        senderName, message.Body, message.Attachments.Count > 0, message.SentByStudent),
+                    IdempotencyKey = string.Create(
+                        CultureInfo.InvariantCulture, $"direct_message:{message.Id}"),
+                },
+                ct);
+            await db.SaveChangesAsync(ct);
+        }
+#pragma warning disable CA1031 // Xabar saqlangan — turtki xatosi yuborishni yiqitmasin.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            DirectMessageAttachmentLog.NudgeFailed(logger, ex, message.Id);
         }
     }
 
@@ -982,4 +1067,10 @@ internal static partial class DirectMessageAttachmentLog
         Message = "DM biriktirmasining ombordagi obyekti o'chirilmadi — YETIM qoldi "
                   + "(bazaga yozish bekor qilingan). key={Key}")]
     internal static partial void OrphanedObject(ILogger logger, Exception exception, string key);
+
+    [LoggerMessage(
+        EventId = 5331,
+        Level = LogLevel.Warning,
+        Message = "DM saqlandi, lekin Telegram turtkisi navbatga qo'yilmadi. message={MessageId}")]
+    internal static partial void NudgeFailed(ILogger logger, Exception exception, long messageId);
 }

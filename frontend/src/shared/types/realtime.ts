@@ -126,6 +126,8 @@ export type GroupChatHubEventName =
  */
 export const NotificationHubEvent = {
   NotificationCreated: 'NotificationCreated',
+  /** Yangi shaxsiy xabar (24/7 chat, 2026-11-18) — tanada faqat `{ peerId }`. */
+  DirectMessageReceived: 'DirectMessageReceived',
 } as const
 export type NotificationHubEventName =
   (typeof NotificationHubEvent)[keyof typeof NotificationHubEvent]

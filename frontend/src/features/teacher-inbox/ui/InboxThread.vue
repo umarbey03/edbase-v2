@@ -9,12 +9,20 @@ import {
   sendDirectMessage,
   withDayLabels,
 } from '@/entities/direct-message'
+import {
+  DirectAttachment,
+  DM_ATTACHMENT_MAX_FILES,
+  sendDirectMessageAttachments,
+  VoiceMessageButton,
+} from '@/features/direct-message'
 import { ChatDaySeparator, ChatNotice } from '@/features/group-chat'
 import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
+import { ImageAnnotator } from '@/features/image-annotator'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
+import { formatFileSize } from '@/shared/lib/text'
 import type { ConversationDto } from '@/shared/types'
-import { AppIcon, DataStatus } from '@/shared/ui'
+import { AppIcon, DataStatus, ImageLightbox } from '@/shared/ui'
 
 /**
  * Ochilgan yozishma — eski `#dm-msgs` + `#dm-form`.
@@ -89,7 +97,110 @@ const input = ref<HTMLTextAreaElement | null>(null)
 watch(peerId, () => {
   draft.value = ''
   sendError.value = null
+  pendingFiles.value = []
+  attachmentError.value = null
 })
+
+/*
+  ════════════════════════════════════════════════════════════════════════
+   BIRIKTIRMALAR, OVOZ VA RASM TAHRIRI (24/7 chat, 2026-11-18)
+  ════════════════════════════════════════════════════════════════════════
+  🔴 ILGARI BU OYNA FAQAT MATN EDI: o'quvchi yuborgan rasm va ovozli xabar
+     kuratorga UMUMAN ko'rinmasdi (biriktirmalar chizilmasdi), u esa faqat
+     matn bilan javob bera olardi. Endi o'quvchi chatidagi AYNI imkoniyatlar:
+     fayl, ovozli xabar va rasmni belgilab qayta yuborish.
+*/
+const fileInput = ref<HTMLInputElement | null>(null)
+const pendingFiles = ref<File[]>([])
+const attachmentError = ref<string | null>(null)
+const uploadPercent = ref<number | null>(null)
+const zoomUrl = ref<string | null>(null)
+
+function pickFiles(): void {
+  fileInput.value?.click()
+}
+
+function onFilesChosen(event: Event): void {
+  const target = event.target as HTMLInputElement
+  const chosen = Array.from(target.files ?? [])
+  target.value = ''
+  if (chosen.length === 0) return
+  if (pendingFiles.value.length + chosen.length > DM_ATTACHMENT_MAX_FILES) {
+    attachmentError.value = `Bitta xabarga ko‘pi bilan ${DM_ATTACHMENT_MAX_FILES} ta fayl.`
+    return
+  }
+  attachmentError.value = null
+  pendingFiles.value = [...pendingFiles.value, ...chosen]
+}
+
+function removeFile(index: number): void {
+  pendingFiles.value = pendingFiles.value.filter((_, position) => position !== index)
+  attachmentError.value = null
+}
+
+const attachMutation = useMutation({
+  mutationFn: (input: { files: File[], body: string, durationSec?: number }) =>
+    sendDirectMessageAttachments({
+      peerId: peerId.value,
+      files: input.files,
+      body: input.body,
+      moduleLessonId: null,
+      durationSec: input.durationSec ?? null,
+      onProgress: (progress) => {
+        uploadPercent.value = progress.percent
+      },
+    }),
+  onSuccess: (_data, input) => {
+    if (input.body.length > 0) draft.value = ''
+    if (input.files === pendingFiles.value) pendingFiles.value = []
+    attachmentError.value = null
+    sendError.value = null
+    uploadPercent.value = null
+    void threadQuery.refetch()
+    void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
+  },
+  onError: (error: Error) => {
+    uploadPercent.value = null
+    sendError.value = toUserMessage(error)
+  },
+})
+
+const editSource = ref<Blob | null>(null)
+const editName = ref<string | null>(null)
+const editingIndex = ref<number | null>(null)
+
+function editAttachment(blob: Blob, name: string): void {
+  editingIndex.value = null
+  editName.value = name
+  editSource.value = blob
+}
+
+function editPending(index: number): void {
+  const file = pendingFiles.value[index]
+  if (file === undefined) return
+  editingIndex.value = index
+  editName.value = file.name
+  editSource.value = file
+}
+
+function closeEditor(): void {
+  editSource.value = null
+  editingIndex.value = null
+}
+
+function onEdited(file: File): void {
+  const index = editingIndex.value
+  closeEditor()
+  if (index !== null) {
+    pendingFiles.value = pendingFiles.value.map((f, i) => (i === index ? file : f))
+    return
+  }
+  attachMutation.mutate({ files: [file], body: '' })
+}
+
+function onVoiceRecorded(file: File, durationSec: number): void {
+  attachMutation.mutate({ files: [file], body: '', durationSec })
+}
 
 const sendMutation = useMutation({
   mutationFn: (input: { id: number; body: string }) =>
@@ -107,9 +218,10 @@ const sendMutation = useMutation({
 
 const canSend = computed(
   () =>
-    draft.value.trim().length > 0 &&
+    (draft.value.trim().length > 0 || pendingFiles.value.length > 0) &&
     draft.value.length <= DM_BODY_MAX &&
-    !sendMutation.isPending.value,
+    !sendMutation.isPending.value &&
+    !attachMutation.isPending.value,
 )
 
 /**
@@ -121,6 +233,10 @@ const showCounter = computed(() => draft.value.length > DM_BODY_MAX - 200)
 
 function submit(): void {
   if (!canSend.value) return
+  if (pendingFiles.value.length > 0) {
+    attachMutation.mutate({ files: pendingFiles.value, body: draft.value.trim() })
+    return
+  }
   sendMutation.mutate({ id: peerId.value, body: draft.value.trim() })
 }
 </script>
@@ -221,9 +337,23 @@ function submit(): void {
                 v-text="row.message.moduleLessonName"
               />
               <p
+                v-if="row.message.body.length > 0"
                 class="whitespace-pre-line break-words text-[13px] leading-relaxed"
                 v-text="row.message.body"
               />
+              <div
+                v-if="(row.message.attachments ?? []).length > 0"
+                :class="row.message.body.length > 0 ? 'mt-1.5' : ''"
+              >
+                <DirectAttachment
+                  v-for="item in row.message.attachments ?? []"
+                  :key="item.id"
+                  :attachment="item"
+                  editable
+                  @zoom="(url) => (zoomUrl = url)"
+                  @edit="editAttachment"
+                />
+              </div>
               <p
                 class="mt-1 flex items-center justify-end gap-1 text-[10px] tabular-nums"
                 :class="row.message.mine ? 'text-on-brand/75' : 'text-dim'"
@@ -243,11 +373,83 @@ function submit(): void {
 
     <!-- `shrink-0`: kartochka balandligi chegaralangan — siqiladigan yagona
          element xabarlar sohasi bo'lsin, yozish paneli emas. -->
+    <div
+      v-if="pendingFiles.length > 0 || attachmentError !== null"
+      class="mt-2 shrink-0"
+    >
+      <p
+        v-if="attachmentError !== null"
+        class="mb-1.5 text-[11px] text-rose-400"
+        role="alert"
+        v-text="attachmentError"
+      />
+      <ul class="flex flex-wrap gap-1.5">
+        <li
+          v-for="(file, index) in pendingFiles"
+          :key="`${file.name}:${index}`"
+          class="flex max-w-full items-center gap-1.5 rounded-full border border-line bg-ink-950 py-1 pl-2.5 pr-1"
+        >
+          <AppIcon
+            name="paperclip"
+            :size="12"
+          />
+          <span
+            class="min-w-0 max-w-40 truncate text-[11.5px] text-slate-300"
+            v-text="file.name"
+          />
+          <span
+            class="shrink-0 text-[10.5px] tabular-nums text-dim"
+            v-text="formatFileSize(file.size)"
+          />
+          <button
+            v-if="file.type.startsWith('image/')"
+            type="button"
+            class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-ink-800 hover:text-slate-100"
+            aria-label="Rasmni tahrirlash"
+            @click="editPending(index)"
+          >
+            <AppIcon
+              name="edit"
+              :size="12"
+            />
+          </button>
+          <button
+            type="button"
+            class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-ink-800 hover:text-slate-100"
+            aria-label="Faylni olib tashlash"
+            @click="removeFile(index)"
+          >
+            <AppIcon
+              name="close"
+              :size="12"
+            />
+          </button>
+        </li>
+      </ul>
+      <div
+        v-if="uploadPercent !== null"
+        class="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-800"
+      >
+        <div
+          class="h-full rounded-full bg-brand-500 transition-[width]"
+          :style="{ width: `${uploadPercent}%` }"
+        />
+      </div>
+    </div>
+
     <form
       class="mt-2.5 flex shrink-0 items-end gap-2"
       novalidate
       @submit.prevent="submit"
     >
+      <input
+        ref="fileInput"
+        class="hidden"
+        type="file"
+        multiple
+        accept="image/*,audio/*,application/pdf"
+        @change="onFilesChosen"
+      >
       <!-- Emoji — guruh chati va o'quvchi chatidagi bilan AYNAN bir xil. -->
       <ChatEmojiPicker
         v-model="draft"
@@ -285,6 +487,24 @@ function submit(): void {
         kenglikda turardi. Ma'no `aria-label` da qoladi.
       -->
       <button
+        type="button"
+        class="tap-target flex shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-ink-800 hover:text-slate-200"
+        aria-label="Fayl biriktirish"
+        title="Fayl biriktirish"
+        @click="pickFiles"
+      >
+        <AppIcon
+          name="paperclip"
+          :size="18"
+        />
+      </button>
+
+      <VoiceMessageButton
+        :disabled="attachMutation.isPending.value"
+        @recorded="onVoiceRecorded"
+      />
+
+      <button
         type="submit"
         class="tap-target flex shrink-0 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-bold text-on-brand transition-colors disabled:opacity-40"
         :disabled="!canSend"
@@ -307,6 +527,17 @@ function submit(): void {
       class="mt-2"
       :text="sendError"
       @dismiss="sendError = null"
+    />
+
+    <ImageLightbox
+      :src="zoomUrl"
+      @close="zoomUrl = null"
+    />
+    <ImageAnnotator
+      :source="editSource"
+      :file-name="editName"
+      @close="closeEditor"
+      @done="onEdited"
     />
   </section>
 </template>

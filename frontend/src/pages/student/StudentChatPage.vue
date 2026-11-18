@@ -15,10 +15,12 @@ import {
   withDayLabels,
 } from '@/entities/direct-message'
 import { threadKey } from '@/entities/group-chat'
+import { useMySubscription } from '@/entities/subscription'
 import {
   DirectAttachment,
   DM_ATTACHMENT_MAX_FILES,
   sendDirectMessageAttachments,
+  VoiceMessageButton,
 } from '@/features/direct-message'
 import {
   ChatDaySeparator,
@@ -27,6 +29,7 @@ import {
   GroupChatThreadList,
 } from '@/features/group-chat'
 import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
+import { ImageAnnotator } from '@/features/image-annotator'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
 import { formatFileSize } from '@/shared/lib/text'
@@ -123,6 +126,7 @@ const conversationsQuery = useQuery({
 })
 
 const conversations = computed(() => conversationsQuery.data.value ?? [])
+
 
 const conversationsError = computed(() =>
   conversationsQuery.error.value !== null ? toUserMessage(conversationsQuery.error.value) : null,
@@ -275,6 +279,61 @@ const attachmentError = ref<string | null>(null)
 const uploadPercent = ref<number | null>(null)
 const zoomUrl = ref<string | null>(null)
 
+/*
+  ★ OVOZ VA RASM TAHRIRI (24/7 chat, 2026-11-18). Ovozli xabar ham, tahrirlangan
+  rasm ham ODDIY biriktirmali xabar bo'lib ketadi — server uchun yangi tur yo'q.
+  `editingIndex` — yuborilmagan fayl tahrirlanyaptimi (o'rniga qo'yiladi) yoki
+  suhbatdagi rasm (natija YANGI xabar bo'lib yuboriladi).
+*/
+const editSource = ref<Blob | null>(null)
+const editName = ref<string | null>(null)
+const editingIndex = ref<number | null>(null)
+
+function sendFilesNow(files: File[], durationSec?: number): void {
+  const peer = activePeer.value
+  if (peer === null) return
+  attachMutation.mutate({
+    peerId: peer.peerId,
+    files,
+    body: '',
+    moduleLessonId: lessonContext.value?.lessonId ?? null,
+    durationSec,
+  })
+}
+
+function onVoiceRecorded(file: File, durationSec: number): void {
+  sendFilesNow([file], durationSec)
+}
+
+function editAttachment(blob: Blob, name: string): void {
+  editingIndex.value = null
+  editName.value = name
+  editSource.value = blob
+}
+
+function editPending(index: number): void {
+  const file = pendingFiles.value[index]
+  if (file === undefined) return
+  editingIndex.value = index
+  editName.value = file.name
+  editSource.value = file
+}
+
+function closeEditor(): void {
+  editSource.value = null
+  editingIndex.value = null
+}
+
+function onEdited(file: File): void {
+  const index = editingIndex.value
+  closeEditor()
+  if (index !== null) {
+    pendingFiles.value = pendingFiles.value.map((f, i) => (i === index ? file : f))
+    return
+  }
+  sendFilesNow([file])
+}
+
 function pickFiles(): void {
   fileInput.value?.click()
 }
@@ -306,12 +365,13 @@ function removeFile(index: number): void {
 const hasFiles = computed(() => pendingFiles.value.length > 0)
 
 const attachMutation = useMutation({
-  mutationFn: (input: { peerId: number; files: File[]; body: string; moduleLessonId: number | null }) =>
+  mutationFn: (input: { peerId: number; files: File[]; body: string; moduleLessonId: number | null; durationSec?: number }) =>
     sendDirectMessageAttachments({
       peerId: input.peerId,
       files: input.files,
       body: input.body,
       moduleLessonId: input.moduleLessonId,
+      durationSec: input.durationSec ?? null,
       onProgress: (progress) => {
         uploadPercent.value = progress.percent
       },
@@ -394,6 +454,23 @@ function openConversation(conversation: ConversationDto): void {
   activeThread.value = null
   activePeer.value = conversation
 }
+
+/*
+  ★ MUSTAQIL O'QUVCHI (2026-11-18): bu sahifa — uning «Yordamchi» tabi va
+  unda yagona suhbat bor (biriktirilgan kurator). Ro'yxatdan qator tanlatish
+  ortiqcha qadam: suhbat O'ZI ochiladi. Guruh o'quvchisining xulqi o'zgarmaydi.
+*/
+const { isSelfStudy } = useMySubscription()
+let autoOpened = false
+watch(
+  [isSelfStudy, conversations],
+  ([selfStudy, list]) => {
+    if (!selfStudy || autoOpened || activePeer.value !== null || list.length !== 1) return
+    autoOpened = true
+    openConversation(list[0]!)
+  },
+  { immediate: true },
+)
 
 function openGroupThread(thread: GroupChatThreadDto): void {
   const open = activeThread.value
@@ -545,6 +622,13 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
           :skeleton-rows="1"
           @retry="conversationsQuery.refetch()"
         >
+          <EmptyState
+            v-if="isSelfStudy && conversationsQuery.isSuccess.value && conversations.length === 0"
+            class="mb-4"
+            icon="user-check"
+            title="Kuratoringiz tez orada biriktiriladi"
+            text="Kurator biriktirilgach shu yerda unga istalgan vaqtda yozasiz: matn, ovozli xabar va rasm."
+          />
           <ul
             v-if="conversations.length > 0"
             class="mb-4 space-y-2"
@@ -845,7 +929,9 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
                       v-for="item in row.message.attachments ?? []"
                       :key="item.id"
                       :attachment="item"
+                      editable
                       @zoom="(url) => (zoomUrl = url)"
+                      @edit="editAttachment"
                     />
                   </div>
                   <p
@@ -936,6 +1022,19 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
               class="shrink-0 text-[10.5px] tabular-nums text-dim"
               v-text="formatFileSize(file.size)"
             />
+            <button
+              v-if="file.type.startsWith('image/')"
+              type="button"
+              class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
+              title="Tahrirlash"
+              aria-label="Rasmni tahrirlash"
+              @click="editPending(index)"
+            >
+              <AppIcon
+                name="edit"
+                :size="12"
+              />
+            </button>
             <button
               type="button"
               class="flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-ink-800 hover:text-slate-100"
@@ -1036,6 +1135,13 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
           </button>
         </div>
 
+        <!-- Ovozli xabar (24/7 chat, 2026-11-18): yozib — darhol yuboriladi. -->
+        <VoiceMessageButton
+          class="mb-0.5"
+          :disabled="attachMutation.isPending.value"
+          @recorded="onVoiceRecorded"
+        />
+
         <button
           type="submit"
           class="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-500 font-bold text-on-brand shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-40"
@@ -1066,6 +1172,13 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
       <ImageLightbox
         :src="zoomUrl"
         @close="zoomUrl = null"
+      />
+
+      <ImageAnnotator
+        :source="editSource"
+        :file-name="editName"
+        @close="closeEditor"
+        @done="onEdited"
       />
     </div>
 

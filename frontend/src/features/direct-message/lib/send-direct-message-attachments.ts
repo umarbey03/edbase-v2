@@ -23,6 +23,8 @@ export interface SendDmAttachmentsOptions {
   /** Ixtiyoriy izoh. Bo'sh bo'lishi MUMKIN (izohsiz surat). */
   body?: string
   moduleLessonId?: number | null
+  /** Ovozli xabar davomiyligi (soniya) — faqat bitta fayl bo'lsa (2026-11-18). */
+  durationSec?: number | null
   onProgress?: (progress: UploadProgress) => void
   signal?: AbortSignal
 }
@@ -38,6 +40,9 @@ export function sendDirectMessageAttachments(
   if (body.length > 0) form.append('body', body)
   if (options.moduleLessonId !== undefined && options.moduleLessonId !== null) {
     form.append('moduleLessonId', String(options.moduleLessonId))
+  }
+  if (options.durationSec != null && options.files.length === 1) {
+    form.append('durationSec', String(Math.round(options.durationSec)))
   }
 
   return uploadWithProgress<DirectMessageDto>({

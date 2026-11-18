@@ -62,6 +62,23 @@ public sealed class NotificationNotifier(
             NotificationLog.BroadcastFailed(logger, ex, userId, notification.Id);
         }
     }
+
+    public async Task DirectMessageReceivedAsync(long userId, long peerId, CancellationToken ct = default)
+    {
+        try
+        {
+            await hub.Clients
+                .User(userId.ToString(CultureInfo.InvariantCulture))
+                .SendAsync("DirectMessageReceived", new { peerId }, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Yuqoridagi AYNI sabab: transport nosozligi xabar yuborishni
+            // yiqitmasin — xabar bazada, klient o'zi yangilaydi.
+            NotificationLog.BroadcastFailed(logger, ex, userId, 0);
+        }
+    }
 }
 
 /// <summary>
