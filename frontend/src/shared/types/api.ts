@@ -1426,6 +1426,13 @@ export type LessonLockReasonName =
   | 'BeforeGroupStart'
   /** Mustaqil o'qish obunasi muddati tugagan (2026-10-23). */
   | 'SubscriptionExpired'
+  /** Mustaqil (2026-11-18): oldingi dars bajarilgan, kurator hali «o'zlashtirdi» demagan. */
+  | 'AwaitingReview'
+  /** Mustaqil (2026-11-18): kurator oldingi darsga «qayta ishlasin» degan. */
+  | 'NeedsWork'
+
+/** Kuratorning dars bo'yicha qarori (Mustaqil, 2026-11-18). */
+export type MasteryStatusName = 'Mastered' | 'NeedsWork'
 
 /**
  * `GET /api/v1/courses` qatori — daraxtsiz, yengil.
@@ -1493,6 +1500,8 @@ export interface CourseLessonDto {
   completed: boolean
   hasAssignment: boolean
   hasTest: boolean
+  /** Mustaqil (2026-11-18): kuratorning shu darsga qarori; guruh o'quvchisida va xodimda `null`. */
+  mastery?: MasteryStatusName | null
 }
 
 export interface CourseModuleDto {
@@ -3088,7 +3097,7 @@ export interface LessonAssetUploadFields {
    bo'yicha aralashtirilgan qatorlar merge paytida to'qnashuv beradi.  */
 
 /** `NotificationKind` enum — hodisa turi (ikonka va o'tish yo'li shundan). */
-export type NotificationKindName = 'SubmissionGraded'
+export type NotificationKindName = 'SubmissionGraded' | 'LessonMasteryDecided'
 
 /**
  * Qo'ng'iroqchadagi bitta qator.

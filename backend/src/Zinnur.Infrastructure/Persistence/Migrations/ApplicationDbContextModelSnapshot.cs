@@ -1959,6 +1959,97 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("LessonGradeAudits", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.LessonMastery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("DecidedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ModuleLessonId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedById");
+
+                    b.HasIndex("ModuleLessonId");
+
+                    b.HasIndex("StudentId", "ModuleLessonId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LessonMasteries_Student_Lesson");
+
+                    b.ToTable("LessonMasteries", (string)null);
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.LessonMasteryEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("ActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ModuleLessonId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ModuleLessonId");
+
+                    b.HasIndex("StudentId", "ModuleLessonId", "At")
+                        .HasDatabaseName("IX_LessonMasteryEvents_Student_Lesson_At");
+
+                    b.ToTable("LessonMasteryEvents", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.LessonProgress", b =>
                 {
                     b.Property<long>("Id")
@@ -5219,6 +5310,52 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Actor");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.LessonMastery", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.ModuleLesson", "ModuleLesson")
+                        .WithMany()
+                        .HasForeignKey("ModuleLessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ModuleLesson");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.LessonMasteryEvent", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.ModuleLesson", null)
+                        .WithMany()
+                        .HasForeignKey("ModuleLessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.LessonProgress", b =>

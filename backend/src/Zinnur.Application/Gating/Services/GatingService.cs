@@ -162,7 +162,9 @@ public sealed class GatingService(
             : [moduleLessonId];
 
         var facts = await LessonFactsQuery(
-                studentId, db.ModuleLessons.AsNoTracking().Where(l => wanted.Contains(l.Id)))
+                studentId,
+                db.ModuleLessons.AsNoTracking().Where(l => wanted.Contains(l.Id)),
+                RequiresMastery(pace))
             .ToListAsync(ct);
 
         var current = facts.Find(f => f.LessonId == moduleLessonId)
@@ -200,6 +202,12 @@ public sealed class GatingService(
 
             LessonLockReason.SubscriptionExpired =>
                 "Obunangiz muddati tugagan — darslarni davom ettirish uchun obunani uzaytiring.",
+
+            LessonLockReason.AwaitingReview =>
+                "Oldingi darsingizni kurator tekshirmoqda — u «o'zlashtirdi» desa bu dars ochiladi.",
+
+            LessonLockReason.NeedsWork =>
+                "Kurator oldingi darsni qayta ishlashni so'radi — izohini o'qib, darsni qayta bajaring.",
 
             _ => "Bu dars sizning kursingizga tegishli emas.",
         });
@@ -278,7 +286,8 @@ public sealed class GatingService(
             return new CourseGateDto(null, 0, null, 0, []);
 
         // BITTA so'rov: barcha darslar + har birining faktlari.
-        var facts = await LessonFactsQuery(studentId, OrderedLessons(courseId)).ToListAsync(ct);
+        var facts = await LessonFactsQuery(studentId, OrderedLessons(courseId), RequiresMastery(pace))
+            .ToListAsync(ct);
 
         // ★ Boshlanish nuqtasi ALLAQACHON tortilgan ro'yxatdan topiladi —
         //   qo'shimcha so'rov yo'q (O(n) bitta o'tish).
@@ -311,7 +320,17 @@ public sealed class GatingService(
     /// Bu ifoda "bitta dars" va "butun daraxt" yo'llarida AYNI — shu tufayli
     /// ikki yo'l hech qachon boshqa-boshqa javob bermaydi (DRY).
     /// </summary>
-    private IQueryable<LessonFacts> LessonFactsQuery(long studentId, IQueryable<ModuleLesson> lessons) =>
+    /// <summary>
+    /// ★ MUSTAQIL (2026-11-18): obuna yo'lidagi o'quvchida har dars kurator
+    /// «o'zlashtirdi» demaguncha tugallanmaydi. Sur'at qiymati baribir shu
+    /// yo'lni ajratadi (`SelfStudyPace` / `SelfStudyExpiredPace`), ya'ni
+    /// keshning yangiligi (`IsFresh`) ham avtomatik shunga bog'langan.
+    /// </summary>
+    private static bool RequiresMastery(PaceSnapshot pace) =>
+        pace.TaughtLessonCount is SelfStudyPace or SelfStudyExpiredPace;
+
+    private IQueryable<LessonFacts> LessonFactsQuery(
+        long studentId, IQueryable<ModuleLesson> lessons, bool requiresMastery) =>
         lessons.Select(l => new LessonFacts(
             l.Id,
 
@@ -379,7 +398,13 @@ public sealed class GatingService(
 
             db.LessonProgress.Any(p => p.StudentId == studentId
                                     && p.ModuleLessonId == l.Id
-                                    && p.UnlockedOverride)));
+                                    && p.UnlockedOverride),
+            requiresMastery,
+            // Kuratorning joriy qarori (bitta qator — unikal indeks).
+            db.LessonMasteries
+                .Where(m => m.StudentId == studentId && m.ModuleLessonId == l.Id)
+                .Select(m => (MasteryStatus?)m.Status)
+                .FirstOrDefault()));
 
     // ================================================================= guruh sur'ati (hisobot)
 

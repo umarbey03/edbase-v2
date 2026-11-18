@@ -26,6 +26,6 @@ const isManager = computed(() => isManagerRole(auth.role ?? ''))
       subtitle="Vazifani tekshirasiz, savollariga javob berasiz va darsni «o‘zlashtirdi» deb belgilaysiz"
     />
     <UnassignedSelfStudyStudents v-if="isManager" />
-    <MySelfStudyStudents @open="router.push({ name: 'teacher-grading' })" />
+    <MySelfStudyStudents @open="(row) => router.push({ name: 'teacher-self-study-student', params: { studentId: row.studentId } })" />
   </div>
 </template>

@@ -1,7 +1,11 @@
 import { http } from '@/shared/api'
+import type { MasteryStatusName } from '@/shared/types'
 
 import type {
   CuratorCandidateDto,
+  MasteryEventDto,
+  MyLessonMasteryDto,
+  StudentLessonBoardDto,
   MyCuratorDto,
   MySelfStudyStudentDto,
   StudentCuratorInfoDto,
@@ -43,4 +47,37 @@ export function fetchMySelfStudyStudents(options?: Opts): Promise<MySelfStudyStu
 export async function fetchMyCurator(options?: Opts): Promise<MyCuratorDto | null> {
   const result = await http.get<MyCuratorDto | undefined>(`${BASE}/mine`, { signal: options?.signal })
   return result ?? null
+}
+
+/* ───────────── «O'zlashtirdi» qoidasi (2026-11-18) ───────────── */
+
+const STUDENTS = '/api/v1/self-study/students'
+
+export function fetchStudentLessonBoard(studentId: number, options?: Opts): Promise<StudentLessonBoardDto> {
+  return http.get<StudentLessonBoardDto>(`${STUDENTS}/${studentId}/lessons`, { signal: options?.signal })
+}
+
+export function decideLessonMastery(
+  studentId: number,
+  lessonId: number,
+  request: { status: MasteryStatusName, note: string | null },
+): Promise<StudentLessonBoardDto> {
+  return http.put<StudentLessonBoardDto>(`${STUDENTS}/${studentId}/lessons/${lessonId}/mastery`, request)
+}
+
+export function adminUnlockLesson(
+  studentId: number,
+  lessonId: number,
+  request: { unlocked: boolean, reason: string | null },
+): Promise<StudentLessonBoardDto> {
+  return http.put<StudentLessonBoardDto>(`${STUDENTS}/${studentId}/lessons/${lessonId}/unlock`, request)
+}
+
+export function fetchMasteryEvents(studentId: number, options?: Opts): Promise<MasteryEventDto[]> {
+  return http.get<MasteryEventDto[]>(`${STUDENTS}/${studentId}/mastery-events`, { signal: options?.signal })
+}
+
+/** O'quvchi: o'z darslari bo'yicha kurator qarorlari. */
+export function fetchMyLessonMastery(options?: Opts): Promise<MyLessonMasteryDto[]> {
+  return http.get<MyLessonMasteryDto[]>('/api/v1/self-study/me/mastery', { signal: options?.signal })
 }

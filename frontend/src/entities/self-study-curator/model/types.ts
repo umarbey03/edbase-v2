@@ -1,3 +1,5 @@
+import type { LessonLockReasonName, MasteryStatusName } from '@/shared/types'
+
 /** Mustaqil o'quvchining kuratori (2026-11-18). Server: `SelfStudyCuratorsController`. */
 
 export interface SelfStudyCuratorDto {
@@ -50,4 +52,78 @@ export interface MyCuratorDto {
 export const CURATOR_ROLE_LABELS: Record<string, string> = {
   Assistant: 'Kurator',
   Teacher: 'Ustoz',
+}
+
+/* ───────────── «O'zlashtirdi» qoidasi (2026-11-18) ───────────── */
+
+
+export type MasteryEventKindName = 'Mastered' | 'NeedsWork' | 'AdminUnlocked' | 'AdminUnlockRevoked'
+
+export interface BoardAssignmentDto {
+  assignmentId: number
+  title: string
+  maxScore: number
+  submissionId: number | null
+  submissionStatus: 'Submitted' | 'Graded' | null
+  score: number | null
+  submittedAt: string | null
+  attemptNumber: number | null
+}
+
+export interface LessonBoardRowDto {
+  lessonId: number
+  index: number
+  moduleName: string
+  lessonName: string
+  unlocked: boolean
+  lockReason: LessonLockReasonName | null
+  /** O'quvchi video, vazifa va testni bajargan (kurator qaroridan qat'i nazar). */
+  workDone: boolean
+  hasVideo: boolean
+  videoWatched: boolean
+  hasAssignment: boolean
+  assignment: BoardAssignmentDto | null
+  hasTest: boolean
+  testTaken: boolean
+  testPercent: number | null
+  mastery: MasteryStatusName | null
+  masteryNote: string | null
+  decidedByName: string | null
+  decidedAt: string | null
+  unlockedOverride: boolean
+  overrideReason: string | null
+}
+
+export interface StudentLessonBoardDto {
+  studentId: number
+  studentName: string
+  courseName: string | null
+  subscriptionActive: boolean
+  canDecide: boolean
+  canOverride: boolean
+  lessons: LessonBoardRowDto[]
+}
+
+export interface MasteryEventDto {
+  id: number
+  lessonId: number
+  lessonName: string
+  kind: MasteryEventKindName
+  note: string | null
+  actorName: string
+  at: string
+}
+
+export interface MyLessonMasteryDto {
+  lessonId: number
+  status: MasteryStatusName
+  note: string | null
+  decidedAt: string
+}
+
+export const MASTERY_EVENT_LABELS: Record<MasteryEventKindName, string> = {
+  Mastered: 'O‘zlashtirdi',
+  NeedsWork: 'Qayta ishlasin',
+  AdminUnlocked: 'Admin ochdi',
+  AdminUnlockRevoked: 'Admin ochishni bekor qildi',
 }

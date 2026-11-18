@@ -121,6 +121,31 @@ public static class NotificationTemplates
     /// aylantiradi: qo'ng'iroqcha qatori BIR-IKKI satrda chiziladi, ichida
     /// <c>\n</c> bo'lsa balandligi sakrab ketardi.
     /// </summary>
+    /* ===== 2026-11-18 · MUSTAQIL: KURATOR QARORI ===== */
+
+    /// <summary>«O'zlashtirdi» / «qayta ishlasin» — qo'ng'iroqcha sarlavhasi.</summary>
+    public static string LessonMasteryTitle(bool mastered) =>
+        mastered ? "Dars o'zlashtirildi" : "Darsni qayta ishlang";
+
+    /// <summary>
+    /// Kurator qarori matni. «O'zlashtirdi» da keyingi dars nomi aytiladi —
+    /// o'quvchi uchun eng muhim xabar AYNAN «keyingi dars ochildi».
+    /// </summary>
+    public static string LessonMasteryBody(string? lessonName, string? nextLessonName, bool mastered, string? note)
+    {
+        var lesson = Clean(lessonName);
+        var head = lesson.Length == 0 ? "Dars" : $"«{lesson}»";
+
+        var text = mastered
+            ? (Clean(nextLessonName) is { Length: > 0 } next
+                ? $"{head} — kurator «o'zlashtirdi» dedi. Keyingi dars ochildi: «{next}»."
+                : $"{head} — kurator «o'zlashtirdi» dedi.")
+            : $"{head} — kurator qayta ishlashni so'radi.";
+
+        var comment = Clean(note);
+        return comment.Length == 0 ? text : $"{text} Izoh: {comment}";
+    }
+
     private static string Clean(string? value)
     {
         var text = (value ?? string.Empty).Trim();

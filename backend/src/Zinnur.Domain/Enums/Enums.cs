@@ -562,3 +562,32 @@ public enum PurchaseOrderStatus
     /// <summary>O'quvchi o'zi bekor qildi.</summary>
     Cancelled = 3,
 }
+
+/// <summary>
+/// Kuratorning dars bo'yicha qarori (Mustaqil, 2026-11-18). Tartib MUHIM:
+/// qiymatlar bazaga <c>int</c> sifatida yoziladi, yangisi FAQAT oxiriga.
+/// </summary>
+public enum MasteryStatus
+{
+    /// <summary>Yaxshi o'zlashtirdi — keyingi dars ochiladi.</summary>
+    Mastered = 0,
+
+    /// <summary>Qayta ishlasin — keyingi dars yopiq qoladi, izoh majburiy.</summary>
+    NeedsWork = 1,
+}
+
+/// <summary>O'zlashtirish jurnalidagi hodisa turi. Tartib MUHIM.</summary>
+public enum MasteryEventKind
+{
+    /// <summary>Kurator «o'zlashtirdi» dedi.</summary>
+    Mastered = 0,
+
+    /// <summary>Kurator «qayta ishlasin» dedi.</summary>
+    NeedsWork = 1,
+
+    /// <summary>Administrator darsni istisno sifatida ochdi (sabab bilan).</summary>
+    AdminUnlocked = 2,
+
+    /// <summary>Administrator istisnoni bekor qildi.</summary>
+    AdminUnlockRevoked = 3,
+}

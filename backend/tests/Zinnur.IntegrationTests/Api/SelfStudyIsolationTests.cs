@@ -40,10 +40,13 @@ public sealed class SelfStudyIsolationTests(ZinnurApiFactory factory)
         lessons.Should().HaveCount(3);
 
         // ★ USTOZ SUR'ATI YO'Q: guruhda bu holda (o'tilgan dars 0) 2- va
-        //   3-dars TeacherPace bilan yopiq bo'lardi. Sinov darslarida
-        //   video/vazifa/test yo'q — ya'ni har biri "tugallangan" va faqat
-        //   "oldingi darsni tugat" qoidasi qolgani uchun hammasi ochiq.
-        lessons.Should().OnlyContain(l => l.Unlocked);
+        //   3-dars TeacherPace bilan yopiq bo'lardi.
+        // ★ 2026-11-18 — «O'ZLASHTIRDI» QOIDASI: sinov darslarida video/
+        //   vazifa/test yo'q, ya'ni o'quvchining ishi "bajarilgan", lekin
+        //   kurator qaror chiqarmaguncha keyingi dars ochilmaydi
+        //   (`SelfStudyMasteryTests`). Ilgari hammasi ochiq edi.
+        lessons[0].Unlocked.Should().BeTrue();
+        lessons.Skip(1).Should().OnlyContain(l => !l.Unlocked && l.LockReason == "AwaitingReview");
     }
 
     [Fact]

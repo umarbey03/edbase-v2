@@ -31,6 +31,8 @@ const LOCK_MESSAGES: Record<string, string> = {
   PreviousIncomplete: "Avvalgi darsni to'liq tugating (video, vazifa va test)",
   NotInCourse: "Guruhingiz kursning boshqa qismidan boshlagan",
   SubscriptionExpired: "Obunangiz muddati tugagan — davom ettirish uchun obunani uzaytiring",
+  AwaitingReview: "Oldingi darsingizni kurator tekshirmoqda — «o'zlashtirdi» desa bu dars ochiladi",
+  NeedsWork: "Kurator oldingi darsni qayta ishlashni so'radi — izohini o'qib, darsni qayta bajaring",
 }
 
 /** Eski ilovadagi `LOCK_SHORT` — dars qatorining o'ng chekkasidagi qisqa yorliq. */
@@ -39,6 +41,8 @@ const LOCK_SHORT: Record<string, string> = {
   PreviousIncomplete: 'Avvalgi dars',
   NotInCourse: 'Boshqa qism',
   SubscriptionExpired: 'Obuna tugagan',
+  AwaitingReview: 'Kurator tekshirmoqda',
+  NeedsWork: 'Qayta ishlang',
 }
 
 export function lockMessage(reason: string | null): string {

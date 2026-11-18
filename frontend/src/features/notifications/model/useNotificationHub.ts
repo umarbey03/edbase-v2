@@ -100,7 +100,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function asKind(value: unknown): NotificationKindName | null {
-  return value === 'SubmissionGraded' ? value : null
+  return value === 'SubmissionGraded' || value === 'LessonMasteryDecided' ? value : null
 }
 
 /**
@@ -188,6 +188,10 @@ function scheduleInvalidate(): void {
 
     void target.invalidateQueries({ queryKey: NOTIFICATIONS_ROOT_KEY })
     void target.invalidateQueries({ queryKey: STUDENT_ASSIGNMENTS_KEY })
+    // ★ Mustaqil (2026-11-18): kurator «o'zlashtirdi» desa keyingi dars ochiladi —
+    //   kurs daraxti va kurator qarorlari shu zahoti yangilansin.
+    void target.invalidateQueries({ queryKey: ['courses', 'tree'] })
+    void target.invalidateQueries({ queryKey: ['self-study', 'my-mastery'] })
   }, INVALIDATE_DEBOUNCE_MS)
 }
 

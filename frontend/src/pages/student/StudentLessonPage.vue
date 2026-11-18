@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import LessonDashboard from '@/features/lesson-dashboard/ui/LessonDashboard.vue'
+import { LessonMasteryNotice } from '@/features/self-study-curator'
 import {
   lockMessage,
   useStudentCourse,
@@ -165,10 +166,14 @@ const subtitle = computed(() =>
         </BaseButton>
       </div>
 
-      <LessonDashboard
-        v-else
-        :lesson="entry.lesson"
-      />
+      <template v-else>
+        <!-- Mustaqil (2026-11-18): kuratorning shu darsga qarori va izohi. -->
+        <LessonMasteryNotice
+          :lesson-id="entry.lesson.id"
+          :mastery="entry.lesson.mastery"
+        />
+        <LessonDashboard :lesson="entry.lesson" />
+      </template>
     </template>
   </div>
 </template>

@@ -343,6 +343,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Mustaqil o‘quvchilar', roles: STAFF_AND_MANAGERS },
       },
       {
+        path: 'ustoz/mustaqil/:studentId(\\d+)',
+        name: 'teacher-self-study-student',
+        component: () => import('@/pages/teacher/TeacherSelfStudyStudentPage.vue'),
+        meta: { title: 'O‘quvchi darslari', roles: STAFF_AND_MANAGERS },
+      },
+      {
         // Guruh tafsilotini o'quv bo'limi ham ochadi (guruhlar ro'yxatidan).
         path: 'ustoz/guruh/:groupId(\\d+)',
         name: 'teacher-group',

@@ -122,6 +122,10 @@ public interface IApplicationDbContext
 
     DbSet<SelfStudyCuratorAssignment> SelfStudyCuratorAssignments { get; }
 
+    DbSet<LessonMastery> LessonMasteries { get; }
+
+    DbSet<LessonMasteryEvent> LessonMasteryEvents { get; }
+
     DbSet<PurchaseOrder> PurchaseOrders { get; }
 
     DbSet<StudentPoint> StudentPoints { get; }

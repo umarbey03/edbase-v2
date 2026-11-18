@@ -801,7 +801,11 @@ public sealed class CourseService(
             // haqda hech nima bilmaydi.
             unlocked && found && gate!.Completed,
             row.HasAssignment,
-            row.HasTest);
+            row.HasTest,
+
+            // ★ MUSTAQIL (2026-11-18): kuratorning shu darsga qarori — o'quvchi
+            //   «tekshirilmoqda / o'zlashtirildi / qayta ishlang» ni ko'rsin.
+            found ? gate!.Mastery : null);
     }
 
     // ================================================================= ichki yordamchi

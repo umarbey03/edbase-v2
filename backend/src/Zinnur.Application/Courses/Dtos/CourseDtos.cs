@@ -141,7 +141,8 @@ public sealed record CourseLessonDto(
     LessonLockReason? LockReason,
     bool Completed,
     bool HasAssignment,
-    bool HasTest);
+    bool HasTest,
+    Zinnur.Domain.Enums.MasteryStatus? Mastery = null);
 
 /// <summary>
 /// Darsga biriktirilgan bitta media (video qismi yoki imtihon rasmi).

@@ -16,6 +16,19 @@ public enum LessonLockReason
     SubscriptionExpired = 4,
 
     /// <summary>
+    /// ★ MUSTAQIL (2026-11-18): oldingi dars bajarilgan (video, vazifa,
+    /// test), lekin kurator hali «o'zlashtirdi» demagan. O'quvchidan hech
+    /// narsa talab qilinmaydi — u kuratorni kutadi.
+    /// </summary>
+    AwaitingReview = 5,
+
+    /// <summary>
+    /// ★ MUSTAQIL (2026-11-18): kurator oldingi darsga «qayta ishlasin»
+    /// degan — izohini o'qib, darsni qayta bajarish kerak.
+    /// </summary>
+    NeedsWork = 6,
+
+    /// <summary>
     /// ★ Dars GURUH boshlagan qismdan OLDINDA.
     ///
     /// Guruh kursning o'rtasidan boshlagan
@@ -60,7 +73,9 @@ public sealed record LessonGateDto(
     bool AssignmentSubmitted,
     bool HasTest,
     bool TestTaken,
-    bool UnlockedOverride);
+    bool UnlockedOverride,
+    bool RequiresMastery = false,
+    Zinnur.Domain.Enums.MasteryStatus? Mastery = null);
 
 /// <summary>
 /// O'quvchining butun kursi bo'yicha ochiqlik xaritasi.

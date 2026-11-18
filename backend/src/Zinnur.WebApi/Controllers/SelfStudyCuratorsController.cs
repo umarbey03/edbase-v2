@@ -13,7 +13,9 @@ namespace Zinnur.WebApi.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/self-study/curators")]
-public sealed class SelfStudyCuratorsController(ISelfStudyCuratorService curators) : ControllerBase
+public sealed class SelfStudyCuratorsController(
+    ISelfStudyCuratorService curators,
+    ILessonMasteryService mastery) : ControllerBase
 {
     private const string ManageRoles = "Academic,Admin";
     private const string StaffRoles = "Teacher,Assistant,Academic,Admin";
@@ -74,6 +76,13 @@ public sealed class SelfStudyCuratorsController(ISelfStudyCuratorService curator
         var curator = await curators.GetMyCuratorAsync(CurrentUserId, ct);
         return curator is null ? NoContent() : Ok(curator);
     }
+
+    /// <summary>O'quvchi: darslarim bo'yicha kurator qarorlari (izoh bilan).</summary>
+    [HttpGet("~/api/v1/self-study/me/mastery")]
+    [Authorize(Roles = "Student")]
+    [ProducesResponseType<IReadOnlyList<MyLessonMasteryDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<MyLessonMasteryDto>>> MyMastery(CancellationToken ct) =>
+        Ok(await mastery.ListMineAsync(CurrentUserId, ct));
 
     private long CurrentUserId =>
         long.Parse(

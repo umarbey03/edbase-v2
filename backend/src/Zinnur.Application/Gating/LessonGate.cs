@@ -1,4 +1,5 @@
 using Zinnur.Application.Gating.Dtos;
+using Zinnur.Domain.Enums;
 
 namespace Zinnur.Application.Gating;
 
@@ -11,6 +12,11 @@ namespace Zinnur.Application.Gating;
 /// <param name="HasAssignment">Darsga KURS vazifasi biriktirilganmi.</param>
 /// <param name="HasTest">Darsga E'LON QILINGAN test biriktirilganmi.</param>
 /// <param name="UnlockedOverride">O'quv bo'limi qo'lda ochib berganmi (istisno).</param>
+/// <param name="RequiresMastery">
+/// ★ MUSTAQIL (2026-11-18): dars kurator «o'zlashtirdi» demaguncha TUGATILGAN
+/// hisoblanmaydi. Guruh o'quvchisida doim <c>false</c> — uning qoidasi o'zgarmaydi.
+/// </param>
+/// <param name="Mastery">Kuratorning shu darsga qarori; <c>null</c> — hali qaror yo'q.</param>
 public sealed record LessonFacts(
     long LessonId,
     bool HasVideo,
@@ -19,7 +25,9 @@ public sealed record LessonFacts(
     bool AssignmentSubmitted,
     bool HasTest,
     bool TestTaken,
-    bool UnlockedOverride);
+    bool UnlockedOverride,
+    bool RequiresMastery = false,
+    MasteryStatus? Mastery = null);
 
 /// <summary>
 /// ========================================================================
@@ -58,8 +66,12 @@ public sealed record LessonFacts(
 /// </summary>
 public static class LessonGate
 {
-    /// <summary>Dars tugatilganmi (mavjud bo'lmagan shart talab qilinmaydi).</summary>
-    public static bool IsComplete(LessonFacts facts)
+    /// <summary>
+    /// O'quvchi o'z ishini bajarganmi: video, vazifa, test (mavjud bo'lmagan
+    /// shart talab qilinmaydi). Kurator qaroriga QARAMAYDI — uni
+    /// <see cref="IsComplete"/> qo'shadi.
+    /// </summary>
+    public static bool IsWorkDone(LessonFacts facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
 
@@ -68,6 +80,20 @@ public static class LessonGate
         var test = !facts.HasTest || facts.TestTaken;
 
         return video && assignment && test;
+    }
+
+    /// <summary>
+    /// Dars tugatilganmi. Mustaqilda (<see cref="LessonFacts.RequiresMastery"/>)
+    /// ish bajarilishi YETMAYDI — kurator «o'zlashtirdi» deyishi SHART
+    /// (loyiha egasi, 2026-11-18: «bo'lmasa ta'lim sifatiga ishonmay qolamiz»).
+    /// </summary>
+    public static bool IsComplete(LessonFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+
+        if (!IsWorkDone(facts)) return false;
+
+        return !facts.RequiresMastery || facts.Mastery == MasteryStatus.Mastered;
     }
 
     /// <summary>
@@ -110,7 +136,12 @@ public static class LessonGate
         //     `IsComplete` hech narsasiz `true` bo'ladi va sur'atdan oldinga
         //     ochilib ketardi — "tugatdi" degani haqiqiy dalil bilan.
         //     Obuna tugashi bu yerga yetmaydi (`GatingService` undan oldin yopadi).
-        if ((facts.HasVideo || facts.HasAssignment || facts.HasTest) && IsComplete(facts))
+        //     ★ MUSTAQIL: kurator «o'zlashtirdi» degan dars ham shu yerda —
+        //       kontentsiz bo'lsa ham, chunki dalil kuratorning qarori.
+        var hasEvidence = facts.HasVideo || facts.HasAssignment || facts.HasTest
+            || (facts.RequiresMastery && facts.Mastery == MasteryStatus.Mastered);
+
+        if (hasEvidence && IsComplete(facts))
             return (true, null);
 
         // 2) ★ GURUH BOSHLANISH NUQTASIDAN OLDINGI DARS.
@@ -146,9 +177,20 @@ public static class LessonGate
         //    DOIM `startIndex` yoki undan keyingi dars (3-qadam oldin
         //    qaytgani uchun), ya'ni zanjir boshlanish nuqtasidan orqaga
         //    hech qachon o'tmaydi.
-        return IsComplete(previous)
-            ? (true, null)
-            : (false, LessonLockReason.PreviousIncomplete);
+        if (IsComplete(previous))
+            return (true, null);
+
+        // ★ MUSTAQIL: o'quvchi ishini bajargan, lekin kurator hali
+        //   «o'zlashtirdi» demagan — sabab ALOHIDA, chunki o'quvchidan endi
+        //   hech narsa talab qilinmaydi (yoki kurator izohini o'qishi kerak).
+        if (previous.RequiresMastery && IsWorkDone(previous))
+        {
+            return (false, previous.Mastery == MasteryStatus.NeedsWork
+                ? LessonLockReason.NeedsWork
+                : LessonLockReason.AwaitingReview);
+        }
+
+        return (false, LessonLockReason.PreviousIncomplete);
     }
 
     /// <summary>
@@ -204,6 +246,8 @@ public static class LessonGate
             facts.AssignmentSubmitted,
             facts.HasTest,
             facts.TestTaken,
-            facts.UnlockedOverride);
+            facts.UnlockedOverride,
+            facts.RequiresMastery,
+            facts.Mastery);
     }
 }

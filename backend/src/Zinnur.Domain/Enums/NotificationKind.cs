@@ -41,4 +41,10 @@ public enum NotificationKind
     /// <c>ISubstituteOfferService.RespondAsync</c>) — o'quv bo'limiga.
     /// </summary>
     SubstituteFound = 2,
+
+    /// <summary>
+    /// Kurator darsga qaror chiqardi (Mustaqil, 2026-11-18): «o'zlashtirdi» —
+    /// keyingi dars ochildi, yoki «qayta ishlasin» — izoh bilan. O'quvchiga.
+    /// </summary>
+    LessonMasteryDecided = 3,
 }

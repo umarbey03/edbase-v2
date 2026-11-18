@@ -131,6 +131,9 @@ public static class TelegramTemplates
     /// </summary>
     public const string SubmissionGraded = "submission_graded";
 
+    /// <summary>Kurator darsga qaror chiqardi (Mustaqil, 2026-11-18).</summary>
+    public const string LessonMasteryDecided = "lesson_mastery_decided";
+
     /* ===== /R35/R36 ===== */
 
     /* ===== 2026-08-17 · USTOZ KUNLIK TASDIQLASH + O'RINBOSAR ===== */
@@ -540,6 +543,25 @@ public static class TelegramTemplates
         var note = NotificationText.Parameter(feedback, FeedbackMaxLength);
 
         if (note.Length > 0) text += $"\n\n💬 {note}";
+
+        return text;
+    }
+
+    /// <summary>Kurator qarori: «o'zlashtirdi» (keyingi dars bilan) yoki «qayta ishlasin».</summary>
+    public static string LessonMasteryText(string? lessonName, string? nextLessonName, bool mastered, string? note)
+    {
+        var lesson = NotificationText.Parameter(lessonName);
+        var head = lesson.Length == 0 ? "Dars" : lesson;
+
+        var text = mastered
+            ? $"🎉 <b>Dars o'zlashtirildi</b>\n\n📘 {head}"
+            : $"🔁 <b>Darsni qayta ishlang</b>\n\n📘 {head}";
+
+        var next = NotificationText.Parameter(nextLessonName);
+        if (mastered && next.Length > 0) text += $"\n🔓 Keyingi dars ochildi: <b>{next}</b>";
+
+        var comment = NotificationText.Parameter(note, FeedbackMaxLength);
+        if (comment.Length > 0) text += $"\n\n💬 {comment}";
 
         return text;
     }

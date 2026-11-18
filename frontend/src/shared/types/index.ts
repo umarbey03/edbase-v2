@@ -109,6 +109,7 @@ export type {
   LessonAssetUploadFields,
   LessonKindName,
   LessonLockReasonName,
+  MasteryStatusName,
   LessonQuestionDto,
   LessonWriteRequest,
   LiveKitJoinDto,
