@@ -387,6 +387,7 @@ const attachMutation = useMutation({
 
     void threadQuery.refetch()
     void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
+    void queryClient.invalidateQueries({ queryKey: ['dm', 'voice-quota'] })
   },
   onError: (error: Error) => {
     uploadPercent.value = null

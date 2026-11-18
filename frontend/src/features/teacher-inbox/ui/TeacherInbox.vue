@@ -36,7 +36,10 @@ import InboxThread from './InboxThread.vue'
  * Agar u `md:hidden` bo'lib qolsa, 768–1023px oralig'ida ro'yxat YASHIRINIB,
  * qaytish tugmasi ham YO'QOLIB, foydalanuvchi yozishmada qamalib qolardi.
  */
-const props = withDefaults(defineProps<{ emptyHint?: string }>(), { emptyHint: '' })
+const props = withDefaults(
+  defineProps<{ emptyHint?: string, initialPeerId?: number | null }>(),
+  { emptyHint: '', initialPeerId: null },
+)
 
 const now = useNow()
 
@@ -146,7 +149,8 @@ const lessonQuestionsError = computed(() =>
 
 /* ------------------------------------------------------------ ochiq suhbat */
 
-const activePeerId = ref<number | null>(null)
+// «Navbat»dan kelganda (`?peer=`) o'sha o'quvchi darhol ochiladi (2026-11-18).
+const activePeerId = ref<number | null>(props.initialPeerId)
 
 const activePeer = computed<ConversationDto | null>(
   () => conversations.value.find((item) => item.peerId === activePeerId.value) ?? null,

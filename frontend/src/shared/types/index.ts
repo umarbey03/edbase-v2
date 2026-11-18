@@ -116,6 +116,7 @@ export type {
   LiveSessionDto,
   MarkGroupChatReadRequest,
   MarkReadResultDto,
+  VoiceQuotaDto,
   MediaAccessTicketDto,
   MemberStatusName,
   MessagePageDto,

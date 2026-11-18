@@ -18,6 +18,7 @@ import {
 import { ChatDaySeparator, ChatNotice } from '@/features/group-chat'
 import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
 import { ImageAnnotator } from '@/features/image-annotator'
+import { VoiceReviewer } from '@/features/voice-review'
 import { toUserMessage } from '@/shared/api'
 import { formatTime } from '@/shared/lib/datetime'
 import { formatFileSize } from '@/shared/lib/text'
@@ -202,6 +203,14 @@ function onVoiceRecorded(file: File, durationSec: number): void {
   attachMutation.mutate({ files: [file], body: '', durationSec })
 }
 
+/** Ovoz ustiga ovoz izohi (2026-11-18): o'quvchi ovozi + kurator izohlari bitta faylda. */
+const reviewSource = ref<Blob | null>(null)
+
+function onReviewed(file: File, durationSec: number): void {
+  reviewSource.value = null
+  attachMutation.mutate({ files: [file], body: '', durationSec })
+}
+
 const sendMutation = useMutation({
   mutationFn: (input: { id: number; body: string }) =>
     sendDirectMessage(input.id, { body: input.body }),
@@ -350,8 +359,10 @@ function submit(): void {
                   :key="item.id"
                   :attachment="item"
                   editable
+                  :reviewable="!row.message.mine"
                   @zoom="(url) => (zoomUrl = url)"
                   @edit="editAttachment"
+                  @review="(blob) => (reviewSource = blob)"
                 />
               </div>
               <p
@@ -538,6 +549,11 @@ function submit(): void {
       :file-name="editName"
       @close="closeEditor"
       @done="onEdited"
+    />
+    <VoiceReviewer
+      :source="reviewSource"
+      @close="reviewSource = null"
+      @done="onReviewed"
     />
   </section>
 </template>

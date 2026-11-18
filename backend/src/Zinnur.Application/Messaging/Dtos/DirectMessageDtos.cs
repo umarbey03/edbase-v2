@@ -131,6 +131,9 @@ public sealed record MarkReadResultDto(int MarkedCount, int UnreadCount);
 /// Shu savoldan KEYIN xodim javob yozganmi. Navbat tartibi shunga tayanadi:
 /// javobsizlar tepada.
 /// </param>
+/// <summary>Ovozli xabar limiti: <c>PerDay = null</c> — cheklanmagan (xodim).</summary>
+public sealed record VoiceQuotaDto(int? PerDay, int UsedToday, int MaxSeconds);
+
 public sealed record LessonQuestionDto(
     long MessageId,
     long PeerId,

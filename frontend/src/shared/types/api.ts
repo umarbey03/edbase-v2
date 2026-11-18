@@ -1750,6 +1750,13 @@ export interface SendDirectMessageRequest {
 }
 
 /** `markedCount` — nechta xabar belgilandi (idempotent: takrorda 0). */
+/** O'quvchining bugungi ovozli xabar limiti; `perDay = null` — cheklanmagan (xodim). */
+export interface VoiceQuotaDto {
+  perDay: number | null
+  usedToday: number
+  maxSeconds: number
+}
+
 export interface MarkReadResultDto {
   markedCount: number
   unreadCount: number

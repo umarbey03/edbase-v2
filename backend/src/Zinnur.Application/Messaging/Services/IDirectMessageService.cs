@@ -112,4 +112,11 @@ public interface IDirectMessageService
     /// </summary>
     Task<MarkReadResultDto> MarkReadAsync(
         long userId, long peerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O'quvchining bugungi ovozli xabar limiti (2026-11-18). Xodim uchun
+    /// cheklov yo'q — <c>PerDay = null</c> qaytadi, davomiylik chegarasi
+    /// esa baribir beriladi (yozuvchi undan foydalanmaydi).
+    /// </summary>
+    Task<VoiceQuotaDto> GetVoiceQuotaAsync(long userId, CancellationToken ct = default);
 }

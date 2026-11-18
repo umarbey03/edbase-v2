@@ -134,8 +134,8 @@ const TEACHER_NAV: NavItem[] = [
   { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
   { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
-  { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
-  { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
+  { routeName: 'teacher-group-chats', label: 'Guruh chatlari', icon: 'chat' },
+  // "Savollar" olib tashlandi (2026-11-18): shaxsiy yozishmani faqat kurator olib boradi.
 ]
 
 /**
@@ -170,16 +170,29 @@ const TEACHER_NAV: NavItem[] = [
  * ★ "DARSGA KIRMAGANLAR" — sabab `TEACHER_NAV` dagi bilan AYNI; kuratorda
  * u ayniqsa muhim, chunki qo'ng'iroqlarni AMALDA aynan kurator qiladi.
  */
+/*
+  🔴 2026-11-18 — KURATOR PANELI QAYTA TUZILDI (loyiha egasi): *"kurator
+  endi dars o'tmaydi, faqat o'quvchilar savollariga javob beradi; chat va
+  savollar aralashib yotibdi"*. Yuqoridagi tarixiy izohlar ESKI menyu
+  haqida — endigi tartib ish oqimi bo'yicha:
+    1) Navbat — kim kutyapti (savollar + vazifalar + Mustaqil baholash);
+    2) Suhbatlar — o'quvchi bilan SHAXSIY yozishma (ilgari "Savollar");
+    3) Tekshirish — uy vazifalari;
+    4) Mustaqil o'quvchilar — dars o'zlashtirilganini belgilash;
+    5) Guruh chatlari — guruhning UMUMIY suhbati (ilgari "Chatlar" —
+       nomi shaxsiy yozishma bilan adashtirilardi);
+    6) Guruhlarim — o'quvchini topish uchun.
+  OLIB TASHLANDI: "Bosh sahifa" (bugungi darslar), "Darslarim",
+  "Kuratorlik", "Darsga kirmaganlar" — dars o'tilmagach ma'nosiz.
+  Sahifalarning O'ZI o'chirilmadi (manzil bo'yicha ochiladi).
+*/
 const ASSISTANT_NAV: NavItem[] = [
-  { routeName: 'teacher-home', label: 'Bosh sahifa', icon: 'graduation' },
-  { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
-  { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
-  { routeName: 'teacher-curator', label: 'Kuratorlik', icon: 'user-check' },
-  { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
+  { routeName: 'teacher-queue', label: 'Navbat', icon: 'bell' },
+  { routeName: 'teacher-chat', label: 'Suhbatlar', icon: 'message-circle' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
   { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
-  { routeName: 'teacher-group-chats', label: 'Chatlar', icon: 'chat' },
-  { routeName: 'teacher-chat', label: 'Savollar', icon: 'message-circle' },
+  { routeName: 'teacher-group-chats', label: 'Guruh chatlari', icon: 'chat' },
+  { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
 ]
 
 /*
@@ -435,7 +448,7 @@ const NAV_BY_ROLE: Record<UserRoleName, NavItem[]> = {
 const HOME_BY_ROLE: Record<UserRoleName, string> = {
   Student: 'student-home',
   Teacher: 'teacher-home',
-  Assistant: 'teacher-home',
+  Assistant: 'teacher-queue',
 
   /*
     ⚠️ BOSHQARUV PANELI OLIB TASHLANDI (loyiha egasi, 2026-08-18:

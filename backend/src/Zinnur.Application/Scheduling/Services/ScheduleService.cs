@@ -39,6 +39,12 @@ public sealed class ScheduleService(
                 + "Mavjud jadvalni o'zgartirish uchun RegenerateAsync ishlatiladi.");
         }
 
+        // ★ KURATOR DARS O'TMAYDI (loyiha egasi, 2026-11-18): kurator guruhi
+        // endi faqat "qaysi o'quvchilar shu kuratorga tegishli" degan
+        // bog'lovchi — undan jonli dars hosil bo'lmaydi.
+        if (group.IsCuratorGroup)
+            return 0;
+
         var excludedDates = await ExcludedDatesAsync(group.Id, ct);
         var planned = ScheduleGenerator.Build(group, timeZone.TimeZone, excludedDates);
 
@@ -78,6 +84,12 @@ public sealed class ScheduleService(
         Group group, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(group);
+
+        // ★ KURATOR GURUHI (2026-11-18): yangi dars yaratilmaydi, lekin
+        // allaqachon rejalashtirilganlari ham O'CHIRILMAYDI — loyiha egasi:
+        // "borlari qoladi". Ularni o'quv bo'limi kerak bo'lsa qo'lda bekor qiladi.
+        if (group.IsCuratorGroup)
+            return ScheduleChangeSummary.Untouched(CuratorNoLessonsReason);
 
         var now = clock.GetUtcNow();
 
@@ -307,6 +319,9 @@ public sealed class ScheduleService(
 
         db.LiveSessions.Add(session);
     }
+
+    private const string CuratorNoLessonsReason =
+        "Kurator guruhidan jonli dars yaratilmaydi — kurator endi 24/7 yordamchi.";
 
     private const string RegeneratedReason =
         "Jadval qoidasi o'zgardi — kelajakdagi rejalashtirilgan darslar qayta tuzildi. "

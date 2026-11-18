@@ -5,12 +5,14 @@ import { computed, ref, watch } from 'vue'
 import {
   buildSubmissionFeedbackForm,
   deleteSubmissionFeedbackFile,
+  fetchSubmissionFile,
   gradeSubmission,
   submissionFeedbackUploadPath,
 } from '@/entities/assignment'
 import SubmissionAttachments from '@/entities/assignment/ui/SubmissionAttachments.vue'
 import SubmissionFeedbackFiles from '@/entities/assignment/ui/SubmissionFeedbackFiles.vue'
 import { uploadWithProgress } from '@/features/lesson-media'
+import { VoiceReviewer } from '@/features/voice-review'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTime } from '@/shared/lib/datetime'
 import type { SubmissionFeedbackFileDto } from '@/shared/types'
@@ -94,8 +96,13 @@ async function onFeedbackFileChosen(event: Event): Promise<void> {
   // Bir xil faylni qayta tanlash mumkin bo'lsin uchun DARHOL tozalanadi.
   input.value = ''
 
+  if (file === undefined) return
+  await uploadFeedbackFile(file)
+}
+
+async function uploadFeedbackFile(file: File): Promise<void> {
   const submission = props.submission
-  if (file === undefined || submission === null) return
+  if (submission === null) return
 
   feedbackError.value = null
   uploadPercent.value = 0
@@ -115,6 +122,32 @@ async function onFeedbackFileChosen(event: Event): Promise<void> {
   } finally {
     uploadPercent.value = null
   }
+}
+
+/* ---- Ovoz ustiga ovoz izohi (2026-11-18): o'quvchi ovozi + izohlar bitta faylda ---- */
+const audioFiles = computed(() =>
+  (props.submission?.files ?? []).filter(
+    (f) => f.kind === 'Audio' || (f.contentType ?? '').startsWith('audio/'),
+  ),
+)
+const reviewSource = ref<Blob | null>(null)
+const reviewLoadingId = ref<number | null>(null)
+
+async function openReview(fileId: number): Promise<void> {
+  feedbackError.value = null
+  reviewLoadingId.value = fileId
+  try {
+    reviewSource.value = (await fetchSubmissionFile(fileId)).blob
+  } catch (error) {
+    feedbackError.value = toUserMessage(error)
+  } finally {
+    reviewLoadingId.value = null
+  }
+}
+
+async function onReviewed(file: File): Promise<void> {
+  reviewSource.value = null
+  await uploadFeedbackFile(file)
 }
 
 async function removeFeedbackFile(fileId: number): Promise<void> {
@@ -261,6 +294,22 @@ function handleSubmit(): void {
             </template>
             Fayl biriktirish
           </BaseButton>
+          <BaseButton
+            v-for="(audioFile, index) in audioFiles"
+            :key="audioFile.id"
+            size="sm"
+            :loading="reviewLoadingId === audioFile.id"
+            :disabled="uploadPercent !== null"
+            @click="openReview(audioFile.id)"
+          >
+            <template #icon>
+              <AppIcon
+                name="mic"
+                :size="13"
+              />
+            </template>
+            Ovozli izoh{{ audioFiles.length > 1 ? ` ${index + 1}` : '' }}
+          </BaseButton>
         </div>
 
         <div
@@ -369,4 +418,10 @@ function handleSubmit(): void {
       class="mx-auto max-h-[75dvh] w-auto rounded-lg object-contain"
     >
   </BaseModal>
+
+  <VoiceReviewer
+    :source="reviewSource"
+    @close="reviewSource = null"
+    @done="onReviewed"
+  />
 </template>

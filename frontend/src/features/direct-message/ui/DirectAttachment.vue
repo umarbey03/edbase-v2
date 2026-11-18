@@ -25,11 +25,22 @@ const props = withDefaults(
     flush?: boolean
     /** Rasm ustida «Tahrirlash» tugmasi (24/7 chat, 2026-11-18). */
     editable?: boolean
+    /** Ovoz ostida «Ovozli izoh» tugmasi — kurator uchun (2026-11-18). */
+    reviewable?: boolean
   }>(),
-  { zoomable: true, flush: false, editable: false },
+  { zoomable: true, flush: false, editable: false, reviewable: false },
 )
 
-const emit = defineEmits<{ zoom: [url: string], edit: [blob: Blob, fileName: string] }>()
+const emit = defineEmits<{
+  zoom: [url: string]
+  edit: [blob: Blob, fileName: string]
+  review: [blob: Blob]
+}>()
+
+function review(): void {
+  const blob = file.blob.value
+  if (blob !== null) emit('review', blob)
+}
 
 function edit(): void {
   const blob = file.blob.value
@@ -137,6 +148,19 @@ function openZoom(): void {
           class="shrink-0 text-[11px] tabular-nums opacity-75"
         >{{ formatDuration(props.attachment.durationSec) }}</span>
       </div>
+      <button
+        v-if="isAudio && props.reviewable"
+        type="button"
+        class="mt-1 inline-flex items-center gap-1 rounded-md bg-black/30 px-2 py-1 text-[11px] font-semibold hover:bg-black/40"
+        title="Ovozni eshitib, kerakli joylarda ovozli izoh qo‘shish"
+        @click="review"
+      >
+        <AppIcon
+          name="mic"
+          :size="12"
+        />
+        Ovozli izoh
+      </button>
 
       <button
         v-else

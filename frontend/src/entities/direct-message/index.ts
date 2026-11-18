@@ -3,6 +3,7 @@ export {
   fetchDirectMessageAttachment,
   fetchLessonQuestions,
   fetchThread,
+  fetchVoiceQuota,
   markConversationRead,
   sendDirectMessage,
 } from './api/direct-message-api'

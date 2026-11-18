@@ -483,10 +483,10 @@ public sealed class GroupEndpointsTests(ZinnurApiFactory factory)
             isActive = true,
         });
 
-        // Kurator guruhining darslarini KURATOR o'tadi (ustoz emas).
+        // ★ 2026-11-18: kurator dars O'TMAYDI — kurator guruhidan jonli dars yaratilmaydi,
+        // u faqat o'quvchilarni kuratorga bog'laydi (24/7 yordamchi).
         var curatorSchedule = await ScheduleAsync(client, curator.Group.Id);
-        curatorSchedule.Should().AllSatisfy(s => s.HostId.Should().Be(assistantId));
-        curatorSchedule[0].Title.Should().Be("IT-kurator — 1-yordamchi dars");
+        curatorSchedule.Should().BeEmpty();
 
         // Kurator guruhiga o'quvchi TO'G'RIDAN-TO'G'RI qo'shilmaydi.
         var direct = await client.PostAsJsonAsync(

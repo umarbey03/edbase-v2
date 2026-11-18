@@ -7,6 +7,7 @@ import type {
   MarkReadResultDto,
   MessagePageDto,
   SendDirectMessageRequest,
+  VoiceQuotaDto,
 } from '@/shared/types'
 
 const BASE = '/api/v1/messages'
@@ -72,6 +73,11 @@ export function fetchDirectMessageAttachment(
 }
 
 /** `O'qildi` belgilash — idempotent (takrorda `markedCount: 0`). */
+/** `GET /messages/voice-quota` — ovoz yozish tugmasi shunga qaraydi (2026-11-18). */
+export function fetchVoiceQuota(options?: { signal?: AbortSignal }): Promise<VoiceQuotaDto> {
+  return http.get<VoiceQuotaDto>(`${BASE}/voice-quota`, { signal: options?.signal })
+}
+
 export function markConversationRead(peerId: number): Promise<MarkReadResultDto> {
   return http.post<MarkReadResultDto>(`${BASE}/conversations/${peerId}/read`)
 }

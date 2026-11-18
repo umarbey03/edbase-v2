@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import {
   answerFormatsLabel,
@@ -68,11 +69,15 @@ const assignmentsQuery = useQuery({
 })
 
 const assignments = computed(() => assignmentsQuery.data.value?.items ?? [])
-const selectedId = ref<number | null>(null)
+// «Navbat»dan kelganda (`?assignment=`) o'sha vazifa tanlangan holda ochiladi (2026-11-18).
+const route = useRoute()
+const requestedId = Number(route.query.assignment)
+const selectedId = ref<number | null>(Number.isInteger(requestedId) && requestedId > 0 ? requestedId : null)
 
 // Ro'yxat kelgach birinchi vazifa avtomatik tanlanadi — bo'sh ekran ko'rsatmaymiz.
 watch(assignments, (list) => {
-  if (selectedId.value === null && list.length > 0) selectedId.value = list[0]?.id ?? null
+  if (selectedId.value !== null && list.some((item) => item.id === selectedId.value)) return
+  if (list.length > 0) selectedId.value = list[0]?.id ?? null
 })
 
 const selected = computed(

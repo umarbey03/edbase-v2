@@ -11,9 +11,10 @@ using Zinnur.Application.Messaging.Dtos;
 using Zinnur.Application.Notifications;
 using Zinnur.Application.Notifications.Dtos;
 using Zinnur.Application.Notifications.Services;
-using Zinnur.Application.Telegram;
+using Zinnur.Application.Scheduling.Services;
 using Zinnur.Application.Settings;
 using Zinnur.Application.Settings.Services;
+using Zinnur.Application.Telegram;
 using Zinnur.Domain.Entities;
 using Zinnur.Domain.Enums;
 
@@ -54,7 +55,8 @@ public sealed class DirectMessageService(
     // ===== 2026-11-18 · 24/7 CHAT: jonli yetkazish va Telegram turtkisi =====
     INotificationNotifier notifier,
     INotificationOutbox outbox,
-    TimeProvider clock) : IDirectMessageService
+    TimeProvider clock,
+    IScheduleTimeZoneProvider timeZone) : IDirectMessageService
 {
     /// <summary>
     /// Telegram turtkisi oralig'i: bir suhbatda ketma-ket yozilgan xabarlar
@@ -390,6 +392,9 @@ public sealed class DirectMessageService(
             prepared.Add(new PreparedAttachment(file, signature));
         }
 
+        if (pair.ViewerIsStudent && prepared.Any(p => p.Signature.Category == MediaCategories.Audio))
+            await EnsureStudentVoiceAllowedAsync(userId, prepared, ct);
+
         var savedKeys = new List<string>(prepared.Count);
 
         try
@@ -456,7 +461,8 @@ public sealed class DirectMessageService(
     /// ════════════════════════════════════════════════════════════════════
     ///
     /// 1) JONLI: oluvchining ochiq oynasi darhol yangilanadi (SignalR).
-    /// 2) TELEGRAM — faqat MUSTAQIL juftlikda (kurator ↔ o'quvchi): ilova
+    /// 2) TELEGRAM — HAR juftlikda (2026-11-18: kurator Milliy uchun ham 24/7
+    ///    yordamchi, dars o'tmaydi): ilova
     ///    yopiq bo'lsa ham kurator savolni, o'quvchi esa javobni ko'radi.
     ///    Ketma-ket xabarlar uchun bitta turtki (<see cref="TelegramNudgeWindow"/>).
     ///
@@ -472,11 +478,6 @@ public sealed class DirectMessageService(
 
         try
         {
-            var selfStudyPair = await db.SelfStudyCuratorAssignments.AsNoTracking()
-                .AnyAsync(a => a.StudentId == pair.StudentId && a.EndedAt == null
-                            && (a.CuratorId == pair.StaffId || a.BackupCuratorId == pair.StaffId), ct);
-            if (!selfStudyPair) return;
-
             var since = message.SentAt - TelegramNudgeWindow;
             var recentBurst = await db.DirectMessages.AsNoTracking()
                 .AnyAsync(m => m.StudentId == pair.StudentId
@@ -604,6 +605,93 @@ public sealed class DirectMessageService(
 
         return signature;
     }
+
+    /// <summary>
+    /// ★ 24/7 YORDAMCHI LIMITI (2026-11-18): o'quvchi bir kunda
+    /// <c>chat.voice_per_day</c> tadan ko'p ovozli xabar yubora olmaydi va
+    /// har biri <c>chat.voice_max_seconds</c> dan uzun bo'lmaydi.
+    ///
+    /// ★ DAVOMIYLIK MIJOZDAN keladi (<c>durationSec</c>) — server ovozni
+    ///   dekodlamaydi. Aldashning oldini olish uchun HAJM ham tekshiriladi:
+    ///   ovoz yozuvchi ~32 kbit/s yozadi, shuning uchun soniyasiga
+    ///   <see cref="MaxVoiceBytesPerSecond"/> dan katta fayl "aytilganidan
+    ///   uzun" deb hisoblanadi.
+    /// ★ KUN — Toshkent devor-vaqti bo'yicha, yarim tunda yangilanadi.
+    /// </summary>
+    private async Task EnsureStudentVoiceAllowedAsync(
+        long studentId, List<PreparedAttachment> prepared, CancellationToken ct)
+    {
+        var maxSeconds = await ReadIntSettingAsync(VoiceMaxSecondsSetting, ct);
+        foreach (var (file, signature) in prepared)
+        {
+            if (signature.Category != MediaCategories.Audio) continue;
+
+            if (file.DurationSec is not { } seconds || seconds <= 0)
+                throw Invalid("Ovozli xabarning davomiyligi aniqlanmadi — ovozni ilovada yozib yuboring.");
+
+            if (seconds > maxSeconds + VoiceDurationToleranceSec
+                || file.Length > (long)(maxSeconds + VoiceDurationToleranceSec) * MaxVoiceBytesPerSecond)
+            {
+                throw Invalid(string.Create(CultureInfo.InvariantCulture,
+                    $"Ovozli xabar {maxSeconds} soniyadan oshmasin."));
+            }
+        }
+
+        var perDay = await ReadIntSettingAsync(VoicePerDaySetting, ct);
+        var sentToday = await VoiceSentTodayAsync(studentId, ct);
+
+        if (sentToday >= perDay)
+        {
+            throw new ConflictException(string.Create(CultureInfo.InvariantCulture,
+                $"Bugungi ovozli xabar limiti tugadi ({perDay} ta). Ertaga yana yubora olasiz — hozircha savolingizni matn yoki rasm bilan yozing."));
+        }
+    }
+
+    public async Task<VoiceQuotaDto> GetVoiceQuotaAsync(long userId, CancellationToken ct = default)
+    {
+        var maxSeconds = await ReadIntSettingAsync(VoiceMaxSecondsSetting, ct);
+        var user = await LoadUserAsync(userId, ct);
+        if (user.Role != UserRole.Student)
+            return new VoiceQuotaDto(null, 0, maxSeconds);
+
+        var perDay = await ReadIntSettingAsync(VoicePerDaySetting, ct);
+        return new VoiceQuotaDto(perDay, await VoiceSentTodayAsync(userId, ct), maxSeconds);
+    }
+
+    /// <summary>Bugun (Toshkent devor-vaqti, yarim tundan) yuborilgan ovozli xabarlar.</summary>
+    private async Task<int> VoiceSentTodayAsync(long studentId, CancellationToken ct)
+    {
+        var localNow = TimeZoneInfo.ConvertTime(clock.GetUtcNow(), timeZone.TimeZone);
+        var dayStart = new DateTimeOffset(localNow.Date, localNow.Offset).ToUniversalTime();
+
+        return await db.DirectMessages.AsNoTracking()
+            .CountAsync(m => m.SenderId == studentId
+                          && m.SentAt >= dayStart
+                          && m.Attachments.Any(a => a.Kind == AttachmentKind.Audio), ct);
+    }
+
+    private async Task<int> ReadIntSettingAsync(SettingDefinition definition, CancellationToken ct)
+    {
+        var resolved = await settings.ResolveAsync(definition, ct);
+        var value = SettingValueParser.TryReadDecimal(definition, resolved.Value, out var parsed)
+            ? parsed
+            : decimal.Parse(definition.DefaultValue, CultureInfo.InvariantCulture);
+        return (int)value;
+    }
+
+    /// <summary>Yozuvchi tugmasi bosilishi va to'xtashi orasidagi kechikish uchun.</summary>
+    private const int VoiceDurationToleranceSec = 2;
+
+    /// <summary>~256 kbit/s — oddiy ovoz yozuvidan 8 baravar ko'p, shubhali fayl ushlanadi.</summary>
+    private const int MaxVoiceBytesPerSecond = 32 * 1024;
+
+    private static readonly SettingDefinition VoicePerDaySetting = Registered(SettingsRegistry.Keys.ChatVoicePerDay);
+    private static readonly SettingDefinition VoiceMaxSecondsSetting = Registered(SettingsRegistry.Keys.ChatVoiceMaxSeconds);
+
+    private static SettingDefinition Registered(string key) =>
+        SettingsRegistry.TryGet(key, out var definition)
+            ? definition
+            : throw new InvalidOperationException($"Registrda '{key}' sozlamasi yo'q.");
 
     /// <summary>Hajm chegarasi — `lesson.image_max_mb` (sabab `GroupChatService` dagi izoh).</summary>
     private async Task<long> AttachmentLimitBytesAsync(CancellationToken ct)

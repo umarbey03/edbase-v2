@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { TeacherInbox } from '@/features/teacher-inbox'
@@ -20,6 +21,11 @@ import { PageHeader } from '@/shared/ui'
  * tegilmaydigan fayl), shuning uchun bo'sh holat SABABINI aytadi.
  */
 const auth = useAuthStore()
+const route = useRoute()
+const initialPeerId = computed(() => {
+  const value = Number(route.query.peer)
+  return Number.isInteger(value) && value > 0 ? value : null
+})
 
 const emptyHint = computed(() =>
   auth.role === 'Teacher'
@@ -31,9 +37,12 @@ const emptyHint = computed(() =>
 <template>
   <div>
     <PageHeader
-      title="O‘quvchilar savollari"
-      subtitle="Har o‘quvchi bilan alohida suhbat. O‘quvchi kurs darsidan savol yozsa, shu yerda ko‘rinadi."
+      title="Suhbatlar"
+      subtitle="Har o‘quvchi bilan shaxsiy yozishma — matn, rasm, ovoz. Ovozli xabar ostidagi «Ovozli izoh» bilan xatolarni ovoz bilan ko‘rsating."
     />
-    <TeacherInbox :empty-hint="emptyHint" />
+    <TeacherInbox
+      :empty-hint="emptyHint"
+      :initial-peer-id="initialPeerId"
+    />
   </div>
 </template>

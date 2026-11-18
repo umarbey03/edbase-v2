@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 
+import { fetchVoiceQuota } from '@/entities/direct-message'
 import { formatDuration, isVoiceRecordingSupported, useVoiceRecorder } from '@/shared/lib/useVoiceRecorder'
 import { AppIcon } from '@/shared/ui'
 
@@ -19,14 +21,32 @@ import { AppIcon } from '@/shared/ui'
 const props = withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false })
 const emit = defineEmits<{ recorded: [file: File, durationSeconds: number] }>()
 
-/** Bitta ovozli xabar — 5 daqiqagacha (savol-javob uchun yetarli, fayl yengil). */
-const MAX_SECONDS = 300
+/** Xodim uchun — 5 daqiqagacha (savol-javob uchun yetarli, fayl yengil). */
+const STAFF_MAX_SECONDS = 300
 const MAX_BYTES = 8 * 1024 * 1024
+
+/*
+  ★ O'QUVCHI LIMITI (2026-11-18): kuniga `perDay` ta, har biri `maxSeconds`
+  gacha — admin sozlamasi, server ham tekshiradi. Yozuv chegarada o'zi
+  to'xtaydi va YUBORILADI (o'quvchi gapini yo'qotmasin).
+*/
+const quota = useQuery({
+  queryKey: ['dm', 'voice-quota'],
+  queryFn: ({ signal }) => fetchVoiceQuota({ signal }),
+  staleTime: 30_000,
+})
+const maxSeconds = computed(() =>
+  quota.data.value?.perDay != null ? quota.data.value.maxSeconds : STAFF_MAX_SECONDS,
+)
+const limitReached = computed(() => {
+  const q = quota.data.value
+  return q?.perDay != null && q.usedToday >= q.perDay
+})
 
 let discard = false
 
 const recorder = useVoiceRecorder({
-  maxSeconds: MAX_SECONDS,
+  get maxSeconds() { return maxSeconds.value },
   maxBytes: MAX_BYTES,
   onRecorded: (result) => {
     if (discard) {
@@ -68,9 +88,9 @@ function cancel(): void {
       v-if="!recording"
       type="button"
       class="grid size-10 place-items-center rounded-full text-slate-300 hover:bg-ink-800 hover:text-slate-100 disabled:opacity-50"
-      :disabled="props.disabled || requesting"
+      :disabled="props.disabled || requesting || limitReached"
       aria-label="Ovozli xabar yozish"
-      title="Ovozli xabar"
+      :title="limitReached ? 'Bugungi ovozli xabar limiti tugadi — ertaga yana yubora olasiz' : `Ovozli xabar (${formatDuration(maxSeconds)} gacha)`"
       @click="startRecording"
     >
       <AppIcon
@@ -86,7 +106,7 @@ function cancel(): void {
       aria-live="polite"
     >
       <span class="size-2 animate-pulse rounded-full bg-rose-400" />
-      <span class="text-sm tabular-nums text-rose-100">{{ formatDuration(recorder.elapsedSeconds.value) }}</span>
+      <span class="text-sm tabular-nums text-rose-100">{{ formatDuration(recorder.elapsedSeconds.value) }} / {{ formatDuration(maxSeconds) }}</span>
       <button
         type="button"
         class="grid size-8 place-items-center rounded-full text-rose-100 hover:bg-rose-500/20"

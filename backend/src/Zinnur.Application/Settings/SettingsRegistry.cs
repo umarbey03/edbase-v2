@@ -1249,6 +1249,42 @@ public static class SettingsRegistry
             Maximum = 120m,
         },
 
+        // ★ 24/7 YORDAMCHI — O'QUVCHI OVOZLI XABARI LIMITI (loyiha egasi,
+        //   2026-11-18): *"bir kunda bitta ovozli xabar, davomiyligi
+        //   1,5 minutdan oshmasin"*. Kurator har ovozni ESHITIB, ovoz bilan
+        //   javob beradi — cheklovsiz bo'lsa bitta kurator navbatni
+        //   ko'tara olmasdi. Faqat O'QUVCHIGA tegishli: kurator javobi
+        //   cheklanmaydi. Ikkala tarifga (Milliy, Mustaqil) bir xil.
+        new()
+        {
+            Key = "chat.voice_per_day",
+            Group = SettingGroup.Chat,
+            DisplayName = "O'quvchining kunlik ovozli xabari (ta)",
+            Description =
+                "O'quvchi kuratoriga bir kunda (Toshkent vaqti, yarim tunda yangilanadi) "
+                + "shuncha ovozli xabar yubora oladi. Matn va rasm cheklanmaydi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "1",
+            Minimum = 1m,
+            Maximum = 50m,
+        },
+
+        new()
+        {
+            Key = "chat.voice_max_seconds",
+            Group = SettingGroup.Chat,
+            DisplayName = "O'quvchi ovozli xabarining eng uzun davomiyligi (soniya)",
+            Description =
+                "Yozish shu vaqtga yetganda o'zi to'xtaydi (chat va uy vazifasi). "
+                + "Chatda server ham uzunroq ovozni qabul qilmaydi.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "90",
+            Minimum = 15m,
+            Maximum = 600m,
+        },
+
         // ================================================================ XAVFSIZLIK
 
         new()
@@ -1645,6 +1681,8 @@ public static class SettingsRegistry
         // qiymatni tahrirlardi.
         public const string ChatRetentionEnabled = "chat.retention_enabled";
         public const string ChatRetentionMonths = "chat.retention_months";
+        public const string ChatVoicePerDay = "chat.voice_per_day";
+        public const string ChatVoiceMaxSeconds = "chat.voice_max_seconds";
 
         // ---------------------------------------------------------------- ball tizimi
         public const string PointsEnabled = "gamification.points_enabled";

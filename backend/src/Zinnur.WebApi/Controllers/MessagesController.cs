@@ -185,6 +185,12 @@ public sealed class MessagesController(IDirectMessageService messages) : Control
         long peerId, CancellationToken ct) =>
         Ok(await messages.MarkReadAsync(CurrentUserId, peerId, ct));
 
+    /// <summary>O'quvchining bugungi ovozli xabar limiti (yozuvchi tugmasi shunga qaraydi).</summary>
+    [HttpGet("voice-quota")]
+    [ProducesResponseType<VoiceQuotaDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<VoiceQuotaDto>> VoiceQuota(CancellationToken ct) =>
+        Ok(await messages.GetVoiceQuotaAsync(CurrentUserId, ct));
+
     /// <summary>
     /// Biriktirmali xabar so'rovining QAT'IY yuqori chegarasi (bayt) —
     /// `GroupChatController.MaxAttachmentRequestBytes` bilan AYNI hisob.

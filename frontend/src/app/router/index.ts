@@ -299,6 +299,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Bosh sahifa', roles: STAFF },
       },
       {
+        // ★ NAVBAT (2026-11-18): kuratorning bosh sahifasi — kurator endi dars
+        // o'tmaydi, uning ishi "kim meni kutyapti?" savoliga javob berish.
+        path: 'ustoz/navbat',
+        name: 'teacher-queue',
+        component: () => import('@/pages/teacher/TeacherQueuePage.vue'),
+        meta: { title: 'Navbat', roles: STAFF },
+      },
+      {
         // "Kuratorlik" — kurator guruhlari va ularga bog'langan ustoz guruhlari.
         path: 'ustoz/kuratorlik',
         name: 'teacher-curator',
@@ -326,7 +334,7 @@ const routes: RouteRecordRaw[] = [
         path: 'ustoz/savollar',
         name: 'teacher-chat',
         component: () => import('@/pages/teacher/TeacherChatPage.vue'),
-        meta: { title: 'Savollar', roles: STAFF },
+        meta: { title: 'Suhbatlar', roles: STAFF },
       },
       {
         path: 'ustoz/baholash',

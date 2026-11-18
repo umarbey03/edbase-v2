@@ -74,6 +74,64 @@ public sealed class SelfStudyChatTests(StorageBackedApiFactory factory)
         saved.DurationSec.Should().Be(42);
     }
 
+    [Fact]
+    public async Task Student_can_send_only_one_voice_message_per_day()
+    {
+        var (student, curator) = await SetUpAsync("ssc-chat-limit");
+        using var client = await WorldBuilder.ClientAsync(factory, student);
+
+        var first = await PostVoiceAsync(client, curator.Id, 30);
+        first.StatusCode.Should().Be(HttpStatusCode.Created, await WorldBuilder.Body(first));
+
+        var quota = await client.GetFromJsonAsync<QuotaRow>("/api/v1/messages/voice-quota");
+        quota!.PerDay.Should().Be(1);
+        quota.UsedToday.Should().Be(1);
+        quota.MaxSeconds.Should().Be(90);
+
+        var second = await PostVoiceAsync(client, curator.Id, 30);
+        second.StatusCode.Should().Be(HttpStatusCode.Conflict, "kuniga bitta ovozli xabar");
+
+        // Matn cheklanmaydi.
+        var text = await client.PostAsJsonAsync(
+            $"/api/v1/messages/conversations/{curator.Id}/messages", new { body = "Matnli savol" });
+        text.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(text));
+
+        // Kurator javobi cheklanmaydi.
+        using var staff = await WorldBuilder.ClientAsync(factory, curator);
+        (await PostVoiceAsync(staff, student.Id, 200)).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await PostVoiceAsync(staff, student.Id, 200)).StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task Student_voice_longer_than_limit_is_rejected()
+    {
+        var (student, curator) = await SetUpAsync("ssc-chat-long");
+        using var client = await WorldBuilder.ClientAsync(factory, student);
+
+        var tooLong = await PostVoiceAsync(client, curator.Id, 150);
+        tooLong.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var noDuration = await PostVoiceAsync(client, curator.Id, null);
+        noDuration.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static async Task<HttpResponseMessage> PostVoiceAsync(HttpClient client, long peerId, int? seconds)
+    {
+        var bytes = new byte[256];
+        Encoding.ASCII.GetBytes("OggS").CopyTo(bytes, 0);
+
+        using var content = new MultipartFormDataContent();
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue("audio/ogg");
+        content.Add(file, "files", "ovoz.ogg");
+        if (seconds is { } value)
+            content.Add(new StringContent(value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "durationSec");
+
+        return await client.PostAsync($"/api/v1/messages/conversations/{peerId}/messages/attachments", content);
+    }
+
+    private sealed record QuotaRow(int? PerDay, int UsedToday, int MaxSeconds);
+
     private async Task<(TestUser Student, TestUser Curator)> SetUpAsync(string prefix)
     {
         using var admin = await WorldBuilder.AdminClientAsync(factory);
