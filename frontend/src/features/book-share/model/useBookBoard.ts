@@ -5,7 +5,7 @@ import { resolveBookUrl } from '@/entities/book'
 import { toUserMessage } from '@/shared/api'
 import type { BookDto } from '@/shared/types'
 
-import { openPdfFromUrl, renderPdfPage } from './pdf'
+import { closePdf, openPdfFromUrl, renderPdfPage } from './pdf'
 import type { PdfDocument } from './pdf'
 
 /**
@@ -267,7 +267,7 @@ export function useBookBoard(): UseBookBoardResult {
       const url = await resolveBookUrl(next.id)
       const opened = await openPdfFromUrl(url)
       if (token !== renderToken) {
-        await opened.destroy()
+        await closePdf(opened)
         return
       }
       doc.value = opened
@@ -286,7 +286,7 @@ export function useBookBoard(): UseBookBoardResult {
     renderToken++
     const opened = doc.value
     doc.value = null
-    if (opened !== null) void opened.destroy().catch(() => undefined)
+    if (opened !== null) void closePdf(opened).catch(() => undefined)
     pageRaster.value = null
     book.value = null
     pageCount.value = 0

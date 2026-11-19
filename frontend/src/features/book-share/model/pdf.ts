@@ -30,18 +30,40 @@ pdfjs.GlobalWorkerOptions.workerSrc = `${workerUrl}?v=2`
 
 export type PdfDocument = PDFDocumentProxy
 
+/**
+ * ★ `isEvalSupported: false` (2026-11-19 xavfsizlik auditi): pdf.js ba'zi
+ *   shriftlarni tez chizish uchun PDF ichidagi ma'lumotdan `new Function`
+ *   bilan kod yasaydi. Zararli PDF aynan shu yo'l bilan brauzerda JS
+ *   ishga tushirgan (GHSA-hq66-cqwq-w95j). Kutubxona tuzatilgan versiyaga
+ *   ko'tarildi, bu bayroq esa — ikkinchi qulf: tezlik bir oz pasayadi,
+ *   lekin PDF mazmuni hech qachon kod sifatida bajarilmaydi.
+ */
+const SAFE_OPTIONS = { isEvalSupported: false } as const
+
 export function openPdfFromUrl(url: string): Promise<PdfDocument> {
-  return pdfjs.getDocument({ url, disableRange: true, disableStream: true }).promise
+  return pdfjs.getDocument({ ...SAFE_OPTIONS, url, disableRange: true, disableStream: true })
+    .promise
+}
+
+/**
+ * Hujjatni TO'LIQ yopadi (asosiy oqim + worker resurslari).
+ *
+ * pdf.js 6 da `PDFDocumentProxy.destroy()` olib tashlangan — endi bu
+ * vazifa hujjatni ochgan `loadingTask` da. Kutubxona ichki tafsiloti bitta
+ * joyda tursin: chaqiruvchilar faqat `closePdf` ni biladi.
+ */
+export function closePdf(doc: PdfDocument): Promise<void> {
+  return doc.loadingTask.destroy()
 }
 
 /** Yuklashdan OLDIN sahifa sonini aniqlash (kutubxona sahifasi). */
 export async function countPdfPages(file: File): Promise<number> {
   const data = await file.arrayBuffer()
-  const doc = await pdfjs.getDocument({ data }).promise
+  const doc = await pdfjs.getDocument({ ...SAFE_OPTIONS, data }).promise
   try {
     return doc.numPages
   } finally {
-    await doc.destroy()
+    await closePdf(doc)
   }
 }
 
