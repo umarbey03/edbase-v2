@@ -367,6 +367,42 @@ if (!string.IsNullOrWhiteSpace(redisConnection))
     signalR.AddStackExchangeRedis(redisConnection, o => o.Configuration.ChannelPrefix =
         StackExchange.Redis.RedisChannel.Literal("zinnur-signalr"));
 
+// ---------------------------------------------------------------- haqiqiy mijoz IP'si
+// ★ NIMA UCHUN: prod'da so'rov API'ga TO'G'RIDAN-TO'G'RI kelmaydi —
+//   mijoz → host nginx → docker-proxy (127.0.0.1:5080) → konteyner. Shuning
+//   uchun `Connection.RemoteIpAddress` HAR DOIM docker shlyuzining IP'si
+//   (masalan 172.18.0.1) bo'lardi va IP bo'yicha rate limit butun
+//   platformani BITTA bo'limga tiqardi: bitta bot daqiqasiga 20 ta kod
+//   so'rab, HAMMA o'quvchining kirishini yopib qo'yardi.
+//
+// ★ XAVFSIZLIK: `X-Forwarded-For` ni mijozning o'zi ham yozishi mumkin.
+//   Shuning uchun:
+//     • sarlavha FAQAT ishonchli proksidan (loopback + docker tarmoqlari)
+//       kelgan ulanishda o'qiladi — tashqaridan to'g'ridan-to'g'ri kelgan
+//       so'rov o'zini "boshqa mijoz" qilib ko'rsata olmaydi;
+//     • `ForwardLimit = 1` — faqat ENG O'NGDAGI yozuv olinadi. Uni nginx
+//       o'zi qo'shadi (`$proxy_add_x_forwarded_for`), mijoz yozgan qalbaki
+//       qiymatlar chapda qoladi va hisobga olinmaydi.
+//   Faqat `XForwardedFor` yoqiladi: `Proto`/`Host` ni o'zgartirish URL
+//   yasash va cookie xulqiga ta'sir qilardi — bu tuzatishga kerak emas.
+//
+// SOZLANADIGAN: `ForwardedHeaders:KnownNetworks` (vergul bilan, CIDR).
+// Standart — docker'ning xususiy diapazoni 172.16.0.0/12 (compose tarmog'i
+// qayta yaratilganda subnet o'zgarsa ham ishlayveradi).
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor;
+    options.ForwardLimit = 1;
+
+    options.KnownProxies.Clear();
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Add(System.Net.IPAddress.Loopback);
+    options.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+
+    foreach (var network in TrustedProxyNetworks(builder.Configuration))
+        options.KnownNetworks.Add(network);
+});
+
 // ---------------------------------------------------------------- rate limiting
 // Kirish endpointi parol topishga qarshi cheklanadi (eski tizimda bu
 // jarayon xotirasida edi va har server qayta ishga tushganda nolga qaytardi).
@@ -482,11 +518,11 @@ static RateLimitPartition<string> FixedWindowByIp(
     HttpContext context, int permitLimit, int windowSeconds) =>
     RateLimitPartition.GetFixedWindowLimiter(
 
-        // DIQQAT: proksi orqasida bu proksining IP'si bo'ladi va hamma
-        // bitta bo'limga tushadi. `X-Forwarded-For` ni to'g'ri hisobga
-        // olish uchun `ForwardedHeaders` middleware kerak;
-        // ishonchsiz header'ni shu yerda o'qish esa cheklovni bitta
-        // qalbaki qator bilan chetlab o'tish imkonini berardi.
+        // Bu yerda allaqachon HAQIQIY mijoz IP'si: `UseForwardedHeaders`
+        // uni ishonchli proksi sarlavhasidan tiklagan (yuqoridagi
+        // "haqiqiy mijoz IP'si" bo'limi). Sarlavhani shu yerda o'zimiz
+        // o'qimaymiz — ishonchsiz manbadan kelgan qalbaki qator cheklovni
+        // chetlab o'tish imkonini berardi.
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {
@@ -498,6 +534,34 @@ static RateLimitPartition<string> FixedWindowByIp(
             // turib, cheklovning o'zi DoS vositasiga aylanardi.
             QueueLimit = 0,
         });
+
+// Ishonchli proksi tarmoqlari (`ForwardedHeaders:KnownNetworks`, CIDR,
+// vergul bilan). Buzuq yozuv JIM o'tkazib yuborilmaydi — ilova ko'tarilmaydi:
+// aks holda xato sozlama rate limit'ni yana BITTA bo'limga qaytarib qo'yardi
+// va buni hech kim sezmasdi.
+static IEnumerable<Microsoft.AspNetCore.HttpOverrides.IPNetwork> TrustedProxyNetworks(
+    IConfiguration configuration)
+{
+    var raw = configuration["ForwardedHeaders:KnownNetworks"];
+    if (string.IsNullOrWhiteSpace(raw))
+        raw = "172.16.0.0/12";
+
+    foreach (var entry in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var parts = entry.Split('/');
+        if (parts.Length != 2
+            || !System.Net.IPAddress.TryParse(parts[0], out var prefix)
+            || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var length)
+            || length < 0
+            || length > (prefix.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128))
+        {
+            throw new InvalidOperationException(
+                $"ForwardedHeaders:KnownNetworks dagi '{entry}' CIDR emas (masalan 172.16.0.0/12).");
+        }
+
+        yield return new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, length);
+    }
+}
 
 // Musbat butun sonli sozlama; yo'q yoki buzuq bo'lsa — standart qiymat.
 static int PositiveSetting(IConfiguration configuration, string key, int defaultValue) =>
@@ -565,6 +629,10 @@ var app = builder.Build();
 
 // 1) Xato ushlagichi ENG BIRINCHI: pastdagi hamma narsani qamrab oladi
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// 2) Haqiqiy mijoz IP'si — rate limiter va so'rov log'idan OLDIN, aks holda
+//    ikkalasi ham docker shlyuzining IP'sini ko'rardi (izoh: yuqorida).
+app.UseForwardedHeaders();
 
 app.UseSerilogRequestLogging();
 
