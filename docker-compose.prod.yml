@@ -104,6 +104,9 @@ services:
       # docker-compose.yml dagi LiveKit izohida). U yaml dagi `redis.address`
       # ni bekor qiladi, shuning uchun alohida prod-yaml kerak emas.
       REDIS_HOST: 127.0.0.1:6390
+      # 🔐 2026-11-19 xavfsizlik auditi: Redis endi parol bilan (pastdagi
+      # `redis` blokidagi izoh). livekit-server faqat shu env nomini o'qiydi.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)}
 
       # Host tarmog'ida LiveKit serverning tashqi IP'sini o'zi aniqlaydi
       # (`use_external_ip: true`) — odatda shu yetarli.
@@ -267,6 +270,7 @@ services:
       EGRESS_CONFIG_BODY: |
         redis:
           address: redis:6379
+          password: ${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)}
           db: 0
         api_key: ${LIVEKIT_API_KEY}
         api_secret: ${LIVEKIT_API_SECRET}
@@ -832,6 +836,28 @@ services:
       - "127.0.0.1:6390:6379"
 
     # --------------------------------------------------------------------------
+    # 🔐 PAROL — 2026-11-19 xavfsizlik auditi
+    # --------------------------------------------------------------------------
+    # Ilgari Redis parolsiz edi va host'dagi HAR QANDAY jarayon
+    # (127.0.0.1:6390) hamda `zinnur-v2-net` dagi har bir konteyner unga
+    # erkin yozardi. Redis'da auth-holat keshi, OTP xeshlari, presence va
+    # SignalR backplane bor — ya'ni SSRF yoki bitta buzilgan konteyner
+    # kirish holatini o'zgartira olardi.
+    #
+    #   * `--requirepass` (command'da) — server parolni talab qiladi;
+    #   * `REDISCLI_AUTH` — konteyner ichidagi `redis-cli` (healthcheck)
+    #     parolni shu env'dan oladi, shuning uchun bazaviy fayldagi
+    #     `redis-cli ping` o'zgarmasdan ishlayveradi;
+    #   * `:?` — `.env` da bo'lmasa compose OCHIQ xato beradi: Redis jimgina
+    #     parolsiz ko'tarilib qolmasin.
+    # Parolni HEX qiling (`openssl rand -hex 32`): u StackExchange.Redis
+    # ulanish satriga (`password=...`) va YAML'ga qochirilmasdan tushadi.
+    # Iste'molchilar: api, compositor (ConnectionStrings__Redis), livekit
+    # (REDIS_PASSWORD), livekit-egress (EGRESS_CONFIG_BODY.redis.password).
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)}
+
+    # --------------------------------------------------------------------------
     # REDIS RESURSLARI — 2026-08-22 auditi
     # --------------------------------------------------------------------------
     # ILGARI NIMA NOTO'G'RI EDI (ikkita alohida nosozlik)
@@ -901,6 +927,9 @@ services:
       # buziladi — hech qayerda xato ko'rinmaydi.
       - --maxmemory-policy
       - noeviction
+      # 🔐 Parol (yuqoridagi "PAROL" izohi).
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)}
 
     deploy:
       resources:
@@ -972,6 +1001,17 @@ services:
 
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+
+      # 🔐 Redis paroli (`redis` blokidagi "PAROL" izohi). Bazaviy fayldagi
+      # parolsiz satrni TO'LIQ almashtiradi — format o'sha, faqat `password=`.
+      ConnectionStrings__Redis: "redis:6379,password=${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)},abortConnect=false,connectTimeout=5000"
+
+      # 🔐 BAZA — SUPERUSER EMAS (2026-11-19 auditi). Ilgari `POSTGRES_USER`
+      # (klaster superuser'i) bilan ulanardi. Endi `POSTGRES_APP_USER` —
+      # faqat o'z bazasining egasi; yaratish/yangilash:
+      # `infra/scripts/db-app-role.sh` (deploy'dan OLDIN bir marta).
+      # Superuser zaxira va qo'lda texnik ish uchun qoladi.
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_APP_USER:-zinnur_app};Password=${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD .env da bo'lishi shart};Maximum Pool Size=${POSTGRES_MAX_POOL_SIZE:-50};Timeout=15;Command Timeout=30"
 
       # ---- LIVEKIT MANZILI: `livekit:7880` PROD'DA YECHILMAYDI ----------
       #
@@ -1156,6 +1196,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       LiveKit__Url: http://host.docker.internal:7880
+      # 🔐 Redis paroli — `api` dagi bilan AYNI satr (`redis` blokidagi izoh).
+      ConnectionStrings__Redis: "redis:6379,password=${REDIS_PASSWORD:?REDIS_PASSWORD .env da bo'lishi shart (prod Redis paroli)},abortConnect=false,connectTimeout=5000"
+      # 🔐 Baza — superuser emas (`api` dagi izoh). Pool o'lchami bazaviy fayldagidek.
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_APP_USER:-zinnur_app};Password=${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD .env da bo'lishi shart};Maximum Pool Size=${COMPOSITOR_MAX_POOL_SIZE:-10};Timeout=15;Command Timeout=30"
 
       # ---- OMBOR: R2 — `api` dagi bilan AYNI qayta yozish -------------
       # 🔴 2026-09-05 deployda YETISHMAY QOLDI. Bazaviy compose'da
