@@ -1437,15 +1437,28 @@ onMounted(() => {
         (loyiha egasining talabi). Ayni almashtirish ariza formasi va
         landing matnida ham qilingan.
       -->
+      <!--
+        ★ 2026-11-19 — O'ZI RO'YXATDAN O'TISH (loyiha egasi): yangi odam
+        Telegram bot orqali raqamini yuboradi va profil darhol ochiladi
+        (raqam egaligini Telegram tasdiqlaydi). Ariza yo'li ham qoladi —
+        bot ishlatmaydiganlar uchun.
+      -->
       <p class="mt-6 text-center text-xs leading-relaxed text-slate-600">
-        Hisobingiz yo'qmi? Hisoblarni menejerlarimiz ochadi —
+        Hisobingiz yo'qmi?
+        <button
+          type="button"
+          class="font-medium text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-400"
+          @click="switchTo('bot')"
+        >
+          Telegram bot orqali ro'yxatdan o'ting
+        </button>
+        — raqamingizni yuborsangiz, profil avtomatik ochiladi. Yoki
         <RouterLink
           class="font-medium text-slate-500 underline underline-offset-2 transition-colors hover:text-slate-400"
           to="/#ariza"
         >
           ariza qoldiring
-        </RouterLink>
-        yoki markazga murojaat qiling.
+        </RouterLink>.
       </p>
 
       <!--

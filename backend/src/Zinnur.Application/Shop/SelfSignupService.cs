@@ -18,6 +18,13 @@ public interface ISelfSignupService
     Task<User?> TryRegisterAsync(
         long telegramUserId, string? firstName, string? lastName, string? username, string rawPhone,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// O'zi ro'yxatdan o'tish yoqilganmi (<c>sales.self_signup_enabled</c>).
+    /// Telefon bilan kirish sahifasi bazada yo'q raqamga shunga qarab javob
+    /// beradi: yoqilgan bo'lsa — "bot orqali ro'yxatdan o'ting".
+    /// </summary>
+    Task<bool> IsEnabledAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -50,15 +57,20 @@ public sealed class SelfSignupService(
 {
     private const int MaxNameLength = 120;
 
+    public async Task<bool> IsEnabledAsync(CancellationToken ct = default)
+    {
+        if (!SettingsRegistry.TryGet(SettingsRegistry.Keys.SalesSelfSignupEnabled, out var definition))
+            return false;
+
+        var resolved = await settings.ResolveAsync(definition, ct);
+        return SettingValueParser.TryReadBool(resolved.Value, out var enabled) && enabled;
+    }
+
     public async Task<User?> TryRegisterAsync(
         long telegramUserId, string? firstName, string? lastName, string? username, string rawPhone,
         CancellationToken ct = default)
     {
-        if (!SettingsRegistry.TryGet(SettingsRegistry.Keys.SalesSelfSignupEnabled, out var definition))
-            return null;
-
-        var resolved = await settings.ResolveAsync(definition, ct);
-        if (!(SettingValueParser.TryReadBool(resolved.Value, out var enabled) && enabled))
+        if (!await IsEnabledAsync(ct))
             return null;
 
         var name = string.Join(' ', new[] { firstName, lastName }

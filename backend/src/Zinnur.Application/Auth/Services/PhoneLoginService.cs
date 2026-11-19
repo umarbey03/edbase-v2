@@ -25,7 +25,9 @@ public sealed class PhoneLoginService(
     ITelegramInitDataValidator telegram,
     IAuthService auth,
     TimeProvider clock,
-    ILogger<PhoneLoginService> logger) : IPhoneLoginService
+    ILogger<PhoneLoginService> logger,
+    // 2026-11-19: bazada yo'q raqamga javob — o'zi ro'yxatdan o'tish yoqilganmi.
+    Shop.ISelfSignupService selfSignup) : IPhoneLoginService
 {
     /// <inheritdoc />
     public async Task<PhoneCodeResponse> RequestCodeAsync(
@@ -142,13 +144,22 @@ public sealed class PhoneLoginService(
         if (user is null)
         {
             PhoneLoginLog.UnknownPhone(logger);
+
+            // ★ O'ZI RO'YXATDAN O'TISH YOQILGAN BO'LSA (2026-11-19, loyiha
+            //   egasi): "murojaat qiling" o'rniga YO'L ko'rsatiladi. Profil
+            //   saytda emas, BOTDA ochiladi — raqam egaligini faqat Telegram
+            //   kontakti tasdiqlaydi (`SelfSignupService` izohi), sayt
+            //   formasidagi raqam esa istalgan odamniki bo'lishi mumkin.
+            var message = await selfSignup.IsEnabledAsync(ct).ConfigureAwait(false)
+                ? "Bu raqam hali ro'yxatda yo'q. Ro'yxatdan o'tish uchun pastdagi "
+                  + "«Telegram bot orqali kirish» tugmasini bosing va botga raqamingizni "
+                  + "yuboring — profilingiz avtomatik ochiladi."
+                : "Bu raqam ro'yxatda yo'q. O'quv bo'limiga murojaat qiling "
+                  + "va ro'yxatdagi telefon raqamingizni tekshiring.";
+
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                ["phone"] =
-                [
-                    "Bu raqam ro'yxatda yo'q. O'quv bo'limiga murojaat qiling "
-                    + "va ro'yxatdagi telefon raqamingizni tekshiring.",
-                ],
+                ["phone"] = [message],
             });
         }
 
