@@ -298,6 +298,7 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<SelfStudy.ISelfStudyCuratorService, SelfStudy.SelfStudyCuratorService>();
         services.AddScoped<SelfStudy.ILessonMasteryService, SelfStudy.LessonMasteryService>();
+        services.AddScoped<SelfStudy.Panel.ISelfStudyPanelService, SelfStudy.Panel.SelfStudyPanelService>();
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<ISelfSignupService, SelfSignupService>();
         services.AddScoped<IPointsService, PointsService>();

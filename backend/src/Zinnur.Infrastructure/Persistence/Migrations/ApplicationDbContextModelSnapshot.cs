@@ -645,6 +645,51 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.ToTable("DirectMessages", (string)null);
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.DirectMessageAccessAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long?>("AttachmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("StaffId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("ViewerId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StaffId");
+
+                    b.HasIndex("ViewerId", "At")
+                        .HasDatabaseName("IX_DirectMessageAccessAudits_Viewer_At");
+
+                    b.HasIndex("StudentId", "StaffId", "At")
+                        .HasDatabaseName("IX_DirectMessageAccessAudits_Pair_At");
+
+                    b.ToTable("DirectMessageAccessAudits", (string)null);
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.DirectMessageAttachment", b =>
                 {
                     b.Property<long>("Id")
@@ -4893,6 +4938,27 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Staff");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.DirectMessageAccessAudit", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ViewerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.DirectMessageAttachment", b =>

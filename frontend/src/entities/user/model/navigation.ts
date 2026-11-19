@@ -231,8 +231,16 @@ const MANAGE_NAV: NavItem[] = [
   { routeName: 'manage-applications', label: 'Arizalar', icon: 'note' },
   // Onlayn buyurtmalar (2026-10-29) — arizalar yonida: ikkalasi ham saytdan keladi.
   { routeName: 'manage-orders', label: 'Buyurtmalar', icon: 'clipboard' },
-  // Mustaqil o'quvchilar kuratori (2026-11-18): buyurtmalardan keyin — yangi o'quvchiga shu yerda kurator beriladi.
-  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
+  /*
+    Mustaqil tarif paneli (2026-11-19): o'quvchilar, kuratorlar, vazifalar va
+    yozishmalar bir joyda; kurator shu yerda biriktiriladi.
+
+    ★ ILGARI bu yerda `teacher-self-study` turardi, lekin u
+      `ACADEMIC_SECTION_ROUTES` da yo'q edi va `pick()` uni JIMGINA tashlab
+      yuborardi — ya'ni band o'quv bo'limi menyusida umuman ko'rinmasdi.
+      Kuratorning o'z ro'yxati (`teacher-self-study`) o'z menyusida qoladi.
+  */
+  { routeName: 'manage-self-study', label: 'Mustaqil tarif', icon: 'user-check' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
   /*
     Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda
@@ -354,6 +362,7 @@ const ACADEMIC_SECTION_ROUTES = [
   'manage-users',
   'manage-applications',
   'manage-orders',
+  'manage-self-study',
   'manage-teacher-availability',
   'manage-absentees',
   'manage-attrition',

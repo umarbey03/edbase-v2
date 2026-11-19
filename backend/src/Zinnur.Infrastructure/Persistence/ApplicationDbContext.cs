@@ -24,6 +24,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<StudentNote> StudentNotes => Set<StudentNote>();
 
     public DbSet<TelegramUnlinkAudit> TelegramUnlinkAudits => Set<TelegramUnlinkAudit>();
+    public DbSet<DirectMessageAccessAudit> DirectMessageAccessAudits => Set<DirectMessageAccessAudit>();
 
     public DbSet<Course> Courses => Set<Course>();
 

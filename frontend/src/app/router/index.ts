@@ -495,6 +495,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Jarimalar', roles: MANAGERS },
       },
       {
+        // Mustaqil tarif paneli (2026-11-19): o'quvchilar, kuratorlar,
+        // vazifalar, yozishmalar (faqat o'qish). Server ham `Academic,Admin`.
+        path: 'boshqaruv/mustaqil',
+        name: 'manage-self-study',
+        component: () => import('@/pages/manage/ManageSelfStudyPage.vue'),
+        meta: { title: 'Mustaqil tarif', roles: MANAGERS },
+      },
+      {
         /*
           FAQAT ADMIN (loyiha egasi, 2026-08-15): *"to'lovlar va moliya
           qismi o'quv bo'limi uchun kerak emas, u qismi admin panelda

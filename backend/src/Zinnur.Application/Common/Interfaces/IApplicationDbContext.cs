@@ -23,6 +23,7 @@ public interface IApplicationDbContext
     /// yozuv yaratilgandan keyin yangilanmaydi va o'chirilmaydi.
     /// </summary>
     DbSet<TelegramUnlinkAudit> TelegramUnlinkAudits { get; }
+    DbSet<DirectMessageAccessAudit> DirectMessageAccessAudits { get; }
 
     DbSet<Course> Courses { get; }
     DbSet<CourseModule> Modules { get; }

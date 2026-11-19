@@ -591,3 +591,16 @@ public enum MasteryEventKind
     /// <summary>Administrator istisnoni bekor qildi.</summary>
     AdminUnlockRevoked = 3,
 }
+
+/// <summary>
+/// Shaxsiy yozishmani begona xodim nimani ochgani (<c>DirectMessageAccessAudit</c>).
+/// Tartib MUHIM — bazada son sifatida saqlanadi.
+/// </summary>
+public enum DirectMessageAccessKind
+{
+    /// <summary>Yozishma sahifasi (xabarlar ro'yxati).</summary>
+    Thread = 0,
+
+    /// <summary>Biriktirilgan fayl (rasm, ovoz, hujjat).</summary>
+    Attachment = 1,
+}

@@ -101,6 +101,24 @@ public interface IDirectMessageService
     Task<LessonAssetDownload> OpenAttachmentAsync(
         long attachmentId, string? rangeHeader, long userId, CancellationToken ct = default);
 
+    // ------------------------------------------------------------------
+    // 🔐 NAZORAT (2026-11-19, Mustaqil paneli): o'quv bo'limi va administrator
+    //    yozishmani FAQAT O'QIYDI. Bu metodlar RUXSATNI TEKSHIRMAYDI —
+    //    ularni faqat ruxsat va audit yozuvini o'zi bajaradigan
+    //    `SelfStudyPanelService` chaqiradi. "O'qildi" bayroqlariga tegilmaydi.
+    // ------------------------------------------------------------------
+
+    /// <summary>(StudentId, StaffId) juftligining xabarlari — eskidan yangiga, kursor bilan.</summary>
+    Task<MessagePageDto> ReadThreadForOversightAsync(
+        long studentId, long staffId, long? beforeId, int take, CancellationToken ct = default);
+
+    /// <summary>Biriktirma qaysi juftlikka tegishli (ruxsat va audit uchun, faylni ochmasdan).</summary>
+    Task<(long StudentId, long StaffId)> GetAttachmentPairAsync(long attachmentId, CancellationToken ct = default);
+
+    /// <summary>Biriktirmani ochadi (juftlik bilan birga — audit uchun).</summary>
+    Task<OversightAttachment> OpenAttachmentForOversightAsync(
+        long attachmentId, string? rangeHeader, CancellationToken ct = default);
+
     /// <summary>
     /// Suhbatdagi kiruvchi xabarlarni "o'qildi" deb belgilaydi (idempotent).
     ///
@@ -120,3 +138,6 @@ public interface IDirectMessageService
     /// </summary>
     Task<VoiceQuotaDto> GetVoiceQuotaAsync(long userId, CancellationToken ct = default);
 }
+
+/// <summary>Nazorat uchun ochilgan biriktirma va u tegishli juftlik.</summary>
+public sealed record OversightAttachment(long StudentId, long StaffId, LessonAssetDownload Download);

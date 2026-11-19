@@ -544,6 +544,104 @@ public sealed class DirectMessageService(
         var peerId = userId == row.StudentId ? row.StaffId : row.StudentId;
         await ResolvePairAsync(userId, peerId, ct);
 
+        return await OpenStoredAttachmentAsync(row, rangeHeader, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<OversightAttachment> OpenAttachmentForOversightAsync(
+        long attachmentId, string? rangeHeader, CancellationToken ct = default)
+    {
+        var row = await LoadAttachmentRowAsync(attachmentId, ct);
+        var download = await OpenStoredAttachmentAsync(row, rangeHeader, ct);
+        return new OversightAttachment(row.StudentId, row.StaffId, download);
+    }
+
+    /// <inheritdoc />
+    public async Task<(long StudentId, long StaffId)> GetAttachmentPairAsync(
+        long attachmentId, CancellationToken ct = default)
+    {
+        var row = await LoadAttachmentRowAsync(attachmentId, ct);
+        return (row.StudentId, row.StaffId);
+    }
+
+    /// <inheritdoc />
+    public async Task<MessagePageDto> ReadThreadForOversightAsync(
+        long studentId, long staffId, long? beforeId, int take, CancellationToken ct = default)
+    {
+        var names = await db.Users.AsNoTracking()
+            .Where(u => u.Id == studentId || u.Id == staffId)
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+
+        if (!names.TryGetValue(studentId, out var studentName))
+            throw new NotFoundException(nameof(User), studentId);
+        if (!names.TryGetValue(staffId, out var staffName))
+            throw new NotFoundException(nameof(User), staffId);
+
+        take = take <= 0 ? DefaultTake : Math.Min(take, MaxTake);
+
+        var query = db.DirectMessages.AsNoTracking()
+            .Include(m => m.Attachments)
+            .Where(m => m.StudentId == studentId && m.StaffId == staffId);
+
+        if (beforeId is { } cursor)
+            query = query.Where(m => m.Id < cursor);
+
+        var rows = await query.OrderByDescending(m => m.Id).Take(take + 1).ToListAsync(ct);
+
+        var hasMore = rows.Count > take;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        rows.Reverse();
+
+        var lessonNames = await LessonNamesAsync(rows, ct);
+
+        // ★ FAQAT O'QISH: "o'qildi" bayroqlariga TEGILMAYDI — nazoratchi
+        //   ochgani kurator yoki o'quvchi uchun xabarni "ko'rilgan" qilib
+        //   qo'ymasligi kerak. `Mine` doim false: ko'ruvchi suhbat a'zosi emas.
+        var items = rows.ConvertAll(m => new DirectMessageDto(
+            m.Id,
+            m.SenderId,
+            m.SenderId == studentId ? studentName : staffName,
+            false,
+            m.Body,
+            m.ModuleLessonId,
+            m.ModuleLessonId is { } id ? lessonNames.GetValueOrDefault(id) : null,
+            m.SentAt,
+            m.SenderId == studentId ? m.ReadByStaff : m.ReadByStudent,
+            MapAttachments(m.Attachments)));
+
+        var unreadByStaff = await db.DirectMessages.AsNoTracking()
+            .CountAsync(m => m.StudentId == studentId && m.StaffId == staffId
+                          && m.SenderId == studentId && !m.ReadByStaff, ct);
+
+        return new MessagePageDto(
+            studentId,
+            string.Create(CultureInfo.InvariantCulture, $"{studentName} ↔ {staffName}"),
+            items,
+            hasMore,
+            hasMore && rows.Count > 0 ? rows[0].Id : null,
+            unreadByStaff);
+    }
+
+    private async Task<AttachmentRow> LoadAttachmentRowAsync(long attachmentId, CancellationToken ct) =>
+        await db.DirectMessageAttachments.AsNoTracking()
+            .Where(a => a.Id == attachmentId)
+            .Select(a => new AttachmentRow(
+                a.Id,
+                a.Message!.StudentId,
+                a.Message.StaffId,
+                a.ObjectKey,
+                a.ContentType,
+                a.FileName,
+                a.SizeBytes,
+                a.Kind))
+            .FirstOrDefaultAsync(ct)
+        ?? throw new NotFoundException(nameof(DirectMessageAttachment), attachmentId);
+
+    private async Task<LessonAssetDownload> OpenStoredAttachmentAsync(
+        AttachmentRow row, string? rangeHeader, CancellationToken ct)
+    {
+        var attachmentId = row.Id;
+
         if (!storage.IsConfigured)
         {
             throw new ServiceUnavailableException(
