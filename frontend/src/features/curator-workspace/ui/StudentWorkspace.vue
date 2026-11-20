@@ -152,7 +152,7 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col gap-2.5">
+  <div class="flex h-full min-h-0 flex-col gap-2 lg:gap-2.5">
     <DataStatus
       :pending="headerQuery.isPending.value"
       :error="headerError"
@@ -162,10 +162,14 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
     >
       <template v-if="header !== null">
         <!-- ═══════════════ Sarlavha ═══════════════ -->
-        <header class="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-line bg-ink-900 px-3.5 py-2.5">
+        <!--
+          ★ MOBIL (2026-11-20, loyiha egasi skrinshoti): sarlavha BITTA qator —
+          yozishmaga joy qolsin. Telefon/obuna/progress chizig'i faqat sm+ da.
+        -->
+        <header class="flex shrink-0 items-center gap-2.5 rounded-xl border border-line bg-ink-900 px-2.5 py-2 sm:gap-3 sm:px-3.5 sm:py-2.5">
           <button
             type="button"
-            class="tap-target flex items-center justify-center rounded-lg border border-line bg-ink-800 px-2 text-slate-100 lg:hidden"
+            class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-ink-800 text-slate-100 lg:hidden"
             aria-label="Ro‘yxatga qaytish"
             @click="emit('back')"
           >
@@ -175,22 +179,36 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
             />
           </button>
           <div class="min-w-0 flex-1">
-            <p class="flex flex-wrap items-center gap-2">
+            <p class="flex min-w-0 items-center gap-2">
               <span
-                class="truncate text-base font-bold text-slate-100"
+                class="truncate text-[15px] font-bold text-slate-100 sm:text-base"
                 v-text="header.fullName"
               />
-              <BaseBadge :tone="header.isSelfStudy ? 'accent' : 'neutral'">
+              <BaseBadge
+                class="hidden shrink-0 sm:inline-flex"
+                :tone="header.isSelfStudy ? 'accent' : 'neutral'"
+              >
                 {{ header.isSelfStudy ? 'Mustaqil' : (header.groupName ?? 'Guruh') }}
               </BaseBadge>
               <BaseBadge
                 v-if="header.isSelfStudy && !header.subscriptionActive"
+                class="shrink-0"
                 tone="danger"
               >
                 Obuna tugagan
               </BaseBadge>
             </p>
-            <p class="mt-0.5 text-xs text-dim">
+            <!-- Mobil: bitta qisqa qator. -->
+            <p class="truncate text-xs text-dim sm:hidden">
+              {{ header.isSelfStudy ? 'Mustaqil' : (header.groupName ?? 'Guruh') }}
+              <template v-if="header.totalLessons > 0">
+                · {{ header.masteredLessons }}/{{ header.totalLessons }} dars
+              </template>
+              <template v-if="header.isBackup && header.primaryCuratorName">
+                · asosiy: {{ header.primaryCuratorName }}
+              </template>
+            </p>
+            <p class="mt-0.5 hidden text-xs text-dim sm:block">
               <template v-if="header.phone">
                 {{ formatPhone(header.phone) }}
               </template>
@@ -204,7 +222,7 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
           </div>
           <div
             v-if="header.totalLessons > 0"
-            class="flex items-center gap-2"
+            class="hidden items-center gap-2 sm:flex"
           >
             <div class="h-2 w-24 overflow-hidden rounded-full bg-ink-800">
               <div
@@ -217,8 +235,22 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
               v-text="`${header.masteredLessons}/${header.totalLessons} dars`"
             />
           </div>
+          <!-- Mobil: faqat ikonka. -->
+          <button
+            v-if="header.isSelfStudy"
+            type="button"
+            class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-ink-800 text-slate-100 sm:hidden"
+            aria-label="Darslar xaritasi"
+            @click="boardOpen = true"
+          >
+            <AppIcon
+              name="book"
+              :size="16"
+            />
+          </button>
           <BaseButton
             v-if="header.isSelfStudy"
+            class="hidden sm:inline-flex"
             size="sm"
             variant="secondary"
             @click="boardOpen = true"
@@ -235,7 +267,7 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
 
         <!-- ═══════════════ Dars qarori (qotgan) ═══════════════ -->
         <MasteryDecisionCard
-          v-if="header.awaitingDecision !== null"
+          v-if="header.isSelfStudy"
           :student-id="studentId"
           :awaiting="header.awaitingDecision"
           @open-board="boardOpen = true"
@@ -250,7 +282,7 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
       :extras="extras"
       :read-only-fetcher="backupFetcher"
       hide-header
-      height-class="min-h-[360px] flex-1"
+      height-class="min-h-[260px] flex-1 lg:min-h-[360px]"
       @sent="refreshList"
     >
       <template #extra="{ item }">
@@ -351,7 +383,7 @@ const headerError = computed(() => (headerQuery.error.value ? toUserMessage(head
     <!-- Yozishma huquqi yo'q (masalan faqat baholaydigan ustoz) — faqat kartalar. -->
     <section
       v-else-if="header !== null"
-      class="scrollbar-slim min-h-[360px] flex-1 space-y-2 overflow-y-auto rounded-xl border border-line bg-ink-900 p-3.5"
+      class="scrollbar-slim min-h-[260px] flex-1 space-y-2 overflow-y-auto rounded-xl border border-line bg-ink-900 p-3.5"
     >
       <p class="mb-2 flex items-center gap-2 text-xs text-slate-400">
         <AppIcon

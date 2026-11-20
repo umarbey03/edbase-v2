@@ -336,7 +336,7 @@ function submit(): void {
     ~200px bo'lib qolardi).
   -->
   <section
-    class="flex flex-col rounded-xl border border-line bg-ink-900 p-3.5"
+    class="flex flex-col rounded-xl border border-line bg-ink-900 p-2.5 sm:p-3.5"
     :class="props.heightClass"
   >
     <header

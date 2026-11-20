@@ -22,7 +22,8 @@ import { AppIcon, BaseButton } from '@/shared/ui'
  */
 const props = defineProps<{
   studentId: number
-  awaiting: AwaitingLessonDto
+  /** Qaror kutilayotgan dars; `null` — o'quvchi joriy darsni hali tugatmagan. */
+  awaiting: AwaitingLessonDto | null
 }>()
 
 const emit = defineEmits<{ openBoard: [] }>()
@@ -34,11 +35,25 @@ const boardQuery = useQuery({
   queryFn: ({ signal }) => fetchStudentLessonBoard(props.studentId, { signal }),
 })
 
-const row = computed(() => boardQuery.data.value?.lessons.find((l) => l.lessonId === props.awaiting.lessonId) ?? null)
-const canDecide = computed(() => boardQuery.data.value?.canDecide ?? false)
+/*
+  ★ JORIY DARS (2026-11-20, jonli holat): o'quvchi "2-darsim yopilmadi" deb
+  yozdi, lekin 2-dars testini topshirmagan edi — qaror kartasi chiqmagani
+  TO'G'RI, ammo kurator NIMA yetishmayotganini ko'rmasdi. Endi qaror hali
+  erta bo'lsa ham karta joriy darsni ✓/✗ ro'yxati bilan ko'rsatadi.
+*/
+const row = computed(() => {
+  const lessons = boardQuery.data.value?.lessons ?? []
+  if (props.awaiting !== null) return lessons.find((l) => l.lessonId === props.awaiting!.lessonId) ?? null
+  return lessons.find((l) => l.unlocked && l.mastery !== 'Mastered') ?? null
+})
+const ready = computed(() => props.awaiting !== null)
+const lessonId = computed(() => props.awaiting?.lessonId ?? row.value?.lessonId ?? 0)
+const lessonNumber = computed(() => (props.awaiting?.index ?? row.value?.index ?? 0) + 1)
+const lessonName = computed(() => props.awaiting?.lessonName ?? row.value?.lessonName ?? '')
+const canDecide = computed(() => ready.value && (boardQuery.data.value?.canDecide ?? false))
 const nextLesson = computed(() => {
   const lessons = boardQuery.data.value?.lessons ?? []
-  const index = lessons.findIndex((l) => l.lessonId === props.awaiting.lessonId)
+  const index = lessons.findIndex((l) => l.lessonId === lessonId.value)
   return index >= 0 ? lessons[index + 1] ?? null : null
 })
 
@@ -46,7 +61,7 @@ const needsWorkOpen = ref(false)
 const note = ref('')
 const error = ref<string | null>(null)
 
-watch(() => props.awaiting.lessonId, () => {
+watch(lessonId, () => {
   needsWorkOpen.value = false
   note.value = ''
   error.value = null
@@ -54,7 +69,7 @@ watch(() => props.awaiting.lessonId, () => {
 
 const decide = useMutation({
   mutationFn: (status: 'Mastered' | 'NeedsWork') =>
-    decideLessonMastery(props.studentId, props.awaiting.lessonId, {
+    decideLessonMastery(props.studentId, lessonId.value, {
       status,
       note: note.value.trim().length > 0 ? note.value.trim() : null,
     }),
@@ -63,7 +78,7 @@ const decide = useMutation({
     needsWorkOpen.value = false
     note.value = ''
     showToast(status === 'Mastered'
-      ? `${props.awaiting.index + 1}-dars o‘zlashtirildi — keyingi dars ochildi`
+      ? `${lessonNumber.value}-dars o‘zlashtirildi — keyingi dars ochildi`
       : 'O‘quvchiga «qayta ishlasin» yuborildi')
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: CURATOR_WORKSPACE_KEYS.all }),
@@ -81,16 +96,21 @@ function mark(done: boolean): string {
 
 <template>
   <section
-    class="shrink-0 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-3"
+    v-if="ready || row !== null"
+    class="shrink-0 rounded-xl border px-3 py-2.5"
+    :class="ready ? 'border-emerald-500/30 bg-emerald-500/[0.07]' : 'border-line bg-ink-900'"
     aria-label="Dars qarori"
   >
-    <div class="flex flex-wrap items-start justify-between gap-2">
+    <div class="flex items-start justify-between gap-2">
       <div class="min-w-0">
-        <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-300">
-          ⏳ Dars qarori kutilmoqda
+        <p
+          class="text-[11px] font-bold uppercase tracking-wider"
+          :class="ready ? 'text-emerald-300' : 'text-slate-400'"
+        >
+          {{ ready ? '⏳ Dars qarori kutilmoqda' : '📖 Joriy dars — o‘quvchi bajaryapti' }}
         </p>
         <p class="mt-0.5 truncate text-sm font-semibold text-slate-100">
-          {{ awaiting.index + 1 }}-dars · {{ awaiting.lessonName }}
+          {{ lessonNumber }}-dars · {{ lessonName }}
         </p>
         <p
           v-if="row !== null"
@@ -116,7 +136,7 @@ function mark(done: boolean): string {
       </div>
       <button
         type="button"
-        class="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-ink-800 hover:text-slate-100"
+        class="hidden shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-ink-800 hover:text-slate-100 sm:flex"
         @click="emit('openBoard')"
       >
         <AppIcon
@@ -126,6 +146,12 @@ function mark(done: boolean): string {
         Darslar xaritasi
       </button>
     </div>
+    <p
+      v-if="!ready && row !== null"
+      class="mt-1.5 text-xs text-slate-400"
+    >
+      Qaror tugmasi o‘quvchi <b>✗</b> belgili qismlarni bajargach chiqadi — kerak bo‘lsa unga yozib eslating.
+    </p>
 
     <div
       v-if="canDecide"
@@ -182,7 +208,7 @@ function mark(done: boolean): string {
       </div>
     </div>
     <p
-      v-else-if="!boardQuery.isPending.value"
+      v-else-if="ready && !boardQuery.isPending.value"
       class="mt-2 text-xs text-slate-400"
     >
       Qarorni o‘quvchining kuratori beradi.
