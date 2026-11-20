@@ -259,7 +259,7 @@ async function handleVideoWatched(lessonId: number): Promise<void> {
               ? 'bg-brand-500 text-on-brand'
               : 'text-slate-400 hover:bg-ink-800 hover:text-slate-100'
           "
-          @click="activeTab = tab.key"
+          @click="chosenTab = tab.key"
         >
           <AppIcon
             :name="tab.icon"
