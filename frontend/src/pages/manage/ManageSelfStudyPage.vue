@@ -6,6 +6,7 @@ import {
   SELF_STUDY_PANEL_KEYS,
   SUBSCRIPTION_STATE_LABELS,
   SUBSCRIPTION_STATE_TONES,
+  fetchCuratorPool,
   fetchSelfStudyChats,
   fetchSelfStudyCurators,
   fetchSelfStudyStudents,
@@ -16,7 +17,7 @@ import {
   type SelfStudySubscriptionStateName,
   type SubmissionStatusName,
 } from '@/entities/self-study-panel'
-import { AssignCuratorDialog, ChatOversightDrawer } from '@/features/self-study-panel'
+import { AssignCuratorDialog, ChatOversightDrawer, CuratorPoolCard } from '@/features/self-study-panel'
 import StudentProfileDrawer from '@/features/student-profile/ui/StudentProfileDrawer.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateNumeric, formatDateTimeNumeric } from '@/shared/lib/datetime'
@@ -72,6 +73,14 @@ const curatorsQuery = useQuery({
   queryFn: ({ signal }) => fetchSelfStudyCurators({ signal }),
 })
 const curators = computed(() => curatorsQuery.data.value ?? [])
+/* Avtomatik biriktirish ro'yxati (2026-11-20) — eslatma banneri ham shundan. */
+const poolQuery = useQuery({
+  queryKey: SELF_STUDY_PANEL_KEYS.pool,
+  queryFn: ({ signal }) => fetchCuratorPool({ signal }),
+  refetchInterval: 60_000,
+})
+const pool = computed(() => poolQuery.data.value ?? null)
+
 const curatorsWithStudents = computed(() =>
   curators.value.filter((c) => c.primaryStudents + c.backupStudents > 0 || c.role === 'Assistant'))
 
@@ -282,6 +291,32 @@ const openChat = ref<SelfStudyChatRowDto | null>(null)
       title="Mustaqil tarif"
       subtitle="Obunali o‘quvchilar, ularning kuratorlari, vazifalari va kurator bilan yozishmalari."
     />
+
+    <!--
+      ★ ESLATMA (loyiha egasi, 2026-11-20): kuratorlar to'lgan va o'quvchilar
+      navbatda — har tabda ko'rinadi, bosilsa Kuratorlar tabi ochiladi.
+      Xodimlar Telegram guruhi sozlangan bo'lsa, u yerga ham kuniga bir marta boradi.
+    -->
+    <button
+      v-if="pool !== null && (pool.needsNewCurator || (pool.members.length === 0 && pool.waitingStudents > 0))"
+      type="button"
+      class="mb-4 flex w-full items-start gap-2.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-left text-sm text-rose-100 transition-colors hover:bg-rose-500/15"
+      role="alert"
+      @click="activeTab = 'curators'"
+    >
+      <AppIcon
+        name="user-check"
+        :size="18"
+        class="mt-0.5 shrink-0 text-rose-300"
+      />
+      <span>
+        <span class="font-semibold">
+          {{ pool.members.length === 0 ? 'Mustaqil kuratori qo‘shilmagan' : 'Kuratorlar to‘ldi' }}
+          — {{ pool.waitingStudents }} ta o‘quvchi kuratorsiz kutmoqda.
+        </span>
+        Yangi kurator qo‘shing: qo‘shilishi bilan navbatdagi o‘quvchilar unga o‘zi biriktiriladi.
+      </span>
+    </button>
 
     <!-- ═════════════════════ YIG'MA ═════════════════════ -->
     <div
@@ -644,114 +679,119 @@ const openChat = ref<SelfStudyChatRowDto | null>(null)
     </template>
 
     <!-- ═════════════════════ 2. KURATORLAR ═════════════════════ -->
-    <DataStatus
-      v-else-if="activeTab === 'curators'"
-      :pending="curatorsQuery.isPending.value"
-      :error="errorText(curatorsQuery.error.value)"
-      :empty="curators.length === 0"
-      :retrying="curatorsQuery.isFetching.value"
-      :skeleton-rows="4"
-      empty-icon="user-check"
-      empty-title="Kurator yo‘q"
-      empty-text="«Foydalanuvchilar» bo‘limida Kurator rolida xodim qo‘shing."
-      @retry="curatorsQuery.refetch()"
-    >
-      <BaseCard flush>
-        <div class="scroll-x-safe scrollbar-slim">
-          <table class="zn-table">
-            <thead>
-              <tr>
-                <th>Xodim</th>
-                <th>Asosiy</th>
-                <th>Zaxira</th>
-                <th>Vazifa kutmoqda</th>
-                <th>Javobsiz chat</th>
-                <th>Oxirgi javobi</th>
-                <th class="w-72" />
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in curators"
-                :key="row.id"
-              >
-                <td class="font-medium text-slate-100">
-                  {{ row.fullName }}
-                  <span
-                    class="block text-xs font-normal text-dim"
-                    v-text="row.role === 'Assistant' ? 'Kurator' : 'Ustoz'"
+    <template v-else-if="activeTab === 'curators'">
+      <CuratorPoolCard
+        :pool="pool"
+        :candidates="curators"
+      />
+      <DataStatus
+        :pending="curatorsQuery.isPending.value"
+        :error="errorText(curatorsQuery.error.value)"
+        :empty="curators.length === 0"
+        :retrying="curatorsQuery.isFetching.value"
+        :skeleton-rows="4"
+        empty-icon="user-check"
+        empty-title="Kurator yo‘q"
+        empty-text="«Foydalanuvchilar» bo‘limida Kurator rolida xodim qo‘shing."
+        @retry="curatorsQuery.refetch()"
+      >
+        <BaseCard flush>
+          <div class="scroll-x-safe scrollbar-slim">
+            <table class="zn-table">
+              <thead>
+                <tr>
+                  <th>Xodim</th>
+                  <th>Asosiy</th>
+                  <th>Zaxira</th>
+                  <th>Vazifa kutmoqda</th>
+                  <th>Javobsiz chat</th>
+                  <th>Oxirgi javobi</th>
+                  <th class="w-72" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in curators"
+                  :key="row.id"
+                >
+                  <td class="font-medium text-slate-100">
+                    {{ row.fullName }}
+                    <span
+                      class="block text-xs font-normal text-dim"
+                      v-text="row.role === 'Assistant' ? 'Kurator' : 'Ustoz'"
+                    />
+                  </td>
+                  <td
+                    class="tabular-nums"
+                    v-text="row.primaryStudents"
                   />
-                </td>
-                <td
-                  class="tabular-nums"
-                  v-text="row.primaryStudents"
-                />
-                <td
-                  class="tabular-nums text-slate-400"
-                  v-text="row.backupStudents"
-                />
-                <td>
-                  <BaseBadge
-                    v-if="row.pendingSubmissions > 0"
-                    tone="warning"
-                  >
-                    {{ row.pendingSubmissions }}
-                  </BaseBadge>
-                  <span
-                    v-else
+                  <td
+                    class="tabular-nums text-slate-400"
+                    v-text="row.backupStudents"
+                  />
+                  <td>
+                    <BaseBadge
+                      v-if="row.pendingSubmissions > 0"
+                      tone="warning"
+                    >
+                      {{ row.pendingSubmissions }}
+                    </BaseBadge>
+                    <span
+                      v-else
+                      class="text-xs text-dim"
+                    >0</span>
+                  </td>
+                  <td>
+                    <BaseBadge
+                      v-if="row.waitingChats > 0"
+                      tone="warning"
+                    >
+                      {{ row.waitingChats }}
+                    </BaseBadge>
+                    <span
+                      v-else
+                      class="text-xs text-dim"
+                    >0</span>
+                  </td>
+                  <td
                     class="text-xs text-dim"
-                  >0</span>
-                </td>
-                <td>
-                  <BaseBadge
-                    v-if="row.waitingChats > 0"
-                    tone="warning"
-                  >
-                    {{ row.waitingChats }}
-                  </BaseBadge>
-                  <span
-                    v-else
-                    class="text-xs text-dim"
-                  >0</span>
-                </td>
-                <td
-                  class="text-xs text-dim"
-                  v-text="row.lastReplyAt !== null ? formatDateTimeNumeric(row.lastReplyAt) : '—'"
-                />
-                <td>
-                  <div class="flex flex-wrap justify-end gap-1.5">
-                    <BaseButton
-                      size="sm"
-                      variant="secondary"
-                      @click="showCuratorStudents(row.id)"
-                    >
-                      O‘quvchilari
-                    </BaseButton>
-                    <BaseButton
-                      size="sm"
-                      variant="ghost"
-                      @click="showCuratorSubmissions(row.id)"
-                    >
-                      Vazifalari
-                    </BaseButton>
-                    <BaseButton
-                      size="sm"
-                      variant="ghost"
-                      @click="showCuratorChats(row.id)"
-                    >
-                      Chatlari
-                    </BaseButton>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </BaseCard>
-      <p class="mt-2 text-xs text-dim">
-        Kuratorga o‘quvchi qo‘shish: «O‘quvchilar» tabida o‘quvchilarni belgilang → «Kuratorga biriktirish».
-      </p>
-    </DataStatus>
+                    v-text="row.lastReplyAt !== null ? formatDateTimeNumeric(row.lastReplyAt) : '—'"
+                  />
+                  <td>
+                    <div class="flex flex-wrap justify-end gap-1.5">
+                      <BaseButton
+                        size="sm"
+                        variant="secondary"
+                        @click="showCuratorStudents(row.id)"
+                      >
+                        O‘quvchilari
+                      </BaseButton>
+                      <BaseButton
+                        size="sm"
+                        variant="ghost"
+                        @click="showCuratorSubmissions(row.id)"
+                      >
+                        Vazifalari
+                      </BaseButton>
+                      <BaseButton
+                        size="sm"
+                        variant="ghost"
+                        @click="showCuratorChats(row.id)"
+                      >
+                        Chatlari
+                      </BaseButton>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </BaseCard>
+        <p class="mt-2 text-xs text-dim">
+          Qo‘lda biriktirish ham mumkin: «O‘quvchilar» tabida o‘quvchilarni belgilang → «Kuratorga biriktirish».
+        </p>
+      </DataStatus>
+    </template>
 
     <!-- ═════════════════════ 3. VAZIFALAR ═════════════════════ -->
     <template v-else-if="activeTab === 'submissions'">

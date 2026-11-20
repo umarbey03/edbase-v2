@@ -251,6 +251,12 @@ public static class TelegramTemplates
     /// </summary>
     public const string ShopOrderStaff = "shop_order_staff";
 
+    /// <summary>
+    /// Xodimlar guruhiga (2026-11-20): Mustaqil kuratorlari to'ldi — o'quvchilar
+    /// kuratorsiz navbatda, yangi kurator qo'shish kerak. Kuniga bir marta.
+    /// </summary>
+    public const string SelfStudyCuratorsFull = "selfstudy_curators_full";
+
     /// <summary>Buyurtma hal qilindi — xodimlar guruhiga qisqa izoh (kim, nima qildi).</summary>
     public const string ShopOrderDecided = "shop_order_decided";
 
@@ -857,6 +863,14 @@ public static class TelegramTemplates
             + $"💰 <b>{FormatMoney(amount)} so'm</b>\n\n"
             + "Payme/Click xabarlarida shu summani toping va tasdiqlang.";
     }
+
+    /// <summary>Xodimlar guruhiga: Mustaqil kuratorlari to'ldi, o'quvchilar navbatda.</summary>
+    public static string SelfStudyCuratorsFullText(int waiting, int totalCapacity, int curators) =>
+        $"⚠️ <b>Mustaqil kuratorlari to'ldi</b>\n"
+        + $"👥 {waiting} ta o'quvchi kuratorsiz navbatda kutmoqda\n"
+        + $"📊 Kuratorlar: {curators} ta, umumiy sig'im: {totalCapacity}\n\n"
+        + "Yangi kurator qo'shing: Boshqaruv → Mustaqil tarif → Kuratorlar. "
+        + "Qo'shilishi bilan navbatdagi o'quvchilar unga o'zi biriktiriladi.";
 
     /// <summary>Xodimlar guruhiga: o'quvchi «To'ladim» ni bosdi.</summary>
     public static string ShopOrderPaidClaimText(string code, string studentName, string planName, decimal amount) =>

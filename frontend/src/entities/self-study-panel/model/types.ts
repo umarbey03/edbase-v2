@@ -131,6 +131,37 @@ export interface SelfStudyChatFilters {
   pageSize: number
 }
 
+/* ───────────── Mustaqil kuratorlari ro'yxati — avtomatik biriktirish (2026-11-20) ───────────── */
+
+export interface CuratorPoolMemberDto {
+  curatorId: number
+  fullName: string
+  role: string
+  isActive: boolean
+  capacity: number
+  /** Biriktirilgan va obunasi HOZIR faol o'quvchilar (sig'imni shular egallaydi). */
+  activeStudents: number
+  isAccepting: boolean
+  addedAt: string
+}
+
+export interface CuratorPoolDto {
+  members: CuratorPoolMemberDto[]
+  totalCapacity: number
+  freeSlots: number
+  /** Faol obunali, kuratorsiz, navbatda kutayotgan o'quvchilar. */
+  waitingStudents: number
+  /** Navbatda o'quvchi bor va bo'sh joy yo'q — "yangi kurator qo'shing". */
+  needsNewCurator: boolean
+}
+
+export interface AutoAssignResultDto {
+  assigned: number
+  stillWaiting: number
+}
+
+export const DEFAULT_CURATOR_CAPACITY = 100
+
 export interface ChatAccessLogEntryDto {
   viewerName: string
   kind: DirectMessageAccessKindName

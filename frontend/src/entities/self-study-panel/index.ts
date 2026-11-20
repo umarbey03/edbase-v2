@@ -1,4 +1,9 @@
 export {
+  addCuratorToPool,
+  fetchCuratorPool,
+  removeCuratorFromPool,
+  runCuratorPool,
+  updateCuratorPoolMember,
   bulkAssignSelfStudyCurator,
   fetchSelfStudyChatAccessLog,
   fetchSelfStudyChatAttachment,
@@ -9,8 +14,11 @@ export {
   fetchSelfStudySubmissions,
   fetchSelfStudySummary,
 } from './api/self-study-panel-api'
-export { SUBSCRIPTION_STATE_LABELS, SUBSCRIPTION_STATE_TONES } from './model/types'
+export { DEFAULT_CURATOR_CAPACITY, SUBSCRIPTION_STATE_LABELS, SUBSCRIPTION_STATE_TONES } from './model/types'
 export type {
+  AutoAssignResultDto,
+  CuratorPoolDto,
+  CuratorPoolMemberDto,
   BulkAssignFailureDto,
   BulkAssignResultDto,
   ChatAccessLogEntryDto,
@@ -32,6 +40,7 @@ export const SELF_STUDY_PANEL_KEYS = {
   summary: ['self-study-panel', 'summary'] as const,
   students: (filters: object) => ['self-study-panel', 'students', filters] as const,
   curators: ['self-study-panel', 'curators'] as const,
+  pool: ['self-study-panel', 'pool'] as const,
   submissions: (filters: object) => ['self-study-panel', 'submissions', filters] as const,
   chats: (filters: object) => ['self-study-panel', 'chats', filters] as const,
   chat: (studentId: number, staffId: number) => ['self-study-panel', 'chat', studentId, staffId] as const,

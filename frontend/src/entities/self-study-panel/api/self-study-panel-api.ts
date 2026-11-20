@@ -3,6 +3,8 @@ import type { DownloadedFile } from '@/shared/api'
 import type { MessagePageDto, PagedResult } from '@/shared/types'
 
 import type {
+  AutoAssignResultDto,
+  CuratorPoolDto,
   BulkAssignResultDto,
   ChatAccessLogEntryDto,
   SelfStudyChatFilters,
@@ -47,6 +49,33 @@ export function bulkAssignSelfStudyCurator(request: {
   backupCuratorId: number | null
 }): Promise<BulkAssignResultDto> {
   return http.post<BulkAssignResultDto>(`${BASE}/students/assign`, request)
+}
+
+/* ───────────── Kuratorlar ro'yxati — avtomatik biriktirish (2026-11-20) ───────────── */
+
+export function fetchCuratorPool(options?: Opts): Promise<CuratorPoolDto> {
+  return http.get<CuratorPoolDto>(`${BASE}/pool`, { signal: options?.signal })
+}
+
+/** Ro'yxatga qo'shish — navbatdagi o'quvchilar unga darhol biriktiriladi. */
+export function addCuratorToPool(request: { curatorId: number, capacity: number }): Promise<CuratorPoolDto> {
+  return http.post<CuratorPoolDto>(`${BASE}/pool`, request)
+}
+
+export function updateCuratorPoolMember(
+  curatorId: number,
+  request: { capacity: number, isAccepting: boolean },
+): Promise<CuratorPoolDto> {
+  return http.put<CuratorPoolDto>(`${BASE}/pool/${curatorId}`, request)
+}
+
+/** Ro'yxatdan chiqarish — mavjud biriktirishlar qoladi. */
+export function removeCuratorFromPool(curatorId: number): Promise<CuratorPoolDto> {
+  return http.delete<CuratorPoolDto>(`${BASE}/pool/${curatorId}`)
+}
+
+export function runCuratorPool(): Promise<AutoAssignResultDto> {
+  return http.post<AutoAssignResultDto>(`${BASE}/pool/run`)
 }
 
 export function fetchSelfStudyCurators(options?: Opts): Promise<SelfStudyCuratorRowDto[]> {

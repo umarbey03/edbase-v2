@@ -84,6 +84,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<SubscriptionPeriod> SubscriptionPeriods => Set<SubscriptionPeriod>();
     public DbSet<SelfStudyCuratorAssignment> SelfStudyCuratorAssignments => Set<SelfStudyCuratorAssignment>();
+    public DbSet<SelfStudyCuratorPoolMember> SelfStudyCuratorPoolMembers => Set<SelfStudyCuratorPoolMember>();
     public DbSet<LessonMastery> LessonMasteries => Set<LessonMastery>();
     public DbSet<LessonMasteryEvent> LessonMasteryEvents => Set<LessonMasteryEvent>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();

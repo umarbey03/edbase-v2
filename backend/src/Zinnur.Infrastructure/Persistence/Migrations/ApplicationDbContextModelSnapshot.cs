@@ -3241,6 +3241,50 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Zinnur.Domain.Entities.SelfStudyCuratorPoolMember", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("AddedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Capacity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(100);
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<long>("CuratorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsAccepting")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddedById");
+
+                    b.HasIndex("CuratorId")
+                        .IsUnique();
+
+                    b.ToTable("SelfStudyCuratorPoolMembers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SelfStudyCuratorPoolMembers_Capacity", "\"Capacity\" BETWEEN 1 AND 1000");
+                        });
+                });
+
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionCoverageRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -5796,6 +5840,23 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Navigation("Curator");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Zinnur.Domain.Entities.SelfStudyCuratorPoolMember", b =>
+                {
+                    b.HasOne("Zinnur.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AddedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Zinnur.Domain.Entities.User", "Curator")
+                        .WithMany()
+                        .HasForeignKey("CuratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Curator");
                 });
 
             modelBuilder.Entity("Zinnur.Domain.Entities.SessionCoverageRequest", b =>

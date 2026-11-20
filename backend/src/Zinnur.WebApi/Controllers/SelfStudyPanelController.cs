@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.Messaging.Dtos;
 using Zinnur.Application.SelfStudy.Panel;
+using Zinnur.Application.SelfStudy.Pool;
 using Zinnur.WebApi.Media;
 
 namespace Zinnur.WebApi.Controllers;
@@ -20,9 +21,45 @@ namespace Zinnur.WebApi.Controllers;
 [ApiController]
 [Authorize(Roles = ManageRoles)]
 [Route("api/v1/self-study/panel")]
-public sealed class SelfStudyPanelController(ISelfStudyPanelService panel) : ControllerBase
+public sealed class SelfStudyPanelController(ISelfStudyPanelService panel, ICuratorPoolService pool) : ControllerBase
 {
     private const string ManageRoles = "Academic,Admin";
+
+    // ------------------------------------------------------------ kuratorlar ro'yxati (2026-11-20)
+
+    /// <summary>Mustaqil kuratorlari, sig'imi, yuki va navbat holati.</summary>
+    [HttpGet("pool")]
+    [ProducesResponseType<CuratorPoolDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<CuratorPoolDto>> Pool(CancellationToken ct) =>
+        Ok(await pool.GetAsync(CurrentUserId, ct));
+
+    /// <summary>Kuratorni ro'yxatga qo'shadi — navbatdagi o'quvchilar unga darhol biriktiriladi.</summary>
+    [HttpPost("pool")]
+    [ProducesResponseType<CuratorPoolDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CuratorPoolDto>> AddToPool(
+        [FromBody] AddCuratorPoolMemberRequest request, CancellationToken ct) =>
+        Ok(await pool.AddAsync(request, CurrentUserId, ct));
+
+    [HttpPut("pool/{curatorId:long}")]
+    [ProducesResponseType<CuratorPoolDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CuratorPoolDto>> UpdatePoolMember(
+        long curatorId, [FromBody] UpdateCuratorPoolMemberRequest request, CancellationToken ct) =>
+        Ok(await pool.UpdateAsync(curatorId, request, CurrentUserId, ct));
+
+    /// <summary>Ro'yxatdan chiqarish — mavjud biriktirishlar qoladi.</summary>
+    [HttpDelete("pool/{curatorId:long}")]
+    [ProducesResponseType<CuratorPoolDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<CuratorPoolDto>> RemoveFromPool(long curatorId, CancellationToken ct) =>
+        Ok(await pool.RemoveAsync(curatorId, CurrentUserId, ct));
+
+    /// <summary>Navbatni hozir taqsimlash (fon vazifasini kutmasdan).</summary>
+    [HttpPost("pool/run")]
+    [ProducesResponseType<AutoAssignResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<AutoAssignResultDto>> RunPool(CancellationToken ct) =>
+        Ok(await pool.RunAsync(CurrentUserId, ct));
 
     [HttpGet("summary")]
     [ProducesResponseType<SelfStudyPanelSummaryDto>(StatusCodes.Status200OK)]

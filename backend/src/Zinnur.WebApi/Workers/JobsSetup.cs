@@ -113,6 +113,13 @@ internal static class JobsSetup
             sp.GetRequiredService<IPointsSyncService>(),
             options.PointsSync));
 
+        // ★ MUSTAQIL KURATORLARI (2026-11-20) — SHARTSIZ: ro'yxat bo'sh
+        //   bo'lsa vazifa darhol chiqadi. Har daqiqada: yangi o'quvchi ko'pi
+        //   bilan bir daqiqa kuratorsiz turadi.
+        services.AddScoped<IScheduledJob>(sp => new SelfStudyAutoAssignJob(
+            sp.GetRequiredService<Zinnur.Application.SelfStudy.Pool.ICuratorPoolService>(),
+            TimeSpan.FromMinutes(1)));
+
         // ================================================================
         // 🔴 CHAT TARIXINI TOZALASH — SHARTSIZ RO'YXATDAN O'TADI.
         //
