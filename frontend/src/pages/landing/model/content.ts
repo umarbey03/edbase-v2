@@ -1023,7 +1023,10 @@ export const PRICE = {
   plusNote: 'Interaktiv darslik ATF kursidan boshlab bosqichma-bosqich ochiladi.',
   leadTwoPlans:
     'Milliy — ustoz bilan guruhda jonli darslar, to‘lov dars soni bo‘yicha. '
-    + 'Mustaqil — video darslar, vazifa va testlar, interaktiv darslik, '
+    // 2026-11-20: interaktiv darslik kontenti hali yuklanmagan — tarif belgisi
+    // o'chirildi (loyiha egasi), matn ham va'da bermaydi. Kontent tayyor
+    // bo'lgach shu qatorga qaytariladi.
+    + 'Mustaqil — video darslar, vazifa va testlar, kurator yordami, '
     + 'to‘lov oyiga.',
   amount: '540 000',
   currency: 'so‘m',
@@ -1347,8 +1350,8 @@ export const FAQ: readonly Faq[] = [
       + 'chati — qo‘shimcha: narxga kirmaydi, ular uchun alohida pul '
       + 'olinmaydi. Mustaqil — jonli darssiz: video darslarni o‘zingizga '
       + 'qulay vaqtda ko‘rasiz, vazifa va testlarni bajarasiz, ular tekshirib '
-      + 'beriladi; interaktiv darslik ham kiradi — u ATF kursidan boshlab '
-      + 'bosqichma-bosqich ochiladi; to‘lov oyiga. Mustaqil tarifni saytning '
+      + 'beriladi; savollaringizga kurator javob beradi va keyingi dars u '
+      + 'tasdiqlagach ochiladi; to‘lov oyiga. Mustaqil tarifni saytning '
       + 'o‘zida sotib olasiz.',
   },
   {
