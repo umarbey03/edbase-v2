@@ -7,7 +7,6 @@ import {
   fetchThread,
   markConversationRead,
   sendDirectMessage,
-  withDayLabels,
 } from '@/entities/direct-message'
 import {
   DirectAttachment,
@@ -20,10 +19,12 @@ import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
 import { ImageAnnotator } from '@/features/image-annotator'
 import { VoiceReviewer } from '@/features/voice-review'
 import { toUserMessage } from '@/shared/api'
-import { formatTime } from '@/shared/lib/datetime'
+import { formatDayLabel, formatTime } from '@/shared/lib/datetime'
 import { formatFileSize } from '@/shared/lib/text'
-import type { ConversationDto } from '@/shared/types'
+import type { ConversationDto, DirectMessageDto, MessagePageDto } from '@/shared/types'
 import { AppIcon, DataStatus, ImageLightbox } from '@/shared/ui'
+
+import type { InboxTimelineExtra } from '../model/timeline'
 
 /**
  * Ochilgan yozishma — eski `#dm-msgs` + `#dm-form`.
@@ -32,17 +33,48 @@ import { AppIcon, DataStatus, ImageLightbox } from '@/shared/ui'
  * yozishma esa 15 sekundda yangilanadi va bittasining qayta chizilishi
  * ikkinchisini qimirlatmasligi kerak.
  */
-const props = defineProps<{ peer: ConversationDto }>()
+/*
+  ★ KURATOR ISH STOLI (2026-11-20) uchun IXTIYORIY kengaytmalar — "Suhbatlar"
+  sahifasi ularni bermaydi va avvalgidek ishlaydi:
+    • `extras` + `#extra` slot — vazifa/test/dars qarori kartalari xabarlar
+      bilan VAQT BO'YICHA bitta oqimda;
+    • `readOnlyFetcher` — zaxira kurator: yozish paneli yo'q, "o'qildi"
+      belgilanmaydi (o'quvchi bitta odam — asosiy kurator bilan gaplashadi);
+    • `hideHeader` / `heightClass` — ish stolining o'z sarlavhasi va balandligi.
+  "Javob berish" (dars savoliga) — HAMMA uchun: javob o'sha darsga bog'lanadi.
+*/
+const props = withDefaults(
+  defineProps<{
+    peer: ConversationDto
+    extras?: InboxTimelineExtra[]
+    readOnlyFetcher?: ((signal: AbortSignal) => Promise<MessagePageDto>) | null
+    hideHeader?: boolean
+    heightClass?: string
+  }>(),
+  {
+    extras: () => [],
+    readOnlyFetcher: null,
+    hideHeader: false,
+    heightClass: 'h-[60dvh] min-h-[320px]',
+  },
+)
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [], sent: [] }>()
+
+defineSlots<{ extra?: (props: { item: InboxTimelineExtra }) => unknown }>()
 
 const queryClient = useQueryClient()
 
 const peerId = computed(() => props.peer.peerId)
+const readOnly = computed(() => props.readOnlyFetcher !== null)
 
 const threadQuery = useQuery({
-  queryKey: ['dm', 'thread', peerId],
-  queryFn: ({ signal }) => fetchThread(peerId.value, {}, { signal }),
+  queryKey: computed(() =>
+    readOnly.value ? ['workspace', 'backup-thread', peerId.value] : ['dm', 'thread', peerId.value]),
+  queryFn: ({ signal }) =>
+    props.readOnlyFetcher !== null
+      ? props.readOnlyFetcher(signal)
+      : fetchThread(peerId.value, {}, { signal }),
   refetchInterval: 15_000,
 })
 
@@ -53,15 +85,36 @@ const threadError = computed(() =>
 )
 
 /**
- * Kun ajratgichlari — qoida ENDI entity qatlamida (`withDayLabels`), chunki
- * o'quvchining kurator chati ham AYNAN shu ajratgichni chizadi (R28).
+ * Oqim qatorlari: xabarlar + (ish stolida) qo'shimcha kartalar, VAQT bo'yicha.
+ * Kun ajratgichi `withDayLabels` dagi AYNI qoida (`formatDayLabel`), faqat
+ * endi kartalar ham hisobga olinadi.
  */
-const grouped = computed(() => withDayLabels(messages.value))
+type TimelineRow =
+  | { kind: 'message', key: string, at: string, message: DirectMessageDto, dayLabel: string | null }
+  | { kind: 'extra', key: string, at: string, item: InboxTimelineExtra, dayLabel: string | null }
+
+const rows = computed<TimelineRow[]>(() => {
+  const items: Omit<TimelineRow, 'dayLabel'>[] = [
+    ...messages.value.map((message) => ({
+      kind: 'message' as const, key: `m${message.id}`, at: message.sentAt, message,
+    })),
+    ...props.extras.map((item) => ({ kind: 'extra' as const, key: `x${item.key}`, at: item.at, item })),
+  ]
+  items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+
+  let previous = ''
+  return items.map((row) => {
+    const label = formatDayLabel(row.at)
+    const show = label !== previous
+    previous = label
+    return { ...row, dayLabel: show ? label : null } as TimelineRow
+  })
+})
 
 const scroller = ref<HTMLElement | null>(null)
 
 watch(
-  () => [peerId.value, messages.value.length] as const,
+  () => [peerId.value, rows.value.length] as const,
   () => {
     void nextTick(() => {
       const element = scroller.value
@@ -82,7 +135,8 @@ const markReadMutation = useMutation({
 watch(
   () => [peerId.value, threadQuery.data.value?.unreadCount ?? 0] as const,
   ([id, unread]) => {
-    if (unread > 0) markReadMutation.mutate(id)
+    // Faqat o'qish rejimida (zaxira kurator) "o'qildi" BELGILANMAYDI.
+    if (unread > 0 && !readOnly.value) markReadMutation.mutate(id)
   },
 )
 
@@ -90,6 +144,20 @@ watch(
 
 const draft = ref('')
 const sendError = ref<string | null>(null)
+
+/**
+ * ★ DARS SAVOLIGA JAVOB (2026-11-20): o'quvchi dars sahifasidan so'ragan
+ * savol ostidagi "Javob berish" — javob o'sha darsga bog'lanadi
+ * (`moduleLessonId`), ya'ni o'quvchi uni dars sahifasidagi mini-chatda ham
+ * ko'radi. Ilgari kurator javobi doim "umumiy" ketardi.
+ */
+const replyTo = ref<{ lessonId: number, lessonName: string } | null>(null)
+
+function replyToQuestion(message: DirectMessageDto): void {
+  if (message.moduleLessonId === null) return
+  replyTo.value = { lessonId: message.moduleLessonId, lessonName: message.moduleLessonName ?? 'dars' }
+  void nextTick(() => input.value?.focus())
+}
 
 /** Emoji tanlagichga kursor joyi kerak (`ChatEmojiPicker` izohi). */
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -100,6 +168,7 @@ watch(peerId, () => {
   sendError.value = null
   pendingFiles.value = []
   attachmentError.value = null
+  replyTo.value = null
 })
 
 /*
@@ -145,7 +214,7 @@ const attachMutation = useMutation({
       peerId: peerId.value,
       files: input.files,
       body: input.body,
-      moduleLessonId: null,
+      moduleLessonId: replyTo.value?.lessonId ?? null,
       durationSec: input.durationSec ?? null,
       onProgress: (progress) => {
         uploadPercent.value = progress.percent
@@ -157,8 +226,10 @@ const attachMutation = useMutation({
     attachmentError.value = null
     sendError.value = null
     uploadPercent.value = null
+    replyTo.value = null
     void threadQuery.refetch()
     void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
+    emit('sent')
   },
   onError: (error: Error) => {
     uploadPercent.value = null
@@ -213,12 +284,14 @@ function onReviewed(file: File, durationSec: number): void {
 
 const sendMutation = useMutation({
   mutationFn: (input: { id: number; body: string }) =>
-    sendDirectMessage(input.id, { body: input.body }),
+    sendDirectMessage(input.id, { body: input.body, moduleLessonId: replyTo.value?.lessonId ?? null }),
   onSuccess: () => {
     draft.value = ''
     sendError.value = null
+    replyTo.value = null
     void threadQuery.refetch()
     void queryClient.invalidateQueries({ queryKey: ['dm', 'conversations'] })
+    emit('sent')
   },
   onError: (error: Error) => {
     sendError.value = toUserMessage(error)
@@ -262,8 +335,14 @@ function submit(): void {
     `min-h-[320px]` — telefon yotiq holati uchun pol (60dvh o'sha yerda
     ~200px bo'lib qolardi).
   -->
-  <section class="flex h-[60dvh] min-h-[320px] flex-col rounded-xl border border-line bg-ink-900 p-3.5">
-    <header class="mb-2.5 flex shrink-0 items-center gap-2.5 border-b border-line pb-2.5">
+  <section
+    class="flex flex-col rounded-xl border border-line bg-ink-900 p-3.5"
+    :class="props.heightClass"
+  >
+    <header
+      v-if="!props.hideHeader"
+      class="mb-2.5 flex shrink-0 items-center gap-2.5 border-b border-line pb-2.5"
+    >
       <!--
         Ro'yxatga qaytish (eski `#dm-back`). Ikki ustunli desktopda kerak emas.
 
@@ -310,23 +389,30 @@ function submit(): void {
       <DataStatus
         :pending="threadQuery.isPending.value"
         :error="threadError"
-        :empty="messages.length === 0"
+        :empty="rows.length === 0"
         :retrying="threadQuery.isFetching.value"
         :skeleton-rows="3"
         empty-icon="chat"
-        empty-title="Hali xabar yo‘q — birinchi bo‘lib yozing."
+        :empty-title="readOnly ? 'Hali xabar yo‘q.' : 'Hali xabar yo‘q — birinchi bo‘lib yozing.'"
         @retry="threadQuery.refetch()"
       >
         <template
-          v-for="row in grouped"
-          :key="row.message.id"
+          v-for="row in rows"
+          :key="row.key"
         >
           <!-- Kun ajratgichi — uch chat ekrani uchun BITTA komponent. -->
           <ChatDaySeparator
             v-if="row.dayLabel !== null"
             :label="row.dayLabel"
           />
+          <!-- Ish stoli kartasi (vazifa, test, dars qarori) — chaqiruvchi chizadi. -->
+          <slot
+            v-if="row.kind === 'extra'"
+            name="extra"
+            :item="row.item"
+          />
           <div
+            v-else
             class="flex"
             :class="row.message.mine ? 'justify-end' : 'justify-start'"
           >
@@ -369,6 +455,11 @@ function submit(): void {
                 class="mt-1 flex items-center justify-end gap-1 text-[10px] tabular-nums"
                 :class="row.message.mine ? 'text-on-brand/75' : 'text-dim'"
               >
+                <span
+                  v-if="readOnly"
+                  class="mr-auto font-semibold"
+                  v-text="row.message.senderName"
+                />
                 {{ formatTime(row.message.sentAt) }}
                 <AppIcon
                   v-if="row.message.mine"
@@ -376,6 +467,19 @@ function submit(): void {
                   :size="11"
                 />
               </p>
+              <!-- Dars savoliga javob — javob o'sha darsga bog'lanadi. -->
+              <button
+                v-if="!readOnly && !row.message.mine && row.message.moduleLessonId !== null"
+                type="button"
+                class="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-ink-800"
+                @click="replyToQuestion(row.message)"
+              >
+                <AppIcon
+                  name="chat"
+                  :size="12"
+                />
+                Javob berish
+              </button>
             </div>
           </div>
         </template>
@@ -448,7 +552,45 @@ function submit(): void {
       </div>
     </div>
 
+    <!-- Zaxira kurator: faqat o'qish — o'quvchi asosiy kurator bilan yozishadi. -->
+    <p
+      v-if="readOnly"
+      class="mt-2.5 flex shrink-0 items-center gap-2 rounded-lg border border-line bg-ink-950 px-3 py-2 text-xs text-slate-400"
+    >
+      <AppIcon
+        name="lock"
+        :size="13"
+      />
+      Siz zaxira kuratorsiz: yozishmani ko‘rasiz, o‘quvchiga asosiy kurator javob beradi.
+    </p>
+
+    <!-- Dars savoliga javob konteksti. -->
+    <div
+      v-if="!readOnly && replyTo !== null"
+      class="mt-2 flex shrink-0 items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-xs text-brand-200"
+    >
+      <AppIcon
+        name="chat"
+        :size="13"
+      />
+      <span class="min-w-0 flex-1 truncate">
+        Dars savoliga javob: <b v-text="replyTo.lessonName" />
+      </span>
+      <button
+        type="button"
+        class="rounded p-0.5 text-slate-400 hover:text-slate-100"
+        aria-label="Bekor qilish"
+        @click="replyTo = null"
+      >
+        <AppIcon
+          name="close"
+          :size="13"
+        />
+      </button>
+    </div>
+
     <form
+      v-if="!readOnly"
       class="mt-2.5 flex shrink-0 items-end gap-2"
       novalidate
       @submit.prevent="submit"

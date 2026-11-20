@@ -100,7 +100,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function asKind(value: unknown): NotificationKindName | null {
-  return value === 'SubmissionGraded' || value === 'LessonMasteryDecided' ? value : null
+  return value === 'SubmissionGraded' || value === 'LessonMasteryDecided' || value === 'SubmissionReceived'
+    ? value
+    : null
 }
 
 /**
@@ -192,6 +194,8 @@ function scheduleInvalidate(): void {
     //   kurs daraxti va kurator qarorlari shu zahoti yangilansin.
     void target.invalidateQueries({ queryKey: ['courses', 'tree'] })
     void target.invalidateQueries({ queryKey: ['self-study', 'my-mastery'] })
+    // ★ Kurator ish stoli (2026-11-20): yangi topshirilgan vazifa ro'yxat va oqimda shu zahoti.
+    void target.invalidateQueries({ queryKey: ['workspace'] })
   }, INVALIDATE_DEBOUNCE_MS)
 }
 
@@ -213,6 +217,8 @@ function handleCreated(payload: unknown): void {
 function handleDirectMessage(): void {
   if (disposed || client === null) return
   void client.invalidateQueries({ queryKey: ['dm'] })
+  // Kurator ish stoli ro'yxatidagi "javob kutmoqda" belgilari ham.
+  void client.invalidateQueries({ queryKey: ['workspace'] })
 }
 
 function buildConnection(): HubConnection {

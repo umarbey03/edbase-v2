@@ -133,7 +133,8 @@ const TEACHER_NAV: NavItem[] = [
   { routeName: 'teacher-sessions', label: 'Darslarim', icon: 'calendar' },
   { routeName: 'manage-absentees', label: 'Darsga kirmaganlar', icon: 'user-x' },
   { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
-  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
+  // Ish stoli (2026-11-20): Mustaqil o'quvchilar va yozishma bir joyda — ustoz kurator bo'lsa ham shu yerda.
+  { routeName: 'teacher-workspace', label: 'Ish stoli', icon: 'user-check' },
   { routeName: 'teacher-group-chats', label: 'Guruh chatlari', icon: 'chat' },
   // "Savollar" olib tashlandi (2026-11-18): shaxsiy yozishmani faqat kurator olib boradi.
 ]
@@ -186,11 +187,15 @@ const TEACHER_NAV: NavItem[] = [
   "Kuratorlik", "Darsga kirmaganlar" — dars o'tilmagach ma'nosiz.
   Sahifalarning O'ZI o'chirilmadi (manzil bo'yicha ochiladi).
 */
+/*
+  ★ 2026-11-20 — «ISH STOLI» (loyiha egasi: "kurator u yoqdan bu yoqqa
+  yugurib qolyapti"). Navbat, Suhbatlar, Tekshirish va Mustaqil o'quvchilar
+  BITTA oynaga birlashdi: chapda — kim nimani kutyapti, o'ngda — o'quvchining
+  yozishmasi, savollari, vazifalari va dars qarori. Eski sahifalar o'chirilmadi
+  (manzil bo'yicha ochiladi), faqat menyudan olindi.
+*/
 const ASSISTANT_NAV: NavItem[] = [
-  { routeName: 'teacher-queue', label: 'Navbat', icon: 'bell' },
-  { routeName: 'teacher-chat', label: 'Suhbatlar', icon: 'message-circle' },
-  { routeName: 'teacher-grading', label: 'Tekshirish', icon: 'clipboard' },
-  { routeName: 'teacher-self-study', label: 'Mustaqil o‘quvchilar', icon: 'user-check' },
+  { routeName: 'teacher-workspace', label: 'Ish stoli', icon: 'clipboard' },
   { routeName: 'teacher-group-chats', label: 'Guruh chatlari', icon: 'chat' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
 ]
@@ -457,7 +462,7 @@ const NAV_BY_ROLE: Record<UserRoleName, NavItem[]> = {
 const HOME_BY_ROLE: Record<UserRoleName, string> = {
   Student: 'student-home',
   Teacher: 'teacher-home',
-  Assistant: 'teacher-queue',
+  Assistant: 'teacher-workspace',
 
   /*
     ⚠️ BOSHQARUV PANELI OLIB TASHLANDI (loyiha egasi, 2026-08-18:

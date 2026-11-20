@@ -342,3 +342,19 @@ public sealed record SubmissionOverviewDto(
     long? GradedById,
     string? GradedByName,
     string? GraderLabel);
+
+/// <summary>
+/// Kurator ish stoli (2026-11-20): bitta o'quvchining javobi — baholash
+/// oynasi uchun to'liq <see cref="SubmissionDto"/> va vazifa/dars konteksti.
+/// </summary>
+/// <param name="CanGrade">Shu xodim bu javobni baholay oladimi (R33 qoidasi bilan AYNI).</param>
+public sealed record StaffStudentSubmissionDto(
+    SubmissionDto Submission,
+    string AssignmentTitle,
+    decimal MaxScore,
+    long? LessonId,
+    string? LessonName,
+    bool CanGrade);
+
+/// <summary>Xodim baholashi kerak bo'lgan javoblar: soni va eng eskisi.</summary>
+public sealed record PendingSubmissionsSummary(int Count, DateTimeOffset OldestSubmittedAt);

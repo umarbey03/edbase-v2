@@ -300,6 +300,7 @@ public static class DependencyInjection
         services.AddScoped<SelfStudy.ILessonMasteryService, SelfStudy.LessonMasteryService>();
         services.AddScoped<SelfStudy.Panel.ISelfStudyPanelService, SelfStudy.Panel.SelfStudyPanelService>();
         services.AddScoped<SelfStudy.Pool.ICuratorPoolService, SelfStudy.Pool.CuratorPoolService>();
+        services.AddScoped<CuratorWorkspace.ICuratorWorkspaceService, CuratorWorkspace.CuratorWorkspaceService>();
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<ISelfSignupService, SelfSignupService>();
         services.AddScoped<IPointsService, PointsService>();

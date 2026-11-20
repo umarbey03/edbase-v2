@@ -299,6 +299,14 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Bosh sahifa', roles: STAFF },
       },
       {
+        // ★ ISH STOLI (2026-11-20): kurator va ustoz uchun yagona oyna —
+        // o'quvchining yozishmasi, savollari, vazifalari va dars qarori birga.
+        path: 'ustoz/ish-stoli',
+        name: 'teacher-workspace',
+        component: () => import('@/pages/teacher/TeacherWorkspacePage.vue'),
+        meta: { title: 'Ish stoli', roles: STAFF },
+      },
+      {
         // ★ NAVBAT (2026-11-18): kuratorning bosh sahifasi — kurator endi dars
         // o'tmaydi, uning ishi "kim meni kutyapti?" savoliga javob berish.
         path: 'ustoz/navbat',

@@ -43,6 +43,22 @@ public interface IAssignmentService
     Task<IReadOnlyList<SubmissionDto>> ListSubmissionsAsync(
         long assignmentId, long actorId, CancellationToken ct = default);
 
+    // ------------------------------------------------------------ kurator ish stoli (2026-11-20)
+
+    /// <summary>Xodim KO'RADIGAN o'quvchilar (<c>StaffDuty.Access</c>) — ish stoli ro'yxati uchun.</summary>
+    Task<IReadOnlyList<long>> ListMyStudentIdsAsync(long staffId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Berilgan o'quvchilar bo'yicha shu xodim BAHOLASHI kerak bo'lgan javoblar
+    /// (baholash qoidasi + vazifa istisnosi bilan). Ruxsat tekshirmaydi — ichki.
+    /// </summary>
+    Task<IReadOnlyDictionary<long, PendingSubmissionsSummary>> SummarizePendingForStaffAsync(
+        long staffId, IReadOnlyCollection<long> studentIds, CancellationToken ct = default);
+
+    /// <summary>Bitta o'quvchining barcha javoblari (xodim ko'rinishi, baholash huquqi bilan).</summary>
+    Task<IReadOnlyList<StaffStudentSubmissionDto>> ListStudentSubmissionsAsync(
+        long studentId, long actorId, CancellationToken ct = default);
+
     // ================================================================= o'quv bo'limi umumiy ko'rinishi
     //
     // ★ FAQAT Academic/Admin (servis ichida ham tekshiriladi — controller

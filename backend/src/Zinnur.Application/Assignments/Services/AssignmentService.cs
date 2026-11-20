@@ -42,7 +42,10 @@ public sealed class AssignmentService(
     //   Telegram sozlanmagan bo'lsa ham qo'ng'iroqcha ishlaydi, hub
     //   yiqilsa ham Telegram xabari ketadi.
     INotificationOutbox outbox,
-    INotificationNotifier notifier) : IAssignmentService
+    INotificationNotifier notifier,
+    // ===== 2026-11-20 · KURATOR ISH STOLI: topshirish -> kuratorga xabar =====
+    Messaging.Services.ICuratorDirectory curators,
+    Microsoft.Extensions.Logging.ILogger<AssignmentService> logger) : IAssignmentService
 {
     // ================================================================= o'qish (xodim)
 
@@ -430,7 +433,174 @@ public sealed class AssignmentService(
         // bo'lishi mumkin).
         await gating.InvalidateAsync(studentId, ct);
 
+        await NotifyCuratorsAboutSubmissionAsync(submission, assignment, actor, ct);
+
         return MapStudent(await LoadSubmissionRowAsync(submission.Id, ct));
+    }
+
+    /// <summary>
+    /// ★ KURATORGA "VAZIFA TOPSHIRILDI" (2026-11-20, kurator ish stoli).
+    ///
+    /// Qabul qiluvchi — o'quvchining SUHBATDOSH kuratori (yozishma qoidasi
+    /// bilan AYNI: <c>ICuratorDirectory.ResolveRespondersAsync</c>) va
+    /// Mustaqil o'quvchining zaxira kuratori. Aynan shu odamlar ish stolida
+    /// o'quvchi bilan ishlaydi; qo'ng'iroqcha qatori ularning ochiq sahifasini
+    /// ham jonli yangilaydi (`NotificationCreated`).
+    ///
+    /// 🔴 TOPSHIRISHNI HECH QACHON YIQITMAYDI: javob allaqachon saqlangan —
+    ///   bildirishnoma xatosi o'quvchiga "topshirilmadi" deb ko'rinmasin.
+    ///   Bir javob uchun o'qilmagan eski qator o'chiriladi (qayta topshirish
+    ///   qo'ng'iroqchani to'ldirib yubormasin).
+    /// </summary>
+    private async Task NotifyCuratorsAboutSubmissionAsync(
+        Submission submission, Assignment assignment, User student, CancellationToken ct)
+    {
+        try
+        {
+            var recipients = (await curators.ResolveRespondersAsync(student.Id, ct))
+                .Select(u => u.Id)
+                .ToHashSet();
+
+            var backups = await db.SelfStudyCuratorAssignments.AsNoTracking()
+                .Where(a => a.StudentId == student.Id && a.EndedAt == null && a.BackupCuratorId != null)
+                .Select(a => a.BackupCuratorId!.Value)
+                .ToListAsync(ct);
+            recipients.UnionWith(backups);
+            recipients.Remove(student.Id);
+
+            if (recipients.Count == 0) return;
+
+            var stale = await db.Notifications
+                .Where(n => recipients.Contains(n.UserId)
+                         && n.Kind == NotificationKind.SubmissionReceived
+                         && n.EntityId == submission.Id
+                         && n.ReadAt == null)
+                .ToListAsync(ct);
+            if (stale.Count > 0) db.Notifications.RemoveRange(stale);
+
+            var now = clock.GetUtcNow();
+            var rows = recipients
+                .Select(id => Notification.Create(
+                    id,
+                    NotificationKind.SubmissionReceived,
+                    NotificationTemplates.SubmissionReceivedTitle(submission.AttemptNumber > 1),
+                    NotificationTemplates.SubmissionReceivedBody(student.FullName, assignment.Title),
+                    submission.Id,
+                    now))
+                .ToList();
+
+            db.Notifications.AddRange(rows);
+            await db.SaveChangesAsync(ct);
+
+            foreach (var row in rows)
+                await notifier.NotificationCreatedAsync(row.UserId, NotificationFeed.ToDto(row), ct);
+        }
+#pragma warning disable CA1031 // ataylab: bildirishnoma topshirishni yiqitmasin (izoh yuqorida)
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            AssignmentNotifyLog.SubmissionNotifyFailed(logger, ex, submission.Id);
+        }
+    }
+
+    // ================================================================= kurator ish stoli (2026-11-20)
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<long>> ListMyStudentIdsAsync(long staffId, CancellationToken ct = default) =>
+        await StudentIdsOfStaff(staffId, StaffDuty.Access).Distinct().ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<long, PendingSubmissionsSummary>> SummarizePendingForStaffAsync(
+        long staffId, IReadOnlyCollection<long> studentIds, CancellationToken ct = default)
+    {
+        if (studentIds.Count == 0) return new Dictionary<long, PendingSubmissionsSummary>();
+
+        var ids = studentIds.ToList();
+
+        // Vazifa darajasidagi istisno (`GraderRole`) bir necha xil bo'lishi
+        // mumkin — har biri uchun AYNI baholash qoidasi (`StudentIdsOfStaff`)
+        // alohida qo'llanadi; aks holda kurator baholay olmaydigan javob
+        // ham "sizni kutmoqda" deb sanalardi (R33).
+        var overrides = await db.Submissions.AsNoTracking()
+            .Where(s => s.Status == SubmissionStatus.Submitted && ids.Contains(s.StudentId))
+            .Select(s => s.Assignment!.GraderRole)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var rows = new List<(long StudentId, DateTimeOffset SubmittedAt)>();
+        foreach (var role in overrides)
+        {
+            var allowed = StudentIdsOfStaff(staffId, StaffDuty.Grading, role);
+            var part = await db.Submissions.AsNoTracking()
+                .Where(s => s.Status == SubmissionStatus.Submitted
+                         && ids.Contains(s.StudentId)
+                         && s.Assignment!.GraderRole == role
+                         && allowed.Contains(s.StudentId))
+                .Select(s => new { s.StudentId, s.SubmittedAt })
+                .ToListAsync(ct);
+            rows.AddRange(part.Select(p => (p.StudentId, p.SubmittedAt)));
+        }
+
+        return rows
+            .GroupBy(r => r.StudentId)
+            .ToDictionary(
+                g => g.Key,
+                g => new PendingSubmissionsSummary(g.Count(), g.Min(r => r.SubmittedAt)));
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StaffStudentSubmissionDto>> ListStudentSubmissionsAsync(
+        long studentId, long actorId, CancellationToken ct = default)
+    {
+        var actor = await LoadActorAsync(actorId, ct);
+
+        if (!CanManageEverything(actor))
+        {
+            if (!IsStaff(actor))
+                throw new ForbiddenException("Bu ro'yxat faqat xodimlar uchun.");
+            if (!await IsMyStudentAsync(actor.Id, studentId, StaffDuty.Access, null, ct))
+                throw new ForbiddenException("Bu o'quvchi sizga biriktirilmagan.");
+        }
+
+        var meta = await db.Submissions.AsNoTracking()
+            .Where(s => s.StudentId == studentId)
+            .Select(s => new
+            {
+                s.Id,
+                s.Assignment!.Title,
+                s.Assignment.MaxScore,
+                s.Assignment.GraderRole,
+                s.Assignment.ModuleLessonId,
+                LessonName = s.Assignment.ModuleLesson == null ? null : s.Assignment.ModuleLesson.Name,
+            })
+            .ToDictionaryAsync(s => s.Id, ct);
+
+        var rows = await ProjectSubmissions(db.Submissions.AsNoTracking()
+                .Where(s => s.StudentId == studentId)
+                .OrderBy(s => s.SubmittedAt)
+                .ThenBy(s => s.Id))
+            .ToListAsync(ct);
+
+        // Baholash huquqi vazifa istisnosiga bog'liq — har xil istisno uchun bir marta.
+        // Kalit: istisno qiymati (null — "guruh sozlamasi" -> -1).
+        var canGradeByRole = new Dictionary<int, bool>();
+        var result = new List<StaffStudentSubmissionDto>(rows.Count);
+        foreach (var row in rows)
+        {
+            var info = meta[row.Id];
+            var roleKey = info.GraderRole is { } role ? (int)role : -1;
+            if (!canGradeByRole.TryGetValue(roleKey, out var canGrade))
+            {
+                canGrade = CanManageEverything(actor)
+                    || await IsMyStudentAsync(actor.Id, studentId, StaffDuty.Grading, info.GraderRole, ct);
+                canGradeByRole[roleKey] = canGrade;
+            }
+
+            result.Add(new StaffStudentSubmissionDto(
+                Map(row), info.Title, info.MaxScore, info.ModuleLessonId, info.LessonName, canGrade));
+        }
+
+        return result;
     }
 
     // ================================================================= fayl o'qish
@@ -1744,4 +1914,15 @@ public sealed class AssignmentService(
         decimal MaxScore,
         List<SubmissionFileDto> Files,
         List<SubmissionFeedbackFileDto> FeedbackFiles);
+}
+
+/// <summary>Manba-generatsiyali loglar (CA1848).</summary>
+internal static partial class AssignmentNotifyLog
+{
+    [Microsoft.Extensions.Logging.LoggerMessage(
+        EventId = 7420,
+        Level = Microsoft.Extensions.Logging.LogLevel.Warning,
+        Message = "Vazifa topshirildi, lekin kuratorga bildirishnoma yuborilmadi. submission={SubmissionId}")]
+    internal static partial void SubmissionNotifyFailed(
+        Microsoft.Extensions.Logging.ILogger logger, Exception exception, long submissionId);
 }

@@ -3104,7 +3104,7 @@ export interface LessonAssetUploadFields {
    bo'yicha aralashtirilgan qatorlar merge paytida to'qnashuv beradi.  */
 
 /** `NotificationKind` enum — hodisa turi (ikonka va o'tish yo'li shundan). */
-export type NotificationKindName = 'SubmissionGraded' | 'LessonMasteryDecided'
+export type NotificationKindName = 'SubmissionGraded' | 'LessonMasteryDecided' | 'SubmissionReceived'
 
 /**
  * Qo'ng'iroqchadagi bitta qator.

@@ -47,4 +47,12 @@ public enum NotificationKind
     /// keyingi dars ochildi, yoki «qayta ishlasin» — izoh bilan. O'quvchiga.
     /// </summary>
     LessonMasteryDecided = 3,
+
+    /// <summary>
+    /// O'quvchi vazifa topshirdi (2026-11-20, kurator ish stoli) — o'quvchining
+    /// suhbatdosh kuratoriga (va Mustaqil o'quvchining zaxira kuratoriga).
+    /// Ilgari topshirish hech kimga xabar bermasdi: kurator javobni faqat
+    /// "Tekshirish" sahifasini o'zi ochganda ko'rardi.
+    /// </summary>
+    SubmissionReceived = 4,
 }

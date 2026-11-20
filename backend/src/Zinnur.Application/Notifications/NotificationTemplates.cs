@@ -32,6 +32,13 @@ public static class NotificationTemplates
     /// <summary>Vazifa tekshirilgani haqidagi sarlavha.</summary>
     public static string SubmissionGradedTitle() => "Vazifa tekshirildi";
 
+    /// <summary>Kuratorga: o'quvchi vazifa topshirdi (2026-11-20).</summary>
+    public static string SubmissionReceivedTitle(bool resubmitted) =>
+        resubmitted ? "Vazifa qayta topshirildi" : "Yangi vazifa topshirildi";
+
+    public static string SubmissionReceivedBody(string studentName, string assignmentTitle) =>
+        $"{studentName} — «{assignmentTitle}». Ish stolida tekshiring.";
+
     /// <summary>
     /// Vazifa tekshirilgani haqidagi tana matni.
     ///

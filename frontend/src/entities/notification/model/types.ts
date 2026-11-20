@@ -50,6 +50,7 @@ export function badgeLabel(count: number): string {
 const KIND_ICON: Record<NotificationKindName, IconName> = {
   SubmissionGraded: 'check-square',
   LessonMasteryDecided: 'award',
+  SubmissionReceived: 'clipboard',
 }
 
 export function notificationIcon(kind: NotificationKindName): IconName {
@@ -75,6 +76,9 @@ export function notificationRouteName(kind: NotificationKindName): string {
     // Kurator qarori — o'quv yo'li: yangi ochilgan dars (yoki qayta ishlanadigani) shu yerda.
     case 'LessonMasteryDecided':
       return 'student-learn'
+    // Kuratorga: o'quvchi vazifa topshirdi — ish stolida tekshiradi (2026-11-20).
+    case 'SubmissionReceived':
+      return 'teacher-workspace'
     default:
       return 'student-home'
   }

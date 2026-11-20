@@ -44,7 +44,18 @@ public interface ILessonMasteryService
 
     /// <summary>O'quvchi: o'z darslari bo'yicha kurator qarorlari.</summary>
     Task<IReadOnlyList<MyLessonMasteryDto>> ListMineAsync(long studentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Kurator qarorini kutayotgan BIRINCHI dars (2026-11-20, ish stoli):
+    /// ochiq, o'zlashtirish talab qiladi, ishi to'liq bajarilgan va hali
+    /// "O'zlashtirdi" emas — darslar xaritasidagi "Qaror kutilmoqda" bilan
+    /// AYNI qoida. Yo'q bo'lsa <c>null</c>. Ruxsat tekshirmaydi — ichki.
+    /// </summary>
+    Task<AwaitingLessonDto?> FindAwaitingDecisionAsync(long studentId, CancellationToken ct = default);
 }
+
+/// <summary>Kurator qarorini kutayotgan dars.</summary>
+public sealed record AwaitingLessonDto(long LessonId, int Index, string LessonName);
 
 public sealed class LessonMasteryService(
     IApplicationDbContext db,
@@ -221,6 +232,26 @@ public sealed class LessonMasteryService(
     }
 
     // ================================================================ taxta
+
+    public async Task<AwaitingLessonDto?> FindAwaitingDecisionAsync(long studentId, CancellationToken ct = default)
+    {
+        var gate = await gating.GetCourseGateAsync(studentId, ct);
+
+        var lesson = gate.Lessons.FirstOrDefault(l =>
+            l.Unlocked
+            && l.RequiresMastery
+            && l.Mastery != MasteryStatus.Mastered
+            && MissingWork(l).Count == 0);
+
+        if (lesson is null) return null;
+
+        var name = await db.ModuleLessons.AsNoTracking()
+            .Where(l => l.Id == lesson.LessonId)
+            .Select(l => l.Name)
+            .FirstOrDefaultAsync(ct);
+
+        return new AwaitingLessonDto(lesson.LessonId, lesson.Index, name ?? string.Empty);
+    }
 
     private async Task<StudentLessonBoardDto> BuildBoardAsync(long studentId, Access access, CancellationToken ct)
     {
