@@ -533,6 +533,15 @@ public enum PointKind
 
     /// <summary>Interaktiv darslikning mini-testi (2026-10-29): birinchi topshiriq, 0–10.</summary>
     InteractiveTest = 9,
+
+    /// <summary>
+    /// Mustaqil o'quvchining KUNLIK seriyasi bonusi (2026-11-21): ketma-ket 3, 7,
+    /// 14, 30 kun (keyin har 30 kun) o'qigani uchun — <c>DailyStreak</c>.
+    /// </summary>
+    DailyStreakBonus = 10,
+
+    /// <summary>Kurator darsni "o'zlashtirdi" deb belgiladi (2026-11-21).</summary>
+    LessonMastered = 11,
 }
 
 /// <summary>

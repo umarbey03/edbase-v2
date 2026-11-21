@@ -15,6 +15,7 @@ public sealed class ModuleLessonConfiguration : IEntityTypeConfiguration<ModuleL
 
         builder.Property(l => l.Name).IsRequired().HasMaxLength(200);
         builder.Property(l => l.Description).HasMaxLength(2000);
+        builder.Property(l => l.Letters).HasMaxLength(16);
 
         builder.HasOne(l => l.Module)
             .WithMany(m => m.Lessons)

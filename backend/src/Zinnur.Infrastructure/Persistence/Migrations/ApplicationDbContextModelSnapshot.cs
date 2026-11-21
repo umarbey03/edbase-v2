@@ -2287,6 +2287,10 @@ namespace Zinnur.Infrastructure.Persistence.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Letters")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<long>("ModuleId")
                         .HasColumnType("bigint");
 

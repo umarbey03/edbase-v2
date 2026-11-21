@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.Common.Models;
 using Zinnur.Application.Courses.Dtos;
 using Zinnur.Application.Courses.Services;
+using Zinnur.Application.Progress.Services;
 
 namespace Zinnur.WebApi.Controllers;
 
@@ -175,6 +176,28 @@ public sealed class CoursesController(ICourseService courses) : ControllerBase
         var created = await courses.CreateLessonAsync(courseId, moduleId, request, CurrentUserId, ct);
         return CreatedAtAction(nameof(Get), new { id = courseId }, created);
     }
+
+    /// <summary>Kurs darslari va ularning harflari (profil harflar jadvali, 2026-11-21).</summary>
+    [HttpGet("{courseId:long}/letters")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<IReadOnlyList<LessonLettersDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<LessonLettersDto>>> LessonLetters(
+        long courseId, [FromServices] ILetterProgressService letters, CancellationToken ct) =>
+        Ok(await letters.ListCourseLessonsAsync(courseId, ct));
+
+    /// <summary>
+    /// Darsning harflarini saqlaydi. ALOHIDA amal: dars tahririning to'liq
+    /// `PUT` shakliga qo'shilsa, eski forma har tahrirda harflarni o'chirardi.
+    /// </summary>
+    [HttpPut("{courseId:long}/lessons/{lessonId:long}/letters")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<LessonLettersDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LessonLettersDto>> SetLessonLetters(
+        long courseId, long lessonId, [FromBody] SetLessonLettersRequest request,
+        [FromServices] ILetterProgressService letters, CancellationToken ct) =>
+        Ok(await letters.SetLessonLettersAsync(courseId, lessonId, request.Letters, ct));
 
     [HttpPut("{courseId:long}/modules/{moduleId:long}/lessons/{lessonId:long}")]
     [Authorize(Roles = ManageRoles)]

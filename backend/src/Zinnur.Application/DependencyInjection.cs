@@ -305,6 +305,9 @@ public static class DependencyInjection
         services.AddScoped<ISelfSignupService, SelfSignupService>();
         services.AddScoped<IPointsService, PointsService>();
         services.AddScoped<IPointsSyncService, PointsSyncService>();
+        services.AddScoped<IDailyStreakService, DailyStreakService>();
+        services.AddScoped<IStreakReminderService, StreakReminderService>();
+        services.AddScoped<ILetterProgressService, LetterProgressService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
         // O'QUVCHINING O'Z DARS BAHOLARI (R24 ning o'quvchi tomoni).

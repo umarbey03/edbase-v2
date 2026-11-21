@@ -1456,6 +1456,24 @@ public static class SettingsRegistry
             DefaultValue = "false",
         },
 
+        new()
+        {
+            Key = "gamification.streak_reminder_enabled",
+            Group = SettingGroup.Gamification,
+            DisplayName = "Kunlik seriya eslatmasi (Mustaqil)",
+            Description =
+                "Mustaqil o'quvchi ketma-ket kamida 2 kun o'qigan bo'lsa-yu, bugun hali o'qimagan bo'lsa, "
+                + "kechqurun (19:00–22:00) Telegram orqali bitta eslatma boradi: «seriyangiz kuymasin». "
+                + "Kuniga ko'pi bilan bitta.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            ConfigurationKey = "Gamification:StreakReminderEnabled",
+
+            // ★ STANDART — YOQIQ (2026-11-21, loyiha egasi seriya eslatmasini so'radi);
+            // faqat Mustaqil o'quvchilarga va faqat seriya bor bo'lsa ketadi.
+            DefaultValue = "true",
+        },
+
         // ================================================================ ONLAYN SOTUV
         //
         // Hammasini `ShopService` va bot HAR CHAQIRUVDA o'qiydi — paneldan
@@ -1687,6 +1705,7 @@ public static class SettingsRegistry
         // ---------------------------------------------------------------- ball tizimi
         public const string PointsEnabled = "gamification.points_enabled";
         public const string PointsLessonMessageEnabled = "gamification.lesson_message_enabled";
+        public const string StreakReminderEnabled = "gamification.streak_reminder_enabled";
 
         // ---------------------------------------------------------------- onlayn sotuv
         public const string SalesSelfSignupEnabled = "sales.self_signup_enabled";

@@ -10,6 +10,7 @@ import { fetchLessonBook, interactiveKeys } from '@/entities/interactive-unit'
 import BookEntryCard from '@/features/lesson-dashboard/ui/BookEntryCard.vue'
 import { MascotMoodCard, useStudentMood } from '@/features/mascot'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
+import MyStreakCard from '@/features/points/ui/MyStreakCard.vue'
 import SubscriptionStatusCard from '@/features/subscription/ui/SubscriptionStatusCard.vue'
 import { useStudentCourse } from '@/features/student-course/model/useStudentCourse'
 import { useStudentSchedule } from '@/features/student-schedule/model/useStudentSchedule'
@@ -219,7 +220,9 @@ const isSelfStudy = subscription.isSelfStudy
       </RouterLink>
     </div>
 
-    <div class="lg:sticky lg:top-24">
+    <div class="space-y-4 lg:sticky lg:top-24">
+      <!-- Kunlik seriya (2026-11-21): Mustaqil o'quvchining asosiy motivatsiyasi. -->
+      <MyStreakCard class="mt-4 lg:mt-0" />
       <MyPointsCard />
     </div>
   </div>

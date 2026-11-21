@@ -95,7 +95,7 @@ public sealed class PointsService(
         List<long> sessionIds = [.. items.Where(i => i.SessionId != null).Select(i => i.SessionId!.Value).Distinct()];
         List<long> assignmentIds = [.. IdsOf(items, PointKind.Assignment)];
         List<long> testIds = [.. IdsOf(items, PointKind.Test)];
-        List<long> lessonIds = [.. IdsOf(items, PointKind.VideoWatched)];
+        List<long> lessonIds = [.. IdsOf(items, PointKind.VideoWatched).Concat(IdsOf(items, PointKind.LessonMastered)).Distinct()];
 
         var sessions = sessionIds.Count == 0 ? new Dictionary<long, string>() : await db.LiveSessions.AsNoTracking()
             .Where(s => sessionIds.Contains(s.Id))
@@ -117,7 +117,7 @@ public sealed class PointsService(
             {
                 PointKind.Assignment => assignments.GetValueOrDefault(IdOf(reference)),
                 PointKind.Test => tests.GetValueOrDefault(IdOf(reference)),
-                PointKind.VideoWatched => lessons.GetValueOrDefault(IdOf(reference)),
+                PointKind.VideoWatched or PointKind.LessonMastered => lessons.GetValueOrDefault(IdOf(reference)),
                 _ => sessionId is { } id ? sessions.GetValueOrDefault(id) : null,
             };
             if (title is not null) result[reference] = title;

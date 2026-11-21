@@ -53,6 +53,7 @@ public sealed class PointsSyncService(
     INotificationOutbox outbox,
     IScheduleTimeZoneProvider timeZone,
     TimeProvider clock,
+    IDailyStreakService streaks,
     ILogger<PointsSyncService> logger) : IPointsSyncService
 {
     /// <summary>Tenglashtiriladigan oyna: o'tgan oyning oxirgi kunlari ham tuzatilsin.</summary>
@@ -89,6 +90,8 @@ public sealed class PointsSyncService(
         await AddVideosAsync(desired, from, ct).ConfigureAwait(false);
         await AddInteractiveUnitsAsync(desired, from, ct).ConfigureAwait(false);
         await AddInteractiveTestsAsync(desired, from, ct).ConfigureAwait(false);
+        await AddMasteryAsync(desired, from, ct).ConfigureAwait(false);
+        await AddDailyStreaksAsync(desired, from, now, ct).ConfigureAwait(false);
 
         var existing = await db.StudentPoints
             .Where(p => p.OccurredAt >= from)
@@ -398,6 +401,59 @@ public sealed class PointsSyncService(
             if (delta == 0) continue;
             desired[(a.StudentId, Ref("itest", a.UnitId))] =
                 new DesiredPoint(PointKind.InteractiveTest, delta, a.SubmittedAt, null);
+        }
+    }
+
+    // ================================================================ Mustaqil (2026-11-21)
+
+    /// <summary>
+    /// Kurator darsni "o'zlashtirdi" deb belgiladi — +20 (<c>Ref = mastery:{lessonId}</c>).
+    /// Qaror keyin "qayta ishlasin" ga o'zgarsa, yozuv tenglashtirishda o'chadi.
+    /// </summary>
+    private async Task AddMasteryAsync(
+        Dictionary<(long StudentId, string Ref), DesiredPoint> desired, DateTimeOffset from, CancellationToken ct)
+    {
+        var mastered = await db.LessonMasteries.AsNoTracking()
+            .Where(m => m.Status == MasteryStatus.Mastered && m.DecidedAt >= from)
+            .Select(m => new { m.StudentId, m.ModuleLessonId, m.DecidedAt })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        foreach (var m in mastered)
+        {
+            desired[(m.StudentId, Ref("mastery", m.ModuleLessonId))] =
+                new DesiredPoint(PointKind.LessonMastered, PointRules.LessonMastered, m.DecidedAt, null);
+        }
+    }
+
+    /// <summary>
+    /// Kunlik seriya bonuslari (<see cref="DailyStreak"/>). Seriya uzun tarixdan
+    /// hisoblanadi, bonus esa faqat oyna ichidagi kunlarga yoziladi
+    /// (<c>Ref = dstreak:{yyyyMMdd}</c>, vaqti — o'sha kun peshin, markaz vaqti).
+    /// </summary>
+    private async Task AddDailyStreaksAsync(
+        Dictionary<(long StudentId, string Ref), DesiredPoint> desired,
+        DateTimeOffset from, DateTimeOffset now, CancellationToken ct)
+    {
+        var students = await streaks.SelfStudyStudentIdsAsync(ct).ConfigureAwait(false);
+        if (students.Count == 0) return;
+
+        var days = await streaks.ActiveDaysAsync(students, now - DailyStreakService.History, ct).ConfigureAwait(false);
+        var today = streaks.Today();
+        var tz = timeZone.TimeZone;
+
+        foreach (var (studentId, active) in days)
+        {
+            foreach (var (day, _, bonus) in DailyStreak.Compute(active, today).Bonuses)
+            {
+                var noon = DateTime.SpecifyKind(day.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Unspecified);
+                var at = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(noon, tz));
+                if (at < from) continue;
+
+                var key = day.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+                desired[(studentId, $"dstreak:{key}")] =
+                    new DesiredPoint(PointKind.DailyStreakBonus, bonus, at, null);
+            }
         }
     }
 

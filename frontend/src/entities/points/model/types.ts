@@ -19,6 +19,10 @@ export type PointKindName =
   | 'InteractiveUnit'
   /** Interaktiv darslik mini-testi (2026-10-29): 0–10. */
   | 'InteractiveTest'
+  /** Mustaqil: kunlik seriya bonusi (2026-11-21). */
+  | 'DailyStreakBonus'
+  /** Mustaqil: kurator darsni o'zlashtirdi deb belgiladi (2026-11-21). */
+  | 'LessonMastered'
 
 export interface PointsBreakdownDto {
   kind: PointKindName
@@ -57,6 +61,8 @@ const KIND_LABELS: Record<PointKindName, string> = {
   VideoWatched: 'Dars videosi',
   InteractiveUnit: 'Interaktiv darslik',
   InteractiveTest: 'Darslik mini-testi',
+  DailyStreakBonus: 'Kunlik seriya bonusi',
+  LessonMastered: 'Dars o‘zlashtirildi',
 }
 
 export function pointKindLabel(kind: PointKindName): string {

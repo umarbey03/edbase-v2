@@ -34,6 +34,13 @@ public class ModuleLesson : BaseEntity
     public LessonKind Kind { get; set; } = LessonKind.Normal;
 
     /// <summary>
+    /// Shu darsda o'rgatiladigan arab harflari (2026-11-21, profil harflar jadvali),
+    /// masalan <c>"رز"</c>. <c>null</c> — dars harf o'rgatmaydi (qoida, imtihon).
+    /// Qoida — <see cref="ArabicAlphabet.Normalize"/>.
+    /// </summary>
+    public string? Letters { get; set; }
+
+    /// <summary>
     /// Dars mediasi: odatiy darsda video qismlari, imtihon darsida rasmlar.
     /// Tartib <see cref="LessonAsset.Position"/> bo'yicha.
     /// </summary>

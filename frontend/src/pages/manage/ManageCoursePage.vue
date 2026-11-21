@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { deleteCourse, fetchCourseTree } from '@/entities/course'
 import CourseFormDialog from '@/features/course-form/ui/CourseFormDialog.vue'
 import CourseTreeEditor from '@/features/course-tree/ui/CourseTreeEditor.vue'
+import LessonLettersDrawer from '@/features/course-tree/ui/LessonLettersDrawer.vue'
 import { toUserMessage } from '@/shared/api'
 import { formatDateTimeNumeric } from '@/shared/lib/datetime'
 import type { CourseDto } from '@/shared/types'
@@ -55,6 +56,7 @@ function refreshTree(): void {
 /* --------------------------------------------------------------- tahrirlash */
 
 const editOpen = ref(false)
+const lettersOpen = ref(false)
 
 /**
  * `CourseFormDialog` ro'yxat qatorini (`CourseDto`) kutadi, bu yerda esa daraxt
@@ -138,6 +140,14 @@ function askDelete(): void {
             <BaseButton
               size="sm"
               variant="secondary"
+              @click="lettersOpen = true"
+            >
+              <span class="font-arabic text-base leading-none">ابت</span>
+              Harflar
+            </BaseButton>
+            <BaseButton
+              size="sm"
+              variant="secondary"
               @click="editOpen = true"
             >
               <template #icon>
@@ -192,6 +202,13 @@ function askDelete(): void {
       :course="editableCourse"
       @close="editOpen = false"
       @saved="refreshTree"
+    />
+
+    <LessonLettersDrawer
+      v-if="isValidId"
+      :open="lettersOpen"
+      :course-id="courseId"
+      @close="lettersOpen = false"
     />
 
     <ConfirmDeleteDialog

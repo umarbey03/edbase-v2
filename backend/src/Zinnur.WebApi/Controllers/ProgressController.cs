@@ -18,8 +18,29 @@ public sealed class ProgressController(
     IAttendanceSummaryService attendance,
     ILessonGradeSummaryService lessonGrades,
     IPointsService points,
-    IGatingService gating) : ControllerBase
+    IGatingService gating,
+    IDailyStreakService streaks,
+    ILetterProgressService letters) : ControllerBase
 {
+    /// <summary>
+    /// Profil harflar jadvali (2026-11-21): 28 harf alifbo tartibida, har biri
+    /// o'zlashtirilgan / o'rganilmoqda / yopiq.
+    /// </summary>
+    [HttpGet("letters")]
+    [ProducesResponseType<MyLettersDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<MyLettersDto>> Letters(CancellationToken ct) =>
+        Ok(await letters.GetMineAsync(CurrentUserId, ct));
+
+    /// <summary>
+    /// Mustaqil o'quvchining kunlik seriyasi (2026-11-21): hozirgi va eng uzun
+    /// seriya, bugun o'qidimi, muzlatish, keyingi bonus, oxirgi 14 kun.
+    /// Guruh o'quvchisiga <c>enabled = false</c> qaytadi.
+    /// </summary>
+    [HttpGet("streak")]
+    [ProducesResponseType<MyStreakDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<MyStreakDto>> Streak(CancellationToken ct) =>
+        Ok(await streaks.GetMineAsync(CurrentUserId, ct));
+
     /// <summary>
     /// "Mening ballim": oydagi jami ball, guruhdagi o'rin, ketma-ketlik va
     /// keyingi bonus, tur bo'yicha tafsilot va oxirgi yozuvlar (2026-10-23).

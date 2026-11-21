@@ -191,6 +191,13 @@ public static class TelegramTemplates
     public const string PointsLesson = "points_lesson";
 
     /// <summary>
+    /// Mustaqil o'quvchiga kechki eslatma (2026-11-21): seriya bor, bugun hali
+    /// o'qimagan. Sozlamada o'chirsa bo'ladi (<c>gamification.streak_reminder_enabled</c>).
+    /// Tugmasi — «Ilovani ochish».
+    /// </summary>
+    public const string StreakReminder = "streak_reminder";
+
+    /// <summary>
     /// Darsga kelmagan o'quvchiga yuborilgan xabar (2026-08-18).
     ///
     /// ★ MATN SHU YERDA EMAS: uni o'quv bo'limi xodimi o'zi yozadi
@@ -307,6 +314,7 @@ public static class TelegramTemplates
         SessionStarted => TelegramMarkup.OpenApp,
 
         PointsLesson => TelegramMarkup.OpenApp,
+        StreakReminder => TelegramMarkup.OpenApp,
 
         ShopOrderStaff => TelegramMarkup.InlineButtons,
         ShopOrderConfirmed => TelegramMarkup.OpenApp,
@@ -845,6 +853,24 @@ public static class TelegramTemplates
     }
 
     /* ===== /2026-10-23 ===== */
+
+    /// <summary>Kechki seriya eslatmasi (2026-11-21).</summary>
+    /// <param name="studentName">O'quvchi ismi.</param>
+    /// <param name="streak">Hozirgi seriya (kun).</param>
+    /// <param name="nextBonusDay">Keyingi bonus qaysi kunlik seriyada.</param>
+    /// <param name="nextBonus">Keyingi bonus balli.</param>
+    public static string StreakReminderText(string studentName, int streak, int nextBonusDay, int nextBonus)
+    {
+        var name = NotificationText.Parameter(studentName, 60);
+        var text = $"🔥 {name}, seriyangiz <b>{streak} kun</b> — bugun hali o'qimadingiz.\n"
+            + "Bitta video ko'ring yoki testni ishlang, seriya kuymasin.";
+        var left = nextBonusDay - (streak + 1);
+        if (left == 0)
+            text += $"\n\n🎁 Bugun o'qisangiz — <b>+{nextBonus}</b> bonus!";
+        else if (left > 0)
+            text += $"\n\n🎁 {nextBonusDay} kunlik seriyada <b>+{nextBonus}</b> bonus.";
+        return text;
+    }
 
     /* ===== 2026-10-29: onlayn sotuv ===== */
 

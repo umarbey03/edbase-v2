@@ -21,6 +21,9 @@ public static class PointRules
     public const int StreakBigEvery = 8;
     public const int StreakBigBonus = 25;
 
+    /// <summary>Kurator darsni o'zlashtirdi deb belgilaganda (Mustaqil, 2026-11-21).</summary>
+    public const int LessonMastered = 20;
+
     public const int LessonGradeMultiplier = 2;
     public const int AssignmentMultiplier = 3;
     public const int TestMax = 10;

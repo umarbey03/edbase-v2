@@ -116,6 +116,11 @@ internal static class JobsSetup
         // ★ MUSTAQIL KURATORLARI (2026-11-20) — SHARTSIZ: ro'yxat bo'sh
         //   bo'lsa vazifa darhol chiqadi. Har daqiqada: yangi o'quvchi ko'pi
         //   bilan bir daqiqa kuratorsiz turadi.
+        // ★ KUNLIK SERIYA ESLATMASI (2026-11-21) — SHARTSIZ: yoqish qarori
+        //   paneldagi `gamification.streak_reminder_enabled`, vaqt oynasi servisda.
+        services.AddScoped<IScheduledJob>(sp => new Zinnur.Application.Progress.Services.StreakReminderJob(
+            sp.GetRequiredService<Zinnur.Application.Progress.Services.IStreakReminderService>()));
+
         services.AddScoped<IScheduledJob>(sp => new SelfStudyAutoAssignJob(
             sp.GetRequiredService<Zinnur.Application.SelfStudy.Pool.ICuratorPoolService>(),
             TimeSpan.FromMinutes(1)));
