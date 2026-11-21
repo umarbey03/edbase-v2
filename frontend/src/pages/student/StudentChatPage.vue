@@ -14,6 +14,7 @@ import {
   useLessonQuestionContext,
   withDayLabels,
 } from '@/entities/direct-message'
+import { COMMUNITY_KEYS, fetchCommunityAccess } from '@/entities/community'
 import { threadKey } from '@/entities/group-chat'
 import { useMySubscription } from '@/entities/subscription'
 import {
@@ -462,6 +463,15 @@ function openConversation(conversation: ConversationDto): void {
   ortiqcha qadam: suhbat O'ZI ochiladi. Guruh o'quvchisining xulqi o'zgarmaydi.
 */
 const { isSelfStudy } = useMySubscription()
+
+// Hamjamiyat (2026-11-21): tugma faqat xona o'quvchiga ochiq bo'lganda.
+const communityQuery = useQuery({
+  queryKey: COMMUNITY_KEYS.access,
+  queryFn: ({ signal }) => fetchCommunityAccess({ signal }),
+  enabled: isSelfStudy,
+  refetchInterval: 60_000,
+})
+const communityAccess = computed(() => communityQuery.data.value ?? null)
 let autoOpened = false
 watch(
   [isSelfStudy, conversations],
@@ -832,6 +842,23 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
             v-text="`${peerRoleLabel(activePeer.peerRole)} — shaxsiy chat`"
           />
         </span>
+        <!-- ★ HAMJAMIYAT (2026-11-21): Mustaqil o'quvchining ikkinchi chati. -->
+        <RouterLink
+          v-if="isSelfStudy && communityAccess?.canRead === true"
+          :to="{ name: 'student-community' }"
+          class="relative flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-200 transition-colors hover:bg-emerald-500/20"
+        >
+          <AppIcon
+            name="users"
+            :size="15"
+          />
+          Hamjamiyat
+          <span
+            v-if="communityAccess.unread > 0"
+            class="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-rose-500 px-1 text-center text-[10px] leading-5 text-white"
+            v-text="communityAccess.unread > 99 ? '99+' : communityAccess.unread"
+          />
+        </RouterLink>
       </div>
 
       <!--

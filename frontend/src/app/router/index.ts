@@ -215,6 +215,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Chat', roles: STUDENT },
       },
       {
+        // ★ HAMJAMIYAT (2026-11-21): Mustaqil o'quvchilarning umumiy chati.
+        path: 'hamjamiyat',
+        name: 'student-community',
+        component: () => import('@/pages/student/StudentCommunityPage.vue'),
+        meta: { title: 'Hamjamiyat', roles: STUDENT },
+      },
+      {
         // Mustaqil o'quvchining 4-tabi (2026-10-23); guruh o'quvchisi ham ocha oladi.
         path: 'profil',
         name: 'student-profile',
@@ -297,6 +304,13 @@ const routes: RouteRecordRaw[] = [
         name: 'teacher-home',
         component: () => import('@/pages/teacher/TeacherHomePage.vue'),
         meta: { title: 'Bosh sahifa', roles: STAFF },
+      },
+      {
+        // ★ HAMJAMIYAT (2026-11-21): xodim — moderator sifatida.
+        path: 'hamjamiyat-chat',
+        name: 'community',
+        component: () => import('@/pages/teacher/CommunityPage.vue'),
+        meta: { title: 'Hamjamiyat', roles: STAFF_AND_MANAGERS },
       },
       {
         // ★ ISH STOLI (2026-11-20): kurator va ustoz uchun yagona oyna —

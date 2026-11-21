@@ -1270,6 +1270,24 @@ public static class SettingsRegistry
             Maximum = 50m,
         },
 
+        // ★ HAMJAMIYAT (2026-11-21) — Mustaqil o'quvchilarning umumiy chati.
+        //   STANDART O'CHIQ: o'quvchi kam paytda bo'sh xona teskari ta'sir
+        //   qiladi. Xodimlar o'chiq paytda ham xonani ko'radi va yozadi —
+        //   ochishdan oldin "kun savoli" bilan tayyorlab qo'yish uchun.
+        new()
+        {
+            Key = "community.enabled",
+            Group = SettingGroup.Chat,
+            DisplayName = "Mustaqil o'quvchilar hamjamiyati",
+            Description =
+                "Obunasi faol barcha Mustaqil o'quvchilar uchun umumiy chat («Yordamchi» → «Hamjamiyat»). "
+                + "Kuratorlar moderator: xabarni o'chiradi, o'quvchini vaqtincha yozishdan to'xtatadi. "
+                + "Telefon raqami va havolalar avtomatik bloklanadi. O'chiq paytda xonani faqat xodimlar ko'radi.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+            DefaultValue = "false",
+        },
+
         new()
         {
             Key = "chat.voice_max_seconds",
@@ -1700,6 +1718,7 @@ public static class SettingsRegistry
         public const string ChatRetentionEnabled = "chat.retention_enabled";
         public const string ChatRetentionMonths = "chat.retention_months";
         public const string ChatVoicePerDay = "chat.voice_per_day";
+        public const string CommunityEnabled = "community.enabled";
         public const string ChatVoiceMaxSeconds = "chat.voice_max_seconds";
 
         // ---------------------------------------------------------------- ball tizimi

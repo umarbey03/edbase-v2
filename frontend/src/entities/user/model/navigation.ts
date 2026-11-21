@@ -196,6 +196,7 @@ const TEACHER_NAV: NavItem[] = [
 */
 const ASSISTANT_NAV: NavItem[] = [
   { routeName: 'teacher-workspace', label: 'Ish stoli', icon: 'clipboard' },
+  { routeName: 'community', label: 'Hamjamiyat', icon: 'users' },
   { routeName: 'teacher-group-chats', label: 'Guruh chatlari', icon: 'chat' },
   { routeName: 'teacher-groups', label: 'Guruhlarim', icon: 'users' },
 ]
@@ -246,6 +247,7 @@ const MANAGE_NAV: NavItem[] = [
       Kuratorning o'z ro'yxati (`teacher-self-study`) o'z menyusida qoladi.
   */
   { routeName: 'manage-self-study', label: 'Mustaqil tarif', icon: 'user-check' },
+  { routeName: 'community', label: 'Hamjamiyat', icon: 'chat' },
   { routeName: 'manage-tests', label: 'Testlar', icon: 'award' },
   /*
     Ikonka `camera` — bu AYNAN eski sprite'dagi `#i-video` shakli (chapda
@@ -368,6 +370,7 @@ const ACADEMIC_SECTION_ROUTES = [
   'manage-applications',
   'manage-orders',
   'manage-self-study',
+  'community',
   'manage-teacher-availability',
   'manage-absentees',
   'manage-attrition',
