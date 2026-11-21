@@ -132,6 +132,17 @@ public class DailyStreakTests
     }
 
     [Fact]
+    public void Weekly_goal_is_reached_on_the_fourth_active_day()
+    {
+        // 1-hafta: Du, Se, Pa, Sha (4 kun) — maqsad Shanbada; 2-hafta: 3 kun — yo'q.
+        var weeks = DailyStreak.GoalWeeks(Days(0, 1, 3, 5, 7, 8, 9));
+
+        weeks.Should().ContainSingle();
+        weeks[0].Week.Should().Be(Monday);
+        weeks[0].ReachedOn.Should().Be(Monday.AddDays(5));
+    }
+
+    [Fact]
     public void Week_starts_on_monday() =>
         DailyStreak.WeekOf(Monday.AddDays(6)).Should().Be(Monday);
 }

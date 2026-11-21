@@ -23,6 +23,8 @@ export type PointKindName =
   | 'DailyStreakBonus'
   /** Mustaqil: kurator darsni o'zlashtirdi deb belgiladi (2026-11-21). */
   | 'LessonMastered'
+  /** Mustaqil: haftalik maqsad bajarildi (2026-11-21). */
+  | 'WeeklyGoal'
 
 export interface PointsBreakdownDto {
   kind: PointKindName
@@ -63,6 +65,7 @@ const KIND_LABELS: Record<PointKindName, string> = {
   InteractiveTest: 'Darslik mini-testi',
   DailyStreakBonus: 'Kunlik seriya bonusi',
   LessonMastered: 'Dars o‘zlashtirildi',
+  WeeklyGoal: 'Haftalik maqsad',
 }
 
 export function pointKindLabel(kind: PointKindName): string {

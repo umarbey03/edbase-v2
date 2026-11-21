@@ -17,7 +17,10 @@ public sealed record MyStreakDto(
     bool FreezeAvailable,
     int NextBonusDay,
     int NextBonusPoints,
-    IReadOnlyList<StreakDayDto> Days);
+    IReadOnlyList<StreakDayDto> Days,
+    int WeekActiveDays = 0,
+    int WeekGoalDays = DailyStreak.WeeklyGoalDays,
+    int WeekGoalBonus = DailyStreak.WeeklyGoalBonus);
 
 /// <param name="State">Active, Frozen, Missed yoki Today (bugun, hali o'qilmagan).</param>
 public sealed record StreakDayDto(DateOnly Date, string State);
@@ -143,7 +146,11 @@ public sealed class DailyStreakService(
                 : "Missed"))
             .ToList();
 
+        var week = DailyStreak.WeekOf(today);
+        var weekActive = active.Count(d => d >= week && d <= today);
+
         return new MyStreakDto(
-            true, result.Current, result.Best, result.DoneToday, result.FreezeAvailable, nextDay, nextBonus, shown);
+            true, result.Current, result.Best, result.DoneToday, result.FreezeAvailable, nextDay, nextBonus, shown,
+            weekActive);
     }
 }

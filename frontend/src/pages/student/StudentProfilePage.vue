@@ -7,6 +7,7 @@ import { useAvatar } from '@/entities/user'
 import { useAuthStore } from '@/features/auth/model/auth.store'
 import { ClassroomModal } from '@/features/classroom'
 import { MyCuratorCard } from '@/features/self-study-curator'
+import MyBadgesCard from '@/features/points/ui/MyBadgesCard.vue'
 import MyLettersCard from '@/features/points/ui/MyLettersCard.vue'
 import MyPointsCard from '@/features/points/ui/MyPointsCard.vue'
 import MilliyPaymentCard from '@/features/student-payment/ui/MilliyPaymentCard.vue'
@@ -144,6 +145,9 @@ const avatarUrl = useAvatar(
 
     <!-- Harflar jadvali (2026-11-21): qaysi harflar o'zlashtirilgan. -->
     <MyLettersCard v-if="!isGuest" />
+
+    <!-- Nishonlar (2026-11-21). -->
+    <MyBadgesCard v-if="!isGuest" />
 
     <MyPointsCard v-if="!isGuest" />
 

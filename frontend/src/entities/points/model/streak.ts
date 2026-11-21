@@ -20,6 +20,10 @@ export interface MyStreakDto {
   nextBonusDay: number
   nextBonusPoints: number
   days: StreakDayDto[]
+  /** Haftalik maqsad (2026-11-21): shu haftadagi faol kunlar / maqsad. */
+  weekActiveDays: number
+  weekGoalDays: number
+  weekGoalBonus: number
 }
 
 export type LetterState = 'Mastered' | 'Learning' | 'Locked'
@@ -44,4 +48,22 @@ export interface LessonLettersDto {
   number: number
   lessonName: string
   letters: string | null
+}
+
+/** Nishon (2026-11-21) — server `BadgeService`. */
+export interface BadgeDto {
+  code: string
+  title: string
+  description: string
+  emoji: string
+  earned: boolean
+  progress: number
+  target: number
+  earnedAt: string | null
+}
+
+export interface MyBadgesDto {
+  earned: number
+  total: number
+  badges: BadgeDto[]
 }

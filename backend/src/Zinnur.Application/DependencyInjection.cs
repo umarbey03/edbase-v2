@@ -309,6 +309,7 @@ public static class DependencyInjection
         services.AddScoped<IDailyStreakService, DailyStreakService>();
         services.AddScoped<IStreakReminderService, StreakReminderService>();
         services.AddScoped<ILetterProgressService, LetterProgressService>();
+        services.AddScoped<IBadgeService, BadgeService>();
         services.AddScoped<IAttendanceSummaryService, AttendanceSummaryService>();
 
         // O'QUVCHINING O'Z DARS BAHOLARI (R24 ning o'quvchi tomoni).

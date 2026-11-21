@@ -542,6 +542,9 @@ public enum PointKind
 
     /// <summary>Kurator darsni "o'zlashtirdi" deb belgiladi (2026-11-21).</summary>
     LessonMastered = 11,
+
+    /// <summary>Haftalik maqsad bajarildi — haftada 4 faol kun (Mustaqil, 2026-11-21).</summary>
+    WeeklyGoal = 12,
 }
 
 /// <summary>

@@ -113,6 +113,19 @@ public sealed class SelfStudyGamificationTests(ZinnurApiFactory factory)
         streak.Days.Should().HaveCount(14);
         streak.Days[^1].State.Should().Be("Active");
         streak.NextBonusDay.Should().Be(3);
+        streak.WeekActiveDays.Should().Be(1);
+        streak.WeekGoalDays.Should().Be(4);
+
+        // 4b) Nishonlar: birinchi dars olindi, qolganlari bajarilish darajasi bilan.
+        var badges = await client.GetFromJsonAsync<MyBadgesDto>("/api/v1/progress/badges", Json);
+        var first = badges!.Badges.Single(b => b.Code == "first_lesson");
+        first.Earned.Should().BeTrue();
+        first.EarnedAt.Should().NotBeNull();
+        badges.Badges.Single(b => b.Code == "lessons_5").Progress.Should().Be(1);
+        badges.Badges.Single(b => b.Code == "streak_7").Progress.Should().Be(1);
+        badges.Badges.Single(b => b.Code == "alphabet").Progress.Should().Be(1);
+        badges.Badges.Should().Contain(b => b.Code == "community");
+        badges.Earned.Should().Be(1);
 
         // 5) Ball daftari: o'zlashtirish +20.
         using (var scope = factory.Services.CreateScope())

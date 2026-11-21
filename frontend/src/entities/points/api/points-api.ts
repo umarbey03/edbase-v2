@@ -1,7 +1,12 @@
 import { http } from '@/shared/api'
 
-import type { LessonLettersDto, MyLettersDto, MyStreakDto } from '../model/streak'
+import type { LessonLettersDto, MyBadgesDto, MyLettersDto, MyStreakDto } from '../model/streak'
 import type { MyPointsDto } from '../model/types'
+
+/** `GET /api/v1/progress/badges` — nishonlar (2026-11-21). */
+export function fetchMyBadges(options?: { signal?: AbortSignal }): Promise<MyBadgesDto> {
+  return http.get<MyBadgesDto>('/api/v1/progress/badges', { signal: options?.signal })
+}
 
 /** `GET /api/v1/progress/points?period=YYYY-MM` — "Mening ballim". */
 export function fetchMyPoints(period?: string, options?: { signal?: AbortSignal }): Promise<MyPointsDto> {

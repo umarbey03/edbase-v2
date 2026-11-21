@@ -454,6 +454,18 @@ public sealed class PointsSyncService(
                 desired[(studentId, $"dstreak:{key}")] =
                     new DesiredPoint(PointKind.DailyStreakBonus, bonus, at, null);
             }
+
+            // Haftalik maqsad (2026-11-21): 4 faol kun → +10, haftaga bir marta.
+            foreach (var (week, reachedOn) in DailyStreak.GoalWeeks(active))
+            {
+                var noon = DateTime.SpecifyKind(reachedOn.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Unspecified);
+                var at = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(noon, tz));
+                if (at < from) continue;
+
+                var key = week.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+                desired[(studentId, $"wgoal:{key}")] =
+                    new DesiredPoint(PointKind.WeeklyGoal, DailyStreak.WeeklyGoalBonus, at, null);
+            }
         }
     }
 

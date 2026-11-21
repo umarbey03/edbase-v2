@@ -20,8 +20,15 @@ public sealed class ProgressController(
     IPointsService points,
     IGatingService gating,
     IDailyStreakService streaks,
-    ILetterProgressService letters) : ControllerBase
+    ILetterProgressService letters,
+    IBadgeService badges) : ControllerBase
 {
+    /// <summary>Nishonlar (2026-11-21): olingan va oldindagilari, bajarilish darajasi bilan.</summary>
+    [HttpGet("badges")]
+    [ProducesResponseType<MyBadgesDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<MyBadgesDto>> Badges(CancellationToken ct) =>
+        Ok(await badges.GetMineAsync(CurrentUserId, ct));
+
     /// <summary>
     /// Profil harflar jadvali (2026-11-21): 28 harf alifbo tartibida, har biri
     /// o'zlashtirilgan / o'rganilmoqda / yopiq.

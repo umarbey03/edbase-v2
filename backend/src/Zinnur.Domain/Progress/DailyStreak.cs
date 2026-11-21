@@ -113,6 +113,25 @@ public static class DailyStreak
             [.. frozenDays, .. freezeUsedNow ? new[] { today.AddDays(-1) } : []]);
     }
 
+    /// <summary>Haftalik maqsad (2026-11-21): haftada shuncha faol kun.</summary>
+    public const int WeeklyGoalDays = 4;
+
+    /// <summary>Haftalik maqsad bajarilganda beriladigan ball.</summary>
+    public const int WeeklyGoalBonus = 10;
+
+    /// <summary>
+    /// Maqsad bajarilgan haftalar: hafta boshi (dushanba) va maqsadga yetgan kun
+    /// (<see cref="WeeklyGoalDays"/>-faol kun). Bonus shu kunga yoziladi.
+    /// </summary>
+    public static IReadOnlyList<(DateOnly Week, DateOnly ReachedOn)> GoalWeeks(IEnumerable<DateOnly> activeDays)
+    {
+        ArgumentNullException.ThrowIfNull(activeDays);
+        return [.. activeDays.Distinct().Order()
+            .GroupBy(WeekOf)
+            .Where(g => g.Count() >= WeeklyGoalDays)
+            .Select(g => (g.Key, g.ElementAt(WeeklyGoalDays - 1)))];
+    }
+
     /// <summary>Hafta boshi (dushanba).</summary>
     public static DateOnly WeekOf(DateOnly day) =>
         day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
