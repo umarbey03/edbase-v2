@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
+import { COMMUNITY_KEYS, fetchCommunityAccess } from '@/entities/community'
 import {
   clearLessonQuestionContext,
   conversationSubtitle,
@@ -14,7 +16,6 @@ import {
   useLessonQuestionContext,
   withDayLabels,
 } from '@/entities/direct-message'
-import { COMMUNITY_KEYS, fetchCommunityAccess } from '@/entities/community'
 import { threadKey } from '@/entities/group-chat'
 import { useMySubscription } from '@/entities/subscription'
 import {
@@ -29,6 +30,7 @@ import {
   GroupChatRoom,
   GroupChatThreadList,
 } from '@/features/group-chat'
+import CommunityRoom from '@/features/community/ui/CommunityRoom.vue'
 import ChatEmojiPicker from '@/features/group-chat/ui/ChatEmojiPicker.vue'
 import { ImageAnnotator } from '@/features/image-annotator'
 import { toUserMessage } from '@/shared/api'
@@ -454,6 +456,7 @@ function openConversation(conversation: ConversationDto): void {
   pendingFiles.value = []
   attachmentError.value = null
   activeThread.value = null
+  communityOpen.value = false
   activePeer.value = conversation
 }
 
@@ -472,11 +475,45 @@ const communityQuery = useQuery({
   refetchInterval: 60_000,
 })
 const communityAccess = computed(() => communityQuery.data.value ?? null)
+const communityVisible = computed(() => isSelfStudy.value && communityAccess.value?.canRead === true)
+
+/*
+  ★ HAMJAMIYAT RO'YXATDA (2026-11-21, loyiha egasi: "yordamchi tabiga
+  o'tilganda kurator va hamjamiyat bo'lishi kerak, shu yerdan keraklisini
+  tanlab o'tishi kerak"). Hamjamiyat kurator suhbati kabi — ro'yxatdagi
+  qator, ochilganda o'ng ustunda (telefonda butun ekranda).
+
+  Kurator suhbati O'ZI ochiladi faqat hamjamiyat yo'q bo'lganda (yagona
+  tanlov — ortiqcha bosish kerak emas). Hamjamiyat bor bo'lsa — tanlash.
+*/
+const communityOpen = ref(false)
+const route = useRoute()
+const router = useRouter()
+
+watch(
+  () => route.query['open'],
+  (open) => {
+    if (open !== 'community') return
+    activePeer.value = null
+    activeThread.value = null
+    communityOpen.value = true
+    void router.replace({ query: { ...route.query, open: undefined } })
+  },
+  { immediate: true },
+)
+
+function openCommunity(): void {
+  activePeer.value = null
+  activeThread.value = null
+  communityOpen.value = true
+}
+
 let autoOpened = false
 watch(
-  [isSelfStudy, conversations],
-  ([selfStudy, list]) => {
-    if (!selfStudy || autoOpened || activePeer.value !== null || list.length !== 1) return
+  [isSelfStudy, conversations, communityQuery.isPending],
+  ([selfStudy, list, communityPending]) => {
+    if (!selfStudy || autoOpened || communityPending || list.length !== 1) return
+    if (activePeer.value !== null || communityOpen.value || communityVisible.value) return
     autoOpened = true
     openConversation(list[0]!)
   },
@@ -487,12 +524,14 @@ function openGroupThread(thread: GroupChatThreadDto): void {
   const open = activeThread.value
   if (open !== null && open.groupId === thread.groupId && open.channel === thread.channel) return
   activePeer.value = null
+  communityOpen.value = false
   activeThread.value = thread
 }
 
 function backToList(): void {
   activePeer.value = null
   activeThread.value = null
+  communityOpen.value = false
 }
 
 /**
@@ -500,7 +539,7 @@ function backToList(): void {
  * — o'ng ustunda bo'sh holat chiziladi, chap ustun esa har ikki holatda ham
  * o'z joyida qoladi (shablondagi `hidden lg:flex` juftligiga qarang).
  */
-const showList = computed(() => activePeer.value === null && activeThread.value === null)
+const showList = computed(() => activePeer.value === null && activeThread.value === null && !communityOpen.value)
 
 /** Desktopda tanlangan qator KO'RINIB turishi shart (`MOSLASHUVCHANLIK` 6.5). */
 function isPeerActive(conversation: ConversationDto): boolean {
@@ -718,6 +757,44 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
         </DataStatus>
 
         <!--
+          ★ HAMJAMIYAT (2026-11-21) — kurator suhbatining ostida, AYNI
+          ko'rinishdagi qator (yashil — umumiy xona ekanini ko'z bilan farqlash).
+        -->
+        <button
+          v-if="communityVisible && communityAccess !== null"
+          type="button"
+          class="mb-4 flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-3 text-left transition-colors"
+          :class="communityOpen
+            ? 'border-emerald-500/70 bg-emerald-500/20'
+            : 'border-emerald-500/30 bg-emerald-500/[0.07] hover:bg-emerald-500/[0.13]'"
+          :aria-current="communityOpen ? 'true' : undefined"
+          @click="openCommunity"
+        >
+          <span
+            class="flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300"
+            aria-hidden="true"
+          >
+            <AppIcon
+              name="users"
+              :size="20"
+            />
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center justify-between gap-2">
+              <b class="truncate text-sm text-slate-100">Hamjamiyat</b>
+              <span
+                v-if="communityAccess.unread > 0"
+                class="min-w-5 rounded-full bg-emerald-500 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+                v-text="communityAccess.unread > 99 ? '99+' : communityAccess.unread"
+              />
+            </span>
+            <span class="mt-0.5 block truncate text-[11px] text-dim">
+              {{ communityAccess.memberCount }} ta Mustaqil o‘quvchi bilan umumiy chat
+            </span>
+          </span>
+        </button>
+
+        <!--
           ★ 2-BO'LIM — GURUH chatlari. Har guruh uchun ikki qator bo'lishi
           MUMKIN ("Ustoz chati" / "Kurator chati") — bu server qaroriga bog'liq
           (`availableChannels`), klient uni o'zi to'qimaydi.
@@ -842,23 +919,6 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
             v-text="`${peerRoleLabel(activePeer.peerRole)} — shaxsiy chat`"
           />
         </span>
-        <!-- ★ HAMJAMIYAT (2026-11-21): Mustaqil o'quvchining ikkinchi chati. -->
-        <RouterLink
-          v-if="isSelfStudy && communityAccess?.canRead === true"
-          :to="{ name: 'student-community' }"
-          class="relative flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-200 transition-colors hover:bg-emerald-500/20"
-        >
-          <AppIcon
-            name="users"
-            :size="15"
-          />
-          Hamjamiyat
-          <span
-            v-if="communityAccess.unread > 0"
-            class="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-rose-500 px-1 text-center text-[10px] leading-5 text-white"
-            v-text="communityAccess.unread > 99 ? '99+' : communityAccess.unread"
-          />
-        </RouterLink>
       </div>
 
       <!--
@@ -1224,6 +1284,30 @@ const CHAT_FILL_STYLE = 'height: calc(100dvh - 142px - env(safe-area-inset-botto
       qo'shni sahifalardagidek: nima yo'qligini emas, NIMA QILISH kerakligini
       aytadi.
     -->
+    <!-- =================== O'NG USTUN: HAMJAMIYAT (2026-11-21) =================== -->
+    <div
+      v-else-if="communityOpen"
+      class="flex min-h-[320px] flex-col lg:h-full! lg:min-h-0 lg:pl-5"
+      :style="CHAT_FILL_STYLE"
+    >
+      <!-- "Orqaga" — faqat telefonda (desktopda ro'yxat chapda turibdi). -->
+      <div class="mb-2 mt-2 flex shrink-0 lg:hidden">
+        <button
+          type="button"
+          class="tap-target flex items-center gap-1.5 rounded-xl border border-line-strong bg-ink-900 px-3 text-sm font-bold text-slate-100 transition-colors hover:bg-ink-800"
+          @click="backToList"
+        >
+          <AppIcon
+            name="arrow-left"
+            :size="15"
+          />
+          Orqaga
+        </button>
+      </div>
+      <!-- `DataStatus` fragment chizadi — xona bevosita shu flex ustunning bolasi. -->
+      <CommunityRoom height-class="min-h-0 flex-1" />
+    </div>
+
     <div
       v-else
       class="hidden lg:flex lg:h-full lg:min-h-0 lg:items-center lg:justify-center lg:pl-5"

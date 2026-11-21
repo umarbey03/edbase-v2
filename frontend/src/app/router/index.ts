@@ -216,10 +216,10 @@ const routes: RouteRecordRaw[] = [
       },
       {
         // ★ HAMJAMIYAT (2026-11-21): Mustaqil o'quvchilarning umumiy chati.
+        // Hamjamiyat endi «Yordamchi» ro'yxatida — eski havolalar o'sha yerga ochiladi.
         path: 'hamjamiyat',
         name: 'student-community',
-        component: () => import('@/pages/student/StudentCommunityPage.vue'),
-        meta: { title: 'Hamjamiyat', roles: STUDENT },
+        redirect: { name: 'student-chat', query: { open: 'community' } },
       },
       {
         // Mustaqil o'quvchining 4-tabi (2026-10-23); guruh o'quvchisi ham ocha oladi.
