@@ -1492,6 +1492,47 @@ public static class SettingsRegistry
             DefaultValue = "true",
         },
 
+        // ================================================================ MUSTAQIL ESLATMALAR (2026-11-25)
+        //
+        // Ikkalasini `SelfStudyNudgeJob` HAR YURISHDA o'qiydi — paneldan
+        // o'zgartirilgan qiymat keyingi yurishdayoq ishlaydi.
+
+        new()
+        {
+            Key = "selfstudy.nudges_enabled",
+            Group = SettingGroup.Gamification,
+            DisplayName = "Mustaqil o'quvchilarga faolsizlik eslatmalari",
+            Description =
+                "Mustaqil o'quvchi darsga kirmay qo'ysa, Telegram orqali eslatma boradi: 1- va 2-kuni "
+                + "yengil turtki, 3-kuni kuratorga «shaxsiy murojaat qiling» xabari, 5-kuni «nima "
+                + "xalaqit beryapti?» savoli (tugmalar bilan), 14-kuni oxirgi xabar. O'quvchi dars "
+                + "qilishi bilan zanjir to'xtaydi. Kuniga ko'pi bilan bitta xabar; o'quvchi "
+                + "eslatmalarni o'zi o'chira oladi.",
+            Kind = SettingValueKind.Toggle,
+            Source = SettingSource.Database,
+
+            // ★ STANDART — O'CHIQ (ball xabari bilan AYNI sabab): yangi versiya
+            // chiqqan kuni hamma o'quvchiga kutilmagan xabar ketmasin.
+            // Administrator matnlarni ko'rib, o'zi yoqadi.
+            DefaultValue = "false",
+        },
+
+        new()
+        {
+            Key = "selfstudy.nudge_hour",
+            Group = SettingGroup.Gamification,
+            DisplayName = "Eslatmalar yuboriladigan soat (Toshkent vaqti)",
+            Description =
+                "Eslatmalar shu soatdan boshlab 2 soat ichida yuboriladi. Standart — 19:00: "
+                + "kun ishlari tugab, odam bo'shagan payt. Tunda (22:00 dan keyin) xabar ketmasligi "
+                + "uchun eng kechi — 20.",
+            Kind = SettingValueKind.Number,
+            Source = SettingSource.Database,
+            DefaultValue = "19",
+            Minimum = 8m,
+            Maximum = 20m,
+        },
+
         // ================================================================ ONLAYN SOTUV
         //
         // Hammasini `ShopService` va bot HAR CHAQIRUVDA o'qiydi — paneldan
@@ -1725,6 +1766,10 @@ public static class SettingsRegistry
         public const string PointsEnabled = "gamification.points_enabled";
         public const string PointsLessonMessageEnabled = "gamification.lesson_message_enabled";
         public const string StreakReminderEnabled = "gamification.streak_reminder_enabled";
+
+        // ---------------------------------------------------------------- mustaqil eslatmalar
+        public const string SelfStudyNudgesEnabled = "selfstudy.nudges_enabled";
+        public const string SelfStudyNudgeHour = "selfstudy.nudge_hour";
 
         // ---------------------------------------------------------------- onlayn sotuv
         public const string SalesSelfSignupEnabled = "sales.self_signup_enabled";

@@ -99,10 +99,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const KNOWN_KINDS: readonly NotificationKindName[] = [
+  'SubmissionGraded',
+  'LessonMasteryDecided',
+  'SubmissionReceived',
+  'StudyReminder',
+  'CuratorStudentIdle',
+]
+
 function asKind(value: unknown): NotificationKindName | null {
-  return value === 'SubmissionGraded' || value === 'LessonMasteryDecided' || value === 'SubmissionReceived'
-    ? value
-    : null
+  return KNOWN_KINDS.includes(value as NotificationKindName) ? (value as NotificationKindName) : null
 }
 
 /**

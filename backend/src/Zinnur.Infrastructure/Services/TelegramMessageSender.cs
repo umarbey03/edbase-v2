@@ -292,7 +292,7 @@ public sealed class TelegramMessageSender(
             // uchun `callback_data` BOSHQA-BOSHQA (dinamik). `CallbackData`
             // bo'sh bo'lsa — tugmasiz yuboriladi (matn baribir yetib borsin).
             case TelegramMarkup.InlineButtons when !string.IsNullOrWhiteSpace(callbackData):
-                WriteInlineButtons(writer, callbackData);
+                WriteInlineButtons(writer, callbackData, settings.MiniAppUrl);
                 break;
 
             // `OpenApp` bo'lsa-yu manzil sozlanmagan bo'lsa — tugmasiz
@@ -312,8 +312,10 @@ public sealed class TelegramMessageSender(
     /// matnni <c>inline_keyboard</c> ga aylantiradi (kodlash formati o'sha
     /// metod izohida).
     /// </summary>
-    private static void WriteInlineButtons(Utf8JsonWriter writer, string encoded)
+    private static void WriteInlineButtons(Utf8JsonWriter writer, string encoded, string? miniAppUrl)
     {
+        var hasApp = !string.IsNullOrWhiteSpace(miniAppUrl);
+
         writer.WriteStartObject("reply_markup");
         writer.WriteStartArray("inline_keyboard");
 
@@ -321,16 +323,40 @@ public sealed class TelegramMessageSender(
         {
             if (row.Length == 0) continue;
 
+            // ★ AVVAL YIG'ILADI: «Ilovani ochish» tugmasi Mini App manzili
+            //   sozlanmagan bo'lsa tashlab ketiladi va qator bo'sh qolishi
+            //   mumkin. Bo'sh qator (`[]`) yuborilsa Telegram BUTUN xabarni
+            //   400 bilan rad etardi.
+            var buttons = row.Split(ButtonSeparator)
+                .Select(button => button.Split(LabelDataSeparator, 2))
+                .Where(parts => parts.Length == 2)
+                .Where(parts => hasApp
+                    || !string.Equals(parts[1], TelegramTemplates.OpenAppButtonData, StringComparison.Ordinal))
+                .ToList();
+
+            if (buttons.Count == 0) continue;
+
             writer.WriteStartArray();
 
-            foreach (var button in row.Split(ButtonSeparator))
+            foreach (var parts in buttons)
             {
-                var parts = button.Split(LabelDataSeparator, 2);
-                if (parts.Length != 2) continue;
-
                 writer.WriteStartObject();
                 writer.WriteString("text", parts[0]);
-                writer.WriteString("callback_data", parts[1]);
+
+                // ★ 2026-11-25: dinamik klaviatura ichidagi Mini App tugmasi
+                //   (`TelegramTemplates.OpenAppButtonData`). `web_app` faqat
+                //   shaxsiy chatda ishlaydi — eslatmalar aynan shu yerga ketadi.
+                if (string.Equals(parts[1], TelegramTemplates.OpenAppButtonData, StringComparison.Ordinal))
+                {
+                    writer.WriteStartObject("web_app");
+                    writer.WriteString("url", miniAppUrl);
+                    writer.WriteEndObject();
+                }
+                else
+                {
+                    writer.WriteString("callback_data", parts[1]);
+                }
+
                 writer.WriteEndObject();
             }
 

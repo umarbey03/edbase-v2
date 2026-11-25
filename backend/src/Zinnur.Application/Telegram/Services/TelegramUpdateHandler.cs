@@ -1,3 +1,4 @@
+using Zinnur.Application.SelfStudy.Nudges;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,7 @@ public sealed class TelegramUpdateHandler(
     ITelegramLoginService telegramLogin,
     ISelfSignupService selfSignup,
     IShopService shop,
+    ISelfStudyNudgeService nudges,
     ILogger<TelegramUpdateHandler> logger) : ITelegramUpdateHandler
 {
     /// <summary>Faqat shaxsiy suhbat bilan ishlaymiz (guruhda bot hech nima bog'lamaydi).</summary>
@@ -220,7 +222,8 @@ public sealed class TelegramUpdateHandler(
             ? null
             : await availability.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
               ?? await absenceNotices.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
-              ?? await shop.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
+              ?? await shop.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false)
+              ?? await nudges.HandleCallbackAsync(sender.Id, data, ct).ConfigureAwait(false);
 
         await callbackAcknowledger.AcknowledgeAsync(callback.Id, toast, ct).ConfigureAwait(false);
 

@@ -55,4 +55,10 @@ public enum NotificationKind
     /// "Tekshirish" sahifasini o'zi ochganda ko'rardi.
     /// </summary>
     SubmissionReceived = 4,
+
+    /// <summary>Mustaqil o'quvchiga faolsizlik eslatmasi (Telegram bog'lanmagan bo'lsa, 2026-11-25).</summary>
+    StudyReminder = 5,
+
+    /// <summary>Kuratorga: o'quvchi bir necha kundan beri darsga kirmadi yoki «qiyin bo'lyapti» dedi.</summary>
+    CuratorStudentIdle = 6,
 }

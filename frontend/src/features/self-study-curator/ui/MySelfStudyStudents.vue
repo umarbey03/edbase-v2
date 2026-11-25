@@ -26,6 +26,31 @@ const rows = computed(() => query.data.value ?? [])
 const primary = computed(() => rows.value.filter((r) => !r.isBackup))
 const backup = computed(() => rows.value.filter((r) => r.isBackup))
 const pendingTotal = computed(() => primary.value.reduce((sum, r) => sum + r.pendingSubmissions, 0))
+
+/**
+ * FAOLSIZLIK (2026-11-25): 3 kundan beri darsga kirmagan o'quvchiga tizim
+ * kuratorga xabar beradi — ro'yxatda ham shu chegara bilan ajratiladi.
+ */
+const IDLE_ALERT_DAYS = 3
+
+function isIdle(row: MySelfStudyStudentDto): boolean {
+  return row.subscriptionActive && (row.idleDays ?? 0) >= IDLE_ALERT_DAYS
+}
+
+const idleTotal = computed(() => primary.value.filter(isIdle).length)
+
+function activityText(row: MySelfStudyStudentDto): string {
+  if (row.lastActivityAt === null || row.lastActivityAt === undefined) return 'Hali boshlamagan'
+  if (row.idleDays === 0) return 'Bugun faol'
+  if (row.idleDays === 1) return 'Kecha faol'
+  return `${row.idleDays} kun faolsiz`
+}
+
+const RESPONSE_LABEL: Record<string, { text: string; tone: 'danger' | 'warning' | 'neutral' }> = {
+  Hard: { text: 'Qiyin bo‘lyapti', tone: 'danger' },
+  Busy: { text: 'Vaqti yo‘q', tone: 'warning' },
+  Snooze: { text: 'Keyinroq', tone: 'neutral' },
+}
 </script>
 
 <template>
@@ -43,7 +68,7 @@ const pendingTotal = computed(() => primary.value.reduce((sum, r) => sum + r.pen
 
     <div
       v-if="primary.length > 0"
-      class="grid gap-3 sm:grid-cols-3"
+      class="grid gap-3 sm:grid-cols-4"
     >
       <BaseCard class="p-4">
         <p class="text-xs text-slate-400">
@@ -62,6 +87,17 @@ const pendingTotal = computed(() => primary.value.reduce((sum, r) => sum + r.pen
           :class="pendingTotal > 0 ? 'text-amber-300' : 'text-slate-100'"
         >
           {{ pendingTotal }}
+        </p>
+      </BaseCard>
+      <BaseCard class="p-4">
+        <p class="text-xs text-slate-400">
+          {{ IDLE_ALERT_DAYS }}+ kun faolsiz
+        </p>
+        <p
+          class="mt-1 text-2xl font-semibold"
+          :class="idleTotal > 0 ? 'text-rose-300' : 'text-slate-100'"
+        >
+          {{ idleTotal }}
         </p>
       </BaseCard>
       <BaseCard class="p-4">
@@ -105,6 +141,10 @@ const pendingTotal = computed(() => primary.value.reduce((sum, r) => sum + r.pen
                     Obuna {{ formatDate(row.subscriptionEndsAt) }} gacha
                   </template>
                   <template v-else>Obuna yo‘q</template>
+                  <template v-if="row.subscriptionActive">
+                    ·
+                    <span :class="isIdle(row) ? 'text-rose-300' : ''">{{ activityText(row) }}</span>
+                  </template>
                 </span>
               </span>
               <BaseBadge
@@ -113,6 +153,20 @@ const pendingTotal = computed(() => primary.value.reduce((sum, r) => sum + r.pen
                 size="xs"
               >
                 Obuna tugagan
+              </BaseBadge>
+              <BaseBadge
+                v-if="row.lastNudgeResponse && RESPONSE_LABEL[row.lastNudgeResponse]"
+                :tone="RESPONSE_LABEL[row.lastNudgeResponse]!.tone"
+                size="xs"
+              >
+                {{ RESPONSE_LABEL[row.lastNudgeResponse]!.text }}
+              </BaseBadge>
+              <BaseBadge
+                v-if="row.nudgesOff"
+                tone="neutral"
+                size="xs"
+              >
+                Eslatma o‘chiq
               </BaseBadge>
               <BaseBadge
                 v-if="row.pendingSubmissions > 0"
