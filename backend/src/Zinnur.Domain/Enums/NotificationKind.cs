@@ -47,4 +47,10 @@ public enum NotificationKind
     /// keyingi dars ochildi, yoki «qayta ishlasin» — izoh bilan. O'quvchiga.
     /// </summary>
     LessonMasteryDecided = 3,
+
+    /// <summary>Mustaqil o'quvchiga faolsizlik eslatmasi (Telegram bog'lanmagan bo'lsa, 2026-11-25).</summary>
+    StudyReminder = 4,
+
+    /// <summary>Kuratorga: o'quvchi bir necha kundan beri darsga kirmadi yoki «qiyin bo'lyapti» dedi.</summary>
+    CuratorStudentIdle = 5,
 }

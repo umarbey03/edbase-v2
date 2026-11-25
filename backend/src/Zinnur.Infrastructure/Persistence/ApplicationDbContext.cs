@@ -85,6 +85,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<SelfStudyCuratorAssignment> SelfStudyCuratorAssignments => Set<SelfStudyCuratorAssignment>();
     public DbSet<LessonMastery> LessonMasteries => Set<LessonMastery>();
     public DbSet<LessonMasteryEvent> LessonMasteryEvents => Set<LessonMasteryEvent>();
+    public DbSet<SelfStudyNudge> SelfStudyNudges => Set<SelfStudyNudge>();
+    public DbSet<SelfStudyNudgePreference> SelfStudyNudgePreferences => Set<SelfStudyNudgePreference>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<StudentPoint> StudentPoints => Set<StudentPoint>();
 

@@ -36,6 +36,14 @@ export interface MySelfStudyStudentDto {
   subscriptionEndsAt: string | null
   subscriptionActive: boolean
   pendingSubmissions: number
+  /** Oxirgi o'quv faolligi (video, vazifa, test, darslik, chat). Hech qachon — `null`. */
+  lastActivityAt?: string | null
+  /** Necha kundan beri faolsiz (hech boshlamagan — `null`). */
+  idleDays?: number | null
+  /** Eslatmadagi oxirgi tugma javobi: `Hard` | `Busy` | `Snooze` | `ComingToday` | `OptOut`. */
+  lastNudgeResponse?: string | null
+  /** O'quvchi avtomatik eslatmalarni o'chirgan. */
+  nudgesOff?: boolean
 }
 
 export interface UnassignedSelfStudyStudentDto {

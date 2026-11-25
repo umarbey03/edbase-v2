@@ -126,6 +126,12 @@ public interface IApplicationDbContext
 
     DbSet<LessonMasteryEvent> LessonMasteryEvents { get; }
 
+    /// <summary>Mustaqil o'quvchiga yuborilgan faolsizlik eslatmalari (2026-11-25).</summary>
+    DbSet<SelfStudyNudge> SelfStudyNudges { get; }
+
+    /// <summary>O'quvchining eslatmalar tanlovi: o'chirgan / «keyinroq».</summary>
+    DbSet<SelfStudyNudgePreference> SelfStudyNudgePreferences { get; }
+
     DbSet<PurchaseOrder> PurchaseOrders { get; }
 
     DbSet<StudentPoint> StudentPoints { get; }

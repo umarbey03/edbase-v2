@@ -591,3 +591,47 @@ public enum MasteryEventKind
     /// <summary>Administrator istisnoni bekor qildi.</summary>
     AdminUnlockRevoked = 3,
 }
+
+/// <summary>
+/// Mustaqil o'quvchiga faolsizlik eslatmasi bosqichi (2026-11-25).
+/// Tartib MUHIM: qiymat bazaga <c>int</c> sifatida yoziladi, yangisi FAQAT oxiriga.
+/// </summary>
+public enum NudgeStage
+{
+    /// <summary>1 kun faolsiz — yengil, progressga asoslangan turtki.</summary>
+    Day1 = 0,
+
+    /// <summary>2 kun — keyingi dars nomi bilan qiziqish.</summary>
+    Day2 = 1,
+
+    /// <summary>3 kun — o'quvchiga EMAS, kuratorga: shaxsiy murojaat qilsin.</summary>
+    CuratorAlert = 2,
+
+    /// <summary>5 kun — tugmali savol: nima xalaqit beryapti.</summary>
+    Ask = 3,
+
+    /// <summary>14 kun — oxirgi «joyingiz saqlanib turibdi» xabari.</summary>
+    Final = 4,
+
+    /// <summary>O'quvchi «keyinroq eslating» degan muddat tugadi.</summary>
+    SnoozeReturn = 5,
+}
+
+/// <summary>O'quvchining eslatmadagi tugmaga javobi. Tartib MUHIM.</summary>
+public enum NudgeResponse
+{
+    /// <summary>«Bugun davom etaman».</summary>
+    ComingToday = 0,
+
+    /// <summary>«3 kundan keyin eslating».</summary>
+    Snooze = 1,
+
+    /// <summary>«Qiyin bo'lyapti» — kuratorga darhol xabar.</summary>
+    Hard = 2,
+
+    /// <summary>«Vaqtim yo'q».</summary>
+    Busy = 3,
+
+    /// <summary>«Eslatmalarni o'chirish».</summary>
+    OptOut = 4,
+}

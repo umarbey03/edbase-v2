@@ -298,6 +298,10 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<SelfStudy.ISelfStudyCuratorService, SelfStudy.SelfStudyCuratorService>();
         services.AddScoped<SelfStudy.ILessonMasteryService, SelfStudy.LessonMasteryService>();
+
+        // Mustaqil faolsizlik eslatmalari (2026-11-25).
+        services.AddScoped<SelfStudy.Nudges.IStudentActivityReader, SelfStudy.Nudges.StudentActivityReader>();
+        services.AddScoped<SelfStudy.Nudges.ISelfStudyNudgeService, SelfStudy.Nudges.SelfStudyNudgeService>();
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<ISelfSignupService, SelfSignupService>();
         services.AddScoped<IPointsService, PointsService>();
