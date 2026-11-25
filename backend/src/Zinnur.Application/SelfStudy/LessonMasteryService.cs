@@ -136,6 +136,16 @@ public sealed class LessonMasteryService(
                 : "Bu dars o'quvchiga hali ochilmagan — avval oldingi darsga qaror chiqaring.");
         }
 
+        // ★ «Bitta dars oldinga» (2026-11-25): dars kurator qarorisiz,
+        //   VAQTINCHA ochilgan. Qaror TARTIB bilan chiqadi — aks holda
+        //   bu dars «o'zlashtirdi» bo'lib, oldingisi keyin «qayta ishlasin»
+        //   bo'lsa ham zanjir ochiq qolardi.
+        if (gate.Provisional)
+        {
+            throw new ConflictException(
+                "Bu dars vaqtincha ochilgan — avval oldingi darsga qaror chiqaring.");
+        }
+
         if (request.Status == MasteryStatus.Mastered)
         {
             var missing = MissingWork(gate);
@@ -362,7 +372,8 @@ public sealed class LessonMasteryService(
                 decision?.DecidedBy,
                 decision?.DecidedAt,
                 lesson.UnlockedOverride,
-                overrideReason));
+                overrideReason,
+                lesson.Provisional));
         }
 
         return new StudentLessonBoardDto(studentId, studentName, courseName, active, canDecide, canOverride, rows);

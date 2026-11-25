@@ -14,7 +14,12 @@ import { AppIcon } from '@/shared/ui'
  *   guruh o'quvchisida (doim `null`) so'rov umuman ketmaydi. Izoh alohida
  *   endpointdan: kurs daraxtida u yo'q (har darsga matn tortish ortiqcha).
  */
-const props = defineProps<{ lessonId: number, mastery: MasteryStatusName | null | undefined }>()
+const props = defineProps<{
+  lessonId: number
+  mastery: MasteryStatusName | null | undefined
+  /** 2026-11-25: dars kurator qarorisiz vaqtincha ochilgan («bitta dars oldinga»). */
+  provisional?: boolean
+}>()
 
 const query = useQuery({
   queryKey: SELF_STUDY_CURATOR_KEYS.myMastery,
@@ -69,5 +74,25 @@ const decision = computed(() => (query.data.value ?? []).find((m) => m.lessonId 
         — {{ decision.note }}
       </template>
     </span>
+  </div>
+  <div
+    v-else-if="props.provisional === true"
+    class="mb-4 flex gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3"
+    role="status"
+  >
+    <AppIcon
+      name="clock"
+      :size="18"
+      class="mt-0.5 shrink-0 text-sky-300"
+    />
+    <div class="min-w-0 text-sm">
+      <p class="font-semibold text-sky-100">
+        Zo‘r! Testni 100% yechganingiz uchun bu dars kuratorni kutmasdan ochildi
+      </p>
+      <p class="mt-1 text-xs text-sky-200/80">
+        Kurator oldingi darsingizni ish vaqtida tekshiradi. Agar u «qayta ishlang» desa,
+        avval o‘sha darsni tuzatasiz, keyin davom etasiz.
+      </p>
+    </div>
   </div>
 </template>

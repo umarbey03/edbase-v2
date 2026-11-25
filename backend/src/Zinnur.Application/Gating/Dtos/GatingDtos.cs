@@ -75,7 +75,8 @@ public sealed record LessonGateDto(
     bool TestTaken,
     bool UnlockedOverride,
     bool RequiresMastery = false,
-    Zinnur.Domain.Enums.MasteryStatus? Mastery = null);
+    Zinnur.Domain.Enums.MasteryStatus? Mastery = null,
+    bool Provisional = false);
 
 /// <summary>
 /// O'quvchining butun kursi bo'yicha ochiqlik xaritasi.

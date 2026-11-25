@@ -171,6 +171,7 @@ const subtitle = computed(() =>
         <LessonMasteryNotice
           :lesson-id="entry.lesson.id"
           :mastery="entry.lesson.mastery"
+          :provisional="entry.lesson.provisional === true"
         />
         <LessonDashboard :lesson="entry.lesson" />
       </template>

@@ -36,7 +36,8 @@ public sealed record LessonBoardRowDto(
     string? DecidedByName,
     DateTimeOffset? DecidedAt,
     bool UnlockedOverride,
-    string? OverrideReason);
+    string? OverrideReason,
+    bool Provisional = false);
 
 /// <summary>Darsning kurs vazifasi va o'quvchining javobi (bo'lsa).</summary>
 public sealed record BoardAssignmentDto(

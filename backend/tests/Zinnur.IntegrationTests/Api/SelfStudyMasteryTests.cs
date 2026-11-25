@@ -97,6 +97,52 @@ public sealed class SelfStudyMasteryTests(ZinnurApiFactory factory)
     }
 
     [Fact]
+    public async Task Perfect_test_opens_one_lesson_ahead_until_the_curator_decides()
+    {
+        // ★ «Bitta dars oldinga» (2026-11-25): kurator kechqurun ishlamaydi.
+        var s = await SetUpAsync("ssm-ahead");
+        using var student = await WorldBuilder.ClientAsync(factory, s.Student);
+        using var curator = await WorldBuilder.ClientAsync(factory, s.Curator);
+
+        await AddLessonTestAsync(s, s.LessonIds[0], score: 10m, maxScore: 10m);
+        await SubmitAsync(s); // keshni ham tozalaydi
+
+        var lessons = await LessonsAsync(student, s.CourseId);
+        lessons[1].Unlocked.Should().BeTrue("1-dars to'liq bajarildi va testi 100%");
+        lessons[2].Unlocked.Should().BeFalse("faqat bitta dars qarzga ochiladi");
+
+        // Vaqtincha ochilgan darsga qaror tartib bilan: avval 1-dars.
+        var outOfOrder = await curator.PutAsJsonAsync(MasteryUri(s, s.LessonIds[1]), new { status = "NeedsWork", note = "x" });
+        outOfOrder.StatusCode.Should().Be(HttpStatusCode.Conflict, await WorldBuilder.Body(outOfOrder));
+
+        var board = await BoardAsync(curator, s.Student.Id);
+        board.GetProperty("lessons")[1].GetProperty("provisional").GetBoolean().Should().BeTrue();
+
+        // «Qayta ishlasin» — vaqtinchalik ochish bekor.
+        var redo = await curator.PutAsJsonAsync(
+            MasteryUri(s, s.LessonIds[0]), new { status = "NeedsWork", note = "Harflarni qayta yozing" });
+        redo.StatusCode.Should().Be(HttpStatusCode.OK, await WorldBuilder.Body(redo));
+
+        lessons = await LessonsAsync(student, s.CourseId);
+        lessons[1].Unlocked.Should().BeFalse();
+        lessons[1].LockReason.Should().Be("NeedsWork");
+    }
+
+    [Fact]
+    public async Task Imperfect_test_still_waits_for_the_curator()
+    {
+        var s = await SetUpAsync("ssm-ahead90");
+        using var student = await WorldBuilder.ClientAsync(factory, s.Student);
+
+        await AddLessonTestAsync(s, s.LessonIds[0], score: 9m, maxScore: 10m);
+        await SubmitAsync(s);
+
+        var lessons = await LessonsAsync(student, s.CourseId);
+        lessons[1].Unlocked.Should().BeFalse();
+        lessons[1].LockReason.Should().Be("AwaitingReview");
+    }
+
+    [Fact]
     public async Task Only_the_curator_and_admin_decide()
     {
         var s = await SetUpAsync("ssm-roles");
@@ -195,6 +241,35 @@ public sealed class SelfStudyMasteryTests(ZinnurApiFactory factory)
         var response = await student.PostAsync($"/api/v1/assignments/{s.AssignmentId}/submit", content);
         response.IsSuccessStatusCode.Should().BeTrue(await WorldBuilder.Body(response));
     }
+
+    /// <summary>Darsga e'lon qilingan test va o'quvchining topshirilgan urinishi.</summary>
+    private Task<int> AddLessonTestAsync(Setup s, long lessonId, decimal score, decimal maxScore) =>
+        factory.WithDbAsync(async db =>
+        {
+            var test = new Test
+            {
+                Title = "Dars testi " + Guid.NewGuid().ToString("N")[..6],
+                Kind = TestKind.Lesson,
+                ModuleLessonId = lessonId,
+                IsPublished = true,
+            };
+            db.Tests.Add(test);
+            await db.SaveChangesAsync();
+
+            var now = DateTimeOffset.UtcNow;
+            db.TestAttempts.Add(new TestAttempt
+            {
+                TestId = test.Id,
+                StudentId = s.Student.Id,
+                Status = AttemptStatus.Submitted,
+                Score = score,
+                MaxScore = maxScore,
+                StartedAt = now.AddMinutes(-10),
+                SubmittedAt = now,
+            });
+            await db.SaveChangesAsync();
+            return 0;
+        });
 
     private static async Task<JsonElement> BoardAsync(HttpClient client, long studentId)
     {

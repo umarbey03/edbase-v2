@@ -593,19 +593,21 @@ public sealed class SelfStudyNudgeService(
         var lessons = course.Lessons;
 
         var completed = lessons.Count(l => l.Completed);
-        var index = lessons.ToList().FindIndex(l => l.Unlocked && !l.Completed);
 
-        if (index < 0) return new ProgressInfo(Skip: true, null, completed, lessons.Count, false);
+        // Hozirgi dars — o'quvchidan ISH kutayotgan birinchi ochiq dars.
+        // Ishini topshirib kurator qarorini kutayotgan dars o'tkazib
+        // yuboriladi: «bitta dars oldinga» (2026-11-25) bilan undan keyingisi
+        // ochiq bo'lishi mumkin — eslatma o'sha darsga chaqiradi. Bunday dars
+        // bo'lmasa o'quvchida «qarz» yo'q, eslatma yuborilmaydi.
+        static bool AwaitingCurator(LessonGateDto l) =>
+            l.RequiresMastery && l.Mastery is null
+            && (!l.HasVideo || l.VideoWatched)
+            && (!l.HasAssignment || l.AssignmentSubmitted)
+            && (!l.HasTest || l.TestTaken);
 
-        var current = lessons[index];
+        var current = lessons.FirstOrDefault(l => l.Unlocked && !l.Completed && !AwaitingCurator(l));
 
-        // Ishini topshirgan, kurator qarorini kutyapti — o'quvchida «qarz» yo'q.
-        var workDone = (!current.HasVideo || current.VideoWatched)
-                       && (!current.HasAssignment || current.AssignmentSubmitted)
-                       && (!current.HasTest || current.TestTaken);
-        var awaitingCurator = current.RequiresMastery && workDone && current.Mastery is null;
-
-        if (awaitingCurator) return new ProgressInfo(Skip: true, null, completed, lessons.Count, false);
+        if (current is null) return new ProgressInfo(Skip: true, null, completed, lessons.Count, false);
 
         var name = await db.ModuleLessons.AsNoTracking()
             .Where(l => l.Id == current.LessonId)

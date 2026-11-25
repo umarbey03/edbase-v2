@@ -100,6 +100,8 @@ export interface LessonBoardRowDto {
   decidedAt: string | null
   unlockedOverride: boolean
   overrideReason: string | null
+  /** 2026-11-25: oldingi dars testi 100% — kurator qarorisiz VAQTINCHA ochilgan. */
+  provisional?: boolean
 }
 
 export interface StudentLessonBoardDto {

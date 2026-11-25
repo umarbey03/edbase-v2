@@ -157,9 +157,15 @@ public sealed class GatingService(
 
         var previousId = index > 0 ? lessonIds[index - 1] : (long?)null;
 
-        var wanted = previousId is { } prev
-            ? new[] { moduleLessonId, prev }
-            : [moduleLessonId];
+        // ★ «Bitta dars oldinga» (2026-11-25): oldingi darsning o'zi QAT'IY
+        //   ochiqmi — buni bilish uchun undan oldingisi ham kerak. Zanjir
+        //   shu yerda tugaydi: qat'iy ochiqlik vaqtinchalikka bog'liq emas.
+        var beforePreviousId = index > 1 ? lessonIds[index - 2] : (long?)null;
+
+        var wanted = new[] { (long?)moduleLessonId, previousId, beforePreviousId }
+            .Where(x => x is not null)
+            .Select(x => x!.Value)
+            .ToArray();
 
         var facts = await LessonFactsQuery(
                 studentId,
@@ -171,11 +177,18 @@ public sealed class GatingService(
             ?? throw new NotFoundException(nameof(ModuleLesson), moduleLessonId);
 
         var previous = previousId is { } id ? facts.Find(f => f.LessonId == id) : null;
+        var beforePrevious = beforePreviousId is { } bid ? facts.Find(f => f.LessonId == bid) : null;
 
-        var (unlocked, reason) = LessonGate.Evaluate(
-            index, current, previous, pace.TaughtLessonCount, startIndex);
+        // Oldingi dars qat'iy ochiqmi — AYNI qoida, faqat vaqtinchalik
+        // ochishsiz (`previousFirm: false`), ya'ni `Unlocked` = qat'iy.
+        var previousFirm = previous is not null
+            && LessonGate.Decide(
+                index - 1, previous, beforePrevious, pace.TaughtLessonCount, startIndex, previousFirm: false).Unlocked;
 
-        return LessonGate.Describe(index, current, unlocked, reason);
+        var decision = LessonGate.Decide(
+            index, current, previous, pace.TaughtLessonCount, startIndex, previousFirm);
+
+        return LessonGate.Describe(index, current, decision.Unlocked, decision.Reason, decision.Provisional);
     }
 
     public async Task EnsureLessonUnlockedAsync(
@@ -404,7 +417,19 @@ public sealed class GatingService(
             db.LessonMasteries
                 .Where(m => m.StudentId == studentId && m.ModuleLessonId == l.Id)
                 .Select(m => (MasteryStatus?)m.Status)
-                .FirstOrDefault()));
+                .FirstOrDefault(),
+
+            // ★ Testlar 100% (2026-11-25, «bitta dars oldinga»): darsning
+            //   HAR BIR e'lon qilingan testi to'liq ballga topshirilgan.
+            //   Test bo'lmasa `All` true qaytaradi — lekin qoida `HasTest`
+            //   ni alohida talab qiladi.
+            db.Tests
+                .Where(t => t.ModuleLessonId == l.Id && t.IsPublished)
+                .All(t => db.TestAttempts.Any(x => x.TestId == t.Id
+                                                && x.StudentId == studentId
+                                                && x.Status == AttemptStatus.Submitted
+                                                && x.MaxScore > 0
+                                                && x.Score >= x.MaxScore))));
 
     // ================================================================= guruh sur'ati (hisobot)
 
