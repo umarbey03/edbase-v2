@@ -1502,6 +1502,11 @@ export interface CourseLessonDto {
   hasTest: boolean
   /** Mustaqil (2026-11-18): kuratorning shu darsga qarori; guruh o'quvchisida va xodimda `null`. */
   mastery?: MasteryStatusName | null
+  /**
+   * Mustaqil (2026-11-25, «bitta dars oldinga»): oldingi dars testi 100% —
+   * bu dars kurator qarorisiz VAQTINCHA ochilgan.
+   */
+  provisional?: boolean
 }
 
 export interface CourseModuleDto {

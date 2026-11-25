@@ -171,6 +171,7 @@ function stepTone(has: boolean, done: boolean): string {
 function masteryBadge(row: LessonBoardRowDto): { tone: 'success' | 'warning' | 'danger' | 'neutral', text: string } | null {
   if (row.mastery === 'Mastered') return { tone: 'success', text: 'O‘zlashtirdi' }
   if (row.mastery === 'NeedsWork') return { tone: 'danger', text: 'Qayta ishlasin' }
+  if (row.provisional === true) return { tone: 'neutral', text: 'Vaqtincha ochiq' }
   if (row.unlocked && row.workDone) return { tone: 'warning', text: 'Qaror kutilmoqda' }
   return null
 }
@@ -314,7 +315,7 @@ function masteryBadge(row: LessonBoardRowDto): { tone: 'success' | 'warning' | '
 
         <!-- Amallar -->
         <div
-          v-if="row.unlocked && board?.canDecide"
+          v-if="row.unlocked && board?.canDecide && row.provisional !== true"
           class="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3"
         >
           <BaseButton
@@ -350,7 +351,15 @@ function masteryBadge(row: LessonBoardRowDto): { tone: 'success' | 'warning' | '
         </div>
 
         <p
-          v-if="row.unlocked && board?.canDecide && !row.workDone"
+          v-if="row.provisional === true"
+          class="mt-2 text-[11px] text-dim"
+        >
+          Oldingi dars testi 100% bo‘lgani uchun kurator qarorisiz ochildi. Avval oldingi darsga qaror chiqaring:
+          «qayta ishlasin» desangiz, bu dars yana yopiladi.
+        </p>
+
+        <p
+          v-else-if="row.unlocked && board?.canDecide && !row.workDone"
           class="mt-2 text-[11px] text-dim"
         >
           «O‘zlashtirdi» o‘quvchi video, vazifa va testni bajargach faollashadi.

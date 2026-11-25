@@ -17,6 +17,11 @@ namespace Zinnur.Application.Gating;
 /// hisoblanmaydi. Guruh o'quvchisida doim <c>false</c> — uning qoidasi o'zgarmaydi.
 /// </param>
 /// <param name="Mastery">Kuratorning shu darsga qarori; <c>null</c> — hali qaror yo'q.</param>
+/// <param name="TestPerfect">
+/// ★ MUSTAQIL (2026-11-25): darsning BARCHA e'lon qilingan testlari 100% ga
+/// yechilgan. Kurator qarorisiz keyingi darsni VAQTINCHA ochish sharti
+/// (<see cref="LessonGate.Decide"/>).
+/// </param>
 public sealed record LessonFacts(
     long LessonId,
     bool HasVideo,
@@ -27,7 +32,15 @@ public sealed record LessonFacts(
     bool TestTaken,
     bool UnlockedOverride,
     bool RequiresMastery = false,
-    MasteryStatus? Mastery = null);
+    MasteryStatus? Mastery = null,
+    bool TestPerfect = false);
+
+/// <summary>Bitta dars bo'yicha qaror: ochiqmi, nega yopiq, vaqtinchami.</summary>
+/// <param name="Provisional">
+/// Dars kurator qarorisiz, «bitta dars oldinga» qoidasi bilan ochilgan
+/// (<see cref="LessonGate.Decide"/>).
+/// </param>
+public readonly record struct GateDecision(bool Unlocked, LessonLockReason? Reason, bool Provisional = false);
 
 /// <summary>
 /// ========================================================================
@@ -120,13 +133,47 @@ public static class LessonGate
         int taughtLessonCount,
         int startIndex = 0)
     {
+        var decision = Decide(index, facts, previous, taughtLessonCount, startIndex, previousFirm: false);
+        return (decision.Unlocked, decision.Reason);
+    }
+
+    /// <summary>
+    /// <see cref="Evaluate"/> ning to'liq shakli — «bitta dars oldinga»
+    /// (vaqtinchalik ochish) qoidasi bilan.
+    ///
+    /// ★ MUSTAQIL, VAQTINCHALIK OCHISH (loyiha egasi, 2026-11-25): kurator
+    ///   9:00–18:00 ishlaydi, kechqurun o'qiydigan o'quvchi bitta darsni
+    ///   tugatib ertalabgacha qulfga urilardi. Endi oldingi dars TO'LIQ
+    ///   bajarilgan VA uning testi 100% bo'lsa, keyingi dars kurator
+    ///   qarorisiz ochiladi. Kurator baribir har darsni tekshiradi.
+    ///
+    ///   Cheklovlar (sifat nazorati saqlanadi):
+    ///   • faqat BITTA dars «qarzga»: oldingi darsning o'zi qat'iy ochilgan
+    ///     bo'lishi shart (<paramref name="previousFirm"/>) — vaqtinchalik
+    ///     ochilgan darsdan keyingisi ochilmaydi;
+    ///   • test bo'lmagan yoki 100% bo'lmagan darsda — kurator kutiladi;
+    ///   • kurator «qayta ishlasin» desa vaqtinchalik ochish BEKOR bo'ladi
+    ///     (<see cref="LessonLockReason.NeedsWork"/>).
+    /// </summary>
+    /// <param name="previousFirm">
+    /// Oldingi dars VAQTINCHALIK EMAS, qat'iy ochiqmi. Bilinmasa <c>false</c>
+    /// — xavfsiz tomon (vaqtinchalik ochish berilmaydi).
+    /// </param>
+    public static GateDecision Decide(
+        int index,
+        LessonFacts facts,
+        LessonFacts? previous,
+        int taughtLessonCount,
+        int startIndex,
+        bool previousFirm)
+    {
         ArgumentNullException.ThrowIfNull(facts);
 
         // 1) Qo'lda ochilgan — boshqa hech qanday shart tekshirilmaydi.
         //    Boshlanish nuqtasidan OLDIN ham ustun turadi: o'quv bo'limi
         //    o'tib ketilgan qismni ataylab ocha oladi.
         if (facts.UnlockedOverride)
-            return (true, null);
+            return new GateDecision(true, null);
 
         // 1b) ★ O'QUVCHI TUGATGAN DARS UNGA OCHIQ QOLADI (audit, 2026-10-29).
         //     Mustaqil o'quvchi 15 ta darsni tugatib guruhga o'tsa, guruh
@@ -142,7 +189,7 @@ public static class LessonGate
             || (facts.RequiresMastery && facts.Mastery == MasteryStatus.Mastered);
 
         if (hasEvidence && IsComplete(facts))
-            return (true, null);
+            return new GateDecision(true, null);
 
         // 2) ★ GURUH BOSHLANISH NUQTASIDAN OLDINGI DARS.
         //
@@ -151,14 +198,14 @@ public static class LessonGate
         //    "oldingi darsni tugat" deyish ma'nosiz bo'lardi — u darsni
         //    hech qachon o'tmaydi.
         if (index < startIndex)
-            return (false, LessonLockReason.BeforeGroupStart);
+            return new GateDecision(false, LessonLockReason.BeforeGroupStart);
 
         // 3) GURUH uchun BIRINCHI dars doim ochiq: aks holda o'quvchi kursni
         //    umuman boshlay olmasdi (ustoz hali hech qanday dars o'tmagan
         //    bo'lishi mumkin). `startIndex = 0` da bu AYNAN eski shart
         //    (`index <= 0`).
         if (index <= startIndex || previous is null)
-            return (true, null);
+            return new GateDecision(true, null);
 
         // 4) USTOZ SUR'ATI — NISBIY. `taughtLessonCount` guruhda YAKUNLANGAN
         //    ustoz darslari soni: guruh N ta dars o'tgan bo'lsa u
@@ -171,26 +218,31 @@ public static class LessonGate
         //    20 ga yetmasdi (guruh 8 oyda ~70 dars o'tadi, lekin hisob
         //    guruh ochilgan kundan, ya'ni noldan boshlanadi).
         if (index - startIndex > taughtLessonCount)
-            return (false, LessonLockReason.TeacherPace);
+            return new GateDecision(false, LessonLockReason.TeacherPace);
 
         // 5) Oldingi dars tugatilgan bo'lishi shart. `previous` bu yerda
         //    DOIM `startIndex` yoki undan keyingi dars (3-qadam oldin
         //    qaytgani uchun), ya'ni zanjir boshlanish nuqtasidan orqaga
         //    hech qachon o'tmaydi.
         if (IsComplete(previous))
-            return (true, null);
+            return new GateDecision(true, null);
 
         // ★ MUSTAQIL: o'quvchi ishini bajargan, lekin kurator hali
         //   «o'zlashtirdi» demagan — sabab ALOHIDA, chunki o'quvchidan endi
         //   hech narsa talab qilinmaydi (yoki kurator izohini o'qishi kerak).
         if (previous.RequiresMastery && IsWorkDone(previous))
         {
-            return (false, previous.Mastery == MasteryStatus.NeedsWork
-                ? LessonLockReason.NeedsWork
-                : LessonLockReason.AwaitingReview);
+            if (previous.Mastery == MasteryStatus.NeedsWork)
+                return new GateDecision(false, LessonLockReason.NeedsWork);
+
+            // ★ «Bitta dars oldinga»: test 100%, oldingi dars qat'iy ochiq.
+            if (previous.Mastery is null && previous.HasTest && previous.TestPerfect && previousFirm)
+                return new GateDecision(true, null, Provisional: true);
+
+            return new GateDecision(false, LessonLockReason.AwaitingReview);
         }
 
-        return (false, LessonLockReason.PreviousIncomplete);
+        return new GateDecision(false, LessonLockReason.PreviousIncomplete);
     }
 
     /// <summary>
@@ -210,13 +262,15 @@ public static class LessonGate
 
         var result = new List<LessonGateDto>(orderedLessons.Count);
         LessonFacts? previous = null;
+        var previousFirm = false;
 
         for (var index = 0; index < orderedLessons.Count; index++)
         {
             var facts = orderedLessons[index];
-            var (unlocked, reason) = Evaluate(index, facts, previous, taughtLessonCount, startIndex);
+            var decision = Decide(index, facts, previous, taughtLessonCount, startIndex, previousFirm);
 
-            result.Add(Describe(index, facts, unlocked, reason));
+            result.Add(Describe(index, facts, decision.Unlocked, decision.Reason, decision.Provisional));
+            previousFirm = decision.Unlocked && !decision.Provisional;
 
             // `previous` SHARTSIZ yangilanadi — boshlanish nuqtasidan
             // oldingi darslar ham shu yerda o'tadi, lekin ular hech qachon
@@ -230,7 +284,7 @@ public static class LessonGate
 
     /// <summary>Faktlarni + qarorni tashqi shaklga (DTO) o'giradi.</summary>
     public static LessonGateDto Describe(
-        int index, LessonFacts facts, bool unlocked, LessonLockReason? reason)
+        int index, LessonFacts facts, bool unlocked, LessonLockReason? reason, bool provisional = false)
     {
         ArgumentNullException.ThrowIfNull(facts);
 
@@ -248,6 +302,7 @@ public static class LessonGate
             facts.TestTaken,
             facts.UnlockedOverride,
             facts.RequiresMastery,
-            facts.Mastery);
+            facts.Mastery,
+            provisional);
     }
 }

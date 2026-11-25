@@ -31,7 +31,7 @@ const LOCK_MESSAGES: Record<string, string> = {
   PreviousIncomplete: "Avvalgi darsni to'liq tugating (video, vazifa va test)",
   NotInCourse: "Guruhingiz kursning boshqa qismidan boshlagan",
   SubscriptionExpired: "Obunangiz muddati tugagan — davom ettirish uchun obunani uzaytiring",
-  AwaitingReview: "Oldingi darsingizni kurator tekshirmoqda — «o'zlashtirdi» desa bu dars ochiladi",
+  AwaitingReview: "Oldingi darsingizni kurator tekshirmoqda — «o'zlashtirdi» desa bu dars ochiladi. Maslahat: dars testini 100% yechsangiz, keyingi dars kuratorni kutmasdan ochiladi",
   NeedsWork: "Kurator oldingi darsni qayta ishlashni so'radi — izohini o'qib, darsni qayta bajaring",
 }
 

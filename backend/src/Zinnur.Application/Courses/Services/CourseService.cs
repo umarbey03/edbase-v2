@@ -805,7 +805,10 @@ public sealed class CourseService(
 
             // ★ MUSTAQIL (2026-11-18): kuratorning shu darsga qarori — o'quvchi
             //   «tekshirilmoqda / o'zlashtirildi / qayta ishlang» ni ko'rsin.
-            found ? gate!.Mastery : null);
+            found ? gate!.Mastery : null,
+
+            // ★ «Bitta dars oldinga» (2026-11-25): kurator qarorisiz vaqtincha ochiq.
+            unlocked && found && gate!.Provisional);
     }
 
     // ================================================================= ichki yordamchi
