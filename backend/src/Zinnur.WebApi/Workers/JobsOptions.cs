@@ -86,6 +86,14 @@ internal sealed class JobsOptions
     /// <summary>Ertalabki oynani tekshirish oralig'i (daqiqa).</summary>
     public int TeacherMorningCheckinIntervalMinutes { get; private init; } = 15;
 
+    // ---------------------------------------------------------------- mustaqil eslatmalar
+    //
+    // "Enabled" bayrog'i YO'Q — `ChatRetentionJob` bilan AYNI sabab: yoqish
+    // qarori paneldagi `selfstudy.nudges_enabled`. Bu yerda faqat oraliq.
+
+    /// <summary>Kechki oynani tekshirish oralig'i (daqiqa).</summary>
+    public int SelfStudyNudgeIntervalMinutes { get; private init; } = 15;
+
     // ---------------------------------------------------------------- chat tarixi
     //
     // 🔴 BU YERDA "Enabled" BAYROG'I YO'Q — VA BU ATAYLAB. Tozalash
@@ -134,6 +142,9 @@ internal sealed class JobsOptions
 
     public TeacherMorningCheckinSettings TeacherMorningCheckin =>
         new(Interval: TimeSpan.FromMinutes(TeacherMorningCheckinIntervalMinutes));
+
+    public SelfStudyNudgeSettings SelfStudyNudge =>
+        new(Interval: TimeSpan.FromMinutes(SelfStudyNudgeIntervalMinutes));
 
     /// <summary>Jarima skaneri oralig'i (daqiqa).</summary>
     public int PenaltyScanIntervalMinutes { get; private init; } = 30;
@@ -217,6 +228,10 @@ internal sealed class JobsOptions
             TeacherMorningCheckinIntervalMinutes = Number(
                 configuration, $"{SectionName}:TeacherMorningCheckin:IntervalMinutes",
                 defaults.TeacherMorningCheckinIntervalMinutes, 1, 60),
+
+            SelfStudyNudgeIntervalMinutes = Number(
+                configuration, $"{SectionName}:SelfStudyNudge:IntervalMinutes",
+                defaults.SelfStudyNudgeIntervalMinutes, 1, 60),
 
             // ★ PASTKI CHEGARA 5 DAQIQA: tozalash — kunlik hodisa. Har
             // daqiqada yurish hech nima yutmasdi, lekin har yurish

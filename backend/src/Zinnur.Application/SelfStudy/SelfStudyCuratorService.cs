@@ -41,7 +41,10 @@ public interface ISelfStudyCuratorService
     Task EndForGroupTransferAsync(long studentId, long actorId, CancellationToken ct = default);
 }
 
-public sealed class SelfStudyCuratorService(IApplicationDbContext db, TimeProvider clock)
+public sealed class SelfStudyCuratorService(
+    IApplicationDbContext db,
+    Nudges.ISelfStudyNudgeService nudges,
+    TimeProvider clock)
     : ISelfStudyCuratorService
 {
     /// <summary>Kurator bo'la oladigan rollar: kurator (Assistant) va ustoz.</summary>
@@ -217,13 +220,25 @@ public sealed class SelfStudyCuratorService(IApplicationDbContext db, TimeProvid
             })
             .ToListAsync(ct);
 
-        // Avval asosiy o'quvchilar, keyin zaxiradagilar; ichida — ko'p ish kutayotgani yuqorida.
+        var engagement = await nudges.GetEngagementAsync(rows.ConvertAll(r => r.StudentId), ct);
+
+        // Avval asosiy o'quvchilar, keyin zaxiradagilar. Ichida: «qiyin bo'lyapti»
+        // degani eng yuqorida (2026-11-25 — shoshilinch), keyin ko'p ish
+        // kutayotgani, keyin eng uzoq faolsiz qolgani.
         return rows
-            .OrderBy(r => r.IsBackup)
-            .ThenByDescending(r => r.Pending)
-            .ThenBy(r => r.FullName, StringComparer.Ordinal)
-            .Select(r => new MySelfStudyStudentDto(
-                r.StudentId, r.FullName, r.IsBackup, r.AssignedAt, r.EndsAt, r.Active, r.Pending))
+            .Select(r => (Row: r, Info: engagement.TryGetValue(r.StudentId, out var e) ? e : null))
+            .OrderBy(x => x.Row.IsBackup)
+            .ThenByDescending(x => x.Info?.LastResponse == nameof(NudgeResponse.Hard))
+            .ThenByDescending(x => x.Row.Pending)
+            .ThenByDescending(x => x.Info?.IdleDays ?? int.MaxValue) // hech boshlamagan — eng xavfli
+            .ThenBy(x => x.Row.FullName, StringComparer.Ordinal)
+            .Select(x => new MySelfStudyStudentDto(
+                x.Row.StudentId, x.Row.FullName, x.Row.IsBackup, x.Row.AssignedAt, x.Row.EndsAt, x.Row.Active,
+                x.Row.Pending,
+                x.Info?.LastActivityAt,
+                x.Info?.IdleDays,
+                x.Info?.LastResponse,
+                x.Info?.NudgesOff ?? false))
             .ToList();
     }
 

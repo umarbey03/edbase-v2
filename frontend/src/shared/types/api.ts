@@ -3104,7 +3104,14 @@ export interface LessonAssetUploadFields {
    bo'yicha aralashtirilgan qatorlar merge paytida to'qnashuv beradi.  */
 
 /** `NotificationKind` enum — hodisa turi (ikonka va o'tish yo'li shundan). */
-export type NotificationKindName = 'SubmissionGraded' | 'LessonMasteryDecided' | 'SubmissionReceived'
+export type NotificationKindName =
+  | 'SubmissionGraded'
+  | 'LessonMasteryDecided'
+  | 'SubmissionReceived'
+  // Mustaqil faolsizlik eslatmalari (2026-11-25): o'quvchiga (Telegram bog'lanmagan
+  // bo'lsa) va kuratorga («o'quvchi darsga kirmayapti» / «qiyin bo'lyapti»).
+  | 'StudyReminder'
+  | 'CuratorStudentIdle'
 
 /**
  * Qo'ng'iroqchadagi bitta qator.

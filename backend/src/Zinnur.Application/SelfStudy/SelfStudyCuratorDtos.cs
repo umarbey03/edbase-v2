@@ -36,7 +36,11 @@ public sealed record MySelfStudyStudentDto(
     DateTimeOffset AssignedAt,
     DateTimeOffset? SubscriptionEndsAt,
     bool SubscriptionActive,
-    int PendingSubmissions);
+    int PendingSubmissions,
+    DateTimeOffset? LastActivityAt = null,
+    int? IdleDays = null,
+    string? LastNudgeResponse = null,
+    bool NudgesOff = false);
 
 /// <summary>Faol obunasi bor, lekin kurator biriktirilmagan o'quvchi.</summary>
 public sealed record UnassignedSelfStudyStudentDto(

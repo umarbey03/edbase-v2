@@ -90,6 +90,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<CommunityReadState> CommunityReadStates => Set<CommunityReadState>();
     public DbSet<LessonMastery> LessonMasteries => Set<LessonMastery>();
     public DbSet<LessonMasteryEvent> LessonMasteryEvents => Set<LessonMasteryEvent>();
+    public DbSet<SelfStudyNudge> SelfStudyNudges => Set<SelfStudyNudge>();
+    public DbSet<SelfStudyNudgePreference> SelfStudyNudgePreferences => Set<SelfStudyNudgePreference>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<StudentPoint> StudentPoints => Set<StudentPoint>();
 

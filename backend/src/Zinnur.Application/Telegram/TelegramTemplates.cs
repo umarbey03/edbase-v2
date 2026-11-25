@@ -139,6 +139,31 @@ public static class TelegramTemplates
 
     /* ===== /R35/R36 ===== */
 
+    /* ===== 2026-11-25 · MUSTAQIL: FAOLSIZLIK ESLATMALARI ===== */
+
+    /// <summary>O'quvchiga faolsizlik eslatmasi (tugmalar bilan: ilova, javoblar, o'chirish).</summary>
+    public const string SelfStudyNudge = "selfstudy_nudge";
+
+    /// <summary>Kuratorga: o'quvchi faolsiz yoki «qiyin bo'lyapti» dedi.</summary>
+    public const string SelfStudyNudgeCurator = "selfstudy_nudge_curator";
+
+    /// <summary>O'quvchining tugma javobiga qisqa javob (tugmasiz).</summary>
+    public const string SelfStudyNudgeReply = "selfstudy_nudge_reply";
+
+    /// <summary>«Eslatmalar o'chirildi» — qayta yoqish tugmasi bilan.</summary>
+    public const string SelfStudyNudgeOptedOut = "selfstudy_nudge_opted_out";
+
+    /// <summary>
+    /// Dinamik tugmalar ichidagi «Ilovani ochish» belgisi: yuboruvchi uni
+    /// <c>callback_data</c> o'rniga Mini App'ning <c>web_app</c> tugmasiga
+    /// aylantiradi (manzil sozlanmagan bo'lsa — tugma tashlab ketiladi).
+    /// </summary>
+    public const string OpenAppButtonData = "app:open";
+
+    /* ===== /2026-11-25 ===== */
+
+
+
     /* ===== 2026-08-17 · USTOZ KUNLIK TASDIQLASH + O'RINBOSAR ===== */
 
     /// <summary>Ertalabki savol: bugungi darslarga o'ta olasizmi (✅/❌ tugma).</summary>
@@ -333,6 +358,12 @@ public static class TelegramTemplates
         AbsenceNotice => TelegramMarkup.InlineButtons,
 
         AbsenceReplySaved or AbsenceReplyPrompt => TelegramMarkup.None,
+
+        // Faolsizlik eslatmasi (2026-11-25): «Ilovani ochish» + javob tugmalari
+        // bitta dinamik klaviaturada (`OpenAppButtonData`).
+        SelfStudyNudge or SelfStudyNudgeOptedOut => TelegramMarkup.InlineButtons,
+        SelfStudyNudgeCurator => TelegramMarkup.OpenApp,
+        SelfStudyNudgeReply => TelegramMarkup.None,
 
         _ => TelegramMarkup.None,
     };

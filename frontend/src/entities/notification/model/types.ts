@@ -51,6 +51,8 @@ const KIND_ICON: Record<NotificationKindName, IconName> = {
   SubmissionGraded: 'check-square',
   LessonMasteryDecided: 'award',
   SubmissionReceived: 'clipboard',
+  StudyReminder: 'clock',
+  CuratorStudentIdle: 'alert',
 }
 
 export function notificationIcon(kind: NotificationKindName): IconName {
@@ -75,10 +77,14 @@ export function notificationRouteName(kind: NotificationKindName): string {
       return 'student-assignments'
     // Kurator qarori — o'quv yo'li: yangi ochilgan dars (yoki qayta ishlanadigani) shu yerda.
     case 'LessonMasteryDecided':
+    case 'StudyReminder':
       return 'student-learn'
     // Kuratorga: o'quvchi vazifa topshirdi — ish stolida tekshiradi (2026-11-20).
     case 'SubmissionReceived':
       return 'teacher-workspace'
+    // Kuratorga: o'quvchilar ro'yxati — faolsizlar va «qiyin» deganlar tepada.
+    case 'CuratorStudentIdle':
+      return 'teacher-self-study'
     default:
       return 'student-home'
   }

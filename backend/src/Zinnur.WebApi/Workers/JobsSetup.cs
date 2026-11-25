@@ -1,3 +1,4 @@
+using Zinnur.Application.SelfStudy.Nudges;
 using Zinnur.Application.Common.Interfaces;
 using Zinnur.Application.Jobs;
 using Zinnur.Application.LiveSessions.Services;
@@ -124,6 +125,12 @@ internal static class JobsSetup
         services.AddScoped<IScheduledJob>(sp => new SelfStudyAutoAssignJob(
             sp.GetRequiredService<Zinnur.Application.SelfStudy.Pool.ICuratorPoolService>(),
             TimeSpan.FromMinutes(1)));
+
+        // ★ MUSTAQIL ESLATMALAR (2026-11-25) — SHARTSIZ, ball daftari bilan
+        //   AYNI sabab: yoqish qarori paneldagi `selfstudy.nudges_enabled`.
+        services.AddScoped<IScheduledJob>(sp => new SelfStudyNudgeJob(
+            sp.GetRequiredService<ISelfStudyNudgeService>(),
+            options.SelfStudyNudge));
 
         // ================================================================
         // 🔴 CHAT TARIXINI TOZALASH — SHARTSIZ RO'YXATDAN O'TADI.

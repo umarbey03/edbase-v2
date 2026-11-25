@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Zinnur.Application.SelfStudy;
+using Zinnur.Application.SelfStudy.Nudges;
 
 namespace Zinnur.WebApi.Controllers;
 
@@ -15,7 +16,8 @@ namespace Zinnur.WebApi.Controllers;
 [Route("api/v1/self-study/curators")]
 public sealed class SelfStudyCuratorsController(
     ISelfStudyCuratorService curators,
-    ILessonMasteryService mastery) : ControllerBase
+    ILessonMasteryService mastery,
+    ISelfStudyNudgeService nudges) : ControllerBase
 {
     private const string ManageRoles = "Academic,Admin";
     private const string StaffRoles = "Teacher,Assistant,Academic,Admin";
@@ -67,6 +69,16 @@ public sealed class SelfStudyCuratorsController(
         Ok(await curators.ListMyStudentsAsync(CurrentUserId, ct));
 
     /// <summary>O'quvchi: mening kuratorim (yo'q bo'lsa 204).</summary>
+    /// <summary>
+    /// Faolsizlik eslatmalari hisoboti (2026-11-25): har bosqich va matn
+    /// varianti bo'yicha nechta yuborildi va nechtasi 48 soat ichida qaytdi.
+    /// </summary>
+    [HttpGet("~/api/v1/self-study/nudges/stats")]
+    [Authorize(Roles = ManageRoles)]
+    [ProducesResponseType<NudgeStatsDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<NudgeStatsDto>> NudgeStats([FromQuery] int days = 30, CancellationToken ct = default) =>
+        Ok(await nudges.GetStatsAsync(days, CurrentUserId, ct));
+
     [HttpGet("mine")]
     [Authorize(Roles = "Student")]
     [ProducesResponseType<MyCuratorDto>(StatusCodes.Status200OK)]
